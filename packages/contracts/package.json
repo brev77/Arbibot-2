@@ -1,0 +1,17 @@
+{
+  "name": "@arbibot/contracts",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Shared REST/event contract symbols (Phase 0 — expand with OpenAPI later)",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node -e \"process.exit(0)\""
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "devDependencies": {
+    "@arbibot/tsconfig": "*",
+    "typescript": "~5.9.3"
+  }
+}

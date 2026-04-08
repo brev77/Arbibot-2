@@ -1,0 +1,50 @@
+﻿# Dependencies and build artifacts
+node_modules/
+.pnp/
+.pnp.js
+.yarn/cache
+.yarn/install-state.gz
+dist/
+build/
+out/
+.next/
+.nuxt/
+.turbo/
+.cache/
+.parcel-cache/
+*.tsbuildinfo
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Coverage
+coverage/
+*.lcov
+.nyc_output/
+
+# Secrets and local env
+.env
+.env.*
+!.env.example
+
+# Logs and temp
+*.log
+logs/
+tmp/
+temp/
+
+# Large binaries (keep .md spec exports indexed)
+*.docx
+*.pdf
+*.zip
+*.7z
+*.rar
+
+# Git
+.git/

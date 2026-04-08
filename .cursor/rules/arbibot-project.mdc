@@ -1,0 +1,41 @@
+---
+description: Arbibot 2 — фаза 0, стек, архитектура, домен исполнения, фронтенд и правила кода
+alwaysApply: true
+---
+
+Core rules:
+- Current delivery priority: Phase 0 foundation only.
+- Do not introduce Phase 2+ scope unless explicitly requested.
+- Respect architecture principles: single-writer, reservation-first, versioned state transitions, idempotent commit, outbox/inbox, reconciliation loop.
+- Destructive operator actions must require impact preview + approval flow.
+
+Stack:
+- Backend: TypeScript on Node 24 LTS, NestJS with Fastify.
+- Frontend: Next.js App Router, React, TypeScript, shadcn/ui, TanStack Table, React Query, Zustand, ECharts/Recharts.
+- Analytics/jobs: Python only for simulation, recalibration, analytics.
+- Data: PostgreSQL, Redis, Kafka/Redpanda, ClickHouse, S3-compatible storage.
+- Contracts: REST + OpenAPI, async events + AsyncAPI/JSON Schema.
+
+Coding rules:
+- TypeScript strict mode, no any.
+- Explicit DTOs, schemas, and domain types.
+- No hidden shared state across services.
+- Service boundaries must follow architecture docs.
+- Keep shared packages minimal; prefer service ownership over premature abstraction.
+- API names should follow operator/internal conventions from docs.
+- Event names must be explicit, e.g. SnapshotUpdated, OpportunityDetected, RiskDecisionIssued, PlanCompleted, PositionClosed.
+- Event envelope fields: messageId, correlationId, causationId, entityType, entityId, version, sourceModule, eventTs.
+
+Execution domain:
+- ExecutionPlan states: planned -> reserved -> armed -> executing -> completed/hedged/unwound/failed/canceled
+- Never bypass reservation-first flow.
+- Never commit fills without idempotency and version checks.
+
+Frontend rules:
+- Build routes only from spec: /dashboard, /portfolio, /opportunities, /execution, /tokens, /paper, /incidents, /runbooks, /openclaw, /settings
+- Use TanStack Table for tables and React Query for server state.
+- Operator actions require preview/approval UX.
+
+Before generating code:
+- Ask or infer: which service, which phase, which contract, which state machine.
+- If request conflicts with architecture, say so directly and propose a compliant alternative.

@@ -1,0 +1,2 @@
+# Project rules live in `.cursor/rules/` (see `arbibot-project.mdc`).
+# Cursor loads `.mdc` rules from that folder; keep a single source of truth there.
