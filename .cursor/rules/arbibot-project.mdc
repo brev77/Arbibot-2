@@ -3,39 +3,149 @@ description: Arbibot 2 — фаза 0, стек, архитектура, дом�
 alwaysApply: true
 ---
 
-Core rules:
-- Current delivery priority: Phase 0 foundation only.
-- Do not introduce Phase 2+ scope unless explicitly requested.
-- Respect architecture principles: single-writer, reservation-first, versioned state transitions, idempotent commit, outbox/inbox, reconciliation loop.
-- Destructive operator actions must require impact preview + approval flow.
+You are working in the Arbibot 2 monorepo.
 
-Stack:
-- Backend: TypeScript on Node 24 LTS, NestJS with Fastify.
-- Frontend: Next.js App Router, React, TypeScript, shadcn/ui, TanStack Table, React Query, Zustand, ECharts/Recharts.
-- Analytics/jobs: Python only for simulation, recalibration, analytics.
-- Data: PostgreSQL, Redis, Kafka/Redpanda, ClickHouse, S3-compatible storage.
-- Contracts: REST + OpenAPI, async events + AsyncAPI/JSON Schema.
+Context:
+- Arbibot 2 is a high-throughput crypto arbitrage system with:
+  - Market Intake → Canonical Market → Opportunity → Risk → Capital → Execution Orchestrator → Portfolio → Reconciliation → Control Plane.
+  - Operator dashboard (Next.js) for /dashboard, /portfolio, /opportunities, /execution, /tokens, /paper, /incidents, /runbooks, /openclaw, /settings.
+- Current focus: Phase 0 foundation only.
+  - Canonical Market Model
+  - Market Intake Service
+  - Opportunity Service
+  - Risk Service
+  - Capital Service
+  - Execution Orchestrator skeleton
+  - Outbox/inbox messaging
+  - Observability baseline
+  - Frontend dashboard
+- Later phases (do NOT implement unless explicitly requested):
+  - Phase 1: controlled execution (venue adapters, commit/release, reconciliation, incident views, runbooks UI, alerting/tracing).
+  - Phase 2: paper trading engine and token lifecycle console.
+  - Phase 3: wide-universe scaling, replay, advanced analytics.
+  - Phase 4/5: OpenClaw-assisted operations and full automation.
+
+Architecture principles (must always respect):
+- Single-writer principle for core entities (ArbitrageOpportunity, RiskDecision, ExecutionPlan, CapitalReservation, PortfolioPosition, PaperTrade).
+- Reservation-first protocol: risk and capital are reserved before any execution.
+- Versioned state transitions with optimistic concurrency (compare-and-set).
+- Idempotent commit for fill events and operator actions.
+- Outbox/inbox pattern for event delivery.
+- Reconciliation loop between on-chain/venue state and system state.
+- Bulkhead: execution, analytics, and paper trading must be isolated.
+
+Tech stack (do not deviate):
+- Runtime: Node 24 LTS-class for orchestration and APIs; Python for analytics, simulations, recalibration jobs.
+- Backend:
+  - TypeScript only.
+  - NestJS with Fastify as HTTP server.
+  - Temporal or BullMQ for workers (background jobs).
+- Data layer:
+  - PostgreSQL as primary OLTP store.
+  - Redis for cache and ephemeral coordination.
+  - Kafka or Redpanda for event streaming.
+  - ClickHouse for analytics.
+  - S3-compatible storage for replay/snapshots.
+- Frontend:
+  - Next.js (App Router) with React + TypeScript.
+  - shadcn/ui as component system.
+  - TanStack Table for all tables.
+  - ECharts or Recharts for charts.
+  - React Query (TanStack Query) for server state.
+  - Zustand for client state.
+  - RBAC-aware session model.
+- Observability:
+  - Prometheus, Grafana, Loki, OpenTelemetry (Tempo/Jaeger).
+
+Messaging and contracts:
+- Synchronous APIs: REST with OpenAPI contracts.
+- Async events: Kafka/Redpanda topics with JSON Schema + AsyncAPI.
+- Event names: SnapshotUpdated, OpportunityDetected, RiskDecisionIssued, CapitalReserved, PlanArmed, LegFilled, ReconciliationMismatchDetected, PlanCompleted, PositionClosed.
+- Event envelope fields:
+  - messageId
+  - correlationId
+  - causationId
+  - entityType
+  - entityId
+  - version
+  - sourceModule
+  - eventTs
+
+Execution domain constraints:
+- ExecutionPlan state machine:
+  - planned → reserved → armed → executing → completed / hedged / unwound / failed / canceled.
+- ExecutionLeg states:
+  - created → sent → acknowledged → partiallyFilled / filled / rejected / canceled / timedOut / failed.
+- Never bypass reservation-first:
+  - EvaluateOpportunity → EvaluateRisk → ReserveCapital/ReserveRiskWindow → ArmPlan → ExecutePlan.
+- Force hedge / Force unwind must:
+  - Go through impact preview.
+  - Require explicit operator approval.
+  - Produce a full audit trail.
+
+Frontend constraints:
+- Routes:
+  - /dashboard
+  - /portfolio
+  - /opportunities
+  - /execution
+  - /tokens
+  - /paper
+  - /incidents
+  - /runbooks
+  - /openclaw
+  - /settings
+- Use:
+  - shadcn/ui components.
+  - TanStack Table for tables.
+  - React Query for server data.
+  - Zustand for local client state.
+- Operator actions:
+  - Any destructive action (force hedge, force unwind, token suspend/block, runbook start, promotions) must have:
+    - Impact preview (what will change, which plans/positions/tokens).
+    - Two-step approval flow with audit log entry.
 
 Coding rules:
-- TypeScript strict mode, no any.
-- Explicit DTOs, schemas, and domain types.
-- No hidden shared state across services.
-- Service boundaries must follow architecture docs.
-- Keep shared packages minimal; prefer service ownership over premature abstraction.
-- API names should follow operator/internal conventions from docs.
-- Event names must be explicit, e.g. SnapshotUpdated, OpportunityDetected, RiskDecisionIssued, PlanCompleted, PositionClosed.
-- Event envelope fields: messageId, correlationId, causationId, entityType, entityId, version, sourceModule, eventTs.
+- TypeScript:
+  - Strict mode always enabled.
+  - No any. Use proper types or generics.
+  - Use DTOs and domain models explicitly.
+  - No hidden cross-service shared state; respect service boundaries.
+- NestJS:
+  - Modular structure with DI.
+  - Controllers for HTTP, services for domain logic, repositories for persistence.
+  - Do not mix controller DTOs and domain entities.
+- Next.js:
+  - Use App Router.
+  - Prefer Server Components where possible.
+  - Keep client components focused on interaction/visuals.
+- Events:
+  - Always include envelope fields and a properly versioned payload.
+  - Implement idempotency for handling fill events and external callbacks.
 
-Execution domain:
-- ExecutionPlan states: planned -> reserved -> armed -> executing -> completed/hedged/unwound/failed/canceled
-- Never bypass reservation-first flow.
-- Never commit fills without idempotency and version checks.
+How to interpret user requests:
+- Always identify:
+  - Which service (e.g., opportunity-service, risk-service, capital-service, execution-orchestrator, operator-web).
+  - Which phase (Phase 0, Phase 1, Phase 2, etc.).
+  - Which pattern applies (single-writer, reservation-first, outbox/inbox, idempotent commit, reconciliation loop).
+  - Which contracts are in scope (OpenAPI endpoints, AsyncAPI events, DB schema).
+- If the request conflicts with:
+  - Single-writer principle.
+  - Reservation-first protocol.
+  - Phase 0 scope.
+  → Clearly state the conflict and propose a corrected, compliant design.
 
-Frontend rules:
-- Build routes only from spec: /dashboard, /portfolio, /opportunities, /execution, /tokens, /paper, /incidents, /runbooks, /openclaw, /settings
-- Use TanStack Table for tables and React Query for server state.
-- Operator actions require preview/approval UX.
 
 Before generating code:
-- Ask or infer: which service, which phase, which contract, which state machine.
-- If request conflicts with architecture, say so directly and propose a compliant alternative.
+- Ask yourself:
+  - Which bounded context?
+  - What entity is the single writer?
+  - Which state machine(s) are affected?
+  - Which contracts (HTTP, events, DB) have to be updated?
+- If context is missing or ambiguous:
+  - Ask for clarification and enumerate what is needed (service, phase, contract).
+
+Output expectations:
+- Provide production-grade code, configs or schemas within the Arbibot 2 stack.
+- Prefer small, composable modules over monoliths.
+- Do not generate placeholder implementations for critical logic; stub with clear TODOs and types.
