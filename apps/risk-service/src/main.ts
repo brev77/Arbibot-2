@@ -7,6 +7,8 @@ import {
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 
+import { correlationIdPreHandler } from '@arbibot/nest-platform';
+
 import { AppModule } from './app.module';
 
 async function bootstrap(): Promise<void> {
@@ -14,6 +16,8 @@ async function bootstrap(): Promise<void> {
     AppModule,
     new FastifyAdapter(),
   );
+  const fastify = app.getHttpAdapter().getInstance();
+  fastify.addHook('preHandler', correlationIdPreHandler);
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

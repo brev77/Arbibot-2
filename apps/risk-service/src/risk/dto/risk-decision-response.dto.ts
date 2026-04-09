@@ -1,4 +1,7 @@
-import type { RiskDecisionOutcome } from '../domain/risk-decision';
+import type {
+  RiskDecisionOutcome,
+  RiskMode,
+} from '../domain/risk-decision';
 
 export class RiskDecisionResponseDto {
   id!: string;
@@ -11,7 +14,11 @@ export class RiskDecisionResponseDto {
 
   reasons!: string[];
 
+  notionalUsd!: number;
+
   snapshotVersion!: number;
+
+  riskMode!: RiskMode;
 
   createdAtIso!: string;
 

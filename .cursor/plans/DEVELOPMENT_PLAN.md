@@ -166,7 +166,7 @@ flowchart LR
   - Документ ADR или `docs/services.md` согласован с архитектурой; перечислены сервисы первой волны и границы интеграций.
 - **changed_areas:** `docs/`
 - **review_required:** `architecture`
-- **status:** `planned`
+- **status:** `implemented`
 
 #### `P0-0.1-AGG` — Агрегаты: владелец, хранилище, concurrency
 
@@ -178,7 +178,7 @@ flowchart LR
   - Таблица или раздел в спеке: агрегат → owner service → store → правила версионирования/конкуренции.
 - **changed_areas:** `docs/`, при необходимости архитектурный `.md`
 - **review_required:** `architecture`
-- **status:** `planned`
+- **status:** `implemented`
 
 #### `P0-0.1-SQL` — Черновик SQL schema §20
 
@@ -190,7 +190,7 @@ flowchart LR
   - Описаны сущности/таблицы: `risk_decisions`, `arbitrage_opportunities`, `capital_reservations`, `execution_plans`, `execution_legs`, `outbox_events`, `inbox_events`, `audit_log` (имена, ключи, связи на уровне черновика).
 - **changed_areas:** `docs/`, возможно `infra/` миграции позже
 - **review_required:** `architecture`
-- **status:** `planned`
+- **status:** `implemented`
 
 #### `P0-0.1-OAPI` — Черновик OpenAPI §22
 
@@ -202,7 +202,7 @@ flowchart LR
   - Файл или пакет спецификации с операциями и моделями DTO на уровне черновика, согласованный с §22.
 - **changed_areas:** `docs/`, `packages/contracts` или отдельный openapi каталог
 - **review_required:** `architecture`
-- **status:** `planned`
+- **status:** `implemented`
 
 #### `P0-0.1-ASYNC` — Черновик AsyncAPI / JSON Schema §21
 
@@ -214,7 +214,7 @@ flowchart LR
   - Черновик AsyncAPI и/или JSON Schema для envelope и перечисленных событий; поля `messageId`, `correlationId`, и т.д. по архитектуре.
 - **changed_areas:** `docs/`, `packages/contracts`
 - **review_required:** `architecture`
-- **status:** `planned`
+- **status:** `implemented`
 
 #### `P0-0.1-APPR` — Модель approval destructive actions
 
@@ -226,7 +226,7 @@ flowchart LR
   - Документ с потоком approval; ссылка на UX-спеку; согласование с `!Arbibot_2_Frontend_Spec_settings.md`.
 - **changed_areas:** `docs/`
 - **review_required:** `architecture`
-- **status:** `planned`
+- **status:** `implemented`
 
 ### 0.2 State machines и политики
 
@@ -237,10 +237,11 @@ flowchart LR
 - **service:** `docs`
 - **goal:** Формализовать переходы: ArbitrageOpportunity, RiskDecision, ExecutionPlan/Leg, CapitalReservation, PortfolioPosition (§19, §14).
 - **acceptance_criteria:**
-  - Диаграммы или таблицы переходов; согласованность с архитектурой; готовность к переносу в код/тесты.
+  - Диаграммы или таблицы переходов для Opportunity, RiskDecision, ExecutionPlan/Leg, CapitalReservation; согласованность с архитектурой; готовность к переносу в код/тесты.
+  - Для `PortfolioPosition` в Phase 0 допускается зафиксированный placeholder/outline с явной пометкой, что полноценная state machine переносится в Phase 2 вместе с portfolio/reconciliation.
 - **changed_areas:** `docs/`
 - **review_required:** `architecture`
-- **status:** `planned`
+- **status:** `implemented`
 
 #### `P0-0.2-RESV` — Reservation-first в контрактах
 
@@ -252,7 +253,7 @@ flowchart LR
   - Явные правила в OpenAPI/событиях/доках; диаграммы показывают обязательный reservation до arm/execute.
 - **changed_areas:** `docs/`
 - **review_required:** `architecture`
-- **status:** `planned`
+- **status:** `implemented`
 
 #### `P0-0.2-PLAY` — Схема playbooks ExecutionPlan
 
@@ -264,7 +265,7 @@ flowchart LR
   - Черновик схемы конфигурации playbook; связь с state machine плана.
 - **changed_areas:** `docs/`
 - **review_required:** `architecture`
-- **status:** `planned`
+- **status:** `implemented`
 
 ### 0.3 Безопасность и OpenClaw (baseline)
 
@@ -304,7 +305,7 @@ flowchart LR
   - Workflow запускается на PR; падает при ошибках lint/test/build для затронутых пакетов.
 - **changed_areas:** `.github/workflows/`
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `in_progress`
 
 #### `P0-0.4-DOCK` — Docker / compose для dev
 
@@ -316,7 +317,7 @@ flowchart LR
   - Документированный способ поднять зависимости локально (compose или аналог).
 - **changed_areas:** `infra/`
 - **review_required:** `architecture`
-- **status:** `planned`
+- **status:** `implemented`
 
 #### `P0-0.4-VER` — Политика версионирования API
 
@@ -328,7 +329,7 @@ flowchart LR
   - Описаны правила инкремента версии схемы событий/API и совместимости.
 - **changed_areas:** `docs/`
 - **review_required:** `architecture`
-- **status:** `planned`
+- **status:** `implemented`
 
 **Definition of Done (§50.2):** у каждого доменного агрегата — owner, lifecycle, persistence contract; у критичных событий — payload draft; у destructive actions — approval flow описан и согласован.
 
@@ -350,7 +351,7 @@ flowchart LR
   - Применяемые миграции; соответствие черновику §20; smoke-подключение из сервисов dev.
 - **changed_areas:** `infra/`, сервисы с DB
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `implemented`
 
 #### `P1-1.1-REDIS` — Redis кэш/координация
 
@@ -362,7 +363,7 @@ flowchart LR
   - Подключение из dev/stage; политика использования задокументирована.
 - **changed_areas:** `infra/`, backend-сервисы
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `approved`
 
 #### `P1-1.1-OIB` — Outbox / Inbox
 
@@ -372,9 +373,11 @@ flowchart LR
 - **goal:** Реализация outbox/inbox (§6.1, §20) без дублирования доменного эффекта при retry.
 - **acceptance_criteria:**
   - Паттерн outbox/inbox в коде; идемпотентная обработка входящих; тесты на повтор доставки.
+  - Текущий checkpoint в репо: transactional outbox для `RiskDecisionIssued`; inbox helper `tryClaimInboxMessage` приведён к реальной форме `QueryFailedError`/PG unique violation и покрыт unit-тестами в `packages/messaging`.
+  - Осталось: relay/dispatcher для `outbox_events` и реальное consumer-side использование inbox в сервисах-владельцах агрегатов.
 - **changed_areas:** общие библиотеки, сервисы-владельцы агрегатов
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `in_progress`
 
 #### `P1-1.1-OBS` — Observability baseline
 
@@ -386,7 +389,7 @@ flowchart LR
   - Единый формат логов; метрики базового набора; `correlation_id` проходит через sync вызовы.
 - **changed_areas:** все новые сервисы Phase 1
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `in_progress`
 
 ### 1.2 Сервисы (минимальный вертикальный срез)
 
@@ -422,9 +425,10 @@ flowchart LR
 - **goal:** Lifecycle detected → enriched → risk_checked (§19.1).
 - **acceptance_criteria:**
   - Состояния возможности согласованы со спекой; интеграция с risk intake.
+  - Текущий checkpoint в репо: persistence + create/list/get API и состояние `detected`; перевод обратно в `implemented` только после появления переходов `enriched` / `risk_checked` и интеграции с risk.
 - **changed_areas:** новый сервис opportunity
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `in_progress`
 
 #### `P1-1.2-RISK` — Risk Service (расширение скелета)
 
@@ -434,8 +438,10 @@ flowchart LR
 - **goal:** Персистентность, `ReserveRiskWindow`/лимиты, режимы fast/conservative/… (§11), публикация RiskDecisionIssued.
 - **acceptance_criteria:**
   - Уже есть: скелет Nest+Fastify, `POST /evaluate-risk`, `GET /risk-decisions/:id`, DTO, домен, базовые тесты (`BS-RISK-SKELETON`).
-  - Осталось: персистентность решений, окна/лимиты, режимы риска, эмиссия RiskDecisionIssued в согласованном envelope.
-- **changed_areas:** `apps/risk-service/`, БД, контракты событий
+  - Реализованный checkpoint: персистентность решений, режимы риска/лимиты, transactional outbox и envelope для `RiskDecisionIssued`; `notionalUsd` доведён до persistence, read DTO и event payload/schema.
+  - Зафиксировано в репо (2026-04-09): опциональный `idempotencyKey` (UUID v4) на `POST /evaluate-risk`; колонки `idempotency_key`, `notional_usd` в `risk_decisions` и partial unique index (`infra/postgres/migrations/002_idempotency.sql`); повтор с тем же ключом и тем же payload → `200` + заголовок `X-Idempotent-Replayed`, без второй записи outbox; конфликт ключа и payload → `409`. Тесты в `risk.service.spec` / `risk.controller.spec`.
+  - Осталось: явный `ReserveRiskWindow`/окна как отдельное поведение.
+- **changed_areas:** `apps/risk-service/`, `infra/postgres/migrations/`, `packages/persistence/`, контракты событий
 - **review_required:** `backend`
 - **status:** `in_progress`
 
@@ -447,9 +453,12 @@ flowchart LR
 - **goal:** ReserveCapital, TTL резерва, привязка к `plan_id`.
 - **acceptance_criteria:**
   - API резерва; истечение TTL; связь с execution plan в модели данных.
-- **changed_areas:** новый сервис capital
+  - Зафиксировано в репо (2026-04-09): lazy lifecycle `active` → `expired` при `expires_at <= now` — `GET .../reservations/:id` в транзакции с `pessimistic_write` и сохранением; общий хелпер `materializeCapitalReservationExpiryIfNeeded` в `@arbibot/persistence`; юнит-тесты на хелпер в пакете persistence.
+  - Single-writer сохранён: `execution-orchestrator` не пишет в `capital_reservations`, а использует pre-linked reservation как вход оркестрации.
+  - Вне scope этого шага (при необходимости позже): фоновый cleanup, явный `POST release`, события по смене состояния резерва.
+- **changed_areas:** `apps/capital-service/`, `packages/persistence/`
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `implemented`
 
 #### `P1-1.2-EXO` — Execution Orchestrator (скелет)
 
@@ -459,9 +468,11 @@ flowchart LR
 - **goal:** Скелет плана: planned → reserved → armed; venue mock допустим в Phase 1.
 - **acceptance_criteria:**
   - State machine плана до `armed`; интеграция с capital reservation token; без реальных бирж опционально.
+  - Зафиксировано в репо (2026-04-09): `ExecutionPlan` проходит `planned -> reserved -> armed`, переходы требуют pre-linked active capital reservation token и approved `RiskDecision`; orchestrator не мутирует `CapitalReservation` напрямую; тесты на state transitions и conflict-cases добавлены.
+  - `ExecutionLeg` и полный execution lifecycle остаются вне scope этого шага и закрываются каноническим `P2-2.1-EPL`.
 - **changed_areas:** новый сервис orchestrator
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `implemented`
 
 #### `P1-1.2-AUD` — Audit trail
 
@@ -471,9 +482,12 @@ flowchart LR
 - **goal:** Запись решений и операторских действий.
 - **acceptance_criteria:**
   - Запись в `audit_log` или эквивалент; связь с correlation/idempotency.
-- **changed_areas:** общий audit модуль + потребители
+  - Текущий checkpoint в репо: append/list API и persistence для audit entries.
+  - Зафиксировано в репо (2026-04-09): опциональный `idempotencyKey` на `POST /audit/entries`; колонка `idempotency_key` + partial unique index в `002_idempotency.sql`; транзакция + `pessimistic_write`, повтор с тем же ключом и payload → `200` и `X-Idempotent-Replayed`, гонка по unique → догрузка строки; конфликт ключа и payload → `409`.
+  - Перевод обратно в `implemented` только после проводки системных/операторских событий в аудит (автоматическая запись из доменных сервисов).
+- **changed_areas:** `apps/audit-service/`, `infra/postgres/migrations/`, `packages/persistence/`, потребители (позже)
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `in_progress`
 
 ### 1.3 Фронтенд (базовый dashboard)
 
@@ -487,7 +501,7 @@ flowchart LR
   - `apps/web` собирается и запускается; TypeScript strict; базовая структура App Router.
 - **changed_areas:** `apps/web/`
 - **review_required:** `frontend`
-- **status:** `planned`
+- **status:** `implemented`
 
 #### `P1-1.3-LAYOUT` — Layout, навигация, тема
 
@@ -497,9 +511,10 @@ flowchart LR
 - **goal:** Top-nav, фильтры (§3), тёмная тема §7.
 - **acceptance_criteria:**
   - Общий layout соответствует спеке; тема переключается/применена по умолчанию согласно §7.
+  - Текущий checkpoint в репо: top-nav, role-aware navigation, global `loading.tsx`/`error.tsx` и dark-by-default styling; перевод обратно в `implemented` только после фильтров и явного theme toggle/подтверждённой theme policy.
 - **changed_areas:** `apps/web/`
 - **review_required:** `frontend`
-- **status:** `planned`
+- **status:** `in_progress`
 
 #### `P1-1.3-M1` — Dashboard M1
 
@@ -509,9 +524,10 @@ flowchart LR
 - **goal:** `/dashboard` — capital overview, portfolio snapshot, opportunities, execution highlights, incidents (§5.1); от заглушек к read API.
 - **acceptance_criteria:**
   - Страница `/dashboard` с секциями M1; контракт данных с backend задокументирован или типизирован.
+  - Текущий checkpoint в репо: read-side counts/placeholder sections для opportunities, execution, audit, incidents и capital/portfolio; перевод обратно в `implemented` только после более строгого data contract.
 - **changed_areas:** `apps/web/`, BFF/API клиенты
 - **review_required:** `frontend`
-- **status:** `planned`
+- **status:** `in_progress`
 
 #### `P1-1.3-STUBS` — Заглушки остальных роутов
 
@@ -523,7 +539,7 @@ flowchart LR
   - Каждый роут из спеки §4 открывается (placeholder UI); навигация из layout.
 - **changed_areas:** `apps/web/app/...`
 - **review_required:** `frontend`
-- **status:** `planned`
+- **status:** `implemented`
 
 **Definition of Done (§50.3):** snapshot → risk → reserve → arm в тесте; идемпотентность на дубликатах событий; базовые дашборды и audit timeline доступны оператору.
 
@@ -939,7 +955,7 @@ flowchart LR
   - Как у `P1-1.2-OPP`; интеграция с risk на пути к live.
 - **changed_areas:** как у канонического шага
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `in_progress`
 
 #### `PRIO-P0-RISK` — Risk and trust engine
 
@@ -963,7 +979,7 @@ flowchart LR
   - Как у `P1-1.2-CAP`; без резерва нет arm/execute в live.
 - **changed_areas:** как у канонического шага
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `implemented`
 
 #### `PRIO-P0-EPL` — ExecutionPlan / ExecutionLeg state machine
 
@@ -975,7 +991,7 @@ flowchart LR
   - Состояния §19 соблюдены end-to-end в тестовом контуре перед live.
 - **changed_areas:** orchestrator
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `in_progress`
 
 #### `PRIO-P0-OIB` — Outbox / inbox
 
@@ -987,7 +1003,7 @@ flowchart LR
   - Как у `P1-1.1-OIB`; включено для всех P0 потоков.
 - **changed_areas:** как у канонического шага
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `in_progress`
 
 #### `PRIO-P0-RECON` — Reconciliation loop
 
@@ -1163,9 +1179,10 @@ flowchart LR
 - **goal:** Роут `/dashboard` по §4 и M1 §5.1. Канон: `P1-1.3-M1`.
 - **acceptance_criteria:**
   - Страница доступна; контент согласован со спекой; данные от read API когда готовы.
+  - Текущий checkpoint в репо: route доступен, есть базовые read-side counts и placeholders; перевод обратно в `implemented` только после выравнивания M1-секций со спекой, включая incidents.
 - **changed_areas:** `apps/web/app/dashboard` или эквивалент
 - **review_required:** `frontend`
-- **status:** `planned`
+- **status:** `in_progress`
 
 #### `FE-ROUTE-portfolio` — `/portfolio`
 
@@ -1177,7 +1194,7 @@ flowchart LR
   - Страница и навигация; интеграция с portfolio API в Phase 2+.
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
-- **status:** `planned`
+- **status:** `implemented`
 
 #### `FE-ROUTE-opportunities` — `/opportunities`
 
@@ -1187,9 +1204,10 @@ flowchart LR
 - **goal:** Роут `/opportunities` §4. Канон: `P1-1.3-STUBS`, `P1-1.2-OPP`.
 - **acceptance_criteria:**
   - Список/детали возможностей при готовности API.
+  - Текущий checkpoint в репо: route и базовая read-side заготовка присутствуют; перевод обратно в `implemented` только после списка/детали, а не только placeholder/count view.
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
-- **status:** `planned`
+- **status:** `in_progress`
 
 #### `FE-ROUTE-execution` — `/execution`
 
@@ -1199,9 +1217,10 @@ flowchart LR
 - **goal:** Роут `/execution` §4. Канон: `P1-1.3-STUBS`, `P2-2.3-EXECUI`.
 - **acceptance_criteria:**
   - Мастер-деталь и preview действий как в §5.4.
+  - Текущий checkpoint в репо: route доступен как placeholder из `P1-1.3-STUBS`; перевод обратно в `implemented` только после функционального UI канонического шага `P2-2.3-EXECUI`.
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
-- **status:** `planned`
+- **status:** `in_progress`
 
 #### `FE-ROUTE-tokens` — `/tokens`
 
@@ -1211,9 +1230,10 @@ flowchart LR
 - **goal:** Роут `/tokens` §4. Канон: `P1-1.3-STUBS`, `P3-3-TOKENS`.
 - **acceptance_criteria:**
   - Lifecycle и promotion UI по §5.5.
+  - Текущий checkpoint в репо: route доступен как placeholder из `P1-1.3-STUBS`; перевод обратно в `implemented` только после функционального UI канонического шага `P3-3-TOKENS`.
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
-- **status:** `planned`
+- **status:** `in_progress`
 
 #### `FE-ROUTE-paper` — `/paper`
 
@@ -1223,9 +1243,10 @@ flowchart LR
 - **goal:** Роут `/paper` §4. Канон: `P1-1.3-STUBS`, `P3-3-PAPER-UI`.
 - **acceptance_criteria:**
   - Разделы §5.6 на странице.
+  - Текущий checkpoint в репо: route доступен как placeholder из `P1-1.3-STUBS`; перевод обратно в `implemented` только после функционального UI канонического шага `P3-3-PAPER-UI`.
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
-- **status:** `planned`
+- **status:** `in_progress`
 
 #### `FE-ROUTE-incidents` — `/incidents`
 
@@ -1235,9 +1256,10 @@ flowchart LR
 - **goal:** Роут `/incidents` §4. Канон: `P1-1.3-STUBS`, `P2-2.3-INCRB`.
 - **acceptance_criteria:**
   - Каталог инцидентов и связь с runbooks.
+  - Текущий checkpoint в репо: route доступен как placeholder из `P1-1.3-STUBS`; перевод обратно в `implemented` только после функционального UI канонического шага `P2-2.3-INCRB`.
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
-- **status:** `planned`
+- **status:** `in_progress`
 
 #### `FE-ROUTE-runbooks` — `/runbooks`
 
@@ -1247,9 +1269,10 @@ flowchart LR
 - **goal:** Роут `/runbooks` §4. Канон: `P1-1.3-STUBS`, `P2-2.3-INCRB`.
 - **acceptance_criteria:**
   - Каталог и шаги §5.7.
+  - Текущий checkpoint в репо: route доступен как placeholder из `P1-1.3-STUBS`; перевод обратно в `implemented` только после функционального UI канонического шага `P2-2.3-INCRB`.
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
-- **status:** `planned`
+- **status:** `in_progress`
 
 #### `FE-ROUTE-openclaw` — `/openclaw`
 
@@ -1259,9 +1282,10 @@ flowchart LR
 - **goal:** Роут `/openclaw` §4. Канон: `P1-1.3-STUBS`, `P5-5-OCUI`.
 - **acceptance_criteria:**
   - Экраны §5.8 подключены к gateway/Operator API.
+  - Текущий checkpoint в репо: route доступен как placeholder из `P1-1.3-STUBS`; перевод обратно в `implemented` только после функционального UI канонического шага `P5-5-OCUI`.
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
-- **status:** `planned`
+- **status:** `in_progress`
 
 #### `FE-ROUTE-settings` — `/settings`
 
@@ -1271,10 +1295,11 @@ flowchart LR
 - **goal:** Роут `/settings` §4. Канон: `P1-1.3-STUBS`, при необходимости `CFG-*`.
 - **acceptance_criteria:**
   - Базовые настройки оператора; расширение при config layer.
+  - Текущий checkpoint в репо: route доступен как placeholder из `P1-1.3-STUBS`; перевод обратно в `implemented` только после появления базовых операторских настроек.
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
-- **status:** `planned`
+- **status:** `in_progress`
 
 ---
 
-*Последнее обновление: обязательный lifecycle статусов (`review_passed` обязателен перед `done`); оркестрация ревью — `/review-step`. Поля step_id / phase / service / goal / acceptance_criteria / changed_areas / review_required / status. Синхронизация с архитектурой v0.8 и спеками фронта/стека. Даты спринтов — в трекере.*
+*Последнее обновление: 2026-04-09 — синхронизация кода и плана по Phase 1: idempotency для `POST /evaluate-risk` и `POST /audit/entries`, `notionalUsd` доведён до read/event contracts, `P1-1.1-OIB` усилен тестами inbox helper, `P1-1.2-CAP` закреплён как single-writer, `P1-1.2-EXO` поднят до `implemented`, `apps/web` получил role-aware layout и M1 incidents slot. Далее по процессу: `reviewing` → `review_passed` → `done`.*

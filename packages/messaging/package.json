@@ -1,0 +1,38 @@
+{
+  "name": "@arbibot/messaging",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Outbox/inbox helpers (Phase 1.1-OIB)",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "jest"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@arbibot/persistence": "*"
+  },
+  "peerDependencies": {
+    "typeorm": "^0.3.0"
+  },
+  "devDependencies": {
+    "@arbibot/tsconfig": "*",
+    "@types/jest": "^30.0.0",
+    "jest": "^30.3.0",
+    "ts-jest": "^29.4.9",
+    "typeorm": "^0.3.27",
+    "typescript": "~5.9.3"
+  },
+  "jest": {
+    "moduleFileExtensions": ["js", "json", "ts"],
+    "rootDir": "src",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "testEnvironment": "node"
+  }
+}

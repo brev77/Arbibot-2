@@ -1,0 +1,258 @@
+openapi: 3.1.0
+info:
+  title: Arbibot 2 — sync API draft (Phase 0)
+  version: 0.1.0
+  description: >
+    Черновик REST контрактов первой очереди (P0-0.1-OAPI).
+    Реализации — в сервисах; типы DTO дублируют схемы в коде.
+
+paths:
+  /evaluate-risk:
+    post:
+      operationId: evaluateRisk
+      summary: Оценка риска по возможности/плану
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EvaluateRiskRequest'
+      responses:
+        '200':
+          description: Решение создано
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvaluateRiskResponse'
+        '400':
+          description: Ошибка валидации
+
+  /risk-decisions/{id}:
+    get:
+      operationId: getRiskDecision
+      summary: Получить решение по id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RiskDecision'
+        '404':
+          description: Не найдено
+
+  /opportunities:
+    get:
+      operationId: listOpportunities
+      summary: Список возможностей (read)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ArbitrageOpportunity'
+    post:
+      operationId: createOpportunity
+      summary: Зарегистрировать возможность (ingest/strategy)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOpportunityRequest'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArbitrageOpportunity'
+
+  /capital/reservations:
+    post:
+      operationId: reserveCapital
+      summary: Зарезервировать капитал (reservation-first)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReserveCapitalRequest'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CapitalReservation'
+
+  /execution/plans:
+    post:
+      operationId: createExecutionPlan
+      summary: Создать план (planned)
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionPlan'
+    get:
+      operationId: listExecutionPlans
+      summary: Список планов
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ExecutionPlan'
+
+  /execution/plans/{id}/arm:
+    post:
+      operationId: armPlan
+      summary: Arm плана при валидных резервах
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionPlan'
+
+components:
+  schemas:
+    EvaluateRiskRequest:
+      type: object
+      required: [correlationId, planReference, notionalUsd, snapshotVersion]
+      properties:
+        correlationId:
+          type: string
+        planReference:
+          type: string
+        notionalUsd:
+          type: number
+        snapshotVersion:
+          type: integer
+        riskMode:
+          type: string
+          enum: [fast, standard, conservative]
+          default: standard
+
+    EvaluateRiskResponse:
+      type: object
+      required: [id, outcome, correlationId]
+      properties:
+        id:
+          type: string
+          format: uuid
+        outcome:
+          type: string
+          enum: [approved, rejected, deferred]
+        correlationId:
+          type: string
+        reasons:
+          type: array
+          items:
+            type: string
+
+    RiskDecision:
+      allOf:
+        - $ref: '#/components/schemas/EvaluateRiskResponse'
+        - type: object
+          properties:
+            planReference:
+              type: string
+            snapshotVersion:
+              type: integer
+            entityVersion:
+              type: integer
+            createdAtIso:
+              type: string
+              format: date-time
+
+    ArbitrageOpportunity:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        state:
+          type: string
+        correlationId:
+          type: string
+        entityVersion:
+          type: integer
+
+    CreateOpportunityRequest:
+      type: object
+      required: [correlationId]
+      properties:
+        correlationId:
+          type: string
+        payload:
+          type: object
+
+    ReserveCapitalRequest:
+      type: object
+      required: [correlationId, amountUsd]
+      properties:
+        correlationId:
+          type: string
+        planId:
+          type: string
+          format: uuid
+        amountUsd:
+          type: number
+        ttlSeconds:
+          type: integer
+          default: 300
+
+    CapitalReservation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        state:
+          type: string
+        correlationId:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+
+    ExecutionPlan:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        state:
+          type: string
+        correlationId:
+          type: string
+        capitalReservationId:
+          type: string
+          format: uuid
+        riskDecisionId:
+          type: string
+          format: uuid
+        entityVersion:
+          type: integer

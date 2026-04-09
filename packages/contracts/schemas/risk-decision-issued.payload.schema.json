@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://arbibot.local/schemas/risk-decision-issued.payload.schema.json",
+  "title": "RiskDecisionIssuedPayloadV1",
+  "type": "object",
+  "required": [
+    "decisionId",
+    "outcome",
+    "planReference",
+    "notionalUsd",
+    "snapshotVersion",
+    "riskMode",
+    "reasons"
+  ],
+  "properties": {
+    "decisionId": { "type": "string", "format": "uuid" },
+    "outcome": {
+      "type": "string",
+      "enum": ["approved", "rejected", "deferred"]
+    },
+    "planReference": { "type": "string" },
+    "notionalUsd": { "type": "number" },
+    "snapshotVersion": { "type": "integer" },
+    "riskMode": {
+      "type": "string",
+      "enum": ["fast", "standard", "conservative"]
+    },
+    "reasons": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": false
+}

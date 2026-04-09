@@ -1,0 +1,1 @@
+export { tryClaimInboxMessage } from './inbox';

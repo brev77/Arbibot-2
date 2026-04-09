@@ -1,0 +1,37 @@
+{
+  "name": "@arbibot/persistence",
+  "version": "0.0.1",
+  "private": true,
+  "description": "TypeORM entities for core OLTP tables",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "jest"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "peerDependencies": {
+    "@nestjs/common": "^11.0.0",
+    "reflect-metadata": "^0.2.0",
+    "typeorm": "^0.3.0"
+  },
+  "devDependencies": {
+    "@arbibot/tsconfig": "*",
+    "@nestjs/common": "^11.1.18",
+    "@types/jest": "^30.0.0",
+    "jest": "^30.3.0",
+    "reflect-metadata": "^0.2.2",
+    "ts-jest": "^29.4.9",
+    "typeorm": "^0.3.27",
+    "typescript": "~5.9.3"
+  },
+  "jest": {
+    "moduleFileExtensions": ["js", "json", "ts"],
+    "rootDir": "src",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "testEnvironment": "node"
+  }
+}

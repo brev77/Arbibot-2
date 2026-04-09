@@ -8,7 +8,9 @@ export function toEvaluateRiskResponse(
   const dto = new EvaluateRiskResponseDto();
   dto.riskDecisionId = decision.id;
   dto.outcome = decision.outcome;
+  dto.notionalUsd = decision.notionalUsd;
   dto.entityVersion = decision.entityVersion;
+  dto.riskMode = decision.riskMode;
   return dto;
 }
 
@@ -21,7 +23,9 @@ export function toRiskDecisionResponse(
   dto.planReference = decision.planReference;
   dto.outcome = decision.outcome;
   dto.reasons = [...decision.reasons];
+  dto.notionalUsd = decision.notionalUsd;
   dto.snapshotVersion = decision.snapshotVersion;
+  dto.riskMode = decision.riskMode;
   dto.createdAtIso = decision.createdAtIso;
   dto.entityVersion = decision.entityVersion;
   return dto;

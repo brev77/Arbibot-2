@@ -2,12 +2,13 @@ import {
   Body,
   Controller,
   Get,
-  HttpCode,
   HttpStatus,
   Param,
   ParseUUIDPipe,
   Post,
+  Res,
 } from '@nestjs/common';
+import type { FastifyReply } from 'fastify';
 
 import { EvaluateRiskRequestDto } from './dto/evaluate-risk-request.dto';
 import type { EvaluateRiskResponseDto } from './dto/evaluate-risk-response.dto';
@@ -19,17 +20,22 @@ export class RiskController {
   constructor(private readonly riskService: RiskService) {}
 
   @Post('evaluate-risk')
-  @HttpCode(HttpStatus.CREATED)
-  evaluateRisk(
+  async evaluateRisk(
     @Body() body: EvaluateRiskRequestDto,
-  ): EvaluateRiskResponseDto {
-    return this.riskService.evaluateRisk(body);
+    @Res({ passthrough: true }) res: FastifyReply,
+  ): Promise<EvaluateRiskResponseDto> {
+    const { response, replay } = await this.riskService.evaluateRisk(body);
+    res.status(replay ? HttpStatus.OK : HttpStatus.CREATED);
+    if (replay) {
+      void res.header('X-Idempotent-Replayed', 'true');
+    }
+    return response;
   }
 
   @Get('risk-decisions/:id')
-  getRiskDecision(
+  async getRiskDecision(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
-  ): RiskDecisionResponseDto {
+  ): Promise<RiskDecisionResponseDto> {
     return this.riskService.getRiskDecision(id);
   }
 }

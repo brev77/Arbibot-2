@@ -1,0 +1,39 @@
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
+
+import { ExecutionPlanEntity } from './execution-plan.entity';
+
+@Entity({ name: 'execution_legs' })
+export class ExecutionLegEntity {
+  @PrimaryGeneratedColumn('uuid')
+  id!: string;
+
+  @Column({ name: 'plan_id', type: 'uuid' })
+  planId!: string;
+
+  @ManyToOne(() => ExecutionPlanEntity, (p) => p.legs, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'plan_id' })
+  plan!: ExecutionPlanEntity;
+
+  @Column({ name: 'leg_index', type: 'int' })
+  legIndex!: number;
+
+  @Column({ type: 'text', default: 'created' })
+  state!: string;
+
+  @Column({ name: 'entity_version', type: 'int', default: 1 })
+  entityVersion!: number;
+
+  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
+  createdAt!: Date;
+
+  @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
+  updatedAt!: Date;
+}

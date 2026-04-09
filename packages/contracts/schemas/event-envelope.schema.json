@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://arbibot.local/schemas/event-envelope.schema.json",
+  "title": "ArbibotEventEnvelope",
+  "type": "object",
+  "required": [
+    "messageId",
+    "correlationId",
+    "entityType",
+    "entityId",
+    "version",
+    "sourceModule",
+    "eventTs",
+    "eventName",
+    "payload"
+  ],
+  "properties": {
+    "messageId": { "type": "string", "format": "uuid" },
+    "correlationId": { "type": "string", "minLength": 1 },
+    "causationId": { "type": "string" },
+    "entityType": { "type": "string", "minLength": 1 },
+    "entityId": { "type": "string", "minLength": 1 },
+    "version": { "type": "integer", "minimum": 1 },
+    "sourceModule": { "type": "string", "minLength": 1 },
+    "eventTs": { "type": "string", "format": "date-time" },
+    "eventName": { "type": "string", "minLength": 1 },
+    "payload": { "type": "object" }
+  },
+  "additionalProperties": false
+}

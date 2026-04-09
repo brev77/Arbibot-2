@@ -1,7 +1,9 @@
 import { Type } from 'class-transformer';
 import {
+  IsIn,
   IsInt,
   IsNumber,
+  IsOptional,
   IsString,
   IsUUID,
   MaxLength,
@@ -10,6 +12,10 @@ import {
 } from 'class-validator';
 
 export class EvaluateRiskRequestDto {
+  @IsOptional()
+  @IsUUID('4')
+  idempotencyKey?: string;
+
   @IsUUID('4')
   correlationId!: string;
 
@@ -27,4 +33,8 @@ export class EvaluateRiskRequestDto {
   @IsInt()
   @Min(1)
   snapshotVersion!: number;
+
+  @IsOptional()
+  @IsIn(['fast', 'standard', 'conservative'])
+  riskMode?: 'fast' | 'standard' | 'conservative';
 }

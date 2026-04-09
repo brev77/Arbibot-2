@@ -10,10 +10,20 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "test": "turbo run test",
+    "db:migrate": "node tools/db-migrate.mjs",
     "dev:risk": "npm run start:dev -w @arbibot/risk-service",
+    "dev:opportunity": "npm run start:dev -w @arbibot/opportunity-service",
+    "dev:capital": "npm run start:dev -w @arbibot/capital-service",
+    "dev:execution": "npm run start:dev -w @arbibot/execution-orchestrator",
+    "dev:audit": "npm run start:dev -w @arbibot/audit-service",
     "dev:web": "npm run dev -w @arbibot/web"
   },
+  "dependencies": {
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1"
+  },
   "devDependencies": {
+    "pg": "^8.14.1",
     "turbo": "^2.9.5"
   }
 }
