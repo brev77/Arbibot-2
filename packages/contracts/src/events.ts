@@ -17,6 +17,7 @@ export const EVENT_NAMES = {
   capitalReserved: 'CapitalReserved',
   planArmed: 'PlanArmed',
   opportunityDetected: 'OpportunityDetected',
+  snapshotUpdated: 'SnapshotUpdated',
 } as const;
 
 export type RiskDecisionIssuedPayloadV1 = {
@@ -30,3 +31,34 @@ export type RiskDecisionIssuedPayloadV1 = {
 };
 
 export type RiskDecisionIssuedEnvelopeV1 = EventEnvelope<RiskDecisionIssuedPayloadV1>;
+
+export type SnapshotUpdatedPayloadV1 = {
+  readonly snapshotId: string;
+  readonly venueCode: string;
+  readonly venueSymbol: string;
+  readonly observedAt: string;
+  readonly canonicalInstrumentId?: string;
+  readonly bid?: number;
+  readonly ask?: number;
+  readonly last?: number;
+};
+
+export type SnapshotUpdatedEnvelopeV1 = EventEnvelope<SnapshotUpdatedPayloadV1>;
+
+/** SnapshotUpdated outbox/Kafka payload schema version 2 (market-intake-service). */
+export type SnapshotUpdatedPayloadV2 = {
+  readonly snapshotId: string;
+  readonly venueCode: string;
+  readonly venueSymbol: string;
+  readonly observedAt: string;
+  readonly receivedAt: string;
+  readonly entityVersion: number;
+  readonly staleAfterSeconds: number | null;
+  readonly payload: Record<string, unknown>;
+  readonly canonicalInstrumentId?: string;
+  readonly bid?: number;
+  readonly ask?: number;
+  readonly last?: number;
+};
+
+export type SnapshotUpdatedEnvelopeV2 = EventEnvelope<SnapshotUpdatedPayloadV2>;

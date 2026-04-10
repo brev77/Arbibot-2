@@ -4,6 +4,21 @@
 # Env (example):
 #   DATABASE_URL=postgres://arbibot:arbibot@127.0.0.1:5432/arbibot
 #   REDIS_URL=redis://127.0.0.1:6379
+#
+# Backend defaults (host-run Nest apps): risk 3000, opportunity 3010, capital 3011,
+# execution-orchestrator 3012, audit 3013, canonical-market 3014, market-intake 3015.
+#
+# Optional event bus (Redpanda — Kafka API):
+#   docker compose -f infra/docker-compose.dev.yml --profile bus up -d
+# Host apps / @arbibot/outbox-kafka-bridge: KAFKA_BROKERS=127.0.0.1:19092
+#
+# When you add app containers to this file, use:
+#   depends_on:
+#     postgres:
+#       condition: service_healthy
+#     redis:
+#       condition: service_healthy
+# so Nest/Next start after DB/Redis are ready.
 
 services:
   postgres:
@@ -16,6 +31,12 @@ services:
       - '5432:5432'
     volumes:
       - arbibot_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U arbibot -d arbibot']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   redis:
     image: redis:7-alpine
@@ -24,6 +45,31 @@ services:
     command: ['redis-server', '--appendonly', 'yes']
     volumes:
       - arbibot_redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.3.11
+    profiles: [bus]
+    command:
+      - redpanda
+      - start
+      - --kafka-addr
+      - internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr
+      - internal://redpanda:9092,external://127.0.0.1:19092
+      - --smp
+      - '1'
+      - --memory
+      - 1G
+      - --mode
+      - dev-container
+    ports:
+      - '19092:19092'
 
 volumes:
   arbibot_pg_data:

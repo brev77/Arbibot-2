@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://arbibot.local/schemas/snapshot-updated.payload.schema.json",
+  "title": "SnapshotUpdatedPayloadV2",
+  "type": "object",
+  "required": [
+    "snapshotId",
+    "venueCode",
+    "venueSymbol",
+    "observedAt",
+    "receivedAt",
+    "entityVersion",
+    "staleAfterSeconds",
+    "payload"
+  ],
+  "properties": {
+    "snapshotId": { "type": "string", "format": "uuid" },
+    "venueCode": { "type": "string", "minLength": 1 },
+    "venueSymbol": { "type": "string", "minLength": 1 },
+    "observedAt": { "type": "string", "format": "date-time" },
+    "receivedAt": { "type": "string", "format": "date-time" },
+    "entityVersion": { "type": "integer", "minimum": 1 },
+    "canonicalInstrumentId": { "type": "string", "format": "uuid" },
+    "bid": { "type": "number" },
+    "ask": { "type": "number" },
+    "last": { "type": "number" },
+    "staleAfterSeconds": {
+      "oneOf": [{ "type": "null" }, { "type": "integer", "minimum": 1 }]
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

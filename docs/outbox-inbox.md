@@ -25,4 +25,7 @@
 
 ## Транспорт
 
-- Сейчас: in-process / общая БД (поллинг). Подключение **Kafka/Redpanda** — отдельная итерация; семантика outbox/inbox сохраняется.
+- **In-DB relay:** `opportunity-service` поллит `RiskDecisionIssued` (см. выше).
+- **Kafka/Redpanda (dev):** пакет `@arbibot/outbox-kafka-bridge` публикует в топик **только** строки `event_type = SnapshotUpdated`, чтобы не пересекаться с relay по `processed_at` на других типах событий. После успешного `producer.send` в той же транзакции выставляется `processed_at` (строка считается доставленной на шину; повторная публикация при сбое до commit допускается — consumer идемпотентен через inbox).
+- **Smoke-consumer** в том же пакете: читает топик, парсит `envelope.messageId`, выполняет `tryClaimInboxMessage` с `consumer_id` по умолчанию `outbox-kafka-bridge-smoke` (без мутации чужих агрегатов).
+- Compose: профиль `bus` в `infra/docker-compose.dev.yml` (Redpanda, порт **19092** на хосте). Переменные: `KAFKA_BROKERS`, `KAFKA_TOPIC` (по умолчанию `arbibot.domain.events`), `DATABASE_URL`. Скрипты: `npm run bus:publish`, `npm run bus:consume` из корня монорепо.

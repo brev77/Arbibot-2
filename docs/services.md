@@ -12,13 +12,14 @@
 | **execution-orchestrator** | ExecutionPlan, ExecutionLeg | ArmPlan, ExecutePlan (Phase 2+), read APIs | PlanArmed, LegFilled, PlanCompleted, … | Execution workers |
 | **audit** (модуль/сервис) | AuditLogEntry | Read API (оператор) | — | — |
 | **reconciliation-service** | ReconciliationRun (Phase 2) | Triggers, status | ReconciliationMismatchDetected | Recon loops |
+| **outbox-kafka-bridge** (`packages/outbox-kafka-bridge`) | — (процесс доставки) | — | читает outbox → публикует в Kafka API | `npm run bus:publish` / `bus:consume` |
 
 ## Границы интеграции
 
 - **Opportunity → Risk:** sync `EvaluateRisk` (или внутренний вызов) до перехода opportunity в `risk_checked`.
 - **Risk → Capital:** решение `approved` и reservation-first: Capital Service выдаёт reservation token до arm.
 - **Capital + Risk → Orchestrator:** ArmPlan принимает валидные токены резерва и correlation id.
-- **Все пишущие доменные операции:** запись в **outbox** в той же транзакции, что и изменение агрегата; релей в Kafka/Redpanda — отдельный процесс (P1-1.1-OIB). На старте Phase 1 задействован **сквозной релей только для `RiskDecisionIssued` → opportunity-service**; остальные события — по мере внедрения брокера и consumer’ов (см. `docs/outbox-inbox.md`).
+- **Все пишущие доменные операции:** запись в **outbox** в той же транзакции, что и изменение агрегата; релей в Kafka/Redpanda — отдельный процесс (P1-1.1-OIB). На старте Phase 1: **in-DB релей `RiskDecisionIssued` → opportunity-service** и опционально **публикация `SnapshotUpdated` → Kafka** (`@arbibot/outbox-kafka-bridge`); остальные события — по мере внедрения (см. `docs/outbox-inbox.md`).
 
 ## Идентификаторы
 

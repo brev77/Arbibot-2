@@ -30,10 +30,13 @@ describe('OutboxRelayService', () => {
 
     const em = {
       create: jest.fn((_Entity: unknown, row: object) => ({ ...row })),
-      query: jest.fn(async () => {
+      query: jest.fn(async (_sql: string, params?: unknown[]) => {
+        const allowed = params?.[1] as string[] | undefined;
         const row = rows.find(
           (candidate) =>
-            candidate.processedAt === null && candidate.relayDeadLetterAt === null,
+            candidate.processedAt === null &&
+            candidate.relayDeadLetterAt === null &&
+            (allowed === undefined || allowed.includes(candidate.eventType)),
         );
         return row === undefined
           ? []
@@ -179,13 +182,12 @@ describe('OutboxRelayService', () => {
     expect(rows[0]?.relayDeadLetterAt).toBeNull();
   });
 
-  it('dead-letters unsupported event types without processedAt', async () => {
+  it('does not dequeue non-RiskDecisionIssued rows (shared outbox table)', async () => {
     rows.push(makeRow({ eventType: 'CapitalReserved' }));
 
     await service.processBatch();
 
     expect(rows[0]?.processedAt).toBeNull();
-    expect(rows[0]?.relayDeadLetterAt).toBeInstanceOf(Date);
-    expect(rows[0]?.relayDeadLetterReason).toContain('unsupported_event_type');
+    expect(rows[0]?.relayDeadLetterAt).toBeNull();
   });
 });

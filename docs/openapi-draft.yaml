@@ -212,6 +212,105 @@ paths:
               schema:
                 $ref: '#/components/schemas/ExecutionPlan'
 
+  /market/resolve-instrument:
+    post:
+      operationId: resolveInstrument
+      summary: Разрешить venue symbol → канонический инструмент
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResolveInstrumentRequest'
+      responses:
+        '200':
+          description: Найдено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResolvedInstrument'
+        '400':
+          description: Неверная комбинация полей
+        '404':
+          description: Площадка или инструмент не найдены
+
+  /market/resolve-route:
+    post:
+      operationId: resolveRoute
+      summary: Разрешить маршрут по ключу или паре инструментов
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResolveRouteRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResolvedRoute'
+        '400':
+          description: Неверная комбинация полей
+        '404':
+          description: Маршрут не найден
+        '409':
+          description: Несколько маршрутов на одну пару инструментов — укажите routeKey
+
+  /snapshots/ingest:
+    post:
+      operationId: ingestMarketSnapshot
+      summary: Принять нормализованный снимок рынка (single-writer intake)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestMarketSnapshotRequest'
+      responses:
+        '200':
+          description: >
+            Снимок обработан. Новая запись outbox SnapshotUpdated (schema v2) только если состояние изменилось.
+            Заголовок X-Idempotent-Replayed=true при повторе с тем же idempotencyKey и тем же телом.
+          headers:
+            X-Idempotent-Replayed:
+              schema:
+                type: string
+                enum: ['true']
+              description: Повтор идемпотентного запроса
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestMarketSnapshotResponse'
+        '400':
+          description: Валидация
+        '409':
+          description: Конфликт idempotencyKey и тела запроса
+
+  /snapshots:
+    get:
+      operationId: getMarketSnapshot
+      summary: Получить последний снимок по venue + symbol (read)
+      parameters:
+        - name: venueCode
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: venueSymbol
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketSnapshotReadResponse'
+        '404':
+          description: Нет данных
+
 components:
   schemas:
     EvaluateRiskRequest:
@@ -377,3 +476,192 @@ components:
           format: uuid
         entityVersion:
           type: integer
+
+    ResolveInstrumentRequest:
+      type: object
+      description: Ровно один режим — по canonicalKey или пара venueCode+venueSymbol
+      properties:
+        canonicalKey:
+          type: string
+        venueCode:
+          type: string
+        venueSymbol:
+          type: string
+
+    ResolvedInstrument:
+      type: object
+      required:
+        [id, venueCode, venueSymbol, canonicalKey, baseAsset, quoteAsset, entityVersion, createdAtIso, updatedAtIso]
+      properties:
+        id:
+          type: string
+          format: uuid
+        venueCode:
+          type: string
+        venueSymbol:
+          type: string
+        canonicalKey:
+          type: string
+        baseAsset:
+          type: string
+        quoteAsset:
+          type: string
+        attributes:
+          type: object
+        entityVersion:
+          type: integer
+        createdAtIso:
+          type: string
+          format: date-time
+        updatedAtIso:
+          type: string
+          format: date-time
+
+    ResolveRouteRequest:
+      type: object
+      properties:
+        routeKey:
+          type: string
+        sourceInstrumentId:
+          type: string
+          format: uuid
+        targetInstrumentId:
+          type: string
+          format: uuid
+
+    ResolvedRoute:
+      type: object
+      required:
+        [id, routeKey, sourceInstrumentId, targetInstrumentId, hops, entityVersion, createdAtIso, updatedAtIso]
+      properties:
+        id:
+          type: string
+          format: uuid
+        routeKey:
+          type: string
+        sourceInstrumentId:
+          type: string
+          format: uuid
+        targetInstrumentId:
+          type: string
+          format: uuid
+        hops:
+          type: array
+          items: {}
+        entityVersion:
+          type: integer
+        createdAtIso:
+          type: string
+          format: date-time
+        updatedAtIso:
+          type: string
+          format: date-time
+
+    IngestMarketSnapshotRequest:
+      type: object
+      required: [venueCode, venueSymbol, observedAt]
+      properties:
+        idempotencyKey:
+          type: string
+          format: uuid
+          description: Опционально; повтор с тем же ключом и тем же телом — тот же результат без второй записи outbox
+        correlationId:
+          type: string
+          format: uuid
+        venueCode:
+          type: string
+        venueSymbol:
+          type: string
+        canonicalInstrumentId:
+          type: string
+          format: uuid
+        bid:
+          type: number
+        ask:
+          type: number
+        last:
+          type: number
+        payload:
+          type: object
+        observedAt:
+          type: string
+          format: date-time
+        staleAfterSeconds:
+          type: integer
+          minimum: 1
+
+    IngestMarketSnapshotResponse:
+      type: object
+      required: [snapshotId, entityVersion, idempotentReplay, unchanged]
+      properties:
+        snapshotId:
+          type: string
+          format: uuid
+        outboxMessageId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Новый messageId outbox; null если снимок не менялся (stale observedAt / дубликат содержимого)
+        entityVersion:
+          type: integer
+        idempotentReplay:
+          type: boolean
+        unchanged:
+          type: boolean
+          description: true если запрос не изменил состояние (устаревший observedAt или идентичное содержимое)
+
+    MarketSnapshotReadResponse:
+      type: object
+      required: [snapshot, freshness]
+      properties:
+        snapshot:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            venueCode:
+              type: string
+            venueSymbol:
+              type: string
+            canonicalInstrumentId:
+              type: string
+              format: uuid
+              nullable: true
+            bid:
+              type: number
+              nullable: true
+            ask:
+              type: number
+              nullable: true
+            last:
+              type: number
+              nullable: true
+            payload:
+              type: object
+            observedAt:
+              type: string
+              format: date-time
+            receivedAt:
+              type: string
+              format: date-time
+            staleAfterSeconds:
+              type: integer
+              nullable: true
+            entityVersion:
+              type: integer
+        freshness:
+          type: object
+          required: [observedAt, receivedAt, isStale]
+          properties:
+            observedAt:
+              type: string
+              format: date-time
+            receivedAt:
+              type: string
+              format: date-time
+            staleAfterSeconds:
+              type: integer
+              nullable: true
+            isStale:
+              type: boolean

@@ -6,6 +6,8 @@ export const SERVICE_IDS = {
   opportunityService: 'opportunity-service',
   capitalService: 'capital-service',
   executionOrchestrator: 'execution-orchestrator',
+  canonicalMarketService: 'canonical-market-service',
+  marketIntakeService: 'market-intake-service',
 } as const;
 
 /** HTTP routes — mirror OpenAPI paths when added. */
@@ -38,4 +40,14 @@ export const EXECUTION_HTTP_ROUTES = {
 export const AUDIT_HTTP_ROUTES = {
   append: 'POST /audit/entries',
   list: 'GET /audit/entries',
+} as const;
+
+export const CANONICAL_HTTP_ROUTES = {
+  resolveInstrument: 'POST /market/resolve-instrument',
+  resolveRoute: 'POST /market/resolve-route',
+} as const;
+
+export const INTAKE_HTTP_ROUTES = {
+  ingestSnapshot: 'POST /snapshots/ingest',
+  getSnapshot: 'GET /snapshots',
 } as const;

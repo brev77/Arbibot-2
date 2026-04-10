@@ -1,0 +1,39 @@
+{
+  "name": "@arbibot/outbox-kafka-bridge",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Publish SnapshotUpdated outbox rows to Kafka/Redpanda; optional smoke consumer with inbox claim",
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" --config ../../eslint.config.mjs",
+    "build": "tsc -p tsconfig.build.json",
+    "test": "jest",
+    "start:publish": "node dist/bin/publish.js",
+    "start:consume": "node dist/bin/consume.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "dependencies": {
+    "@arbibot/contracts": "*",
+    "@arbibot/messaging": "*",
+    "@arbibot/persistence": "*",
+    "kafkajs": "^2.2.4",
+    "reflect-metadata": "^0.2.2",
+    "typeorm": "^0.3.27"
+  },
+  "devDependencies": {
+    "@arbibot/tsconfig": "*",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^22.19.0",
+    "jest": "^30.3.0",
+    "ts-jest": "^29.4.9",
+    "typescript": "~5.9.3"
+  },
+  "jest": {
+    "moduleFileExtensions": ["js", "json", "ts"],
+    "rootDir": "src",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": { "^.+\\.(t|j)s$": "ts-jest" },
+    "testEnvironment": "node"
+  }
+}

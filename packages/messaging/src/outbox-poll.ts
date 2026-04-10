@@ -18,11 +18,18 @@ export type LockedOutboxRow = {
 /**
  * Locks up to `limit` unprocessed outbox rows for this transaction.
  * Use one transaction per tick (or per row) so failures do not block unrelated events.
+ *
+ * @param eventTypes — only rows whose `event_type` is in this list (relay must not
+ *   dequeue foreign publishers' outbox rows from the shared `outbox_events` table).
  */
 export async function fetchLockedOutboxBatch(
   em: EntityManager,
   limit: number,
+  eventTypes: readonly string[],
 ): Promise<LockedOutboxRow[]> {
+  if (eventTypes.length === 0) {
+    return [];
+  }
   const rows: Record<string, unknown>[] = await em.query(
     `
     SELECT id::text AS id,
@@ -39,11 +46,12 @@ export async function fetchLockedOutboxBatch(
     FROM outbox_events
     WHERE processed_at IS NULL
       AND relay_dead_letter_at IS NULL
+      AND event_type = ANY($2::text[])
     ORDER BY id ASC
     LIMIT $1
     FOR UPDATE SKIP LOCKED
     `,
-    [limit],
+    [limit, eventTypes],
   );
   return rows as unknown as LockedOutboxRow[];
 }

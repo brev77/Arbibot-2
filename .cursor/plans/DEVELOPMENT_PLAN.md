@@ -243,7 +243,8 @@ flowchart LR
   - Для `PortfolioPosition` в Phase 0 допускается зафиксированный placeholder/outline с явной пометкой, что полноценная state machine переносится в Phase 2 вместе с portfolio/reconciliation.
 - **changed_areas:** `docs/`
 - **review_required:** `architecture`
-- **status:** `implemented`
+- **status:** `done`
+- **Зафиксировано (2026-04-10):** после полного `npm run lint` / `build` / `test` и проверки инвариантов (single-writer, reservation-first, outbox) — `review_passed` → `done`.
 
 #### `P0-0.2-RESV` — Reservation-first в контрактах
 
@@ -255,7 +256,8 @@ flowchart LR
   - Явные правила в OpenAPI/событиях/доках; диаграммы показывают обязательный reservation до arm/execute.
 - **changed_areas:** `docs/`
 - **review_required:** `architecture`
-- **status:** `implemented`
+- **status:** `done`
+- **Зафиксировано (2026-04-10):** см. цепочку review для `P0-0.2-SM`.
 
 #### `P0-0.2-PLAY` — Схема playbooks ExecutionPlan
 
@@ -267,7 +269,8 @@ flowchart LR
   - Черновик схемы конфигурации playbook; связь с state machine плана.
 - **changed_areas:** `docs/`
 - **review_required:** `architecture`
-- **status:** `implemented`
+- **status:** `done`
+- **Зафиксировано (2026-04-10):** см. цепочку review для `P0-0.2-SM`.
 
 ### 0.3 Безопасность и OpenClaw (baseline)
 
@@ -320,6 +323,7 @@ flowchart LR
 - **changed_areas:** `infra/`
 - **review_required:** `architecture`
 - **status:** `implemented`
+- **Зафиксировано (2026-04-10):** опциональный профиль `bus` — Redpanda (Kafka API) на порту `19092` для локальной публикации outbox → шина; см. комментарии в `infra/docker-compose.dev.yml` и `docs/outbox-inbox.md`.
 
 #### `P0-0.4-VER` — Политика версионирования API
 
@@ -363,9 +367,10 @@ flowchart LR
 - **goal:** Redis для кэша и координации по стеку.
 - **acceptance_criteria:**
   - Подключение из dev/stage; политика использования задокументирована.
+  - Текущий checkpoint в репо: dev/stage infra и helper `createRedisClientFromEnv` готовы; перевод обратно в `implemented` только после первого реального использования Redis хотя бы одним backend-сервисом в рамках Phase 1.
 - **changed_areas:** `infra/`, backend-сервисы
 - **review_required:** `backend`
-- **status:** `implemented`
+- **status:** `in_progress`
 
 #### `P1-1.1-OIB` — Outbox / Inbox
 
@@ -377,7 +382,9 @@ flowchart LR
   - Паттерн outbox/inbox в коде; идемпотентная обработка входящих; тесты на повтор доставки.
   - Текущий checkpoint в репо: transactional outbox для `RiskDecisionIssued`; inbox helper `tryClaimInboxMessage` приведён к реальной форме `QueryFailedError`/PG unique violation и покрыт unit-тестами в `packages/messaging`.
   - Зафиксировано (2026-04-10): `fetchLockedOutboxBatch` в `packages/messaging`; поллинг relay в `opportunity-service` (`OutboxRelayService`) **только для `RiskDecisionIssued`** → обновление `arbitrage_opportunities` до `risk_checked`. `processed_at` выставляется только при успешном доменном применении или идемпотентном совпадении; неизвестные типы и исчерпание retry → `relay_dead_letter_*` (см. `docs/outbox-inbox.md`, миграция `005`). Поведение relay закреплено service-level тестами в `opportunity-service`.
-  - Остальные P0-события (`CapitalReserved`, `PlanArmed`, …) в релее **не** реализованы — отдельная задача. Транспорт Kafka/Redpanda — следующая итерация.
+  - Зафиксировано (2026-04-10): `fetchLockedOutboxBatch(em, limit, eventTypes)` фильтрует строки по `event_type` — общая таблица `outbox_events` не блокируется чужими событиями (например `SnapshotUpdated` из `market-intake-service`).
+  - Зафиксировано (2026-04-10): пакет `packages/outbox-kafka-bridge` — публикация в Kafka/Redpanda **только** `SnapshotUpdated` (после `producer.send` в той же транзакции выставляется `processed_at`; не пересекается с in-DB relay по `RiskDecisionIssued`). Smoke-consumer с `tryClaimInboxMessage` (`consumer_id` по умолчанию `outbox-kafka-bridge-smoke`). Скрипты корня: `npm run bus:publish`, `npm run bus:consume`; compose-профиль `bus`.
+  - Остальные P0-события (`CapitalReserved`, `PlanArmed`, …) в релее и на шине **не** реализованы — отдельная задача.
 - **changed_areas:** общие библиотеки, сервисы-владельцы агрегатов
 - **review_required:** `backend`
 - **status:** `review_passed`
@@ -407,7 +414,8 @@ flowchart LR
   - API/модуль согласован с контрактом; тесты на разрешение инструмента/маршрута.
 - **changed_areas:** `apps/` или `services/` (как заведено в репо)
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `review_passed`
+- **Зафиксировано (2026-04-10):** `apps/canonical-market-service` (Nest+Fastify, порт `3014`), миграция `006_canonical_market.sql`, сущности в `@arbibot/persistence`, `POST /market/resolve-instrument`, `POST /market/resolve-route`, unit-тесты `MarketService`; OpenAPI и `CANONICAL_HTTP_ROUTES` в `packages/contracts`.
 
 #### `P1-1.2-INTAKE` — Market Intake Service
 
@@ -419,7 +427,8 @@ flowchart LR
   - Поток snapshot в хранилище/события; индикаторы свежести.
 - **changed_areas:** новый сервис intake
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `review_passed`
+- **Зафиксировано (2026-04-10):** `apps/market-intake-service` (порт `3015`), миграция `007_market_snapshots.sql`, `POST /snapshots/ingest` + `GET /snapshots` с `freshness.isStale`, transactional outbox `SnapshotUpdated` (`EVENT_NAMES.snapshotUpdated`, payload/schema v2 в `packages/contracts`); unit-тесты `SnapshotsService`; миграция `008` (idempotency ingest + unique directed route pair). Публикация `SnapshotUpdated` на шину — `@arbibot/outbox-kafka-bridge` (см. `P1-1.1-OIB`).
 
 #### `P1-1.2-OPP` — Opportunity Service
 
@@ -516,10 +525,10 @@ flowchart LR
 - **goal:** Top-nav, фильтры (§3), тёмная тема §7.
 - **acceptance_criteria:**
   - Общий layout соответствует спеке; тема переключается/применена по умолчанию согласно §7.
-  - Зафиксировано (2026-04-10): панель фильтров (поиск + state), переключатель light/dark с `localStorage`, FOUC-guard через inline script в `layout`.
+  - Текущий checkpoint в репо: панель фильтров (поиск + state), переключатель light/dark с `localStorage`, FOUC-guard через inline script в `layout`; перевод обратно в `implemented` после выравнивания access-denied / forbidden UX и подтверждения frontend stack-conventions.
 - **changed_areas:** `apps/web/`
 - **review_required:** `frontend`
-- **status:** `implemented`
+- **status:** `in_progress`
 
 #### `P1-1.3-M1` — Dashboard M1
 
@@ -933,10 +942,11 @@ flowchart LR
 - **service:** `canonical-market-service`
 - **goal:** Каноническая модель рынка (критичность P0). Канон: `P1-1.2-MKT`.
 - **acceptance_criteria:**
-  - Критерии как у `P1-1.2-MKT`; live-блокирующий компонент задеплоен и проверен.
+  - Критерии как у `P1-1.2-MKT`; кодовый срез и контракты Phase 1 подтверждены.
+  - Отдельно для фактического go-live: деплой и operational verification canonical registry фиксируются вне этого шага.
 - **changed_areas:** как у канонического шага
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `implemented`
 
 #### `PRIO-P0-INTAKE` — Edge collectors / Market intake
 
@@ -945,10 +955,11 @@ flowchart LR
 - **service:** `market-intake-service`
 - **goal:** Сбор и нормализация рыночных данных. Канон: `P1-1.2-INTAKE`.
 - **acceptance_criteria:**
-  - Как у `P1-1.2-INTAKE`; покрытие минимального набора источников для go-live.
+  - Как у `P1-1.2-INTAKE`; кодовый ingest / snapshot / outbox slice подтверждён.
+  - Покрытие минимального набора источников для go-live и внешние collectors фиксируются отдельной operational/Phase 2 readiness работой.
 - **changed_areas:** как у канонического шага
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `implemented`
 
 #### `PRIO-P0-OPP` — Strategy intelligence (Opportunity)
 
@@ -993,10 +1004,12 @@ flowchart LR
 - **service:** `execution-orchestrator`
 - **goal:** Корректная машина состояний плана и ног. Канон: `P1-1.2-EXO`, углубление `P2-2.1-EPL`.
 - **acceptance_criteria:**
-  - Состояния §19 соблюдены end-to-end в тестовом контуре перед live.
+  - Текущий Phase 1 scope: подтверждена state machine `ExecutionPlan` до `armed` и базовые conflict-cases через канон `P1-1.2-EXO`.
+  - Полная `ExecutionLeg` state machine и end-to-end подтверждение §19 остаются в каноническом шаге `P2-2.1-EPL`.
 - **changed_areas:** orchestrator
 - **review_required:** `backend`
 - **status:** `in_progress`
+- **Зафиксировано (2026-04-10):** канон `P1-1.2-EXO` (`review_passed`); текущее покрытие — unit-тесты `PlansService` (`planned → reserved → armed`, конфликты токенов). Для перевода обратно в `implemented` нужен scope `P2-2.1-EPL` с `ExecutionLeg` и end-to-end подтверждением.
 
 #### `PRIO-P0-OIB` — Outbox / inbox
 
@@ -1005,7 +1018,7 @@ flowchart LR
 - **service:** `platform`
 - **goal:** Надёжная доставка событий. Канон: `P1-1.1-OIB`.
 - **acceptance_criteria:**
-  - Как у `P1-1.1-OIB`. **Фактический охват Phase 1:** end-to-end outbox→inbox→домен для **`RiskDecisionIssued` → opportunity-service**; прочие P0-потоки событий требуют отдельных publishers/consumers (не заявлены как сделанные).
+  - Как у `P1-1.1-OIB`. **Фактический охват Phase 1:** end-to-end outbox→inbox→домен для **`RiskDecisionIssued` → opportunity-service**; плюс outbox→Kafka→inbox (smoke) для **`SnapshotUpdated`** через `@arbibot/outbox-kafka-bridge`; прочие P0-потоки событий на шине — отдельная задача.
 - **changed_areas:** как у канонического шага
 - **review_required:** `backend`
 - **status:** `review_passed`
@@ -1029,10 +1042,11 @@ flowchart LR
 - **service:** `audit-service`
 - **goal:** Неизменяемый след решений для live. Канон: `P1-1.2-AUD`.
 - **acceptance_criteria:**
-  - Как у `P1-1.2-AUD`; покрытие P0 событий и операторских действий.
+  - Как у `P1-1.2-AUD`; кодовая проводка системных P0 событий подтверждена.
+  - Полное покрытие операторских действий для live фиксируется по мере готовности соответствующего operator UI / API.
 - **changed_areas:** как у канонического шага
 - **review_required:** `backend`
-- **status:** `review_passed`
+- **status:** `implemented`
 
 ### P1 — controlled production (§28.2)
 
@@ -1307,4 +1321,4 @@ flowchart LR
 
 ---
 
-*Последнее обновление: 2026-04-10 — CI: `npm run lint` в GitHub Actions + общий `eslint.config.mjs`; OIB: outbox relay + inbox consumer в opportunity-service, dead-letter/retry semantics и service-level tests; opportunity↔risk lifecycle и миграции `003`/`004`; `RiskClientService` сохраняет HTTP semantics risk-service, контракты синхронизированы с `enrich` / `request-risk-evaluation`; audit sidecar из risk/capital/orchestrator; Prometheus `/metrics` + корреляция на sync-вызовах; Redis: `infra/docker-compose.dev.yml`, `createRedisClientFromEnv` в `@arbibot/nest-database`, политика в `infra/redis/README.md`; web: фильтры, theme toggle, TanStack Table, деталь opportunity и server-side RBAC. Phase 0.1 (`P0-0.1-*`): прогон `.cursor/commands/review-step.md` (lint/build/test + architecture guard) — `review_passed` зафиксирован в §0.1, статусы шагов `done`. `PRIO-P0-AUD` выровнен с `P1-1.2-AUD` (`implemented`).*
+*Последнее обновление: 2026-04-10 — `packages/outbox-kafka-bridge` (SnapshotUpdated → Kafka/Redpanda, smoke consumer + inbox), compose-профиль `bus` (Redpanda `:19092`), корневые `bus:publish` / `bus:consume`; OpenAPI `IngestMarketSnapshotResponse` без `outboxMessageId` в required (поле nullable). После полного audit-прохода по плану дополнительно нормализованы спорные статусы/формулировки для `P1-1.1-REDIS`, `P1-1.3-LAYOUT`, `PRIO-P0-CANON`, `PRIO-P0-INTAKE`, `PRIO-P0-AUD`. Ранее: canonical/intake, миграции `006`–`008`, relay opportunity только `RiskDecisionIssued`, Phase 0.2 docs — см. строки шагов.*

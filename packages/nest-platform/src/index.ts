@@ -9,4 +9,9 @@ export {
   runWithCorrelationId,
 } from './correlation';
 export { installMetricsOnFastify } from './metrics';
+export {
+  applyArbibotHttpSecurity,
+  parseCorsOrigins,
+  type ArbibotHttpSecurityEnv,
+} from './http-security';
 export { withCorrelation } from './structured-logger';

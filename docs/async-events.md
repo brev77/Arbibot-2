@@ -30,3 +30,13 @@ JSON Schema для payload лежат в [`packages/contracts/schemas/`](../pack
 Публикуется **risk-service** после фиксации `RiskDecision` в БД и записи в outbox (транзакция).
 
 Payload (schema version 1): см. `packages/contracts/schemas/risk-decision-issued.payload.schema.json`.
+
+## SnapshotUpdated
+
+Публикуется **market-intake-service** после применения снимка к `market_snapshots` и записи в outbox в той же транзакции (только если состояние изменилось и сгенерировано новое событие).
+
+Payload (schema version 2): см. `packages/contracts/schemas/snapshot-updated.payload.schema.json`. Поля `envelope.version` и `outbox_events.schema_version` для этого события — **2**.
+
+Обязательные поля payload: идентификатор снимка, venue, символ, `observedAt`, `receivedAt`, `entityVersion`, `staleAfterSeconds` (число секунд или `null`), `payload` (JSON объекта с площадки). Котировки и `canonicalInstrumentId` — опционально, если не заданы в снимке.
+
+Транспорт: после записи в outbox процесс `@arbibot/outbox-kafka-bridge` может публиковать полный `envelope` в Kafka/Redpanda (топик по умолчанию `arbibot.domain.events`); см. `docs/outbox-inbox.md`.

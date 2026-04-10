@@ -53,7 +53,9 @@ export class OutboxRelayService implements OnModuleInit, OnModuleDestroy {
     const maxRows = Number(process.env.OUTBOX_RELAY_BATCH ?? '25');
     for (let i = 0; i < maxRows; i += 1) {
       const more = await this.dataSource.transaction(async (em) => {
-        const batch = await fetchLockedOutboxBatch(em, 1);
+        const batch = await fetchLockedOutboxBatch(em, 1, [
+          EVENT_NAMES.riskDecisionIssued,
+        ]);
         if (batch.length === 0) {
           return false;
         }

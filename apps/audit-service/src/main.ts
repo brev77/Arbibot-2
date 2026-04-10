@@ -8,6 +8,7 @@ import {
 } from '@nestjs/platform-fastify';
 
 import {
+  applyArbibotHttpSecurity,
   correlationIdPreHandler,
   installMetricsOnFastify,
 } from '@arbibot/nest-platform';
@@ -19,6 +20,7 @@ async function bootstrap(): Promise<void> {
     AppModule,
     new FastifyAdapter(),
   );
+  await applyArbibotHttpSecurity(app);
   const fastify = app.getHttpAdapter().getInstance();
   fastify.addHook('preHandler', correlationIdPreHandler);
   if (process.env.METRICS_ENABLED !== 'false') {
@@ -35,4 +37,7 @@ async function bootstrap(): Promise<void> {
   await app.listen(port, '0.0.0.0');
 }
 
-void bootstrap();
+bootstrap().catch((err: unknown) => {
+  console.error(err);
+  process.exit(1);
+});
