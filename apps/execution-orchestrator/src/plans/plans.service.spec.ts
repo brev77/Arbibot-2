@@ -7,11 +7,14 @@ import type {
 } from '@arbibot/persistence';
 import type { DataSource, EntityManager, Repository } from 'typeorm';
 
+import { AuditClientService } from '@arbibot/nest-platform';
+
 import { CreatePlanDto } from './dto/create-plan.dto';
 import { PlansService } from './plans.service';
 
 describe('PlansService', () => {
   let service: PlansService;
+  const auditRecord = jest.fn();
   let plans: ExecutionPlanEntity[];
   let reservations: CapitalReservationEntity[];
   let riskDecisions: RiskDecisionEntity[];
@@ -103,7 +106,8 @@ describe('PlansService', () => {
       }),
     } as unknown as Repository<ExecutionPlanEntity>;
 
-    service = new PlansService(dataSource, plansRepo);
+    const audit = { record: auditRecord } as unknown as AuditClientService;
+    service = new PlansService(dataSource, plansRepo, audit);
   });
 
   afterEach(() => {
@@ -154,6 +158,7 @@ describe('PlansService', () => {
       riskMode: 'standard',
       notionalUsd: '1000',
       idempotencyKey: null,
+      riskWindowReservationId: null,
       entityVersion: 1,
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
       ...overrides,

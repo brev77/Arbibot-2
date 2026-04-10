@@ -37,4 +37,8 @@ export class EvaluateRiskRequestDto {
   @IsOptional()
   @IsIn(['fast', 'standard', 'conservative'])
   riskMode?: 'fast' | 'standard' | 'conservative';
+
+  @IsOptional()
+  @IsUUID('4')
+  riskWindowReservationId?: string;
 }

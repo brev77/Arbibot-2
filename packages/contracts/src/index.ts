@@ -18,6 +18,8 @@ export const OPPORTUNITY_HTTP_ROUTES = {
   list: 'GET /opportunities',
   create: 'POST /opportunities',
   getOne: 'GET /opportunities/:id',
+  enrich: 'POST /opportunities/:id/enrich',
+  requestRiskEvaluation: 'POST /opportunities/:id/request-risk-evaluation',
 } as const;
 
 export const CAPITAL_HTTP_ROUTES = {

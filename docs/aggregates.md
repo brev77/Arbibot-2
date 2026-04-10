@@ -7,7 +7,7 @@
 | **CapitalReservation** | capital-service | `capital_reservations` | `entity_version` + статус; истечение TTL — отдельный переход |
 | **ExecutionPlan** | execution-orchestrator | `execution_plans` | `entity_version` на плане |
 | **ExecutionLeg** | execution-orchestrator | `execution_legs` | `entity_version` на ноге; план — родитель |
-| **OutboxEvent** | сервис-владелец агрегата | `outbox_events` | processed_at NULL → dispatch; идемпотентность на уровне consumer (inbox) |
+| **OutboxEvent** | сервис-владелец агрегата | `outbox_events` | `processed_at` NULL → dispatch (исключая dead-letter); `processed_at` только после успешного доменного эффекта; идемпотентность на уровне consumer (inbox) |
 | **InboxEvent** | consuming service | `inbox_events` | unique (consumer, message_id) |
 | **AuditLogEntry** | audit writer (platform) | `audit_log` | append-only, без CAS |
 

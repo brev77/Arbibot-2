@@ -77,6 +77,82 @@ paths:
               schema:
                 $ref: '#/components/schemas/ArbitrageOpportunity'
 
+  /opportunities/{id}:
+    get:
+      operationId: getOpportunity
+      summary: Получить возможность по id (read, с payload)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArbitrageOpportunityDetail'
+        '404':
+          description: Не найдено
+
+  /opportunities/{id}/enrich:
+    post:
+      operationId: enrichOpportunity
+      summary: Перевод detected → enriched, опционально patch payload
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnrichOpportunityRequest'
+      responses:
+        '200':
+          description: Обновлённая возможность
+        '400':
+          description: Неверное состояние / валидация
+        '404':
+          description: Не найдено
+        '409':
+          description: Конфликт состояния
+
+  /opportunities/{id}/request-risk-evaluation:
+    post:
+      operationId: requestRiskEvaluation
+      summary: Вызов risk-service (evaluate-risk), переход в risk_checked
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RequestRiskEvaluationRequest'
+      responses:
+        '200':
+          description: Результат оценки / idempotent replay
+        '400':
+          description: Валидация
+        '404':
+          description: Возможность не найдена
+        '409':
+          description: Конфликт состояния / idempotency
+        '503':
+          description: Risk-service недоступен
+
   /capital/reservations:
     post:
       operationId: reserveCapital
@@ -199,6 +275,51 @@ components:
           type: string
         entityVersion:
           type: integer
+
+    ArbitrageOpportunityDetail:
+      allOf:
+        - $ref: '#/components/schemas/ArbitrageOpportunity'
+        - type: object
+          properties:
+            riskDecisionId:
+              type: string
+              format: uuid
+            payload:
+              type: object
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+
+    EnrichOpportunityRequest:
+      type: object
+      properties:
+        payloadPatch:
+          type: object
+
+    RequestRiskEvaluationRequest:
+      type: object
+      required: [notionalUsd, snapshotVersion]
+      properties:
+        correlationId:
+          type: string
+          format: uuid
+        idempotencyKey:
+          type: string
+          format: uuid
+        notionalUsd:
+          type: number
+        snapshotVersion:
+          type: integer
+          minimum: 1
+        riskMode:
+          type: string
+          enum: [fast, standard, conservative]
+        riskWindowReservationId:
+          type: string
+          format: uuid
 
     CreateOpportunityRequest:
       type: object

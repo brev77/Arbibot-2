@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 
+import { AuditClientService } from '@arbibot/nest-platform';
 import {
   CapitalReservationEntity,
   materializeCapitalReservationExpiryIfNeeded,
@@ -15,6 +16,7 @@ export class CapitalService {
     private readonly dataSource: DataSource,
     @InjectRepository(CapitalReservationEntity)
     private readonly repo: Repository<CapitalReservationEntity>,
+    private readonly audit: AuditClientService,
   ) {}
 
   async reserve(dto: ReserveCapitalDto): Promise<CapitalReservationEntity> {
@@ -28,7 +30,21 @@ export class CapitalService {
       expiresAt,
       entityVersion: 1,
     });
-    return this.repo.save(row);
+    const saved = await this.repo.save(row);
+    this.audit.record({
+      idempotencyKey: `capital:ReserveCapital:${saved.id}`,
+      correlationId: dto.correlationId,
+      actor: 'capital-service',
+      action: 'ReserveCapital',
+      resourceType: 'CapitalReservation',
+      resourceId: saved.id,
+      payload: {
+        planId: saved.planId,
+        amountUsd: dto.amountUsd,
+        expiresAtIso: saved.expiresAt.toISOString(),
+      },
+    });
+    return saved;
   }
 
   async getById(id: string): Promise<CapitalReservationEntity> {

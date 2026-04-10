@@ -3,6 +3,8 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import type { OutboxEventEntity, RiskDecisionEntity } from '@arbibot/persistence';
 import type { DataSource, EntityManager, Repository } from 'typeorm';
 
+import { AuditClientService } from '@arbibot/nest-platform';
+
 import { EvaluateRiskRequestDto } from './dto/evaluate-risk-request.dto';
 import { RiskService } from './risk.service';
 
@@ -10,6 +12,7 @@ describe('RiskService', () => {
   let service: RiskService;
   let decisions: RiskDecisionEntity[];
   let outbox: OutboxEventEntity[];
+  const auditRecord = jest.fn();
 
   beforeEach(() => {
     decisions = [];
@@ -68,7 +71,8 @@ describe('RiskService', () => {
       }),
     } as unknown as Repository<RiskDecisionEntity>;
 
-    service = new RiskService(dataSource, decisionRepo);
+    const audit = { record: auditRecord } as unknown as AuditClientService;
+    service = new RiskService(dataSource, decisionRepo, audit);
   });
 
   const validRequest = (): EvaluateRiskRequestDto => {
@@ -84,6 +88,9 @@ describe('RiskService', () => {
     const res = await service.evaluateRisk(validRequest());
     expect(res.replay).toBe(false);
     expect(res.response.riskDecisionId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+    expect(res.response.outboxMessageId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
     );
     expect(res.response.outcome).toBe('approved');
@@ -131,6 +138,7 @@ describe('RiskService', () => {
     const second = await service.evaluateRisk(dto);
     expect(second.replay).toBe(true);
     expect(second.response.riskDecisionId).toBe(first.response.riskDecisionId);
+    expect(second.response.outboxMessageId).toBeUndefined();
     expect(outbox).toHaveLength(1);
   });
 

@@ -2,5 +2,10 @@
   "name": "@arbibot/tsconfig",
   "version": "0.0.1",
   "private": true,
+  "scripts": {
+    "lint": "node -e \"process.exit(0)\"",
+    "build": "node -e \"process.exit(0)\"",
+    "test": "node -e \"process.exit(0)\""
+  },
   "files": ["base.json", "nest.json"]
 }

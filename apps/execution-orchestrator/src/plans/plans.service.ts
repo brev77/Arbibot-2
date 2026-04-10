@@ -11,6 +11,7 @@ import {
   ExecutionPlanEntity,
   RiskDecisionEntity,
 } from '@arbibot/persistence';
+import { AuditClientService, getCorrelationId } from '@arbibot/nest-platform';
 
 import type { CreatePlanDto } from './dto/create-plan.dto';
 
@@ -20,6 +21,7 @@ export class PlansService {
     private readonly dataSource: DataSource,
     @InjectRepository(ExecutionPlanEntity)
     private readonly plans: Repository<ExecutionPlanEntity>,
+    private readonly audit: AuditClientService,
   ) {}
 
   async create(dto: CreatePlanDto): Promise<ExecutionPlanEntity> {
@@ -78,7 +80,20 @@ export class PlansService {
       plan.capitalReservationId = capitalReservationId;
       plan.state = 'reserved';
       plan.entityVersion += 1;
-      return em.save(ExecutionPlanEntity, plan);
+      const saved = await em.save(ExecutionPlanEntity, plan);
+      this.audit.record({
+        idempotencyKey: `execution:LinkReservation:${saved.id}:${capitalReservationId}`,
+        correlationId: saved.correlationId ?? undefined,
+        actor: 'execution-orchestrator',
+        action: 'LinkReservation',
+        resourceType: 'ExecutionPlan',
+        resourceId: saved.id,
+        payload: {
+          capitalReservationId,
+          state: saved.state,
+        },
+      });
+      return saved;
     });
   }
 
@@ -118,7 +133,20 @@ export class PlansService {
       this.assertReservationMatchesPlan(plan, res);
       plan.state = 'armed';
       plan.entityVersion += 1;
-      return em.save(ExecutionPlanEntity, plan);
+      const saved = await em.save(ExecutionPlanEntity, plan);
+      this.audit.record({
+        idempotencyKey: `execution:ArmPlan:${saved.id}:v${saved.entityVersion}`,
+        correlationId: saved.correlationId ?? undefined,
+        actor: 'execution-orchestrator',
+        action: 'ArmPlan',
+        resourceType: 'ExecutionPlan',
+        resourceId: saved.id,
+        payload: {
+          state: saved.state,
+          capitalReservationId: saved.capitalReservationId,
+        },
+      });
+      return saved;
     });
   }
 
@@ -126,9 +154,14 @@ export class PlansService {
     const baseUrl =
       process.env.CAPITAL_SERVICE_BASE_URL ?? 'http://127.0.0.1:3011';
     try {
+      const cid = getCorrelationId();
+      const headers: Record<string, string> = { accept: 'application/json' };
+      if (cid !== undefined && cid.length > 0) {
+        headers['x-correlation-id'] = cid;
+      }
       await fetch(`${baseUrl}/capital/reservations/${id}`, {
         method: 'GET',
-        headers: { accept: 'application/json' },
+        headers,
       });
     } catch {
       // Best effort: capital-service remains the single writer for reservation

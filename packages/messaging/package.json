@@ -4,6 +4,7 @@
   "private": true,
   "description": "Outbox/inbox helpers (Phase 1.1-OIB)",
   "scripts": {
+    "lint": "eslint \"src/**/*.ts\" --config ../../eslint.config.mjs",
     "build": "tsc -p tsconfig.json",
     "test": "jest"
   },

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 
 import type { OperatorSession } from '../lib/operator-session';
+import { ThemeToggle } from './theme-toggle';
 
 const links = [
   { href: '/dashboard', label: 'Dashboard', minRole: 'viewer' },
@@ -33,6 +34,7 @@ export function OperatorNav({
 
   return (
     <header
+      className="operator-top-nav"
       style={{
         borderBottom: '1px solid #1e293b',
         padding: '0.75rem 1.5rem',
@@ -43,19 +45,12 @@ export function OperatorNav({
         background: '#0f172a',
       }}
     >
-      <Link
-        href="/dashboard"
-        style={{ fontWeight: 700, color: '#f8fafc', textDecoration: 'none' }}
-      >
+      <Link href="/dashboard" className="operator-brand">
         Arbibot 2
       </Link>
       <nav style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
         {visibleLinks.map((l) => (
-          <Link
-            key={l.href}
-            href={l.href}
-            style={{ color: '#94a3b8', textDecoration: 'none', fontSize: 14 }}
-          >
+          <Link key={l.href} href={l.href} className="operator-nav-link">
             {l.label}
           </Link>
         ))}
@@ -63,13 +58,22 @@ export function OperatorNav({
       <div
         style={{
           marginLeft: 'auto',
-          color: '#94a3b8',
-          fontSize: 12,
-          textTransform: 'uppercase',
-          letterSpacing: '0.08em',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.75rem',
         }}
       >
-        {session.role}
+        <ThemeToggle />
+        <div
+          style={{
+            color: '#94a3b8',
+            fontSize: 12,
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+          }}
+        >
+          {session.role}
+        </div>
       </div>
     </header>
   );

@@ -1,17 +1,12 @@
 import { cookies } from 'next/headers';
 
-export type OperatorRole = 'viewer' | 'operator' | 'admin';
+import { normalizeRole, type OperatorRole } from './operator-role';
+
+export type { OperatorRole };
 
 export interface OperatorSession {
   readonly role: OperatorRole;
   readonly source: 'cookie' | 'env' | 'dev-default';
-}
-
-function normalizeRole(value: string | undefined): OperatorRole | null {
-  if (value === 'viewer' || value === 'operator' || value === 'admin') {
-    return value;
-  }
-  return null;
 }
 
 export async function getOperatorSession(): Promise<OperatorSession | null> {

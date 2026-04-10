@@ -4,9 +4,13 @@ import { RiskDecisionResponseDto } from './dto/risk-decision-response.dto';
 
 export function toEvaluateRiskResponse(
   decision: RiskDecision,
+  outboxMessageId?: string,
 ): EvaluateRiskResponseDto {
   const dto = new EvaluateRiskResponseDto();
   dto.riskDecisionId = decision.id;
+  if (outboxMessageId !== undefined) {
+    dto.outboxMessageId = outboxMessageId;
+  }
   dto.outcome = decision.outcome;
   dto.notionalUsd = decision.notionalUsd;
   dto.entityVersion = decision.entityVersion;

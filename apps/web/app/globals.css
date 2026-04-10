@@ -4,8 +4,64 @@
   box-sizing: border-box;
 }
 
+.operator-brand {
+  font-weight: 700;
+  color: #f8fafc;
+  text-decoration: none;
+}
+
+.operator-nav-link {
+  color: #94a3b8;
+  text-decoration: none;
+  font-size: 14px;
+}
+
 body {
   margin: 0;
   background: #020617;
   color: #e5e7eb;
+}
+
+html.theme-light body {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+html.theme-light .operator-top-nav {
+  background: #f1f5f9 !important;
+  border-bottom-color: #e2e8f0 !important;
+}
+
+html.theme-light .operator-toolbar {
+  background: #f8fafc !important;
+  border-bottom-color: #e2e8f0 !important;
+}
+
+html.theme-light .operator-brand {
+  color: #0f172a !important;
+}
+
+html.theme-light .operator-nav-link {
+  color: #475569 !important;
+}
+
+html.theme-light input,
+html.theme-light select {
+  background: #fff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+html.theme-light table th {
+  color: #475569 !important;
+  border-bottom-color: #e2e8f0 !important;
+}
+
+html.theme-light table td {
+  border-bottom-color: #e2e8f0 !important;
+}
+
+html.theme-light pre {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
 }

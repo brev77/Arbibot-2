@@ -17,6 +17,9 @@ export class ArbitrageOpportunityEntity {
   @Column({ type: 'text', default: 'detected' })
   state!: string;
 
+  @Column({ name: 'risk_decision_id', type: 'uuid', nullable: true })
+  riskDecisionId!: string | null;
+
   @Column({ type: 'jsonb', default: () => "'{}'::jsonb" })
   payload!: Record<string, unknown>;
 

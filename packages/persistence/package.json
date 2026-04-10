@@ -4,6 +4,7 @@
   "private": true,
   "description": "TypeORM entities for core OLTP tables",
   "scripts": {
+    "lint": "eslint \"src/**/*.ts\" --config ../../eslint.config.mjs",
     "build": "tsc -p tsconfig.json",
     "test": "jest"
   },

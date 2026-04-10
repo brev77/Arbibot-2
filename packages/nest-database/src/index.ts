@@ -1,6 +1,8 @@
 import { DynamicModule } from '@nestjs/common';
 import { TypeOrmModule, type TypeOrmModuleOptions } from '@nestjs/typeorm';
 
+export { createRedisClientFromEnv } from './redis';
+
 /**
  * TypeORM root module for a Nest app with a subset of core entities.
  */

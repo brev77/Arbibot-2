@@ -1,9 +1,19 @@
 import { Module } from '@nestjs/common';
 
 import { typeOrmRootForEntities } from '@arbibot/nest-database';
-import { ArbitrageOpportunityEntity } from '@arbibot/persistence';
+import {
+  ArbitrageOpportunityEntity,
+  InboxEventEntity,
+  OutboxEventEntity,
+} from '@arbibot/persistence';
 
 @Module({
-  imports: [typeOrmRootForEntities([ArbitrageOpportunityEntity])],
+  imports: [
+    typeOrmRootForEntities([
+      ArbitrageOpportunityEntity,
+      InboxEventEntity,
+      OutboxEventEntity,
+    ]),
+  ],
 })
 export class DatabaseModule {}

@@ -31,4 +31,13 @@ export class OutboxEventEntity {
 
   @Column({ name: 'processed_at', type: 'timestamptz', nullable: true })
   processedAt!: Date | null;
+
+  @Column({ name: 'relay_dead_letter_at', type: 'timestamptz', nullable: true })
+  relayDeadLetterAt!: Date | null;
+
+  @Column({ name: 'relay_dead_letter_reason', type: 'text', nullable: true })
+  relayDeadLetterReason!: string | null;
+
+  @Column({ name: 'relay_delivery_attempts', type: 'int', default: 0 })
+  relayDeliveryAttempts!: number;
 }

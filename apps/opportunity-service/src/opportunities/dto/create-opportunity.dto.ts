@@ -1,4 +1,4 @@
-import { IsObject, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
+import { IsObject, IsOptional, IsUUID } from 'class-validator';
 
 export class CreateOpportunityDto {
   @IsOptional()

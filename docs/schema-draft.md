@@ -76,7 +76,10 @@
 | payload | JSONB NOT NULL | Тело события |
 | envelope | JSONB NOT NULL | correlationId, causationId, eventTs, sourceModule, … |
 | created_at | TIMESTAMPTZ | |
-| processed_at | TIMESTAMPTZ NULL | NULL = к отправке |
+| processed_at | TIMESTAMPTZ NULL | NULL = к отправке; **не** выставляется, если доменный эффект не применён |
+| relay_dead_letter_at | TIMESTAMPTZ NULL | Терминальная ошибка релея (неизвестный тип, превышение retry, poison) — строка исключается из поллинга |
+| relay_dead_letter_reason | TEXT NULL | Краткая причина dead-letter |
+| relay_delivery_attempts | INT NOT NULL DEFAULT 0 | Счётчик попыток для retryable кейсов (напр. целевой агрегат ещё не создан) |
 
 ## inbox_events
 

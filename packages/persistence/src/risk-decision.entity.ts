@@ -34,6 +34,13 @@ export class RiskDecisionEntity {
   @Column({ name: 'idempotency_key', type: 'text', nullable: true, unique: true })
   idempotencyKey!: string | null;
 
+  @Column({
+    name: 'risk_window_reservation_id',
+    type: 'uuid',
+    nullable: true,
+  })
+  riskWindowReservationId!: string | null;
+
   @Column({ name: 'entity_version', type: 'int', default: 1 })
   entityVersion!: number;
 

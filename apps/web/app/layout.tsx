@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 
+import { OperatorFiltersBar } from '../components/operator-filters-bar';
 import { OperatorNav } from '../components/operator-nav';
 import { getOperatorSession } from '../lib/operator-session';
 
@@ -21,7 +22,24 @@ export default async function RootLayout({
   const session = await getOperatorSession();
 
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+(function(){
+  try {
+    var t = localStorage.getItem('arbibot-theme');
+    var mode = t === 'light' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = mode;
+    if (mode === 'light') document.documentElement.classList.add('theme-light');
+  } catch (e) {
+    document.documentElement.dataset.theme = 'dark';
+  }
+})();`,
+          }}
+        />
+      </head>
       <body>
         {session === null ? (
           <main style={{ padding: '2rem', maxWidth: 720 }}>
@@ -34,6 +52,7 @@ export default async function RootLayout({
         ) : (
           <Providers>
             <OperatorNav session={session} />
+            <OperatorFiltersBar />
             {children}
           </Providers>
         )}
