@@ -58,10 +58,16 @@ async function main(): Promise<void> {
         console.error('[outbox-kafka-consume] envelope missing messageId, skipping');
         return;
       }
+      const eventName =
+        typeof envelope.eventName === 'string' ? envelope.eventName : '?';
+      const correlation =
+        typeof envelope.correlationId === 'string' ? envelope.correlationId : '';
       await ds.transaction(async (em) => {
         const first = await tryClaimInboxMessage(em, consumerId, messageId);
         if (first) {
-          console.log(`[outbox-kafka-consume] inbox claim ${messageId}`);
+          console.log(
+            `[outbox-kafka-consume] claim ${messageId} event=${eventName} correlationId=${correlation}`,
+          );
         }
       });
     },

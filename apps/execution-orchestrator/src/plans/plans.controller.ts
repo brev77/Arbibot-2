@@ -20,6 +20,7 @@ function planView(row: Awaited<ReturnType<PlansService['getById']>>) {
     correlationId: row.correlationId,
     capitalReservationId: row.capitalReservationId,
     riskDecisionId: row.riskDecisionId,
+    routeKey: row.routeKey,
     entityVersion: row.entityVersion,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),

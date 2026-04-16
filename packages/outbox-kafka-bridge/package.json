@@ -2,7 +2,7 @@
   "name": "@arbibot/outbox-kafka-bridge",
   "version": "0.0.1",
   "private": true,
-  "description": "Publish SnapshotUpdated outbox rows to Kafka/Redpanda; optional smoke consumer with inbox claim",
+  "description": "Publish SnapshotUpdated, CapitalReserved, and PlanArmed outbox rows to Kafka/Redpanda; optional smoke consumer with inbox claim",
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" --config ../../eslint.config.mjs",
     "build": "tsc -p tsconfig.build.json",

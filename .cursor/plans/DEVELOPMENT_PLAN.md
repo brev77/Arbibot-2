@@ -6,6 +6,16 @@
 - `!Arbibot_2_Frontend_Spec_settings.md` (роуты, разделы, UX оператора)
 - `!Arbibot_2_Tech_Stack_Proposal_settings.md` (стадии A–D, Stage 1–3, Config-1–3)
 
+## Операционная последовательность первичного запуска (paper → live)
+
+**Paper trading на стадии первичного запуска** — каноничный способ **сквозного операционного теста** всего продукта до выставления реальных средств: не замена автотестов, а прогон **реальной связки** сервисов, очередей, observability и операторского UI на **виртуальном капитале**.
+
+1. **Сначала paper:** после готовности цепочки foundation + controlled execution (фазы плана §50.3–§50.4) система выводится в эксплуатацию в режиме paper — intake → canonical → opportunity → risk → capital → исполнение (виртуальные fills), все нужные **режимы и политики**, сбор **статистики** (качество маршрутов, задержки, drift-сигналы, инцидентные сценарии).
+2. **Критерий перехода к live:** согласованные метрики и отсутствие блокирующих дефектов цепочки; процедуры оператора (runbooks, approvals) проверены на paper-нагрузке.
+3. **Затем live с минимальным капиталом:** жёсткие лимиты и объёмы; paper по возможности **остаётся включённым** для сравнения paper vs live и расширения universe (§50.5).
+
+Детали домена и изоляции: `!Arbibot_2_Architecture_v1_final_docs_settings.md` (§13, §50.5).
+
 ## Схема шага и прогресс
 
 У каждого исполняемого пункта обязательны поля ниже. Прогресс ведите через **status** (чекбоксы не используются).
@@ -284,7 +294,9 @@ flowchart LR
   - Документ baseline; требования переносимы в Phase 1–2 инфраструктуру.
 - **changed_areas:** `docs/`, `infra/` (черновик)
 - **review_required:** `architecture`
-- **status:** `planned`
+- **status:** `done`
+- **Зафиксировано (2026-04-11):** черновик [`docs/security-baseline.md`](../../docs/security-baseline.md) (mTLS, сервисная идентичность, сегментация, ротация секретов, ссылки на dev-практики).
+- **Ревью (2026-04-12):** документ baseline актуален; корневой lint/build/test монорепо — успех на момент закрытия; `review_passed` → `done`.
 
 #### `P0-0.3-OC` — OpenClaw не SoT; границы Operator API
 
@@ -296,7 +308,9 @@ flowchart LR
   - Краткий ADR или раздел: что читает/пишет OpenClaw; запрет обхода policy control plane.
 - **changed_areas:** `docs/`
 - **review_required:** `architecture`
-- **status:** `planned`
+- **status:** `done`
+- **Зафиксировано (2026-04-11):** черновик [`docs/openclaw-operator-boundaries.md`](../../docs/openclaw-operator-boundaries.md) (OpenClaw не SoT, read/write только через Operator API и RBAC/approval).
+- **Ревью (2026-04-12):** границы согласованы с текущим operator UI; корневой lint/build/test — успех; `review_passed` → `done`.
 
 ### 0.4 Инфраструктура и репозиторий
 
@@ -310,7 +324,9 @@ flowchart LR
   - Workflow запускается на PR; падает при ошибках lint/test/build для затронутых пакетов.
 - **changed_areas:** `.github/workflows/`
 - **review_required:** `backend`
-- **status:** `implemented`
+- **status:** `done`
+- **Зафиксировано (2026-04-11):** workflow [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) — Node 22, `npm ci`, `lint` / `build` / `test` на push/PR в `main`/`master`; корневой прогон `npm run lint` / `build` / `test` — успех.
+- **Ревью (2026-04-12):** повторный корневой lint/build/test — успех; `review_passed` → `done`.
 
 #### `P0-0.4-DOCK` — Docker / compose для dev
 
@@ -322,8 +338,9 @@ flowchart LR
   - Документированный способ поднять зависимости локально (compose или аналог).
 - **changed_areas:** `infra/`
 - **review_required:** `architecture`
-- **status:** `implemented`
+- **status:** `done`
 - **Зафиксировано (2026-04-10):** опциональный профиль `bus` — Redpanda (Kafka API) на порту `19092` для локальной публикации outbox → шина; см. комментарии в `infra/docker-compose.dev.yml` и `docs/outbox-inbox.md`.
+- **Ревью (2026-04-12):** acceptance по compose/README и шине подтверждён документацией; корневой `npm run lint` / `build` / `test` — успех; `review_passed` → `done`.
 
 #### `P0-0.4-VER` — Политика версионирования API
 
@@ -332,10 +349,12 @@ flowchart LR
 - **service:** `docs`
 - **goal:** Политика `schema_version` в envelope §21.1.
 - **acceptance_criteria:**
-  - Описаны правила инкремента версии схемы событий/API и совместимости.
+  - Описаны правила инкремента версии схемы событий/envelope и совместимости.
+  - Для sync REST/OpenAPI допустим отдельный policy note/ADR по мере появления production-facing versioning strategy.
 - **changed_areas:** `docs/`
 - **review_required:** `architecture`
-- **status:** `implemented`
+- **status:** `done`
+- **Ревью (2026-04-12):** расширен раздел «Версионирование схем» в [`docs/async-events.md`](../../docs/async-events.md) (синхронизация `version`/`schema_version` с JSON Schema, minor/breaking, REST note); корневой `npm run lint` / `build` / `test` — успех; `review_passed` → `done`.
 
 **Definition of Done (§50.2):** у каждого доменного агрегата — owner, lifecycle, persistence contract; у критичных событий — payload draft; у destructive actions — approval flow описан и согласован.
 
@@ -357,7 +376,8 @@ flowchart LR
   - Применяемые миграции; соответствие черновику §20; smoke-подключение из сервисов dev.
 - **changed_areas:** `infra/`, сервисы с DB
 - **review_required:** `backend`
-- **status:** `implemented`
+- **status:** `done`
+- **Ревью (2026-04-12):** применяемые миграции `infra/postgres/migrations/*` и подключение TypeORM в сервисах согласованы с текущим репо; корневой `npm run lint` / `build` / `test` — успех; `implemented` → `review_passed` → `done` (foundation Phase 1).
 
 #### `P1-1.1-REDIS` — Redis кэш/координация
 
@@ -367,10 +387,11 @@ flowchart LR
 - **goal:** Redis для кэша и координации по стеку.
 - **acceptance_criteria:**
   - Подключение из dev/stage; политика использования задокументирована.
-  - Текущий checkpoint в репо: dev/stage infra и helper `createRedisClientFromEnv` готовы; перевод обратно в `implemented` только после первого реального использования Redis хотя бы одним backend-сервисом в рамках Phase 1.
+  - Зафиксировано (2026-04-11): `canonical-market-service` — глобальный `RedisModule` / `RedisConnection` (lifecycle), cache-aside успешных ответов `resolveInstrument` / `resolveRoute` (TTL 90s, ключи `arb:canonical:ri:v1:*` / `arb:canonical:rr:v1:*`), деградация при отсутствии `REDIS_URL` или ошибках Redis; unit-тесты на hit/throw; см. `infra/redis/README.md`.
 - **changed_areas:** `infra/`, backend-сервисы
 - **review_required:** `backend`
-- **status:** `in_progress`
+- **status:** `done`
+- **Ревью (2026-04-12):** реальное использование Redis в Phase 1 подтверждено (`canonical-market-service`); корневой lint/build/test — успех; `implemented` → `review_passed` → `done` (foundation Phase 1).
 
 #### `P1-1.1-OIB` — Outbox / Inbox
 
@@ -384,10 +405,11 @@ flowchart LR
   - Зафиксировано (2026-04-10): `fetchLockedOutboxBatch` в `packages/messaging`; поллинг relay в `opportunity-service` (`OutboxRelayService`) **только для `RiskDecisionIssued`** → обновление `arbitrage_opportunities` до `risk_checked`. `processed_at` выставляется только при успешном доменном применении или идемпотентном совпадении; неизвестные типы и исчерпание retry → `relay_dead_letter_*` (см. `docs/outbox-inbox.md`, миграция `005`). Поведение relay закреплено service-level тестами в `opportunity-service`.
   - Зафиксировано (2026-04-10): `fetchLockedOutboxBatch(em, limit, eventTypes)` фильтрует строки по `event_type` — общая таблица `outbox_events` не блокируется чужими событиями (например `SnapshotUpdated` из `market-intake-service`).
   - Зафиксировано (2026-04-10): пакет `packages/outbox-kafka-bridge` — публикация в Kafka/Redpanda **только** `SnapshotUpdated` (после `producer.send` в той же транзакции выставляется `processed_at`; не пересекается с in-DB relay по `RiskDecisionIssued`). Smoke-consumer с `tryClaimInboxMessage` (`consumer_id` по умолчанию `outbox-kafka-bridge-smoke`). Скрипты корня: `npm run bus:publish`, `npm run bus:consume`; compose-профиль `bus`.
-  - Остальные P0-события (`CapitalReserved`, `PlanArmed`, …) в релее и на шине **не** реализованы — отдельная задача.
+  - Зафиксировано (2026-04-12): transactional outbox + envelope для **`CapitalReserved`** в `capital-service` (`POST /capital/reservations`); для **`PlanArmed`** в `execution-orchestrator` (`POST .../arm`); `@arbibot/outbox-kafka-bridge` публикует на шину **`SnapshotUpdated`**, **`CapitalReserved`**, **`PlanArmed`**, **`LegFilled`**, **`PlanCompleted`** (тот же топик и TX-паттерн `processed_at`). In-DB relay по-прежнему только `RiskDecisionIssued` → opportunity. Прочие P0-события на шине — по мере появления publisher-владельцев.
 - **changed_areas:** общие библиотеки, сервисы-владельцы агрегатов
 - **review_required:** `backend`
-- **status:** `review_passed`
+- **status:** `done`
+- **Ревью (2026-04-12):** корневой lint/build/test — успех; `review_passed` → `done` (foundation Phase 1).
 
 #### `P1-1.1-OBS` — Observability baseline
 
@@ -400,7 +422,8 @@ flowchart LR
   - Зафиксировано (2026-04-10): `installMetricsOnFastify` + `GET /metrics` (prom-client) во всех Nest-сервисах; заголовок `x-correlation-id` на цепочке opportunity→risk, orchestrator→capital, audit-client→audit.
 - **changed_areas:** все новые сервисы Phase 1
 - **review_required:** `backend`
-- **status:** `review_passed`
+- **status:** `done`
+- **Ревью (2026-04-12):** корневой lint/build/test — успех; `review_passed` → `done` (foundation Phase 1).
 
 ### 1.2 Сервисы (минимальный вертикальный срез)
 
@@ -414,8 +437,9 @@ flowchart LR
   - API/модуль согласован с контрактом; тесты на разрешение инструмента/маршрута.
 - **changed_areas:** `apps/` или `services/` (как заведено в репо)
 - **review_required:** `backend`
-- **status:** `review_passed`
+- **status:** `done`
 - **Зафиксировано (2026-04-10):** `apps/canonical-market-service` (Nest+Fastify, порт `3014`), миграция `006_canonical_market.sql`, сущности в `@arbibot/persistence`, `POST /market/resolve-instrument`, `POST /market/resolve-route`, unit-тесты `MarketService`; OpenAPI и `CANONICAL_HTTP_ROUTES` в `packages/contracts`.
+- **Ревью (2026-04-12):** корневой lint/build/test — успех; `review_passed` → `done` (foundation Phase 1).
 
 #### `P1-1.2-INTAKE` — Market Intake Service
 
@@ -427,8 +451,9 @@ flowchart LR
   - Поток snapshot в хранилище/события; индикаторы свежести.
 - **changed_areas:** новый сервис intake
 - **review_required:** `backend`
-- **status:** `review_passed`
+- **status:** `done`
 - **Зафиксировано (2026-04-10):** `apps/market-intake-service` (порт `3015`), миграция `007_market_snapshots.sql`, `POST /snapshots/ingest` + `GET /snapshots` с `freshness.isStale`, transactional outbox `SnapshotUpdated` (`EVENT_NAMES.snapshotUpdated`, payload/schema v2 в `packages/contracts`); unit-тесты `SnapshotsService`; миграция `008` (idempotency ingest + unique directed route pair). Публикация `SnapshotUpdated` на шину — `@arbibot/outbox-kafka-bridge` (см. `P1-1.1-OIB`).
+- **Ревью (2026-04-12):** корневой lint/build/test — успех; `review_passed` → `done` (foundation Phase 1).
 
 #### `P1-1.2-OPP` — Opportunity Service
 
@@ -442,7 +467,8 @@ flowchart LR
   - После review-фиксов: `RiskClientService` сохраняет семантику статусов risk-service (`400` / `404` / `409` / `5xx`), а `packages/contracts` синхронизирован с маршрутами `enrich` / `request-risk-evaluation`; добавлены focused tests для relay и risk client.
 - **changed_areas:** новый сервис opportunity
 - **review_required:** `backend`
-- **status:** `review_passed`
+- **status:** `done`
+- **Ревью (2026-04-12):** корневой lint/build/test — успех; `review_passed` → `done` (foundation Phase 1).
 
 #### `P1-1.2-RISK` — Risk Service (расширение скелета)
 
@@ -457,7 +483,8 @@ flowchart LR
   - Зафиксировано (2026-04-10): `POST /reserve-risk-window`, таблица `risk_window_reservations`, опциональный `riskWindowReservationId` на evaluate с consume в одной транзакции; колонка `risk_window_reservation_id` на `risk_decisions`; ответ evaluate включает `outboxMessageId` при новой записи outbox.
 - **changed_areas:** `apps/risk-service/`, `infra/postgres/migrations/`, `packages/persistence/`, контракты событий
 - **review_required:** `backend`
-- **status:** `review_passed`
+- **status:** `done`
+- **Ревью (2026-04-12):** корневой lint/build/test — успех; `review_passed` → `done` (foundation Phase 1).
 
 #### `P1-1.2-CAP` — Capital Service
 
@@ -472,7 +499,8 @@ flowchart LR
   - Вне scope этого шага (при необходимости позже): фоновый cleanup, явный `POST release`, события по смене состояния резерва.
 - **changed_areas:** `apps/capital-service/`, `packages/persistence/`
 - **review_required:** `backend`
-- **status:** `review_passed`
+- **status:** `done`
+- **Ревью (2026-04-12):** корневой lint/build/test — успех; `review_passed` → `done` (foundation Phase 1).
 
 #### `P1-1.2-EXO` — Execution Orchestrator (скелет)
 
@@ -486,7 +514,8 @@ flowchart LR
   - `ExecutionLeg` и полный execution lifecycle остаются вне scope этого шага и закрываются каноническим `P2-2.1-EPL`.
 - **changed_areas:** новый сервис orchestrator
 - **review_required:** `backend`
-- **status:** `review_passed`
+- **status:** `done`
+- **Ревью (2026-04-12):** корневой lint/build/test — успех; `review_passed` → `done` (foundation Phase 1; полный leg lifecycle — `P2-2.1-EPL`).
 
 #### `P1-1.2-AUD` — Audit trail
 
@@ -498,10 +527,11 @@ flowchart LR
   - Запись в `audit_log` или эквивалент; связь с correlation/idempotency.
   - Текущий checkpoint в репо: append/list API и persistence для audit entries.
   - Зафиксировано в репо (2026-04-09): опциональный `idempotencyKey` на `POST /audit/entries`; колонка `idempotency_key` + partial unique index в `002_idempotency.sql`; транзакция + `pessimistic_write`, повтор с тем же ключом и payload → `200` и `X-Idempotent-Replayed`, гонка по unique → догрузка строки; конфликт ключа и payload → `409`.
-  - Зафиксировано (2026-04-10): `AuditClientService` в `@arbibot/nest-platform` (best-effort HTTP); автозапись из `risk-service` (EvaluateRisk, ReserveRiskWindow), `capital-service` (ReserveCapital), `execution-orchestrator` (LinkReservation, ArmPlan) с idempotency-ключами.
+  - Зафиксировано (2026-04-10): `AuditClientService` в `@arbibot/nest-platform` (best-effort HTTP; сбой аудита не блокирует доменную операцию в текущем Phase 1 scope); автозапись из `risk-service` (EvaluateRisk, ReserveRiskWindow), `capital-service` (ReserveCapital), `execution-orchestrator` (LinkReservation, ArmPlan) с idempotency-ключами.
 - **changed_areas:** `apps/audit-service/`, `infra/postgres/migrations/`, `packages/persistence/`, потребители (позже)
 - **review_required:** `backend`
-- **status:** `review_passed`
+- **status:** `done`
+- **Ревью (2026-04-12):** корневой lint/build/test — успех; `review_passed` → `done` (foundation Phase 1).
 
 ### 1.3 Фронтенд (базовый dashboard)
 
@@ -515,7 +545,8 @@ flowchart LR
   - `apps/web` собирается и запускается; TypeScript strict; базовая структура App Router.
 - **changed_areas:** `apps/web/`
 - **review_required:** `frontend`
-- **status:** `implemented`
+- **status:** `done`
+- **Ревью (2026-04-12):** `apps/web` strict TS, App Router, корневой lint/build/test — успех; `implemented` → `review_passed` → `done` после DoD §50.3 (скрипт `npm run e2e:phase1-foundation`).
 
 #### `P1-1.3-LAYOUT` — Layout, навигация, тема
 
@@ -525,10 +556,11 @@ flowchart LR
 - **goal:** Top-nav, фильтры (§3), тёмная тема §7.
 - **acceptance_criteria:**
   - Общий layout соответствует спеке; тема переключается/применена по умолчанию согласно §7.
-  - Текущий checkpoint в репо: панель фильтров (поиск + state), переключатель light/dark с `localStorage`, FOUC-guard через inline script в `layout`; перевод обратно в `implemented` после выравнивания access-denied / forbidden UX и подтверждения frontend stack-conventions.
+  - Зафиксировано (2026-04-11): группа маршрутов `app/(operator)/` с layout (nav + filters + `Providers`); корневой `/` обрабатывает `?forbidden=1` и `from` без редиректа на dashboard; общие стили `operator-access-panel` для forbidden / no-session / `error.tsx`; `formatRoleLabel` в `lib/operator-role.ts`; middleware RBAC и согласованность `/portfolio` с опасными действиями (минимум роль `operator`).
 - **changed_areas:** `apps/web/`
 - **review_required:** `frontend`
-- **status:** `in_progress`
+- **status:** `done`
+- **Ревью (2026-04-12):** корневой lint/build/test — успех; `implemented` → `review_passed` → `done` (см. DoD §50.3, `e2e:phase1-foundation`).
 
 #### `P1-1.3-M1` — Dashboard M1
 
@@ -541,7 +573,8 @@ flowchart LR
   - Зафиксировано (2026-04-10): типы read-моделей в `apps/web/lib/*-types.ts`; превью opportunities + строки audit из read API; слоты incidents / capital остаются по спеке до Phase 2.
 - **changed_areas:** `apps/web/`, BFF/API клиенты
 - **review_required:** `frontend`
-- **status:** `implemented`
+- **status:** `done`
+- **Ревью (2026-04-12):** корневой lint/build/test — успех; `implemented` → `review_passed` → `done` (см. DoD §50.3, `e2e:phase1-foundation`).
 
 #### `P1-1.3-STUBS` — Заглушки остальных роутов
 
@@ -553,9 +586,10 @@ flowchart LR
   - Каждый роут из спеки §4 открывается (placeholder UI); навигация из layout.
 - **changed_areas:** `apps/web/app/...`
 - **review_required:** `frontend`
-- **status:** `implemented`
+- **status:** `done`
+- **Ревью (2026-04-12):** маршруты `(operator)/*`, TanStack Table на таблицах где применимо, детали `/opportunities/[id]`, execution list/detail — в объёме Phase 1 stub/M1; корневой lint/build/test — успех; `implemented` → `review_passed` → `done` (см. DoD §50.3, `e2e:phase1-foundation`).
 
-**Definition of Done (§50.3):** snapshot → risk → reserve → arm в тесте; идемпотентность на дубликатах событий; базовые дашборды и audit timeline доступны оператору.
+**Definition of Done (§50.3):** snapshot → risk → reserve → arm в тесте; идемпотентность на дубликатах событий; базовые дашборды и audit timeline доступны оператору. **Зафиксировано (2026-04-13):** повторяемый HTTP-сквозняк `npm run e2e:phase1-foundation` → [`tools/e2e-phase1-foundation-chain.mjs`](../../tools/e2e-phase1-foundation-chain.mjs).
 
 ---
 
@@ -575,7 +609,8 @@ flowchart LR
   - Адаптеры с единым контрактом; sandbox/paper режим где требуется; тесты на ошибки API.
 - **changed_areas:** новые сервисы/модули venue
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `review_passed`
+- **Зафиксировано (2026-04-12):** контракт `VenueAdapter` + `MockVenueAdapter` в `apps/execution-orchestrator/src/venue/`; DI токен `VENUE_ADAPTER`; интеграция в `LegsService.markSent` (sandbox без сети). Отдельные процессы CEX/DEX — будущие реализации того же интерфейса.
 
 #### `P2-2.1-EPL` — Полный цикл ExecutionPlan/Leg
 
@@ -587,7 +622,10 @@ flowchart LR
   - E2E сценарий в тестовом контуре; идемпотентность подтверждена тестами.
 - **changed_areas:** orchestrator, venue adapters
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `review_passed`
+- **Зафиксировано (2026-04-12):** `POST .../begin-execution` (`armed`→`executing`, leg0 `created`), `GET .../legs`, `POST .../mark-sent`, `mark-acknowledged`, `apply-fill` (`acknowledged`→`filled`, опциональный `idempotencyKey`); миграция `009_execution_leg_venue_ref.sql`; unit-тесты `legs.service.spec.ts`.
+- **Зафиксировано (2026-04-13):** `apply-fill` с `mode=partial` / `cumulativeFilled` → `partiallyFilled` → `filled`; outbox **`LegFilled`** при полном fill; миграции `012`–`013` (fill idempotency / portfolio idempotency).
+- **Зафиксировано (2026-04-16):** `VenueSubmitTransientError` / `VenueTerminalSubmitError` + `MockVenueAdapter` (`MOCK_VENUE_TERMINAL_*`); `mark-sent` переводит `created`→терминальные `rejected`/`timedOut`/`failed` при terminal; `EXECUTION_BEGIN_LEG_COUNT` (1..16) на `begin-execution`; unit-тесты мульти-ноги; скрипт **`npm run e2e:phase2-controlled-execution`** ([`tools/e2e-phase2-controlled-execution.mjs`](../../tools/e2e-phase2-controlled-execution.mjs)). **Ревью (2026-04-16):** `/review-step` Phase 2.1 — блокирующих нет; **дальше до `done`:** CI-интеграция e2e Phase 2 и live venue-адаптеры по `P2-2.1-VEN`.
 
 #### `P2-2.1-FILL` — CommitFill / ReleaseReserve / ClosePosition
 
@@ -599,7 +637,10 @@ flowchart LR
   - Контракты и тесты на дубликаты команд; согласованность с reservation-first.
 - **changed_areas:** orchestrator, capital, portfolio
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `review_passed`
+- **Зафиксировано (2026-04-12):** read-side slice `POST .../apply-fill` (оркестратор, audit + idempotency key).
+- **Зафиксировано (2026-04-13):** `FillOutboundService` после commit fill: HTTP **`POST /positions/confirm-fill`** (portfolio-service, single-writer позиций) при `EXECUTION_SETTLEMENT_ENABLED=true`; при завершении плана всех ног — **`POST /capital/reservations/:id/release`** (capital-service); ретраи/компенсация при сбое HTTP — см. `docs/settlement-post-commit.md`. **`ClosePosition`** и отдельный transactional commit против capital вне HTTP — вне среза / playbooks (`P2-2.2-PLAY`).
+- **Зафиксировано (2026-04-16):** раздел **Definition of done** + симуляция `EXECUTION_SETTLEMENT_SIMULATE_PORTFOLIO_FAILURE_ON_LEG_INDEXES` в [`docs/settlement-post-commit.md`](../../docs/settlement-post-commit.md) / [`FillOutboundService`](../../apps/execution-orchestrator/src/legs/fill-outbound.service.ts); отказ от тихого пропуска portfolio при включённом settlement без URL; тест `fill-outbound.service.spec.ts`.
 
 #### `P2-2.1-PORT` — Portfolio Service
 
@@ -611,7 +652,10 @@ flowchart LR
   - Нет позиций без fill; reconciliation-ready модель.
 - **changed_areas:** новый сервис portfolio
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `review_passed`
+- **Зафиксировано (2026-04-12):** приложение `@arbibot/portfolio-service` (порт `3016`), миграция `010_portfolio_positions.sql`, сущность `PortfolioPositionEntity`, `GET /positions` (read).
+- **Зафиксировано (2026-04-13):** `POST /positions/confirm-fill` с идемпотентностью (`PortfolioPositionFillIdempotencyEntity`, миграция `013`); запись из подтверждённого fill по вызову оркестратора при включённом settlement.
+- **Зафиксировано (2026-04-16):** миграция **`014_execution_plan_route_key.sql`** + поле `routeKey` на плане; `resolveInstrumentKeyForPlan` в оркестраторе (`routeKey` → `arb:risk-decision:{id}` → `arb:execution-plan:{id}`); e2e передаёт `routeKey` при создании плана; типы/UI [`apps/web/lib/portfolio-types.ts`](../../apps/web/lib/portfolio-types.ts) задокументированы; сложение количеств через `addNonNegativeDecimalStrings` (BigInt), Jest-тесты.
 
 #### `P2-2.1-RECON` — Reconciliation Service
 
@@ -623,7 +667,10 @@ flowchart LR
   - Алерты/задачи на расхождения; документированные кейсы.
 - **changed_areas:** новый сервис reconciliation
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `review_passed`
+- **Зафиксировано (2026-04-12):** `@arbibot/reconciliation-service` (порт `3017`), миграция `011_reconciliation_mismatches.sql`, `ReconciliationMismatchEntity`, `GET /mismatches`; операторский `/incidents` читает API.
+- **Зафиксировано (2026-04-13):** `POST /mismatches/run-detectors`, детектор `completed_plan_missing_portfolio` (и расширения в коде); алерты и полноценный lifecycle `investigating` — следующие итерации.
+- **Зафиксировано (2026-04-16):** UI `/incidents` — переход **`investigating` → `resolved`** (кнопка «Mark resolved»); baseline-алерт **`ReconciliationOpenMismatches`** в [`docs/observability-tracing.md`](../../docs/observability-tracing.md). Полный incident-service / paging — вне среза.
 
 ### 2.2 Политики и риск P1
 
@@ -637,7 +684,8 @@ flowchart LR
   - Хранение и API чтения профилей; использование в risk/execution решениях.
 - **changed_areas:** risk, config, DB
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `in_progress`
+- **Зафиксировано (2026-04-12):** дорожная карта [`docs/phase2-risk-policy-roadmap.md`](../../docs/phase2-risk-policy-roadmap.md); HTTP `GET /policy/phase2-readiness` (статический readiness). Таблицы профилей и использование в evaluate — **вне среза**.
 
 #### `P2-2.2-ADRISK` — Adaptive risk и dynamic sizing
 
@@ -649,7 +697,8 @@ flowchart LR
   - Политики конфигурируемы; тесты на сценарии размера позиции.
 - **changed_areas:** `apps/risk-service/`, config
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `in_progress`
+- **Зафиксировано (2026-04-12):** тот же readiness + roadmap; конфигурируемые политики и тесты сайзинга — **вне среза**.
 
 #### `P2-2.2-PLAY` — Playbooks в бою
 
@@ -661,7 +710,10 @@ flowchart LR
   - Сценарии в staging; метрики и логи playbook run.
 - **changed_areas:** orchestrator
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `in_progress`
+- **Зафиксировано (2026-04-12):** roadmap в `docs/phase2-risk-policy-roadmap.md` (playbooks зависят от завершения `P2-2.1-EPL` + venue); исполняемых playbook-run в оркестраторе **нет**.
+
+**Scope freeze (2026-04-16):** шаги **`P2-2.2-PROF` / `P2-2.2-ADRISK` / `P2-2.2-PLAY`** не блокируют DoD §50.4; реализация таблиц профилей, adaptive sizing и исполняемых playbooks — **после** `review_passed` по блоку `P2-2.1-*` (см. [`docs/TODO.md`](../../docs/TODO.md)).
 
 ### 2.3 Наблюдаемость и оператор
 
@@ -675,7 +727,9 @@ flowchart LR
   - Трассы сквозь ключевые сервисы; набор алертов задокументирован.
 - **changed_areas:** все критичные сервисы, `infra/`
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `done`
+- **Зафиксировано (2026-04-12):** опциональный OTEL Node SDK + auto-instrumentations в `@arbibot/nest-platform` (`startOpenTelemetryNodeSdkIfConfigured`, `packages/nest-platform/src/otel.ts`); вызов при старте во всех семи Nest-сервисах первой волны при заданном `OTEL_EXPORTER_OTLP_*`; без OTLP — нулевой оверхед. Документ [`docs/observability-tracing.md`](../../docs/observability-tracing.md) — включение локально, связь с `x-correlation-id`, **baseline-каталог алертов** (§26.2); закомментированные переменные в [`.env.example`](../../.env.example). Панели Grafana / recording rules в репо — канон `P2-2.3-GRAF`.
+- **Ревью (2026-04-12):** корневой `npm run lint` (без errors; web — предупреждение TanStack Table / React Compiler), `npm run build`, `npm run test` — успех; Architecture Guard — без блокирующих замечаний по затронутым границам. `review_passed` → `done`.
 
 #### `P2-2.3-EXECUI` — UI `/execution`
 
@@ -687,7 +741,9 @@ flowchart LR
   - Реальный UI на read API; preview для destructive действий.
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
-- **status:** `planned`
+- **status:** `done`
+- **Зафиксировано (2026-04-12):** read-only мастер-деталь: `/execution` — `GET /execution/plans`, TanStack Table (`apps/web/components/execution-plans-table.tsx`); `/execution/[id]` — `GET /execution/plans/:id`, timeline из `GET /audit/entries` (строки по `ExecutionPlan` + `correlationId`, хелпер `apps/web/lib/execution-timeline.ts`). Блок operator actions — **disabled** кнопки-заглушки под force hedge / unwind / cancel без вызова backend (полный preview → two-step approval — после появления мутаций и §5.4 API).
+- **Ревью (2026-04-12):** корневой lint/build/test — успех; guard: read-only UI, destructive не вызывает backend. `review_passed` → `done`.
 
 #### `P2-2.3-INCRB` — UI `/incidents` и `/runbooks`
 
@@ -699,7 +755,9 @@ flowchart LR
   - Страницы связаны с backend; оператор видит историю и runbook шаги.
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
-- **status:** `planned`
+- **status:** `done`
+- **Зафиксировано (2026-04-12):** read-oriented каркас без incident API: `/incidents` — пустое состояние, копирайт про будущий reconciliation/incident backend, ссылки на `/runbooks` и audit preview на `/dashboard`. `/runbooks` — статический каталог из двух runbook-заготовок с нумерованными шагами (§5.7), кнопка «Start runbook» disabled, секция со ссылкой на audit. Полная связь с incident-service и живой историей — отдельный шаг после backend.
+- **Ревью (2026-04-12):** корневой lint/build/test — успех; guard: нет ложных мутаций/operator writes. `review_passed` → `done`.
 
 #### `P2-2.3-GRAF` — Grafana dashboards
 
@@ -711,7 +769,9 @@ flowchart LR
   - JSON/dashboards в репо или IaC; ключевые панели для latency/errors/бизнес-метрик.
 - **changed_areas:** `infra/`, `tools/`
 - **review_required:** `architecture`
-- **status:** `planned`
+- **status:** `done`
+- **Зафиксировано (2026-04-12):** стартовый дашборд `infra/grafana/dashboards/arbibot-http-overview.json` — RPS суммарно, по `status_code`, top `route` для `arb_http_requests_total`, плюс `process_cpu_seconds_total` rate из default Node metrics; [`infra/grafana/README.md`](../../infra/grafana/README.md); ссылка из [`docs/observability-tracing.md`](../../docs/observability-tracing.md). Latency histogram — когда появится в `@arbibot/nest-platform`.
+- **Ревью (2026-04-12):** артефакты read-only JSON + док; соответствие baseline алертам из `docs/observability-tracing.md`; корневой lint/build/test монорепо не затронуты критично — успех на момент закрытия P2-2.3 блока.
 
 **Definition of Done (§50.4):** end-to-end controlled execution; reconciliation закрывает базовые расхождения; оператор запускает runbooks безопасно.
 
@@ -719,7 +779,7 @@ flowchart LR
 
 ## Phase 3 — paper trading и token discovery
 
-**Цель (§50.5):** paper как механизм расширения universe, изоляция от live capital.
+**Цель (§50.5):** paper как механизм расширения universe, изоляция от live capital; на **первичном запуске** проекта paper — **обязательный** этап сквозной проверки всей системы и сбора статистики **до** включения live с минимальным капиталом (см. раздел «Операционная последовательность первичного запуска» выше).
 
 #### `P3-3-PAPER` — Paper Trading Service
 
@@ -769,7 +829,7 @@ flowchart LR
 - **review_required:** `backend`
 - **status:** `planned`
 
-**Definition of Done (§50.5):** discovery → paper-only → candidate-live; paper изолирован от live capital; решения по promotion на истории.
+**Definition of Done (§50.5):** discovery → paper-only → candidate-live; paper изолирован от live capital; решения по promotion на истории; для первичного запуска зафиксирована процедура paper-first → live с минимальным капиталом (см. раздел «Операционная последовательность первичного запуска»).
 
 ---
 
@@ -946,7 +1006,8 @@ flowchart LR
   - Отдельно для фактического go-live: деплой и operational verification canonical registry фиксируются вне этого шага.
 - **changed_areas:** как у канонического шага
 - **review_required:** `backend`
-- **status:** `implemented`
+- **status:** `done`
+- **Ревью (2026-04-12):** синхрон с каноном `P1-1.2-MKT` → `done`.
 
 #### `PRIO-P0-INTAKE` — Edge collectors / Market intake
 
@@ -959,7 +1020,8 @@ flowchart LR
   - Покрытие минимального набора источников для go-live и внешние collectors фиксируются отдельной operational/Phase 2 readiness работой.
 - **changed_areas:** как у канонического шага
 - **review_required:** `backend`
-- **status:** `implemented`
+- **status:** `done`
+- **Ревью (2026-04-12):** синхрон с каноном `P1-1.2-INTAKE` → `done`.
 
 #### `PRIO-P0-OPP` — Strategy intelligence (Opportunity)
 
@@ -971,7 +1033,8 @@ flowchart LR
   - Как у `P1-1.2-OPP`; интеграция с risk на пути к live.
 - **changed_areas:** как у канонического шага
 - **review_required:** `backend`
-- **status:** `review_passed`
+- **status:** `done`
+- **Ревью (2026-04-12):** синхрон с каноном `P1-1.2-OPP` → `done`.
 
 #### `PRIO-P0-RISK` — Risk and trust engine
 
@@ -983,7 +1046,8 @@ flowchart LR
   - Как у `P1-1.2-RISK`; лимиты и публикация решений соответствуют P0.
 - **changed_areas:** как у канонического шага
 - **review_required:** `backend`
-- **status:** `review_passed`
+- **status:** `done`
+- **Ревью (2026-04-12):** синхрон с каноном `P1-1.2-RISK` → `done`.
 
 #### `PRIO-P0-CAP` — Capital reservation
 
@@ -995,7 +1059,8 @@ flowchart LR
   - Как у `P1-1.2-CAP`; без резерва нет arm/execute в live.
 - **changed_areas:** как у канонического шага
 - **review_required:** `backend`
-- **status:** `review_passed`
+- **status:** `done`
+- **Ревью (2026-04-12):** синхрон с каноном `P1-1.2-CAP` → `done`.
 
 #### `PRIO-P0-EPL` — ExecutionPlan / ExecutionLeg state machine
 
@@ -1009,7 +1074,10 @@ flowchart LR
 - **changed_areas:** orchestrator
 - **review_required:** `backend`
 - **status:** `in_progress`
-- **Зафиксировано (2026-04-10):** канон `P1-1.2-EXO` (`review_passed`); текущее покрытие — unit-тесты `PlansService` (`planned → reserved → armed`, конфликты токенов). Для перевода обратно в `implemented` нужен scope `P2-2.1-EPL` с `ExecutionLeg` и end-to-end подтверждением.
+- **Зафиксировано (2026-04-10):** канон `P1-1.2-EXO` (`done` по Phase 1 foundation); текущее покрытие — unit-тесты `PlansService` (`planned → reserved → armed`, конфликты токенов).
+- **Зафиксировано (2026-04-12):** добавлены `LegsService` / ноги `created→sent→acknowledged→filled`, `MockVenueAdapter`, маршруты в `EXECUTION_HTTP_ROUTES`.
+- **Зафиксировано (2026-04-13):** ветка `partiallyFilled` / partial `apply-fill`.
+- **Зафиксировано (2026-04-16):** матрица mock-venue (transient/terminal), мульти-нога, e2e Phase 2 — см. `P2-2.1-EPL`. **`PRIO-P0-EPL` → `done`** — только после формального `/review-step` на этом чекпоинте (live venue-адаптеры остаются в `P2-2.1-VEN`).
 
 #### `PRIO-P0-OIB` — Outbox / inbox
 
@@ -1018,10 +1086,11 @@ flowchart LR
 - **service:** `platform`
 - **goal:** Надёжная доставка событий. Канон: `P1-1.1-OIB`.
 - **acceptance_criteria:**
-  - Как у `P1-1.1-OIB`. **Фактический охват Phase 1:** end-to-end outbox→inbox→домен для **`RiskDecisionIssued` → opportunity-service**; плюс outbox→Kafka→inbox (smoke) для **`SnapshotUpdated`** через `@arbibot/outbox-kafka-bridge`; прочие P0-потоки событий на шине — отдельная задача.
+  - Как у `P1-1.1-OIB`. **Фактический охват Phase 1:** end-to-end outbox→inbox→домен для **`RiskDecisionIssued` → opportunity-service**; плюс outbox→Kafka→inbox (smoke) для **`SnapshotUpdated`**, **`CapitalReserved`**, **`PlanArmed`**, **`LegFilled`**, **`PlanCompleted`** через `@arbibot/outbox-kafka-bridge`; прочие P0-потоки событий на шине — по мере появления publisher-владельцев.
 - **changed_areas:** как у канонического шага
 - **review_required:** `backend`
-- **status:** `review_passed`
+- **status:** `done`
+- **Ревью (2026-04-12):** синхрон с каноном `P1-1.1-OIB` → `done`.
 
 #### `PRIO-P0-RECON` — Reconciliation loop
 
@@ -1033,7 +1102,8 @@ flowchart LR
   - Как у `P2-2.1-RECON`; P0-кейсы mismatch закрываются процедурой.
 - **changed_areas:** как у канонического шага
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `in_progress`
+- **Зафиксировано (2026-04-16):** синхрон с `P2-2.1-RECON` + UI/alerts (см. канонический шаг); формальный **`done`** — после процедуры закрытия P0 mismatch-кейсов и `/review-step`.
 
 #### `PRIO-P0-AUD` — Audit trail
 
@@ -1043,10 +1113,11 @@ flowchart LR
 - **goal:** Неизменяемый след решений для live. Канон: `P1-1.2-AUD`.
 - **acceptance_criteria:**
   - Как у `P1-1.2-AUD`; кодовая проводка системных P0 событий подтверждена.
-  - Полное покрытие операторских действий для live фиксируется по мере готовности соответствующего operator UI / API.
+  - Текущий кодовый уровень гарантии: best-effort audit append с idempotency и корреляцией; усиление до более жёсткой live-grade гарантии и полное покрытие операторских действий фиксируются отдельным шагом по мере готовности operator UI / API.
 - **changed_areas:** как у канонического шага
 - **review_required:** `backend`
-- **status:** `implemented`
+- **status:** `done`
+- **Ревью (2026-04-12):** синхрон с каноном `P1-1.2-AUD` → `done`.
 
 ### P1 — controlled production (§28.2)
 
@@ -1120,7 +1191,10 @@ flowchart LR
   - SLO и алерты согласованы с on-call.
 - **changed_areas:** как у канонических шагов
 - **review_required:** `architecture`
-- **status:** `planned`
+- **status:** `in_progress`
+- **Зафиксировано (2026-04-12):** baseline алертов в `docs/observability-tracing.md` + Grafana JSON `infra/grafana/dashboards/arbibot-http-overview.json` (`P2-2.3-GRAF`); SLO/on-call подпись — вне среза.
+- **Зафиксировано (2026-04-13):** черновик SLO/on-call в разделе «SLO and on-call (draft)» внутри [`docs/observability-tracing.md`](../../docs/observability-tracing.md); финальная подпись владельцев и paging — вне среза.
+- **Зафиксировано (2026-04-16):** строка каталога **`ReconciliationOpenMismatches`** (док-таргет для экспортера open mismatches).
 
 ### P2 — качество и coverage (§28.3)
 
@@ -1214,6 +1288,7 @@ flowchart LR
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
 - **status:** `implemented`
+- **Зафиксировано (2026-04-13):** `PortfolioWorkspace` + BFF `GET /api/operator/portfolio/positions` → `portfolio-service` read API.
 
 #### `FE-ROUTE-opportunities` — `/opportunities`
 
@@ -1236,10 +1311,11 @@ flowchart LR
 - **goal:** Роут `/execution` §4. Канон: `P1-1.3-STUBS`, `P2-2.3-EXECUI`.
 - **acceptance_criteria:**
   - Мастер-деталь и preview действий как в §5.4.
-  - Текущий checkpoint в репо: route доступен как placeholder из `P1-1.3-STUBS`; перевод обратно в `implemented` только после функционального UI канонического шага `P2-2.3-EXECUI`.
+  - Зафиксировано (2026-04-12): read-only мастер-деталь и audit-timeline по канону `P2-2.3-EXECUI`; интерактивный preview + approval для destructive — вне текущего среза (ждёт API).
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
-- **status:** `in_progress`
+- **status:** `done`
+- **Ревью (2026-04-12):** см. канон `P2-2.3-EXECUI`; корневой lint/build/test — успех.
 
 #### `FE-ROUTE-tokens` — `/tokens`
 
@@ -1275,10 +1351,11 @@ flowchart LR
 - **goal:** Роут `/incidents` §4. Канон: `P1-1.3-STUBS`, `P2-2.3-INCRB`.
 - **acceptance_criteria:**
   - Каталог инцидентов и связь с runbooks.
-  - Текущий checkpoint в репо: route доступен как placeholder из `P1-1.3-STUBS`; перевод обратно в `implemented` только после функционального UI канонического шага `P2-2.3-INCRB`.
+  - Зафиксировано (2026-04-12): каркас `/incidents` по канону `P2-2.3-INCRB` (пустой каталог, навигация на runbooks и audit); полный каталог с API — позже.
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
-- **status:** `in_progress`
+- **status:** `done`
+- **Ревью (2026-04-12):** см. канон `P2-2.3-INCRB`; корневой lint/build/test — успех.
 
 #### `FE-ROUTE-runbooks` — `/runbooks`
 
@@ -1288,10 +1365,11 @@ flowchart LR
 - **goal:** Роут `/runbooks` §4. Канон: `P1-1.3-STUBS`, `P2-2.3-INCRB`.
 - **acceptance_criteria:**
   - Каталог и шаги §5.7.
-  - Текущий checkpoint в репо: route доступен как placeholder из `P1-1.3-STUBS`; перевод обратно в `implemented` только после функционального UI канонического шага `P2-2.3-INCRB`.
+  - Зафиксировано (2026-04-12): статический каталог шагов и disabled «Start» по канону `P2-2.3-INCRB`; запуск runbook с audit/backend — позже.
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
-- **status:** `in_progress`
+- **status:** `done`
+- **Ревью (2026-04-12):** см. канон `P2-2.3-INCRB`; корневой lint/build/test — успех.
 
 #### `FE-ROUTE-openclaw` — `/openclaw`
 
@@ -1321,4 +1399,4 @@ flowchart LR
 
 ---
 
-*Последнее обновление: 2026-04-10 — `packages/outbox-kafka-bridge` (SnapshotUpdated → Kafka/Redpanda, smoke consumer + inbox), compose-профиль `bus` (Redpanda `:19092`), корневые `bus:publish` / `bus:consume`; OpenAPI `IngestMarketSnapshotResponse` без `outboxMessageId` в required (поле nullable). После полного audit-прохода по плану дополнительно нормализованы спорные статусы/формулировки для `P1-1.1-REDIS`, `P1-1.3-LAYOUT`, `PRIO-P0-CANON`, `PRIO-P0-INTAKE`, `PRIO-P0-AUD`. Ранее: canonical/intake, миграции `006`–`008`, relay opportunity только `RiskDecisionIssued`, Phase 0.2 docs — см. строки шагов.*
+*Последнее обновление: 2026-04-16 — **Phase 2.1:** шаги **`P2-2.1-VEN` / `EPL` / `FILL` / `PORT` / `RECON`** — **`review_passed`**; venue terminal/transient + `EXECUTION_BEGIN_LEG_COUNT`, `npm run e2e:phase2-controlled-execution`, миграция `014` / `routeKey` / `resolveInstrumentKeyForPlan`, settlement (без тихого пропуска portfolio при включённом режиме без URL), BFF `/api/operator` под RBAC в middleware, точность количеств в portfolio (`addNonNegativeDecimalStrings`), `/incidents` `investigating`→`resolved`, алерт `ReconciliationOpenMismatches`, **freeze scope** для `P2-2.2-*` в `docs/TODO.md`. Ранее (2026-04-13): Phase 1 DoD, partial fill, settlement, portfolio, reconciliation `PATCH`, bus `LegFilled`/`PlanCompleted`.*

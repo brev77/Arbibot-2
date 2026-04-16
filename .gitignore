@@ -11,3 +11,6 @@ coverage/
 *.log
 .DS_Store
 Thumbs.db
+
+# graphify (local knowledge graph artifacts; not committed)
+graphify-out/

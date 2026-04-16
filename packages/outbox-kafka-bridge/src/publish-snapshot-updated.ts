@@ -6,16 +6,25 @@ import { OutboxEventEntity } from '@arbibot/persistence';
 import { Kafka, type Producer } from 'kafkajs';
 import type { DataSource } from 'typeorm';
 
-const SNAPSHOT_EVENT_TYPES = [EVENT_NAMES.snapshotUpdated] as const;
+/** Event types published to Kafka by this bridge (shared topic, one row per tick). */
+const KAFKA_PUBLISH_EVENT_TYPES = [
+  EVENT_NAMES.snapshotUpdated,
+  EVENT_NAMES.capitalReserved,
+  EVENT_NAMES.planArmed,
+  EVENT_NAMES.legFilled,
+  EVENT_NAMES.planCompleted,
+] as const;
 
 export type PublishSnapshotUpdatedResult = 'published' | 'empty';
 
 /**
- * Locks one unprocessed SnapshotUpdated outbox row, publishes envelope JSON to Kafka,
- * then sets processed_at in the same DB transaction after the broker accepts the record.
+ * Locks one unprocessed outbox row whose `event_type` is in
+ * {@link KAFKA_PUBLISH_EVENT_TYPES}, publishes the full envelope JSON to Kafka,
+ * then sets `processed_at` in the same DB transaction after the broker accepts the record.
  *
- * Only {@link EVENT_NAMES.snapshotUpdated} is published here so in-DB relays (e.g.
- * RiskDecisionIssued → opportunity-service) never compete for processed_at on the same pattern.
+ * In-DB relays (e.g. RiskDecisionIssued → opportunity-service) filter other `event_type`
+ * values and never compete for `processed_at` on these rows. `LegFilled` / `PlanCompleted`
+ * are bus-only (no in-DB relay in this repo).
  */
 export async function publishOneSnapshotUpdated(
   ds: DataSource,
@@ -23,7 +32,7 @@ export async function publishOneSnapshotUpdated(
   topic: string,
 ): Promise<PublishSnapshotUpdatedResult> {
   return ds.transaction(async (em) => {
-    const batch = await fetchLockedOutboxBatch(em, 1, [...SNAPSHOT_EVENT_TYPES]);
+    const batch = await fetchLockedOutboxBatch(em, 1, [...KAFKA_PUBLISH_EVENT_TYPES]);
     if (batch.length === 0) {
       return 'empty';
     }

@@ -12,15 +12,25 @@
 | **execution-orchestrator** | ExecutionPlan, ExecutionLeg | ArmPlan, ExecutePlan (Phase 2+), read APIs | PlanArmed, LegFilled, PlanCompleted, … | Execution workers |
 | **audit** (модуль/сервис) | AuditLogEntry | Read API (оператор) | — | — |
 | **reconciliation-service** | ReconciliationRun (Phase 2) | Triggers, status | ReconciliationMismatchDetected | Recon loops |
-| **outbox-kafka-bridge** (`packages/outbox-kafka-bridge`) | — (процесс доставки) | — | читает outbox → публикует в Kafka API | `npm run bus:publish` / `bus:consume` |
+| **outbox-kafka-bridge** (`packages/outbox-kafka-bridge`) | — (процесс доставки) | — | читает outbox → Kafka: `SnapshotUpdated`, `CapitalReserved`, `PlanArmed` | `npm run bus:publish` / `bus:consume` |
 
 ## Границы интеграции
 
 - **Opportunity → Risk:** sync `EvaluateRisk` (или внутренний вызов) до перехода opportunity в `risk_checked`.
 - **Risk → Capital:** решение `approved` и reservation-first: Capital Service выдаёт reservation token до arm.
 - **Capital + Risk → Orchestrator:** ArmPlan принимает валидные токены резерва и correlation id.
-- **Все пишущие доменные операции:** запись в **outbox** в той же транзакции, что и изменение агрегата; релей в Kafka/Redpanda — отдельный процесс (P1-1.1-OIB). На старте Phase 1: **in-DB релей `RiskDecisionIssued` → opportunity-service** и опционально **публикация `SnapshotUpdated` → Kafka** (`@arbibot/outbox-kafka-bridge`); остальные события — по мере внедрения (см. `docs/outbox-inbox.md`).
+- **Все пишущие доменные операции:** запись в **outbox** в той же транзакции, что и изменение агрегата; релей в Kafka/Redpanda — отдельный процесс (P1-1.1-OIB). Phase 1: **in-DB релей `RiskDecisionIssued` → opportunity-service** и **публикация в Kafka** (`SnapshotUpdated`, `CapitalReserved`, `PlanArmed` через `@arbibot/outbox-kafka-bridge`); прочие события — по мере внедрения (см. `docs/outbox-inbox.md`).
 
 ## Идентификаторы
 
 - Префиксы сервисов для логов и метрик: см. `@arbibot/contracts` (`SERVICE_IDS` — расширяется по мере добавления приложений).
+
+## Phase 0 — см. также
+
+- [Security baseline](security-baseline.md) (P0-0.3-SEC)
+- [OpenClaw и границы Operator API](openclaw-operator-boundaries.md) (P0-0.3-OC)
+- [OpenClaw — справка по функциям и границам](openclaw-reference.md)
+
+## Первичный запуск: paper → live
+
+По канону продукта (**не** только Phase 3 roadmap): при **первом** выводе системы в эксплуатацию сначала режим **paper trading** — сквозная проверка всех сервисов и режимов на виртуальном капитале и сбор статистики; затем **live с минимальным капиталом**. Будущий `paper-trading-service` и UI `/paper` поддерживают этот сценарий; детали и критерии перехода: [.cursor/plans/DEVELOPMENT_PLAN.md](../.cursor/plans/DEVELOPMENT_PLAN.md) («Операционная последовательность первичного запуска»), `!Arbibot_2_Architecture_v1_final_docs_settings.md` (§13, §50.5).

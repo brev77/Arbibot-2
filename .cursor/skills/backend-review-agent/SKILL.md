@@ -45,6 +45,8 @@ description: >
 - reconciliation loop where applicable
 - bulkhead isolation between execution / analytics / paper trading
 
+**Primary launch:** per `DEVELOPMENT_PLAN.md`, paper mode precedes live with minimal capital as the full-stack operational test; backend changes to paper/live boundaries must preserve that narrative (no shared live capital in paper path).
+
 ## Domain expectations
 
 Учитывай ключевые сервисы:

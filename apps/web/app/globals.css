@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 *,
 *::before,
 *::after {
@@ -64,4 +68,62 @@ html.theme-light table td {
 html.theme-light pre {
   background: #f1f5f9 !important;
   color: #0f172a !important;
+}
+
+/* Shared operator access / error surfaces; new UI uses shadcn-style primitives in components/ui/ */
+.operator-access-panel {
+  max-width: 520px;
+  margin: 2rem auto;
+  padding: 1.75rem 2rem;
+  border-radius: 12px;
+  border: 1px solid #1e293b;
+  background: #0f172a;
+}
+
+html.theme-light .operator-access-panel {
+  background: #fff;
+  border-color: #e2e8f0;
+}
+
+.operator-access-title {
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.operator-access-body {
+  color: #94a3b8;
+  line-height: 1.55;
+  font-size: 0.95rem;
+}
+
+html.theme-light .operator-access-body {
+  color: #475569;
+}
+
+.operator-access-body p {
+  margin: 0 0 0.75rem;
+}
+
+.operator-access-body p:last-child {
+  margin-bottom: 0;
+}
+
+.operator-access-actions {
+  margin-top: 1.25rem;
+}
+
+.operator-access-link {
+  color: #93c5fd;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+html.theme-light .operator-access-link {
+  color: #1d4ed8;
+}
+
+.operator-access-link:hover {
+  text-decoration: underline;
 }

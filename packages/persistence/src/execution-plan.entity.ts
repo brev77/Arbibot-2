@@ -26,6 +26,10 @@ export class ExecutionPlanEntity {
   @Column({ name: 'risk_decision_id', type: 'uuid', nullable: true })
   riskDecisionId!: string | null;
 
+  /** When set, used as portfolio `instrumentKey` for fills on this plan (single route grouping). */
+  @Column({ name: 'route_key', type: 'text', nullable: true })
+  routeKey!: string | null;
+
   @Column({ name: 'entity_version', type: 'int', default: 1 })
   entityVersion!: number;
 

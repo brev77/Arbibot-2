@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -12,7 +13,7 @@ import {
   SERVICE_IDS,
   type RiskDecisionIssuedPayloadV1,
 } from '@arbibot/contracts';
-import { AuditClientService } from '@arbibot/nest-platform';
+import { AuditClientService, type IAuditClient } from '@arbibot/nest-platform';
 import {
   materializeRiskWindowReservationExpiryIfNeeded,
   OutboxEventEntity,
@@ -52,7 +53,7 @@ export class RiskService {
     private readonly dataSource: DataSource,
     @InjectRepository(RiskDecisionEntity)
     private readonly decisionRepo: Repository<RiskDecisionEntity>,
-    private readonly audit: AuditClientService,
+    @Inject(AuditClientService) private readonly audit: IAuditClient,
   ) {}
 
   async reserveRiskWindow(

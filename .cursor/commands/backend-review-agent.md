@@ -39,6 +39,7 @@ description: Backend Review Agent — жёсткое ревью backend/конт
 - outbox/inbox pattern for event delivery
 - reconciliation loop where applicable
 - bulkhead isolation between execution / analytics / paper trading
+- **первичный запуск:** по канону плана сначала paper (полный стек), затем live с минимальным капиталом; границы paper/live не смешивать
 
 ## Domain expectations
 

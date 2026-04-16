@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
 
 import { typeOrmRootForEntities } from '@arbibot/nest-database';
-import { CapitalReservationEntity } from '@arbibot/persistence';
+import { CapitalReservationEntity, OutboxEventEntity } from '@arbibot/persistence';
 
 @Module({
-  imports: [typeOrmRootForEntities([CapitalReservationEntity])],
+  imports: [typeOrmRootForEntities([CapitalReservationEntity, OutboxEventEntity])],
 })
 export class DatabaseModule {}

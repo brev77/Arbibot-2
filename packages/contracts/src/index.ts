@@ -8,12 +8,15 @@ export const SERVICE_IDS = {
   executionOrchestrator: 'execution-orchestrator',
   canonicalMarketService: 'canonical-market-service',
   marketIntakeService: 'market-intake-service',
+  portfolioService: 'portfolio-service',
+  reconciliationService: 'reconciliation-service',
 } as const;
 
 /** HTTP routes — mirror OpenAPI paths when added. */
 export const RISK_HTTP_ROUTES = {
   evaluateRisk: 'POST /evaluate-risk',
   getRiskDecision: 'GET /risk-decisions/:id',
+  policyPhase2Readiness: 'GET /policy/phase2-readiness',
 } as const;
 
 export const OPPORTUNITY_HTTP_ROUTES = {
@@ -27,6 +30,7 @@ export const OPPORTUNITY_HTTP_ROUTES = {
 export const CAPITAL_HTTP_ROUTES = {
   reserve: 'POST /capital/reservations',
   getReservation: 'GET /capital/reservations/:id',
+  releaseReservation: 'POST /capital/reservations/:id/release',
 } as const;
 
 export const EXECUTION_HTTP_ROUTES = {
@@ -35,6 +39,23 @@ export const EXECUTION_HTTP_ROUTES = {
   getPlan: 'GET /execution/plans/:id',
   linkReservation: 'POST /execution/plans/:id/link-reservation',
   armPlan: 'POST /execution/plans/:id/arm',
+  beginExecution: 'POST /execution/plans/:planId/begin-execution',
+  listLegs: 'GET /execution/plans/:planId/legs',
+  markLegSent: 'POST /execution/plans/:planId/legs/:legId/mark-sent',
+  markLegAcknowledged:
+    'POST /execution/plans/:planId/legs/:legId/mark-acknowledged',
+  applyLegFill: 'POST /execution/plans/:planId/legs/:legId/apply-fill',
+} as const;
+
+export const PORTFOLIO_HTTP_ROUTES = {
+  listPositions: 'GET /positions',
+  confirmFill: 'POST /positions/confirm-fill',
+} as const;
+
+export const RECONCILIATION_HTTP_ROUTES = {
+  listMismatches: 'GET /mismatches',
+  runDetectors: 'POST /mismatches/run-detectors',
+  patchMismatchStatus: 'PATCH /mismatches/:id',
 } as const;
 
 export const AUDIT_HTTP_ROUTES = {

@@ -11,9 +11,14 @@ import {
   applyArbibotHttpSecurity,
   correlationIdPreHandler,
   installMetricsOnFastify,
+  startOpenTelemetryNodeSdkIfConfigured,
 } from '@arbibot/nest-platform';
 
 import { AppModule } from './app.module';
+
+startOpenTelemetryNodeSdkIfConfigured({
+  serviceName: 'execution-orchestrator',
+});
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestFastifyApplication>(

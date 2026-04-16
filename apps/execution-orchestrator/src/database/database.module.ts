@@ -4,7 +4,9 @@ import { typeOrmRootForEntities } from '@arbibot/nest-database';
 import {
   CapitalReservationEntity,
   ExecutionLegEntity,
+  ExecutionLegFillIdempotencyEntity,
   ExecutionPlanEntity,
+  OutboxEventEntity,
   RiskDecisionEntity,
 } from '@arbibot/persistence';
 
@@ -13,8 +15,10 @@ import {
     typeOrmRootForEntities([
       ExecutionPlanEntity,
       ExecutionLegEntity,
+      ExecutionLegFillIdempotencyEntity,
       CapitalReservationEntity,
       RiskDecisionEntity,
+      OutboxEventEntity,
     ]),
   ],
 })

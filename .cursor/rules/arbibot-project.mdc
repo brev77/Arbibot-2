@@ -19,11 +19,12 @@ Context:
   - Outbox/inbox messaging
   - Observability baseline
   - Frontend dashboard
-- Later phases (do NOT implement unless explicitly requested):
-  - Phase 1: controlled execution (venue adapters, commit/release, reconciliation, incident views, runbooks UI, alerting/tracing).
-  - Phase 2: paper trading engine and token lifecycle console.
-  - Phase 3: wide-universe scaling, replay, advanced analytics.
-  - Phase 4/5: OpenClaw-assisted operations and full automation.
+- Later phases (do NOT implement unless explicitly requested). **Phase numbers match the canonical** [.cursor/plans/DEVELOPMENT_PLAN.md](.cursor/plans/DEVELOPMENT_PLAN.md) **and** `!Arbibot_2_Architecture_v1_final_docs_settings.md` (§50.x).
+  - Phase 1: foundation platform (snapshot → risk → reserve → arm path, dashboards, messaging baseline; plan §50.3).
+  - Phase 2: controlled execution (venue adapters, commit/release, reconciliation, incident views, runbooks UI, alerting/tracing; plan §50.4).
+  - Phase 3: paper trading engine and token lifecycle console (paper-only discovery, `/paper`, Paper Trading Service; plan §50.5). **Primary launch:** paper mode is the mandatory **end-to-end operational shakedown** of the full stack and statistics collection **before** live trading; live then starts with **minimal capital** (see `DEVELOPMENT_PLAN.md` section «Операционная последовательность первичного запуска»).
+  - Phase 4: wide-universe scaling, replay, advanced analytics (plan §50.6).
+  - Phase 5: OpenClaw-assisted operations and full automation.
 
 Architecture principles (must always respect):
 - Single-writer principle for core entities (ArbitrageOpportunity, RiskDecision, ExecutionPlan, CapitalReservation, PortfolioPosition, PaperTrade).

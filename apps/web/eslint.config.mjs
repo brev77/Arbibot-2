@@ -9,7 +9,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /** ESLint 9 flat config — Next.js 16: `eslint .` (not `next lint`). */
 export default tseslint.config(
   {
-    ignores: ['eslint.config.mjs', 'next.config.ts', 'next-env.d.ts'],
+    ignores: [
+      'eslint.config.mjs',
+      'next.config.ts',
+      'next-env.d.ts',
+      'postcss.config.mjs',
+    ],
   },
   ...nextCoreWebVitals,
   ...tseslint.configs.recommendedTypeChecked,

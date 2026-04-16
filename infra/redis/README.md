@@ -10,6 +10,8 @@
 
 Фабрика `createRedisClientFromEnv()` в пакете `@arbibot/nest-database` — подключается при наличии `REDIS_URL`, иначе возвращает `null`.
 
+**Использование в коде (Phase 1):** `canonical-market-service` при наличии `REDIS_URL` кэширует успешные ответы `resolve-instrument` / `resolve-route` (cache-aside, TTL 90s, ключи `arb:canonical:ri:v1:*` / `arb:canonical:rr:v1:*`); при ошибках Redis запросы идут в PostgreSQL как без Redis.
+
 ## Политика ключей (черновик)
 
 - Префикс пространства имён: `arb:{service}:{aggregate}:` (например `arb:risk:window:`).

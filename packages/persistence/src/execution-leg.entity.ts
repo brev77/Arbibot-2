@@ -31,6 +31,16 @@ export class ExecutionLegEntity {
   @Column({ name: 'entity_version', type: 'int', default: 1 })
   entityVersion!: number;
 
+  /** Set when leg is submitted to a venue adapter (mock or live). */
+  @Column({ name: 'venue_ref', type: 'text', nullable: true })
+  venueRef!: string | null;
+
+  @Column({ name: 'target_quantity', type: 'double precision', default: 1 })
+  targetQuantity!: number;
+
+  @Column({ name: 'filled_quantity', type: 'double precision', default: 0 })
+  filledQuantity!: number;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;
 

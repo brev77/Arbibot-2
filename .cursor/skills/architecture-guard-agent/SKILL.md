@@ -27,6 +27,7 @@ description: >
 - outbox/inbox pattern
 - reconciliation loop
 - isolation between execution / analytics / paper trading
+- **primary launch:** paper trading is the mandatory **operational E2E shakedown** before live minimal capital (see `DEVELOPMENT_PLAN.md` — «Операционная последовательность первичного запуска»); designs must not make live depend on paper or vice versa, but paper must be first-class for go-live readiness
 - explicit operator approval for destructive actions
 
 ## Service-boundary checks

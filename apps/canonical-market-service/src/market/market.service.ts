@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import {
   BadRequestException,
   ConflictException,
@@ -12,6 +14,7 @@ import {
 } from '@arbibot/persistence';
 import { Repository } from 'typeorm';
 
+import { RedisConnection } from '../redis/redis-connection';
 import type { ResolveInstrumentDto } from './dto/resolve-instrument.dto';
 import type { ResolveRouteDto } from './dto/resolve-route.dto';
 
@@ -39,6 +42,8 @@ export type ResolvedRouteView = {
   readonly updatedAtIso: string;
 };
 
+const RESOLVE_CACHE_TTL_SEC = 90;
+
 @Injectable()
 export class MarketService {
   constructor(
@@ -48,6 +53,7 @@ export class MarketService {
     private readonly instrumentRepo: Repository<CanonicalInstrumentEntity>,
     @InjectRepository(CanonicalRouteEntity)
     private readonly routeRepo: Repository<CanonicalRouteEntity>,
+    private readonly redisConnection: RedisConnection,
   ) {}
 
   async resolveInstrument(dto: ResolveInstrumentDto): Promise<ResolvedInstrumentView> {
@@ -71,28 +77,41 @@ export class MarketService {
       );
     }
 
+    const cacheKey = this.buildInstrumentCacheKey(
+      hasKey,
+      canonicalKey,
+      venueCode,
+      venueSymbol,
+    );
+    const cached = await this.tryGetInstrumentCache(cacheKey);
+    if (cached !== null) {
+      return cached;
+    }
+
     let row: CanonicalInstrumentEntity | null;
     if (hasKey) {
       row = await this.instrumentRepo.findOne({
-        where: { canonicalKey: canonicalKey! },
+        where: { canonicalKey },
         relations: { venueRef: true },
       });
     } else {
       const venue = await this.venueRepo.findOne({
-        where: { venueCode: venueCode! },
+        where: { venueCode },
       });
       if (venue === null) {
         throw new NotFoundException(`Unknown venue: ${venueCode}`);
       }
       row = await this.instrumentRepo.findOne({
-        where: { venueRefId: venue.id, venueSymbol: venueSymbol! },
+        where: { venueRefId: venue.id, venueSymbol },
         relations: { venueRef: true },
       });
     }
     if (row === null) {
       throw new NotFoundException('Instrument not found');
     }
-    return this.toInstrumentView(row);
+    const view = this.toInstrumentView(row);
+    await this.trySetInstrumentCache(cacheKey, view);
+    return view;
   }
 
   async resolveRoute(dto: ResolveRouteDto): Promise<ResolvedRouteView> {
@@ -112,14 +131,20 @@ export class MarketService {
       );
     }
 
+    const cacheKey = this.buildRouteCacheKey(hasKey, routeKey, sid, tid);
+    const cached = await this.tryGetRouteCache(cacheKey);
+    if (cached !== null) {
+      return cached;
+    }
+
     let row: CanonicalRouteEntity | null;
     if (hasKey) {
-      row = await this.routeRepo.findOne({ where: { routeKey: routeKey! } });
+      row = await this.routeRepo.findOne({ where: { routeKey } });
     } else {
       const rows = await this.routeRepo.find({
         where: {
-          sourceInstrumentId: sid!,
-          targetInstrumentId: tid!,
+          sourceInstrumentId: sid,
+          targetInstrumentId: tid,
         },
         take: 2,
       });
@@ -133,7 +158,170 @@ export class MarketService {
     if (row === null) {
       throw new NotFoundException('Route not found');
     }
-    return this.toRouteView(row);
+    const view = this.toRouteView(row);
+    await this.trySetRouteCache(cacheKey, view);
+    return view;
+  }
+
+  private buildInstrumentCacheKey(
+    hasKey: boolean,
+    canonicalKey: string | undefined,
+    venueCode: string | undefined,
+    venueSymbol: string | undefined,
+  ): string {
+    const payload = hasKey
+      ? { v: 1, t: 'ck', canonicalKey: canonicalKey! }
+      : { v: 1, t: 'vs', venueCode: venueCode!, venueSymbol: venueSymbol! };
+    const h = createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+    return `arb:canonical:ri:v1:${h}`;
+  }
+
+  private buildRouteCacheKey(
+    hasKey: boolean,
+    routeKey: string | undefined,
+    sid: string | undefined,
+    tid: string | undefined,
+  ): string {
+    const payload = hasKey
+      ? { v: 1, t: 'rk', routeKey: routeKey! }
+      : { v: 1, t: 'pair', sourceInstrumentId: sid!, targetInstrumentId: tid! };
+    const h = createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+    return `arb:canonical:rr:v1:${h}`;
+  }
+
+  private async tryGetInstrumentCache(
+    key: string,
+  ): Promise<ResolvedInstrumentView | null> {
+    const redis = this.redisConnection.client;
+    if (redis === null) {
+      return null;
+    }
+    try {
+      const raw = await redis.get(key);
+      if (raw === null || raw.length === 0) {
+        return null;
+      }
+      return this.parseInstrumentCache(raw);
+    } catch {
+      return null;
+    }
+  }
+
+  private async trySetInstrumentCache(
+    key: string,
+    view: ResolvedInstrumentView,
+  ): Promise<void> {
+    const redis = this.redisConnection.client;
+    if (redis === null) {
+      return;
+    }
+    try {
+      await redis.setEx(key, RESOLVE_CACHE_TTL_SEC, JSON.stringify(view));
+    } catch {
+      /* ignore cache write failures */
+    }
+  }
+
+  private parseInstrumentCache(raw: string): ResolvedInstrumentView | null {
+    try {
+      const v = JSON.parse(raw) as unknown;
+      if (typeof v !== 'object' || v === null) {
+        return null;
+      }
+      const o = v as Record<string, unknown>;
+      if (
+        typeof o.id !== 'string' ||
+        typeof o.venueCode !== 'string' ||
+        typeof o.venueSymbol !== 'string' ||
+        typeof o.canonicalKey !== 'string' ||
+        typeof o.baseAsset !== 'string' ||
+        typeof o.quoteAsset !== 'string' ||
+        typeof o.entityVersion !== 'number' ||
+        typeof o.createdAtIso !== 'string' ||
+        typeof o.updatedAtIso !== 'string' ||
+        typeof o.attributes !== 'object' ||
+        o.attributes === null ||
+        Array.isArray(o.attributes)
+      ) {
+        return null;
+      }
+      return {
+        id: o.id,
+        venueCode: o.venueCode,
+        venueSymbol: o.venueSymbol,
+        canonicalKey: o.canonicalKey,
+        baseAsset: o.baseAsset,
+        quoteAsset: o.quoteAsset,
+        attributes: o.attributes as Record<string, unknown>,
+        entityVersion: o.entityVersion,
+        createdAtIso: o.createdAtIso,
+        updatedAtIso: o.updatedAtIso,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private async tryGetRouteCache(key: string): Promise<ResolvedRouteView | null> {
+    const redis = this.redisConnection.client;
+    if (redis === null) {
+      return null;
+    }
+    try {
+      const raw = await redis.get(key);
+      if (raw === null || raw.length === 0) {
+        return null;
+      }
+      return this.parseRouteCache(raw);
+    } catch {
+      return null;
+    }
+  }
+
+  private async trySetRouteCache(key: string, view: ResolvedRouteView): Promise<void> {
+    const redis = this.redisConnection.client;
+    if (redis === null) {
+      return;
+    }
+    try {
+      await redis.setEx(key, RESOLVE_CACHE_TTL_SEC, JSON.stringify(view));
+    } catch {
+      /* ignore cache write failures */
+    }
+  }
+
+  private parseRouteCache(raw: string): ResolvedRouteView | null {
+    try {
+      const v = JSON.parse(raw) as unknown;
+      if (typeof v !== 'object' || v === null) {
+        return null;
+      }
+      const o = v as Record<string, unknown>;
+      if (
+        typeof o.id !== 'string' ||
+        typeof o.routeKey !== 'string' ||
+        typeof o.sourceInstrumentId !== 'string' ||
+        typeof o.targetInstrumentId !== 'string' ||
+        !Array.isArray(o.hops) ||
+        typeof o.entityVersion !== 'number' ||
+        typeof o.createdAtIso !== 'string' ||
+        typeof o.updatedAtIso !== 'string'
+      ) {
+        return null;
+      }
+      return {
+        id: o.id,
+        routeKey: o.routeKey,
+        sourceInstrumentId: o.sourceInstrumentId,
+        targetInstrumentId: o.targetInstrumentId,
+        hops: o.hops,
+        entityVersion: o.entityVersion,
+        createdAtIso: o.createdAtIso,
+        updatedAtIso: o.updatedAtIso,
+      };
+    } catch {
+      return null;
+    }
   }
 
   private toInstrumentView(row: CanonicalInstrumentEntity): ResolvedInstrumentView {

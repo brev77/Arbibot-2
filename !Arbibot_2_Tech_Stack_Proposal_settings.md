@@ -120,6 +120,7 @@
 * ClickHouse
 * analytics jobs
 * token quality pipelines
+* **Первичный запуск:** стек paper и наблюдаемости должен позволять полноценную **операционную приёмку** всей связки до live (см. `.cursor/plans/DEVELOPMENT_PLAN.md`, раздел «Операционная последовательность первичного запуска»); paper здесь — не только analytics, но и **end-to-end dry-run** продукта.
 
 ### Фаза D — OpenClaw and automation stack
 

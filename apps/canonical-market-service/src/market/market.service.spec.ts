@@ -13,6 +13,7 @@ import type { Repository } from 'typeorm';
 
 import type { ResolveInstrumentDto } from './dto/resolve-instrument.dto';
 import type { ResolveRouteDto } from './dto/resolve-route.dto';
+import type { RedisConnection } from '../redis/redis-connection';
 import { MarketService } from './market.service';
 
 describe('MarketService', () => {
@@ -24,6 +25,9 @@ describe('MarketService', () => {
   let routeRepo: jest.Mocked<
     Pick<Repository<CanonicalRouteEntity>, 'findOne' | 'find'>
   >;
+  let redisGet: jest.Mock;
+  let redisSetEx: jest.Mock;
+  let redisConnection: RedisConnection;
 
   const venue: VenueRefEntity = {
     id: 'v1',
@@ -65,10 +69,18 @@ describe('MarketService', () => {
     venueRepo = { findOne: jest.fn() };
     instrumentRepo = { findOne: jest.fn() };
     routeRepo = { findOne: jest.fn(), find: jest.fn() };
+    redisGet = jest.fn().mockResolvedValue(null);
+    redisSetEx = jest.fn().mockResolvedValue(undefined);
+    redisConnection = {
+      get client() {
+        return { get: redisGet, setEx: redisSetEx };
+      },
+    } as unknown as RedisConnection;
     service = new MarketService(
       venueRepo as unknown as Repository<VenueRefEntity>,
       instrumentRepo as unknown as Repository<CanonicalInstrumentEntity>,
       routeRepo as unknown as Repository<CanonicalRouteEntity>,
+      redisConnection,
     );
   });
 
@@ -117,6 +129,35 @@ describe('MarketService', () => {
           venueSymbol: 'S',
         }),
       ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('returns cached instrument without hitting DB', async () => {
+      const cached = {
+        id: 'i1',
+        venueCode: 'BINANCE',
+        venueSymbol: 'BTCUSDT',
+        canonicalKey: 'BINANCE:BTC-USDT',
+        baseAsset: 'BTC',
+        quoteAsset: 'USDT',
+        attributes: {},
+        entityVersion: 1,
+        createdAtIso: '2026-01-01T00:00:00.000Z',
+        updatedAtIso: '2026-01-01T00:00:00.000Z',
+      };
+      redisGet.mockResolvedValueOnce(JSON.stringify(cached));
+      const dto: ResolveInstrumentDto = { canonicalKey: 'BINANCE:BTC-USDT' };
+      const out = await service.resolveInstrument(dto);
+      expect(out).toEqual(cached);
+      expect(instrumentRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    it('falls back to DB when Redis get throws', async () => {
+      redisGet.mockRejectedValueOnce(new Error('redis down'));
+      instrumentRepo.findOne.mockResolvedValue(inst);
+      const dto: ResolveInstrumentDto = { canonicalKey: 'BINANCE:BTC-USDT' };
+      const out = await service.resolveInstrument(dto);
+      expect(out.id).toBe('i1');
+      expect(instrumentRepo.findOne).toHaveBeenCalled();
     });
   });
 
@@ -167,6 +208,26 @@ describe('MarketService', () => {
           targetInstrumentId: 'i2',
         }),
       ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('returns cached route without hitting DB', async () => {
+      const cached = {
+        id: 'r1',
+        routeKey: 'BINANCE:BTC-USDT->BINANCE:ETH-USDT',
+        sourceInstrumentId: 'i1',
+        targetInstrumentId: 'i2',
+        hops: [{ leg: 0 }],
+        entityVersion: 1,
+        createdAtIso: '2026-01-01T00:00:00.000Z',
+        updatedAtIso: '2026-01-01T00:00:00.000Z',
+      };
+      redisGet.mockResolvedValueOnce(JSON.stringify(cached));
+      const dto: ResolveRouteDto = {
+        routeKey: 'BINANCE:BTC-USDT->BINANCE:ETH-USDT',
+      };
+      const out = await service.resolveRoute(dto);
+      expect(out).toEqual(cached);
+      expect(routeRepo.findOne).not.toHaveBeenCalled();
     });
   });
 });

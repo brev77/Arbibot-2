@@ -17,12 +17,54 @@ export function roleMeetsMinimum(role: OperatorRole, minimum: OperatorRole): boo
   return ROLE_RANK[role] >= ROLE_RANK[minimum];
 }
 
+export function formatRoleLabel(role: OperatorRole): string {
+  switch (role) {
+    case 'viewer':
+      return 'Viewer';
+    case 'operator':
+      return 'Operator';
+    case 'admin':
+      return 'Admin';
+  }
+}
+
+/**
+ * Minimum role for same-origin operator BFF (`/api/operator/*`).
+ * Must stay aligned with `(operator)` pages that call each BFF path.
+ */
+function minimumRoleForOperatorBffPathname(pathname: string): OperatorRole | null {
+  if (!pathname.startsWith('/api/operator/')) {
+    return null;
+  }
+  if (pathname.startsWith('/api/operator/opportunities')) {
+    return 'viewer';
+  }
+  if (pathname.startsWith('/api/operator/audit')) {
+    return 'viewer';
+  }
+  if (pathname.startsWith('/api/operator/execution')) {
+    return 'operator';
+  }
+  if (pathname.startsWith('/api/operator/portfolio')) {
+    return 'operator';
+  }
+  if (pathname.startsWith('/api/operator/reconciliation')) {
+    return 'operator';
+  }
+  return 'operator';
+}
+
 /** Minimum role required to access a protected route segment (pathname without query). */
 export function minimumRoleForPathname(pathname: string): OperatorRole | null {
+  const bff = minimumRoleForOperatorBffPathname(pathname);
+  if (bff !== null) {
+    return bff;
+  }
   if (pathname.startsWith('/settings') || pathname.startsWith('/openclaw')) {
     return 'admin';
   }
   if (
+    pathname.startsWith('/portfolio') ||
     pathname.startsWith('/execution') ||
     pathname.startsWith('/tokens') ||
     pathname.startsWith('/paper') ||
@@ -33,7 +75,6 @@ export function minimumRoleForPathname(pathname: string): OperatorRole | null {
   }
   if (
     pathname.startsWith('/dashboard') ||
-    pathname.startsWith('/portfolio') ||
     pathname.startsWith('/opportunities')
   ) {
     return 'viewer';

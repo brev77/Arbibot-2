@@ -3,6 +3,8 @@
 import type { ReactNode } from 'react';
 import { useCallback, useLayoutEffect, useSyncExternalStore } from 'react';
 
+import { Button } from './ui/button';
+
 const STORAGE_KEY = 'arbibot-theme';
 
 function readMode(): 'dark' | 'light' {
@@ -70,22 +72,16 @@ export function ThemeToggle(): ReactNode {
   }, [mode]);
 
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      size="sm"
       onClick={toggle}
       suppressHydrationWarning
-      style={{
-        padding: '0.35rem 0.65rem',
-        fontSize: 12,
-        borderRadius: 6,
-        border: '1px solid #334155',
-        background: 'transparent',
-        color: 'inherit',
-        cursor: 'pointer',
-      }}
+      className="text-xs"
       aria-label={`Switch to ${mode === 'dark' ? 'light' : 'dark'} theme`}
     >
       {mode === 'dark' ? 'Light' : 'Dark'}
-    </button>
+    </Button>
   );
 }

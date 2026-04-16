@@ -30,7 +30,7 @@ describe('OutboxRelayService', () => {
 
     const em = {
       create: jest.fn((_Entity: unknown, row: object) => ({ ...row })),
-      query: jest.fn(async (_sql: string, params?: unknown[]) => {
+      query: jest.fn((_sql: string, params?: unknown[]) => {
         const allowed = params?.[1] as string[] | undefined;
         const row = rows.find(
           (candidate) =>
@@ -56,14 +56,14 @@ describe('OutboxRelayService', () => {
               },
             ];
       }),
-      findOne: jest.fn(async (Entity: { name?: string }, opts: { where: { id: string } }) => {
+      findOne: jest.fn((Entity: { name?: string }, opts: { where: { id: string } }) => {
         if (Entity.name === 'ArbitrageOpportunityEntity') {
           return opportunities.find((row) => row.id === opts.where.id) ?? null;
         }
         return null;
       }),
       update: jest.fn(
-        async (
+        (
           Entity: { name?: string },
           criteria: { id: string },
           partial: Partial<OutboxEventEntity>,
@@ -76,7 +76,7 @@ describe('OutboxRelayService', () => {
           }
         },
       ),
-      save: jest.fn(async (Entity: { name?: string }, entity: ArbitrageOpportunityEntity) => {
+      save: jest.fn((Entity: { name?: string }, entity: ArbitrageOpportunityEntity) => {
         if (Entity.name === 'InboxEventEntity') {
           const duplicate = inbox.find(
             (row) =>
@@ -112,8 +112,9 @@ describe('OutboxRelayService', () => {
         delete: jest.fn().mockReturnThis(),
         from: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
-        execute: jest.fn(async () => {
+        execute: jest.fn(() => {
           inbox = [];
+          return Promise.resolve();
         }),
       })),
     } as unknown as EntityManager;

@@ -1,5 +1,8 @@
+import { randomUUID } from 'node:crypto';
+
 import {
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -7,11 +10,25 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 
 import {
+  EVENT_NAMES,
+  PLAN_ARMED_PAYLOAD_SCHEMA_VERSION,
+  PLAN_COMPLETED_PAYLOAD_SCHEMA_VERSION,
+  SERVICE_IDS,
+  type PlanArmedPayloadV1,
+  type PlanCompletedPayloadV1,
+} from '@arbibot/contracts';
+import {
   CapitalReservationEntity,
+  ExecutionLegEntity,
   ExecutionPlanEntity,
+  OutboxEventEntity,
   RiskDecisionEntity,
 } from '@arbibot/persistence';
-import { AuditClientService, getCorrelationId } from '@arbibot/nest-platform';
+import {
+  AuditClientService,
+  getCorrelationId,
+  type IAuditClient,
+} from '@arbibot/nest-platform';
 
 import type { CreatePlanDto } from './dto/create-plan.dto';
 
@@ -21,13 +38,14 @@ export class PlansService {
     private readonly dataSource: DataSource,
     @InjectRepository(ExecutionPlanEntity)
     private readonly plans: Repository<ExecutionPlanEntity>,
-    private readonly audit: AuditClientService,
+    @Inject(AuditClientService) private readonly audit: IAuditClient,
   ) {}
 
   async create(dto: CreatePlanDto): Promise<ExecutionPlanEntity> {
     const row = this.plans.create({
       correlationId: dto.correlationId ?? null,
       riskDecisionId: dto.riskDecisionId ?? null,
+      routeKey: dto.routeKey?.trim() ?? null,
       state: 'planned',
       capitalReservationId: null,
       entityVersion: 1,
@@ -134,6 +152,41 @@ export class PlansService {
       plan.state = 'armed';
       plan.entityVersion += 1;
       const saved = await em.save(ExecutionPlanEntity, plan);
+      const messageId = randomUUID();
+      const createdAt = new Date();
+      const correlationForEnvelope =
+        saved.correlationId !== null && saved.correlationId.length > 0
+          ? saved.correlationId
+          : saved.id;
+      const payload: PlanArmedPayloadV1 = {
+        planId: saved.id,
+        state: 'armed',
+        capitalReservationId: saved.capitalReservationId!,
+        riskDecisionId: saved.riskDecisionId,
+        entityVersion: saved.entityVersion,
+      };
+      const envelope = {
+        messageId,
+        correlationId: correlationForEnvelope,
+        entityType: 'ExecutionPlan',
+        entityId: saved.id,
+        version: PLAN_ARMED_PAYLOAD_SCHEMA_VERSION,
+        sourceModule: SERVICE_IDS.executionOrchestrator,
+        eventTs: createdAt.toISOString(),
+        eventName: EVENT_NAMES.planArmed,
+        payload,
+      };
+      const outbox = em.create(OutboxEventEntity, {
+        messageId,
+        eventType: EVENT_NAMES.planArmed,
+        entityType: 'ExecutionPlan',
+        entityId: saved.id,
+        schemaVersion: PLAN_ARMED_PAYLOAD_SCHEMA_VERSION,
+        payload: payload as unknown as Record<string, unknown>,
+        envelope: envelope as unknown as Record<string, unknown>,
+        processedAt: null,
+      });
+      await em.save(OutboxEventEntity, outbox);
       this.audit.record({
         idempotencyKey: `execution:ArmPlan:${saved.id}:v${saved.entityVersion}`,
         correlationId: saved.correlationId ?? undefined,
@@ -147,6 +200,81 @@ export class PlansService {
         },
       });
       return saved;
+    });
+  }
+
+  /**
+   * When every leg for the plan is `filled`, move plan `executing` → `completed`.
+   * No-op if legs are incomplete or plan is not executing.
+   */
+  async tryMarkPlanCompletedWhenAllLegsFilled(
+    planId: string,
+  ): Promise<{ completed: boolean; plan: ExecutionPlanEntity | null }> {
+    return this.dataSource.transaction(async (em) => {
+      const legsForPlan = await em.find(ExecutionLegEntity, {
+        where: { planId },
+      });
+      if (legsForPlan.length === 0) {
+        return { completed: false, plan: null };
+      }
+      if (legsForPlan.some((l) => l.state !== 'filled')) {
+        return { completed: false, plan: null };
+      }
+
+      const plan = await em.findOne(ExecutionPlanEntity, {
+        where: { id: planId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (plan === null || plan.state !== 'executing') {
+        return { completed: false, plan: plan ?? null };
+      }
+      plan.state = 'completed';
+      plan.entityVersion += 1;
+      const saved = await em.save(ExecutionPlanEntity, plan);
+      const messageId = randomUUID();
+      const createdAt = new Date();
+      const correlationForEnvelope =
+        saved.correlationId !== null && saved.correlationId.trim().length > 0
+          ? saved.correlationId
+          : saved.id;
+      const payload: PlanCompletedPayloadV1 = {
+        planId: saved.id,
+        state: 'completed',
+        entityVersion: saved.entityVersion,
+        capitalReservationId: saved.capitalReservationId,
+      };
+      const envelope = {
+        messageId,
+        correlationId: correlationForEnvelope,
+        entityType: 'ExecutionPlan',
+        entityId: saved.id,
+        version: PLAN_COMPLETED_PAYLOAD_SCHEMA_VERSION,
+        sourceModule: SERVICE_IDS.executionOrchestrator,
+        eventTs: createdAt.toISOString(),
+        eventName: EVENT_NAMES.planCompleted,
+        payload,
+      };
+      const outbox = em.create(OutboxEventEntity, {
+        messageId,
+        eventType: EVENT_NAMES.planCompleted,
+        entityType: 'ExecutionPlan',
+        entityId: saved.id,
+        schemaVersion: PLAN_COMPLETED_PAYLOAD_SCHEMA_VERSION,
+        payload: payload as unknown as Record<string, unknown>,
+        envelope: envelope as unknown as Record<string, unknown>,
+        processedAt: null,
+      });
+      await em.save(OutboxEventEntity, outbox);
+      this.audit.record({
+        idempotencyKey: `execution:MarkPlanCompleted:${saved.id}:v${saved.entityVersion}`,
+        correlationId: saved.correlationId ?? undefined,
+        actor: 'execution-orchestrator',
+        action: 'MarkPlanCompleted',
+        resourceType: 'ExecutionPlan',
+        resourceId: saved.id,
+        payload: { state: saved.state },
+      });
+      return { completed: true, plan: saved };
     });
   }
 

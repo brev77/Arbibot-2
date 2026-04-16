@@ -25,7 +25,7 @@ describe('SnapshotsService', () => {
     ({
       query: jest.fn().mockResolvedValue(undefined),
       findOne: jest.fn(
-        async (
+        (
           Entity: object,
           opts?: { where: { idempotencyKey?: string } },
         ) => {
@@ -42,7 +42,7 @@ describe('SnapshotsService', () => {
         if (Entity === MarketSnapshotEntity) {
           return {
             findOne: jest.fn(
-              async ({
+              ({
                 where,
               }: {
                 where: { venueCode: string; venueSymbol: string };
@@ -72,7 +72,7 @@ describe('SnapshotsService', () => {
         }
         return { ...o };
       }),
-      save: jest.fn(async (a: unknown, b?: unknown) => {
+      save: jest.fn((a: unknown, b?: unknown) => {
         const entity = (b !== undefined ? b : a) as Record<string, unknown>;
         if (
           entity &&
@@ -123,7 +123,7 @@ describe('SnapshotsService', () => {
         if (Entity === MarketSnapshotEntity) {
           return {
             findOne: jest.fn(
-              async ({
+              ({
                 where,
               }: {
                 where: { venueCode: string; venueSymbol: string };

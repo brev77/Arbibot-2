@@ -16,6 +16,8 @@ export const EVENT_NAMES = {
   riskDecisionIssued: 'RiskDecisionIssued',
   capitalReserved: 'CapitalReserved',
   planArmed: 'PlanArmed',
+  legFilled: 'LegFilled',
+  planCompleted: 'PlanCompleted',
   opportunityDetected: 'OpportunityDetected',
   snapshotUpdated: 'SnapshotUpdated',
 } as const;
@@ -62,3 +64,55 @@ export type SnapshotUpdatedPayloadV2 = {
 };
 
 export type SnapshotUpdatedEnvelopeV2 = EventEnvelope<SnapshotUpdatedPayloadV2>;
+
+/** Outbox / envelope `version` and `outbox_events.schema_version` for CapitalReserved. */
+export const CAPITAL_RESERVED_PAYLOAD_SCHEMA_VERSION = 1 as const;
+
+export type CapitalReservedPayloadV1 = {
+  readonly reservationId: string;
+  readonly correlationId: string;
+  readonly planId: string | null;
+  readonly amountUsd: number;
+  readonly expiresAt: string;
+  readonly entityVersion: number;
+};
+
+export type CapitalReservedEnvelopeV1 = EventEnvelope<CapitalReservedPayloadV1>;
+
+/** Outbox / envelope `version` and `outbox_events.schema_version` for PlanArmed. */
+export const PLAN_ARMED_PAYLOAD_SCHEMA_VERSION = 1 as const;
+
+export type PlanArmedPayloadV1 = {
+  readonly planId: string;
+  readonly state: 'armed';
+  readonly capitalReservationId: string;
+  readonly riskDecisionId: string | null;
+  readonly entityVersion: number;
+};
+
+export type PlanArmedEnvelopeV1 = EventEnvelope<PlanArmedPayloadV1>;
+
+/** Outbox / envelope `version` and `outbox_events.schema_version` for LegFilled. */
+export const LEG_FILLED_PAYLOAD_SCHEMA_VERSION = 1 as const;
+
+export type LegFilledPayloadV1 = {
+  readonly legId: string;
+  readonly planId: string;
+  readonly state: 'filled';
+  readonly filledQuantity: number;
+  readonly entityVersion: number;
+};
+
+export type LegFilledEnvelopeV1 = EventEnvelope<LegFilledPayloadV1>;
+
+/** Outbox / envelope `version` and `outbox_events.schema_version` for PlanCompleted. */
+export const PLAN_COMPLETED_PAYLOAD_SCHEMA_VERSION = 1 as const;
+
+export type PlanCompletedPayloadV1 = {
+  readonly planId: string;
+  readonly state: 'completed';
+  readonly entityVersion: number;
+  readonly capitalReservationId: string | null;
+};
+
+export type PlanCompletedEnvelopeV1 = EventEnvelope<PlanCompletedPayloadV1>;

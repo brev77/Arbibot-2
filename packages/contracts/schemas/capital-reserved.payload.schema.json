@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://arbibot.local/schemas/capital-reserved.payload.schema.json",
+  "title": "CapitalReservedPayloadV1",
+  "type": "object",
+  "required": [
+    "reservationId",
+    "correlationId",
+    "planId",
+    "amountUsd",
+    "expiresAt",
+    "entityVersion"
+  ],
+  "properties": {
+    "reservationId": { "type": "string", "format": "uuid" },
+    "correlationId": { "type": "string", "format": "uuid" },
+    "planId": {
+      "anyOf": [
+        { "type": "string", "format": "uuid" },
+        { "type": "null" }
+      ]
+    },
+    "amountUsd": { "type": "number" },
+    "expiresAt": { "type": "string", "format": "date-time" },
+    "entityVersion": { "type": "integer", "minimum": 1 }
+  },
+  "additionalProperties": false
+}

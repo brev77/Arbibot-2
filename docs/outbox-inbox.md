@@ -2,9 +2,9 @@
 
 ## Scope (Phase 1 — текущая реализация)
 
-- **Transactional outbox** пишется владельцем агрегата (например `risk-service` при `RiskDecisionIssued`).
+- **Transactional outbox** пишется владельцем агрегата (например `risk-service` при `RiskDecisionIssued`, `capital-service` при `CapitalReserved`, `execution-orchestrator` при `PlanArmed`).
 - **Релей в `opportunity-service`:** поллинг `outbox_events`, доставка **только** события **`RiskDecisionIssued`** в домен возможностей (`arbitrage_opportunities` → `risk_checked`, `risk_decision_id`).
-- События **`CapitalReserved`**, **`PlanArmed`** и прочие P0-facts в этой итерации **не** имеют отдельных publishers/consumers в релее; их добавление — следующий шаг архитектуры (Kafka/Redpanda + мульти-consumer).
+- События **`CapitalReserved`**, **`PlanArmed`**, **`LegFilled`**, **`PlanCompleted`** пишутся в outbox владельцами (оркестратор — последние два при fill / завершении плана) и публикуются на Kafka через `@arbibot/outbox-kafka-bridge` (см. «Транспорт»); отдельного in-DB relay под них нет. Прочие P0-facts по мере появления — отдельные шаги (publisher + транспорт/consumer).
 
 ## Outbox
 
@@ -26,6 +26,6 @@
 ## Транспорт
 
 - **In-DB relay:** `opportunity-service` поллит `RiskDecisionIssued` (см. выше).
-- **Kafka/Redpanda (dev):** пакет `@arbibot/outbox-kafka-bridge` публикует в топик **только** строки `event_type = SnapshotUpdated`, чтобы не пересекаться с relay по `processed_at` на других типах событий. После успешного `producer.send` в той же транзакции выставляется `processed_at` (строка считается доставленной на шину; повторная публикация при сбое до commit допускается — consumer идемпотентен через inbox).
-- **Smoke-consumer** в том же пакете: читает топик, парсит `envelope.messageId`, выполняет `tryClaimInboxMessage` с `consumer_id` по умолчанию `outbox-kafka-bridge-smoke` (без мутации чужих агрегатов).
+- **Kafka/Redpanda (dev):** пакет `@arbibot/outbox-kafka-bridge` публикует в топик строки с `event_type` в наборе **`SnapshotUpdated`**, **`CapitalReserved`**, **`PlanArmed`**, **`LegFilled`**, **`PlanCompleted`** (полный JSON `envelope` в значении сообщения). In-DB relay по `RiskDecisionIssued` по-прежнему фильтрует свой `event_type` и не трогает эти строки. После успешного `producer.send` в той же транзакции выставляется `processed_at` (строка считается доставленной на шину; повторная публикация при сбое до commit допускается — consumer идемпотентен через inbox).
+- **Smoke-consumer** в том же пакете: читает топик, парсит `envelope.messageId`, выполняет `tryClaimInboxMessage` с `consumer_id` по умолчанию `outbox-kafka-bridge-smoke` (без мутации чужих агрегатов). В топике могут быть разные `eventName` в envelope — smoke только фиксирует доставку через inbox.
 - Compose: профиль `bus` в `infra/docker-compose.dev.yml` (Redpanda, порт **19092** на хосте). Переменные: `KAFKA_BROKERS`, `KAFKA_TOPIC` (по умолчанию `arbibot.domain.events`), `DATABASE_URL`. Скрипты: `npm run bus:publish`, `npm run bus:consume` из корня монорепо.

@@ -3,7 +3,7 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import type { OutboxEventEntity, RiskDecisionEntity } from '@arbibot/persistence';
 import type { DataSource, EntityManager, Repository } from 'typeorm';
 
-import { AuditClientService } from '@arbibot/nest-platform';
+import type { IAuditClient } from '@arbibot/nest-platform';
 
 import { EvaluateRiskRequestDto } from './dto/evaluate-risk-request.dto';
 import { RiskService } from './risk.service';
@@ -19,7 +19,7 @@ describe('RiskService', () => {
     outbox = [];
     const em = {
       findOne: jest.fn(
-        async (
+        (
           _Entity: unknown,
           opts: {
             where: { id?: string; idempotencyKey?: string };
@@ -41,7 +41,7 @@ describe('RiskService', () => {
       ),
       create: jest.fn((_Entity: unknown, row: object) => ({ ...row })),
       save: jest.fn(
-        async (
+        (
           targetOrEntity: unknown,
           maybeEntity?: RiskDecisionEntity | OutboxEventEntity,
         ) => {
@@ -66,12 +66,15 @@ describe('RiskService', () => {
     } as unknown as DataSource;
 
     const decisionRepo = {
-      findOne: jest.fn(async ({ where }: { where: { id: string } }) => {
+      findOne: jest.fn(({ where }: { where: { id: string } }) => {
         return decisions.find((d) => d.id === where.id) ?? null;
       }),
     } as unknown as Repository<RiskDecisionEntity>;
 
-    const audit = { record: auditRecord } as unknown as AuditClientService;
+    const audit = {
+      record: auditRecord,
+      appendEntry: jest.fn(),
+    } as unknown as IAuditClient;
     service = new RiskService(dataSource, decisionRepo, audit);
   });
 

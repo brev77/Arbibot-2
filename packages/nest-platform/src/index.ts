@@ -2,6 +2,7 @@ export { AuditClientModule } from './audit-client.module';
 export {
   AuditClientService,
   type AuditRecordInput,
+  type IAuditClient,
 } from './audit-client.service';
 export {
   correlationIdPreHandler,
@@ -15,3 +16,4 @@ export {
   type ArbibotHttpSecurityEnv,
 } from './http-security';
 export { withCorrelation } from './structured-logger';
+export { startOpenTelemetryNodeSdkIfConfigured } from './otel';

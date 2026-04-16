@@ -6,7 +6,7 @@ import { ThemeToggle } from './theme-toggle';
 
 const links = [
   { href: '/dashboard', label: 'Dashboard', minRole: 'viewer' },
-  { href: '/portfolio', label: 'Portfolio', minRole: 'viewer' },
+  { href: '/portfolio', label: 'Portfolio', minRole: 'operator' },
   { href: '/opportunities', label: 'Opportunities', minRole: 'viewer' },
   { href: '/execution', label: 'Execution', minRole: 'operator' },
   { href: '/tokens', label: 'Tokens', minRole: 'operator' },

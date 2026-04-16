@@ -11,6 +11,8 @@
     "lint": "turbo run lint",
     "test": "turbo run test",
     "db:migrate": "node tools/db-migrate.mjs",
+    "e2e:phase1-foundation": "node tools/e2e-phase1-foundation-chain.mjs",
+    "e2e:phase2-controlled-execution": "node tools/e2e-phase2-controlled-execution.mjs",
     "dev:risk": "npm run start:dev -w @arbibot/risk-service",
     "dev:opportunity": "npm run start:dev -w @arbibot/opportunity-service",
     "dev:capital": "npm run start:dev -w @arbibot/capital-service",
@@ -18,6 +20,8 @@
     "dev:audit": "npm run start:dev -w @arbibot/audit-service",
     "dev:canonical": "npm run start:dev -w @arbibot/canonical-market-service",
     "dev:intake": "npm run start:dev -w @arbibot/market-intake-service",
+    "dev:portfolio": "npm run start:dev -w @arbibot/portfolio-service",
+    "dev:reconciliation": "npm run start:dev -w @arbibot/reconciliation-service",
     "dev:web": "npm run dev -w @arbibot/web",
     "bus:publish": "npm run build -w @arbibot/outbox-kafka-bridge && npm run start:publish -w @arbibot/outbox-kafka-bridge",
     "bus:consume": "npm run build -w @arbibot/outbox-kafka-bridge && npm run start:consume -w @arbibot/outbox-kafka-bridge"

@@ -1,0 +1,14 @@
+# graphify corpus exclusions (gitignore-style, paths relative to graphify root)
+node_modules/
+dist/
+build/
+.next/
+.turbo/
+coverage/
+*.tsbuildinfo
+*.log
+.DS_Store
+Thumbs.db
+
+# Large / generated trees
+apps/web/.next/

@@ -29,8 +29,10 @@ describe('RiskClientService', () => {
   }
 
   it('maps 400 to BadRequestException', async () => {
-    global.fetch = jest.fn(async () =>
-      new Response(JSON.stringify({ message: 'bad input' }), { status: 400 }),
+    global.fetch = jest.fn(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ message: 'bad input' }), { status: 400 }),
+      ),
     ) as typeof fetch;
 
     const service = new RiskClientService();
@@ -40,8 +42,10 @@ describe('RiskClientService', () => {
   });
 
   it('maps 404 to NotFoundException', async () => {
-    global.fetch = jest.fn(async () =>
-      new Response(JSON.stringify({ message: 'missing' }), { status: 404 }),
+    global.fetch = jest.fn(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ message: 'missing' }), { status: 404 }),
+      ),
     ) as typeof fetch;
 
     const service = new RiskClientService();
@@ -51,10 +55,12 @@ describe('RiskClientService', () => {
   });
 
   it('maps 409 to ConflictException', async () => {
-    global.fetch = jest.fn(async () =>
-      new Response(JSON.stringify({ message: 'idempotency mismatch' }), {
-        status: 409,
-      }),
+    global.fetch = jest.fn(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ message: 'idempotency mismatch' }), {
+          status: 409,
+        }),
+      ),
     ) as typeof fetch;
 
     const service = new RiskClientService();
@@ -64,8 +70,8 @@ describe('RiskClientService', () => {
   });
 
   it('maps network errors to ServiceUnavailableException', async () => {
-    global.fetch = jest.fn(async () => {
-      throw new Error('connect ECONNREFUSED');
+    global.fetch = jest.fn(() => {
+      return Promise.reject(new Error('connect ECONNREFUSED'));
     }) as typeof fetch;
 
     const service = new RiskClientService();

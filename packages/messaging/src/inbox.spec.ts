@@ -6,7 +6,7 @@ describe('tryClaimInboxMessage', () => {
   it('returns true when insert succeeds', async () => {
     const em = {
       create: jest.fn((_Entity: unknown, row: object) => ({ ...row })),
-      save: jest.fn(async () => undefined),
+      save: jest.fn(() => Promise.resolve()),
     };
 
     await expect(
@@ -21,14 +21,16 @@ describe('tryClaimInboxMessage', () => {
   it('returns false on postgres unique violation wrapped by TypeORM', async () => {
     const em = {
       create: jest.fn((_Entity: unknown, row: object) => ({ ...row })),
-      save: jest.fn(async () => {
+      save: jest.fn(() => {
         const driverError = Object.assign(new Error('duplicate key'), {
           code: '23505',
         });
-        throw new QueryFailedError(
-          'INSERT INTO inbox_events ...',
-          [],
-          driverError,
+        return Promise.reject(
+          new QueryFailedError(
+            'INSERT INTO inbox_events ...',
+            [],
+            driverError,
+          ),
         );
       }),
     };
@@ -45,9 +47,7 @@ describe('tryClaimInboxMessage', () => {
   it('rethrows non-unique failures', async () => {
     const em = {
       create: jest.fn((_Entity: unknown, row: object) => ({ ...row })),
-      save: jest.fn(async () => {
-        throw new Error('db offline');
-      }),
+      save: jest.fn(() => Promise.reject(new Error('db offline'))),
     };
 
     await expect(

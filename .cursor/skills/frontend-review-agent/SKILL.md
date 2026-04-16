@@ -44,7 +44,7 @@ description: >
 - /opportunities
 - /execution
 - /tokens
-- /paper
+- /paper (primary launch: operator E2E acceptance in paper before live minimal capital — see `DEVELOPMENT_PLAN.md`)
 - /incidents
 - /runbooks
 - /openclaw
