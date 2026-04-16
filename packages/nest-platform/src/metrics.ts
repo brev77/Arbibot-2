@@ -8,6 +8,11 @@ import {
 const registry = new Registry();
 collectDefaultMetrics({ register: registry });
 
+/** Same registry as `GET /metrics` — use for app-specific counters/histograms. */
+export function getArbibotMetricsRegistry(): Registry {
+  return registry;
+}
+
 const httpRequests = new Counter({
   name: 'arb_http_requests_total',
   help: 'Total HTTP requests (Arbibot Nest + Fastify)',

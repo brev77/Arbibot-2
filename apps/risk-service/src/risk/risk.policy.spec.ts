@@ -27,4 +27,25 @@ describe('evaluateRiskPolicy', () => {
     });
     expect(r.outcome).toBe('rejected');
   });
+
+  it('applies profile cap below mode threshold', () => {
+    const r = evaluateRiskPolicy({
+      notionalUsd: 50_000,
+      riskMode: 'standard',
+      now: new Date('2026-01-15T12:00:00.000Z'),
+      profileMaxNotionalUsd: 10_000,
+    });
+    expect(r.outcome).toBe('rejected');
+    expect(r.reasons[0]).toContain('effective cap 10000');
+  });
+
+  it('approves when profile cap is above notional and above mode is not binding', () => {
+    const r = evaluateRiskPolicy({
+      notionalUsd: 500,
+      riskMode: 'standard',
+      now: new Date('2026-01-15T12:00:00.000Z'),
+      profileMaxNotionalUsd: 5_000_000,
+    });
+    expect(r.outcome).toBe('approved');
+  });
 });

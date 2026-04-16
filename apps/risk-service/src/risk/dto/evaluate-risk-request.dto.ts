@@ -41,4 +41,16 @@ export class EvaluateRiskRequestDto {
   @IsOptional()
   @IsUUID('4')
   riskWindowReservationId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(256)
+  instrumentKey?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(256)
+  routeKey?: string;
 }

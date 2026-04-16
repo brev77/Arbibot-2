@@ -19,8 +19,10 @@ import {
   OutboxEventEntity,
   RiskDecisionEntity,
   RiskWindowReservationEntity,
+  RouteProfileEntity,
+  TokenProfileEntity,
 } from '@arbibot/persistence';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 
 import type {
   EvaluateRiskInput,
@@ -102,12 +104,9 @@ export class RiskService {
       notionalUsd: request.notionalUsd,
       snapshotVersion: request.snapshotVersion,
       riskMode,
+      instrumentKey: request.instrumentKey?.trim() ?? null,
+      routeKey: request.routeKey?.trim() ?? null,
     };
-    const { outcome, reasons } = evaluateRiskPolicy({
-      notionalUsd: input.notionalUsd,
-      riskMode: input.riskMode,
-      now: new Date(),
-    });
 
     const { row, replay, outboxMessageId } = await this.dataSource.transaction(
       async (em) => {
@@ -161,6 +160,14 @@ export class RiskService {
         riskWindowReservationId = resv.id;
       }
 
+      const profileMax = await this.loadProfileCapsUsd(em, request);
+      const { outcome, reasons } = evaluateRiskPolicy({
+        notionalUsd: input.notionalUsd,
+        riskMode: input.riskMode,
+        now: new Date(),
+        profileMaxNotionalUsd: profileMax,
+      });
+
       const id = randomUUID();
       const messageId = randomUUID();
       const createdAt = new Date();
@@ -176,6 +183,8 @@ export class RiskService {
         notionalUsd: String(input.notionalUsd),
         idempotencyKey: request.idempotencyKey ?? null,
         riskWindowReservationId,
+        instrumentKey: input.instrumentKey,
+        routeKey: input.routeKey,
         entityVersion: 1,
         createdAt,
       });
@@ -244,6 +253,38 @@ export class RiskService {
     };
   }
 
+  private async loadProfileCapsUsd(
+    em: EntityManager,
+    request: EvaluateRiskRequestDto,
+  ): Promise<number | undefined> {
+    let cap: number | undefined;
+    const ik = request.instrumentKey?.trim();
+    if (ik !== undefined && ik.length > 0) {
+      const row = await em.findOne(TokenProfileEntity, {
+        where: { instrumentKey: ik },
+      });
+      if (row !== null) {
+        const n = Number(row.maxNotionalUsd);
+        if (Number.isFinite(n) && n > 0) {
+          cap = cap === undefined ? n : Math.min(cap, n);
+        }
+      }
+    }
+    const rk = request.routeKey?.trim();
+    if (rk !== undefined && rk.length > 0) {
+      const row = await em.findOne(RouteProfileEntity, {
+        where: { routeKey: rk },
+      });
+      if (row !== null) {
+        const n = Number(row.maxNotionalUsd);
+        if (Number.isFinite(n) && n > 0) {
+          cap = cap === undefined ? n : Math.min(cap, n);
+        }
+      }
+    }
+    return cap;
+  }
+
   private assertSameEvaluateRequest(
     row: RiskDecisionEntity,
     input: EvaluateRiskInput,
@@ -254,13 +295,18 @@ export class RiskService {
     const resvMatch =
       (row.riskWindowReservationId ?? null) ===
       (request.riskWindowReservationId ?? null);
+    const instrumentMatch =
+      (row.instrumentKey ?? null) === (input.instrumentKey ?? null);
+    const routeMatch = (row.routeKey ?? null) === (input.routeKey ?? null);
     const same =
       row.correlationId === input.correlationId &&
       row.planReference === input.planReference &&
       row.snapshotVersion === input.snapshotVersion &&
       row.riskMode === input.riskMode &&
       notionalMatches &&
-      resvMatch;
+      resvMatch &&
+      instrumentMatch &&
+      routeMatch;
     if (!same) {
       throw new ConflictException(
         `Risk idempotency key ${row.idempotencyKey} conflicts with request payload`,

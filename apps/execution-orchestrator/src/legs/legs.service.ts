@@ -29,6 +29,7 @@ import { AuditClientService, type IAuditClient } from '@arbibot/nest-platform';
 
 import {
   VENUE_ADAPTER,
+  VenueSubmitClientError,
   VenueSubmitTransientError,
   VenueTerminalSubmitError,
   type VenueAdapter,
@@ -56,6 +57,7 @@ export function resolveInstrumentKeyForPlan(plan: ExecutionPlanEntity): string {
 }
 
 import type { ApplyFillDto } from './dto/apply-fill.dto';
+import { executionLegPartialFillCommits } from './execution-leg-metrics';
 import { FillOutboundService } from './fill-outbound.service';
 
 function isPgUniqueViolation(err: unknown): boolean {
@@ -228,6 +230,13 @@ export class LegsService {
           });
           return legView(savedTerminal);
         }
+        if (err instanceof VenueSubmitClientError) {
+          const msg = err.message;
+          throw new HttpException(
+            `Venue submitLeg failed (venue client error): ${msg}`,
+            HttpStatus.UNPROCESSABLE_ENTITY,
+          );
+        }
         const msg = err instanceof Error ? err.message : String(err);
         const transientHint =
           err instanceof VenueSubmitTransientError ||
@@ -383,6 +392,9 @@ export class LegsService {
       leg.state = nextState;
       leg.entityVersion += 1;
       const saved = await em.save(leg);
+      if (saved.state === 'partiallyFilled') {
+        executionLegPartialFillCommits.inc();
+      }
 
       if (dto.idempotencyKey !== undefined && dto.idempotencyKey.length > 0) {
         try {

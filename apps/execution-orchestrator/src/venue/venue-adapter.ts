@@ -15,6 +15,14 @@ export class VenueSubmitTransientError extends Error {
   }
 }
 
+/** Venue or contract rejected the submit; do not retry `mark-sent` with the same payload. */
+export class VenueSubmitClientError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'VenueSubmitClientError';
+  }
+}
+
 /** Non-recoverable submit outcome: leg moves to `rejected` | `timedOut` | `failed` in the same transaction. */
 export class VenueTerminalSubmitError extends Error {
   constructor(

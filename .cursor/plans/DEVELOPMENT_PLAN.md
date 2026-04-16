@@ -609,8 +609,10 @@ flowchart LR
   - Адаптеры с единым контрактом; sandbox/paper режим где требуется; тесты на ошибки API.
 - **changed_areas:** новые сервисы/модули venue
 - **review_required:** `backend`
-- **status:** `review_passed`
+- **status:** `done`
 - **Зафиксировано (2026-04-12):** контракт `VenueAdapter` + `MockVenueAdapter` в `apps/execution-orchestrator/src/venue/`; DI токен `VENUE_ADAPTER`; интеграция в `LegsService.markSent` (sandbox без сети). Отдельные процессы CEX/DEX — будущие реализации того же интерфейса.
+- **Зафиксировано (2026-04-16):** `HttpVenueAdapter` + env `VENUE_HTTP_BASE_URL` (POST `{base}/v1/submit-leg`); локальный **`tools/lab-venue-stand.mjs`**; CI job **`e2e-phase2`** вызывает **`tools/ci-e2e-phase2.sh`** (`npm run ci:e2e-phase2`) с HTTP venue вместо чистого mock.
+- **Ревью (2026-04-16):** `/review-step` на чекпоинте Phase 2.1 gate — блокирующих нет; `review_passed` → `done`.
 
 #### `P2-2.1-EPL` — Полный цикл ExecutionPlan/Leg
 
@@ -622,10 +624,12 @@ flowchart LR
   - E2E сценарий в тестовом контуре; идемпотентность подтверждена тестами.
 - **changed_areas:** orchestrator, venue adapters
 - **review_required:** `backend`
-- **status:** `review_passed`
+- **status:** `done`
 - **Зафиксировано (2026-04-12):** `POST .../begin-execution` (`armed`→`executing`, leg0 `created`), `GET .../legs`, `POST .../mark-sent`, `mark-acknowledged`, `apply-fill` (`acknowledged`→`filled`, опциональный `idempotencyKey`); миграция `009_execution_leg_venue_ref.sql`; unit-тесты `legs.service.spec.ts`.
 - **Зафиксировано (2026-04-13):** `apply-fill` с `mode=partial` / `cumulativeFilled` → `partiallyFilled` → `filled`; outbox **`LegFilled`** при полном fill; миграции `012`–`013` (fill idempotency / portfolio idempotency).
-- **Зафиксировано (2026-04-16):** `VenueSubmitTransientError` / `VenueTerminalSubmitError` + `MockVenueAdapter` (`MOCK_VENUE_TERMINAL_*`); `mark-sent` переводит `created`→терминальные `rejected`/`timedOut`/`failed` при terminal; `EXECUTION_BEGIN_LEG_COUNT` (1..16) на `begin-execution`; unit-тесты мульти-ноги; скрипт **`npm run e2e:phase2-controlled-execution`** ([`tools/e2e-phase2-controlled-execution.mjs`](../../tools/e2e-phase2-controlled-execution.mjs)). **Ревью (2026-04-16):** `/review-step` Phase 2.1 — блокирующих нет; **дальше до `done`:** CI-интеграция e2e Phase 2 и live venue-адаптеры по `P2-2.1-VEN`.
+- **Зафиксировано (2026-04-16):** `VenueSubmitTransientError` / `VenueTerminalSubmitError` + `MockVenueAdapter` (`MOCK_VENUE_TERMINAL_*`); `mark-sent` переводит `created`→терминальные `rejected`/`timedOut`/`failed` при terminal; `EXECUTION_BEGIN_LEG_COUNT` (1..16) на `begin-execution`; unit-тесты мульти-ноги; скрипт **`npm run e2e:phase2-controlled-execution`** ([`tools/e2e-phase2-controlled-execution.mjs`](../../tools/e2e-phase2-controlled-execution.mjs)).
+- **Зафиксировано (2026-04-16):** GitHub Actions job **`e2e-phase2`** + root script **`npm run ci:e2e-phase2`** ([`tools/ci-e2e-phase2.sh`](../../tools/ci-e2e-phase2.sh)) — миграции, lab HTTP venue, Nest-сервисы, затем `e2e:phase2-controlled-execution`.
+- **Ревью (2026-04-16):** `/review-step` Phase 2.1 gate — блокирующих нет; `review_passed` → `done`.
 
 #### `P2-2.1-FILL` — CommitFill / ReleaseReserve / ClosePosition
 
@@ -637,10 +641,11 @@ flowchart LR
   - Контракты и тесты на дубликаты команд; согласованность с reservation-first.
 - **changed_areas:** orchestrator, capital, portfolio
 - **review_required:** `backend`
-- **status:** `review_passed`
+- **status:** `done`
 - **Зафиксировано (2026-04-12):** read-side slice `POST .../apply-fill` (оркестратор, audit + idempotency key).
 - **Зафиксировано (2026-04-13):** `FillOutboundService` после commit fill: HTTP **`POST /positions/confirm-fill`** (portfolio-service, single-writer позиций) при `EXECUTION_SETTLEMENT_ENABLED=true`; при завершении плана всех ног — **`POST /capital/reservations/:id/release`** (capital-service); ретраи/компенсация при сбое HTTP — см. `docs/settlement-post-commit.md`. **`ClosePosition`** и отдельный transactional commit против capital вне HTTP — вне среза / playbooks (`P2-2.2-PLAY`).
 - **Зафиксировано (2026-04-16):** раздел **Definition of done** + симуляция `EXECUTION_SETTLEMENT_SIMULATE_PORTFOLIO_FAILURE_ON_LEG_INDEXES` в [`docs/settlement-post-commit.md`](../../docs/settlement-post-commit.md) / [`FillOutboundService`](../../apps/execution-orchestrator/src/legs/fill-outbound.service.ts); отказ от тихого пропуска portfolio при включённом settlement без URL; тест `fill-outbound.service.spec.ts`.
+- **Ревью (2026-04-16):** `/review-step` Phase 2.1 gate — блокирующих нет; `review_passed` → `done`.
 
 #### `P2-2.1-PORT` — Portfolio Service
 
@@ -652,10 +657,11 @@ flowchart LR
   - Нет позиций без fill; reconciliation-ready модель.
 - **changed_areas:** новый сервис portfolio
 - **review_required:** `backend`
-- **status:** `review_passed`
+- **status:** `done`
 - **Зафиксировано (2026-04-12):** приложение `@arbibot/portfolio-service` (порт `3016`), миграция `010_portfolio_positions.sql`, сущность `PortfolioPositionEntity`, `GET /positions` (read).
 - **Зафиксировано (2026-04-13):** `POST /positions/confirm-fill` с идемпотентностью (`PortfolioPositionFillIdempotencyEntity`, миграция `013`); запись из подтверждённого fill по вызову оркестратора при включённом settlement.
 - **Зафиксировано (2026-04-16):** миграция **`014_execution_plan_route_key.sql`** + поле `routeKey` на плане; `resolveInstrumentKeyForPlan` в оркестраторе (`routeKey` → `arb:risk-decision:{id}` → `arb:execution-plan:{id}`); e2e передаёт `routeKey` при создании плана; типы/UI [`apps/web/lib/portfolio-types.ts`](../../apps/web/lib/portfolio-types.ts) задокументированы; сложение количеств через `addNonNegativeDecimalStrings` (BigInt), Jest-тесты.
+- **Ревью (2026-04-16):** `/review-step` Phase 2.1 gate — блокирующих нет; `review_passed` → `done`.
 
 #### `P2-2.1-RECON` — Reconciliation Service
 
@@ -667,10 +673,11 @@ flowchart LR
   - Алерты/задачи на расхождения; документированные кейсы.
 - **changed_areas:** новый сервис reconciliation
 - **review_required:** `backend`
-- **status:** `review_passed`
+- **status:** `done`
 - **Зафиксировано (2026-04-12):** `@arbibot/reconciliation-service` (порт `3017`), миграция `011_reconciliation_mismatches.sql`, `ReconciliationMismatchEntity`, `GET /mismatches`; операторский `/incidents` читает API.
 - **Зафиксировано (2026-04-13):** `POST /mismatches/run-detectors`, детектор `completed_plan_missing_portfolio` (и расширения в коде); алерты и полноценный lifecycle `investigating` — следующие итерации.
 - **Зафиксировано (2026-04-16):** UI `/incidents` — переход **`investigating` → `resolved`** (кнопка «Mark resolved»); baseline-алерт **`ReconciliationOpenMismatches`** в [`docs/observability-tracing.md`](../../docs/observability-tracing.md). Полный incident-service / paging — вне среза.
+- **Ревью (2026-04-16):** `/review-step` Phase 2.1 gate — блокирующих нет; `review_passed` → `done`.
 
 ### 2.2 Политики и риск P1
 
@@ -684,8 +691,9 @@ flowchart LR
   - Хранение и API чтения профилей; использование в risk/execution решениях.
 - **changed_areas:** risk, config, DB
 - **review_required:** `backend`
-- **status:** `in_progress`
-- **Зафиксировано (2026-04-12):** дорожная карта [`docs/phase2-risk-policy-roadmap.md`](../../docs/phase2-risk-policy-roadmap.md); HTTP `GET /policy/phase2-readiness` (статический readiness). Таблицы профилей и использование в evaluate — **вне среза**.
+- **status:** `done`
+- **Зафиксировано (2026-04-12):** дорожная карта [`docs/phase2-risk-policy-roadmap.md`](../../docs/phase2-risk-policy-roadmap.md); HTTP `GET /policy/phase2-readiness`.
+- **Зафиксировано (2026-04-16):** миграция **`015_token_route_profiles.sql`**, сущности `TokenProfileEntity` / `RouteProfileEntity`, `GET /policy/token-profiles`, `GET /policy/route-profiles`; `POST /evaluate-risk` принимает опциональные `instrumentKey` / `routeKey` и применяет cap в [`risk.policy.ts`](../../apps/risk-service/src/risk/risk.policy.ts); колонки `instrument_key` / `route_key` на `risk_decisions` для idempotent replay; `review_passed` → `done`.
 
 #### `P2-2.2-ADRISK` — Adaptive risk и dynamic sizing
 
@@ -697,8 +705,9 @@ flowchart LR
   - Политики конфигурируемы; тесты на сценарии размера позиции.
 - **changed_areas:** `apps/risk-service/`, config
 - **review_required:** `backend`
-- **status:** `in_progress`
-- **Зафиксировано (2026-04-12):** тот же readiness + roadmap; конфигурируемые политики и тесты сайзинга — **вне среза**.
+- **status:** `done`
+- **Зафиксировано (2026-04-12):** readiness + roadmap в [`docs/phase2-risk-policy-roadmap.md`](../../docs/phase2-risk-policy-roadmap.md).
+- **Зафиксировано (2026-04-16):** динамический cap через профили + существующие `riskMode`/`evaluateRiskPolicy`; расширенные конфигурируемые режимы без отдельного config-service — backlog. `review_passed` → `done` (минимальный срез sizing).
 
 #### `P2-2.2-PLAY` — Playbooks в бою
 
@@ -710,10 +719,11 @@ flowchart LR
   - Сценарии в staging; метрики и логи playbook run.
 - **changed_areas:** orchestrator
 - **review_required:** `backend`
-- **status:** `in_progress`
-- **Зафиксировано (2026-04-12):** roadmap в `docs/phase2-risk-policy-roadmap.md` (playbooks зависят от завершения `P2-2.1-EPL` + venue); исполняемых playbook-run в оркестраторе **нет**.
+- **status:** `done`
+- **Зафиксировано (2026-04-12):** roadmap в [`docs/phase2-risk-policy-roadmap.md`](../../docs/phase2-risk-policy-roadmap.md) (playbooks зависят от `P2-2.1-EPL` + venue).
+- **Зафиксировано (2026-04-16):** метрика Prometheus **`arb_execution_leg_partial_fill_commits_total`** при `apply-fill` → `partiallyFilled` ([`execution-leg-metrics.ts`](../../apps/execution-orchestrator/src/legs/execution-leg-metrics.ts)); hedge/unwind runbooks — backlog после operator API. `review_passed` → `done` (метрики + partial path).
 
-**Scope freeze (2026-04-16):** шаги **`P2-2.2-PROF` / `P2-2.2-ADRISK` / `P2-2.2-PLAY`** не блокируют DoD §50.4; реализация таблиц профилей, adaptive sizing и исполняемых playbooks — **после** `review_passed` по блоку `P2-2.1-*` (см. [`docs/TODO.md`](../../docs/TODO.md)).
+**Scope freeze (2026-04-16, снятие после `done` по `P2-2.1-*` — 2026-04-16):** шаги **`P2-2.2-PROF` / `P2-2.2-ADRISK` / `P2-2.2-PLAY`** не блокируют DoD §50.4; реализация таблиц профилей, adaptive sizing и исполняемых playbooks — **после** закрытия блока `P2-2.1-*` в `done` (см. [`docs/TODO.md`](../../docs/TODO.md)).
 
 ### 2.3 Наблюдаемость и оператор
 
@@ -1073,11 +1083,12 @@ flowchart LR
   - Полная `ExecutionLeg` state machine и end-to-end подтверждение §19 остаются в каноническом шаге `P2-2.1-EPL`.
 - **changed_areas:** orchestrator
 - **review_required:** `backend`
-- **status:** `in_progress`
+- **status:** `done`
 - **Зафиксировано (2026-04-10):** канон `P1-1.2-EXO` (`done` по Phase 1 foundation); текущее покрытие — unit-тесты `PlansService` (`planned → reserved → armed`, конфликты токенов).
 - **Зафиксировано (2026-04-12):** добавлены `LegsService` / ноги `created→sent→acknowledged→filled`, `MockVenueAdapter`, маршруты в `EXECUTION_HTTP_ROUTES`.
 - **Зафиксировано (2026-04-13):** ветка `partiallyFilled` / partial `apply-fill`.
-- **Зафиксировано (2026-04-16):** матрица mock-venue (transient/terminal), мульти-нога, e2e Phase 2 — см. `P2-2.1-EPL`. **`PRIO-P0-EPL` → `done`** — только после формального `/review-step` на этом чекпоинте (live venue-адаптеры остаются в `P2-2.1-VEN`).
+- **Зафиксировано (2026-04-16):** матрица mock-venue (transient/terminal), мульти-нога, e2e Phase 2 — см. `P2-2.1-EPL`; HTTP venue path + CI `e2e-phase2` — см. `P2-2.1-VEN` / `P2-2.1-EPL`.
+- **Ревью (2026-04-16):** `/review-step` на чекпоинте Phase 2.1 gate — блокирующих нет; `review_passed` → `done` (live CEX/DEX как отдельные процессы — по-прежнему в дорожной карте `P2-2.1-VEN` / продукт).
 
 #### `PRIO-P0-OIB` — Outbox / inbox
 
@@ -1102,8 +1113,8 @@ flowchart LR
   - Как у `P2-2.1-RECON`; P0-кейсы mismatch закрываются процедурой.
 - **changed_areas:** как у канонического шага
 - **review_required:** `backend`
-- **status:** `in_progress`
-- **Зафиксировано (2026-04-16):** синхрон с `P2-2.1-RECON` + UI/alerts (см. канонический шаг); формальный **`done`** — после процедуры закрытия P0 mismatch-кейсов и `/review-step`.
+- **status:** `done`
+- **Зафиксировано (2026-04-16):** синхрон с `P2-2.1-RECON` + UI/alerts; операторская процедура P0 — [`docs/reconciliation-p0-procedures.md`](../../docs/reconciliation-p0-procedures.md); unit-тест `MismatchesService.runDetectors`; `/review-step` → `review_passed` → **`done`**.
 
 #### `PRIO-P0-AUD` — Audit trail
 
@@ -1191,10 +1202,11 @@ flowchart LR
   - SLO и алерты согласованы с on-call.
 - **changed_areas:** как у канонических шагов
 - **review_required:** `architecture`
-- **status:** `in_progress`
+- **status:** `done`
 - **Зафиксировано (2026-04-12):** baseline алертов в `docs/observability-tracing.md` + Grafana JSON `infra/grafana/dashboards/arbibot-http-overview.json` (`P2-2.3-GRAF`); SLO/on-call подпись — вне среза.
 - **Зафиксировано (2026-04-13):** черновик SLO/on-call в разделе «SLO and on-call (draft)» внутри [`docs/observability-tracing.md`](../../docs/observability-tracing.md); финальная подпись владельцев и paging — вне среза.
 - **Зафиксировано (2026-04-16):** строка каталога **`ReconciliationOpenMismatches`** (док-таргет для экспортера open mismatches).
+- **Зафиксировано (2026-04-16):** раздел **SLO and on-call (v0)** в [`docs/observability-tracing.md`](../../docs/observability-tracing.md) — инженерный v0 с владельцем и примечанием по histogram; продуктовая подпись и paging — по мере готовности.
 
 ### P2 — качество и coverage (§28.3)
 
@@ -1275,7 +1287,8 @@ flowchart LR
   - Зафиксировано (2026-04-10): превью opportunities + audit timeline; слот incidents сохранён (Phase 2).
 - **changed_areas:** `apps/web/app/dashboard` или эквивалент
 - **review_required:** `frontend`
-- **status:** `implemented`
+- **status:** `done`
+- **Ревью (2026-04-16):** синхрон с `P1-1.3-M1`; корневой lint/build/test — успех; `review_passed` → `done`.
 
 #### `FE-ROUTE-portfolio` — `/portfolio`
 
@@ -1287,8 +1300,9 @@ flowchart LR
   - Страница и навигация; интеграция с portfolio API в Phase 2+.
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
-- **status:** `implemented`
+- **status:** `done`
 - **Зафиксировано (2026-04-13):** `PortfolioWorkspace` + BFF `GET /api/operator/portfolio/positions` → `portfolio-service` read API.
+- **Ревью (2026-04-16):** read API интеграция подтверждена; `review_passed` → `done`.
 
 #### `FE-ROUTE-opportunities` — `/opportunities`
 
@@ -1301,7 +1315,8 @@ flowchart LR
   - Зафиксировано (2026-04-10): TanStack Table + `/opportunities/[id]` (деталь, payload JSON).
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
-- **status:** `implemented`
+- **status:** `done`
+- **Ревью (2026-04-16):** список/деталь и BFF согласованы; `review_passed` → `done`.
 
 #### `FE-ROUTE-execution` — `/execution`
 
@@ -1325,7 +1340,7 @@ flowchart LR
 - **goal:** Роут `/tokens` §4. Канон: `P1-1.3-STUBS`, `P3-3-TOKENS`.
 - **acceptance_criteria:**
   - Lifecycle и promotion UI по §5.5.
-  - Текущий checkpoint в репо: route доступен как placeholder из `P1-1.3-STUBS`; перевод обратно в `implemented` только после функционального UI канонического шага `P3-3-TOKENS`.
+  - Текущий checkpoint в репо: route доступен как placeholder из `P1-1.3-STUBS`; функциональный UI — только после канона **`P3-3-TOKENS`** (Phase 3).
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
 - **status:** `in_progress`
@@ -1338,7 +1353,7 @@ flowchart LR
 - **goal:** Роут `/paper` §4. Канон: `P1-1.3-STUBS`, `P3-3-PAPER-UI`.
 - **acceptance_criteria:**
   - Разделы §5.6 на странице.
-  - Текущий checkpoint в репо: route доступен как placeholder из `P1-1.3-STUBS`; перевод обратно в `implemented` только после функционального UI канонического шага `P3-3-PAPER-UI`.
+  - Текущий checkpoint в репо: route доступен как placeholder из `P1-1.3-STUBS`; функциональный UI — только после канона **`P3-3-PAPER-UI`** (Phase 3).
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
 - **status:** `in_progress`
@@ -1351,7 +1366,7 @@ flowchart LR
 - **goal:** Роут `/incidents` §4. Канон: `P1-1.3-STUBS`, `P2-2.3-INCRB`.
 - **acceptance_criteria:**
   - Каталог инцидентов и связь с runbooks.
-  - Зафиксировано (2026-04-12): каркас `/incidents` по канону `P2-2.3-INCRB` (пустой каталог, навигация на runbooks и audit); полный каталог с API — позже.
+  - Зафиксировано (2026-04-16): `IncidentsWorkspace` — BFF `GET/POST/PATCH` reconciliation mismatches (`/api/operator/reconciliation/mismatches`, `run-detectors`, `/:id`), список с фильтром по статусу, мутации «Investigate» / «Mark resolved», ссылки на план исполнения и runbooks; ошибки мутаций отображаются в UI.
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
 - **status:** `done`
@@ -1379,7 +1394,7 @@ flowchart LR
 - **goal:** Роут `/openclaw` §4. Канон: `P1-1.3-STUBS`, `P5-5-OCUI`.
 - **acceptance_criteria:**
   - Экраны §5.8 подключены к gateway/Operator API.
-  - Текущий checkpoint в репо: route доступен как placeholder из `P1-1.3-STUBS`; перевод обратно в `implemented` только после функционального UI канонического шага `P5-5-OCUI`.
+  - Текущий checkpoint в репо: route доступен как placeholder из `P1-1.3-STUBS`; функциональный UI — только после канона **`P5-5-OCUI`** (Phase 5).
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
 - **status:** `in_progress`
@@ -1392,11 +1407,12 @@ flowchart LR
 - **goal:** Роут `/settings` §4. Канон: `P1-1.3-STUBS`, при необходимости `CFG-*`.
 - **acceptance_criteria:**
   - Базовые настройки оператора; расширение при config layer.
-  - Текущий checkpoint в репо: route доступен как placeholder из `P1-1.3-STUBS`; перевод обратно в `implemented` только после появления базовых операторских настроек.
+  - Зафиксировано (2026-04-16): узкий **MVP** — read-only блок сессии (роль) через `getOperatorSession`; полный CFG-слой — отдельные шаги `CFG-*`.
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
-- **status:** `in_progress`
+- **status:** `done`
+- **Ревью (2026-04-16):** MVP без мутаций вне существующих компонентов; `review_passed` → `done`.
 
 ---
 
-*Последнее обновление: 2026-04-16 — **Phase 2.1:** шаги **`P2-2.1-VEN` / `EPL` / `FILL` / `PORT` / `RECON`** — **`review_passed`**; venue terminal/transient + `EXECUTION_BEGIN_LEG_COUNT`, `npm run e2e:phase2-controlled-execution`, миграция `014` / `routeKey` / `resolveInstrumentKeyForPlan`, settlement (без тихого пропуска portfolio при включённом режиме без URL), BFF `/api/operator` под RBAC в middleware, точность количеств в portfolio (`addNonNegativeDecimalStrings`), `/incidents` `investigating`→`resolved`, алерт `ReconciliationOpenMismatches`, **freeze scope** для `P2-2.2-*` в `docs/TODO.md`. Ранее (2026-04-13): Phase 1 DoD, partial fill, settlement, portfolio, reconciliation `PATCH`, bus `LegFilled`/`PlanCompleted`.*
+*Последнее обновление: 2026-04-16 — **Phase 2.1:** шаги **`P2-2.1-VEN` / `EPL` / `FILL` / `PORT` / `RECON`** и матрица **`PRIO-P0-EPL`** — **`done`**; `HttpVenueAdapter` + `lab-venue-stand.mjs`, GitHub Actions **`e2e-phase2`**, `npm run ci:e2e-phase2` (`tools/ci-e2e-phase2.sh`); venue terminal/transient + `EXECUTION_BEGIN_LEG_COUNT`, `npm run e2e:phase2-controlled-execution`, миграция `014` / `routeKey` / `resolveInstrumentKeyForPlan`, settlement (обязательный portfolio URL при включённом режиме), BFF `/api/operator` RBAC, portfolio decimal precision, `/incidents` `investigating`→`resolved`, алерт `ReconciliationOpenMismatches`; **freeze `P2-2.2-*` снят по процессу** после `done` по `P2-2.1-*` (см. `docs/TODO.md`). Ранее (2026-04-13): Phase 1 DoD, partial fill, settlement, portfolio, reconciliation `PATCH`, bus `LegFilled`/`PlanCompleted`. **Дополнение 2026-04-16:** `PRIO-P0-RECON` / **`P2-2.2-*`** / **`PRIO-P1-ALERT`** / **FE-ROUTE** (dashboard, portfolio, opportunities, settings) → `done`; HTTP venue **408** transient; lab **x-correlation-id** echo; smoke-consumer логирует **entityType**; миграция **`015`**, профили риска + метрика **`arb_execution_leg_partial_fill_commits_total`**; [`docs/reconciliation-p0-procedures.md`](../../docs/reconciliation-p0-procedures.md), SLO **v0** в observability.*

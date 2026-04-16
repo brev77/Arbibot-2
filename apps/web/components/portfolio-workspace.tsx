@@ -9,6 +9,7 @@ import { operatorKeys } from '@/lib/operator-query-keys';
 import type { PortfolioPositionListItem } from '@/lib/portfolio-types';
 import type { ListResponse } from '@/lib/server-api';
 
+import { PortfolioPositionsTable } from './portfolio-positions-table';
 import { Button } from './ui/button';
 
 export function PortfolioWorkspace(): ReactNode {
@@ -61,39 +62,8 @@ export function PortfolioWorkspace(): ReactNode {
           </p>
         </section>
       ) : q.isSuccess ? (
-        <div className="overflow-x-auto rounded-lg border border-slate-800 html.theme-light:border-slate-200">
-          <table className="w-full border-collapse text-left text-sm">
-            <thead className="bg-slate-900/80 text-slate-400 html.theme-light:bg-slate-100 html.theme-light:text-slate-600">
-              <tr>
-                <th className="p-3 font-medium">Instrument key</th>
-                <th className="p-3 font-medium">Qty</th>
-                <th className="p-3 font-medium">Plan</th>
-                <th className="p-3 font-medium">Updated</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((p) => (
-                <tr
-                  key={p.id}
-                  className="border-t border-slate-800 html.theme-light:border-slate-200"
-                >
-                  <td className="p-3 font-mono text-xs text-slate-200 html.theme-light:text-slate-800">
-                    {p.instrumentKey}
-                  </td>
-                  <td className="p-3 text-slate-200 html.theme-light:text-slate-900">{p.quantity}</td>
-                  <td className="p-3">
-                    <Link
-                      href={`/execution/${p.planId}`}
-                      className="text-sky-400 hover:underline font-mono text-xs"
-                    >
-                      {p.planId}
-                    </Link>
-                  </td>
-                  <td className="p-3 text-xs text-slate-500">{p.updatedAt}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="rounded-lg border border-slate-800 html.theme-light:border-slate-200">
+          <PortfolioPositionsTable items={items} />
         </div>
       ) : (
         <p className="text-sm text-slate-400">Loading…</p>

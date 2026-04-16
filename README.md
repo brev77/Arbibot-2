@@ -1,6 +1,6 @@
 # Arbibot 2
 
-Монорепозиторий высокопроизводительной системы крипто-арбитража: canonical market → intake рынка → возможности → риск → капитал → оркестрация исполнения → портфель и сверка. Сейчас в фокусе **Phase 0–1** (и задел Phase 2): сервисы `canonical-market` и `market-intake`, вертикальный срез snapshot → opportunity → risk → reserve → **arm** (`npm run e2e:phase1-foundation`), общая схема БД, операторский dashboard (Next.js), сервисы **portfolio** и **reconciliation**, in-DB outbox/inbox для `RiskDecisionIssued` → `opportunity-service` и dev Kafka/Redpanda bridge для `SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, `PlanCompleted`.
+Монорепозиторий высокопроизводительной системы крипто-арбитража: canonical market → intake рынка → возможности → риск → капитал → оркестрация исполнения → портфель и сверка. Закрыты **Phase 0–1** и основной срез **Phase 2** (controlled execution): snapshot → opportunity → risk → reserve → **arm**, полный контур ног до `plan.completed` (`npm run e2e:phase2-controlled-execution`, в CI — `npm run ci:e2e-phase2`), **portfolio** / **reconciliation** / UI `/incidents`, HTTP lab-venue, in-DB relay для `RiskDecisionIssued` и Kafka bridge для `SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, `PlanCompleted`. Профили риска (**token_profiles** / **route_profiles**, миграция `015`) и read API под `/policy/*` — см. [`docs/phase2-risk-policy-roadmap.md`](docs/phase2-risk-policy-roadmap.md).
 
 **Первичный запуск (канон):** перед выставлением реальных средств система **сначала** выводится в режим **paper trading** — сквозной операционный тест всей связки и сбор статистики; затем **live с минимальным капиталом**. Подробнее: [.cursor/plans/DEVELOPMENT_PLAN.md](.cursor/plans/DEVELOPMENT_PLAN.md) («Операционная последовательность первичного запуска»), `!Arbibot_2_Architecture_v1_final_docs_settings.md` (разделы 13 и 50.5).
 
@@ -58,12 +58,12 @@ npm ci
 
 | Путь | Назначение |
 |------|------------|
-| `apps/risk-service` | Оценка риска, `POST /evaluate-risk`, `POST /reserve-risk-window`, outbox `RiskDecisionIssued`, идемпотентность |
+| `apps/risk-service` | Оценка риска, `POST /evaluate-risk` (опционально `instrumentKey` / `routeKey` и caps из БД), `POST /reserve-risk-window`, `GET /policy/*`, outbox `RiskDecisionIssued`, идемпотентность |
 | `apps/opportunity-service` | Возможности: lifecycle `detected → enriched → risk_checked`, HTTP к risk, **outbox relay** (поллинг → inbox → домен); см. `OUTBOX_RELAY_*` в env |
 | `apps/capital-service` | Резервы капитала, TTL, transactional outbox `CapitalReserved` |
-| `apps/execution-orchestrator` | Планы исполнения `planned → reserved → armed → …`, ноги исполнения, transactional outbox (`PlanArmed` и др.); опционально пост-commit settlement → portfolio/capital (см. `docs/settlement-post-commit.md`) |
+| `apps/execution-orchestrator` | Планы исполнения `planned → reserved → armed → …`, ноги исполнения, transactional outbox (`PlanArmed` и др.); опционально `VENUE_HTTP_BASE_URL` / lab venue; метрика `arb_execution_leg_partial_fill_commits_total` при partial fill; пост-commit settlement → portfolio/capital (см. `docs/settlement-post-commit.md`) |
 | `apps/portfolio-service` | Позиции портфеля, идемпотентный подтверждённый fill |
-| `apps/reconciliation-service` | Несоответствия сверки, детекторы / статусы |
+| `apps/reconciliation-service` | Несоответствия сверки, детекторы / статусы; Jest-тесты в `src/**/*.spec.ts` |
 | `apps/audit-service` | Append/list аудита, идемпотентный append |
 | `apps/canonical-market-service` | Канонический реестр площадок / инструментов / маршрутов: `POST /market/resolve-instrument`, `POST /market/resolve-route` |
 | `apps/market-intake-service` | Ingest snapshots: `POST /snapshots/ingest`, `GET /snapshots`, freshness, outbox `SnapshotUpdated` |
@@ -72,9 +72,9 @@ npm ci
 | `packages/contracts` | HTTP-константы маршрутов, имена событий, типы payload и event envelopes |
 | `packages/messaging` | `tryClaimInboxMessage`, `fetchLockedOutboxBatch(..., eventTypes)` |
 | `packages/outbox-kafka-bridge` | Публикация `SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, `PlanCompleted` в Kafka/Redpanda и smoke-consumer с inbox claim |
-| `packages/nest-database` / `nest-platform` | БД, Redis helper, correlation id, логи, **Prometheus `/metrics`**, audit HTTP client |
-| `infra/postgres/migrations` | SQL-миграции `001` … `013` (ядро, риск, canonical/intake, execution legs, portfolio, reconciliation, fill/idempotency — см. каталог) |
-| `docs/` | Спеки и runbooks: [`docs/outbox-inbox.md`](docs/outbox-inbox.md), [`docs/settlement-post-commit.md`](docs/settlement-post-commit.md), [`docs/observability-tracing.md`](docs/observability-tracing.md), [`docs/openclaw-reference.md`](docs/openclaw-reference.md), [`docs/TODO.md`](docs/TODO.md) |
+| `packages/nest-database` / `nest-platform` | БД, Redis helper, correlation id, логи, **Prometheus `/metrics`**, `getArbibotMetricsRegistry()`, audit HTTP client |
+| `infra/postgres/migrations` | SQL-миграции `001` … `015` (ядро, риск, canonical/intake, execution legs, portfolio, reconciliation, fill/idempotency, **token/route profiles** — см. каталог) |
+| `docs/` | Спеки и runbooks: [`docs/outbox-inbox.md`](docs/outbox-inbox.md), [`docs/settlement-post-commit.md`](docs/settlement-post-commit.md), [`docs/observability-tracing.md`](docs/observability-tracing.md), [`docs/reconciliation-p0-procedures.md`](docs/reconciliation-p0-procedures.md), [`docs/phase2-risk-policy-roadmap.md`](docs/phase2-risk-policy-roadmap.md), [`docs/openclaw-reference.md`](docs/openclaw-reference.md), [`docs/TODO.md`](docs/TODO.md) |
 | `.cursor/plans/DEVELOPMENT_PLAN.md` | Пошаговый план разработки и статусы |
 | [`AGENTS.md`](AGENTS.md) | Кратко для агентов/разработчиков: workspaces, graphify, e2e, CI |
 
@@ -95,6 +95,8 @@ npm ci
 | `npm run lint` | ESLint по workspace (входит в CI) |
 | `npm run db:migrate` | Применить SQL-миграции (`DATABASE_URL` обязателен) |
 | `npm run e2e:phase1-foundation` | HTTP-smoke цепочки Phase 1 (нужны миграции и запущенные intake, opportunity, risk, capital, execution); опционально `E2E_INCLUDE_EXECUTION_LEG=true` — шаги до `apply-fill` |
+| `npm run e2e:phase2-controlled-execution` | Полный контур ног до `plan.completed` (см. `tools/e2e-phase2-controlled-execution.mjs`; `EXECUTION_BEGIN_LEG_COUNT`, venue mock или HTTP) |
+| `npm run ci:e2e-phase2` | Тот же сценарий в окружении CI: Postgres + lab HTTP venue + собранные Nest-приложения (`tools/ci-e2e-phase2.sh`) |
 | `npm run dev:risk` | Risk service в watch-режиме |
 | `npm run dev:opportunity` | Opportunity service |
 | `npm run dev:capital` | Capital service |
@@ -153,7 +155,7 @@ set KAFKA_BROKERS=127.0.0.1:19092
 npm run bus:publish
 ```
 
-Bridge публикует `SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, `PlanCompleted` (общий топик; выбор строки по `event_type` и `ORDER BY id`). In-DB relay для `RiskDecisionIssued` в `opportunity-service` остается отдельным потоком и не конкурирует за `processed_at` с этими типами.
+Bridge публикует `SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, `PlanCompleted` (общий топик; выбор строки по `event_type` и `ORDER BY id`). In-DB relay для `RiskDecisionIssued` в `opportunity-service` остается отдельным потоком и не конкурирует за `processed_at` с этими типами. Smoke-consumer логирует `eventName` и `entityType` при успешном inbox-claim (см. [`docs/outbox-inbox.md`](docs/outbox-inbox.md)).
 
 ## Seed note
 
@@ -169,4 +171,4 @@ Cookie **`arbibot_role`**: `viewer` | `operator` | `admin`. В production без
 
 ## Архитектура и правила
 
-Инварианты (single-writer, reservation-first, outbox/inbox и др.) зафиксированы в Cursor rules и в документах в `docs/`. Перед крупными изменениями сверяйтесь с [`.cursor/plans/DEVELOPMENT_PLAN.md`](.cursor/plans/DEVELOPMENT_PLAN.md). Для локального knowledge graph см. раздел graphify в [`AGENTS.md`](AGENTS.md).
+Инварианты (single-writer, reservation-first, outbox/inbox и др.) зафиксированы в Cursor rules и в документах в `docs/`. Перед крупными изменениями сверяйтесь с [`.cursor/plans/DEVELOPMENT_PLAN.md`](.cursor/plans/DEVELOPMENT_PLAN.md). Для локального knowledge graph (graphify) см. раздел graphify в [`AGENTS.md`](AGENTS.md): после существенных правок в backend — code-only refresh в корне репозитория (`python` или на Windows **`py -3`** — см. там же).

@@ -5,6 +5,8 @@ import {
   OutboxEventEntity,
   RiskDecisionEntity,
   RiskWindowReservationEntity,
+  RouteProfileEntity,
+  TokenProfileEntity,
 } from '@arbibot/persistence';
 
 @Module({
@@ -13,6 +15,8 @@ import {
       RiskDecisionEntity,
       RiskWindowReservationEntity,
       OutboxEventEntity,
+      TokenProfileEntity,
+      RouteProfileEntity,
     ]),
   ],
 })

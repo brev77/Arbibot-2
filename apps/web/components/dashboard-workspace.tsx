@@ -7,6 +7,7 @@ import type { ReactNode } from 'react';
 import type { AuditListItem } from '@/lib/audit-types';
 import { fetchOperatorBffJson } from '@/lib/operator-client-api';
 import { operatorKeys } from '@/lib/operator-query-keys';
+import type { ExecutionPlanListItem } from '@/lib/execution-types';
 import type { OpportunityListItem } from '@/lib/opportunity-types';
 import type { ListResponse } from '@/lib/server-api';
 
@@ -20,7 +21,8 @@ export function DashboardWorkspace(): ReactNode {
   });
   const plans = useQuery({
     queryKey: operatorKeys.executionPlans,
-    queryFn: () => fetchOperatorBffJson<ListResponse<unknown>>('/execution/plans'),
+    queryFn: () =>
+      fetchOperatorBffJson<ListResponse<ExecutionPlanListItem>>('/execution/plans'),
   });
   const audit = useQuery({
     queryKey: operatorKeys.auditEntries(12),

@@ -18,6 +18,8 @@
  *   terminal outcome for that leg index (non-retryable).
  *
  * Usage: node tools/e2e-phase2-controlled-execution.mjs
+ *
+ * CI: Postgres + services + this script — `npm run ci:e2e-phase2` ([`ci-e2e-phase2.sh`](./ci-e2e-phase2.sh)), GitHub Actions job `e2e-phase2`.
  */
 
 import { randomUUID } from 'node:crypto';

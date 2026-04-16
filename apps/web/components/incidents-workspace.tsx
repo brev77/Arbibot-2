@@ -18,6 +18,10 @@ type RunDetectorsResult = {
   readonly byKind?: Record<string, number>;
 };
 
+function mutationErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : 'Request failed';
+}
+
 export function IncidentsWorkspace(): ReactNode {
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -100,6 +104,26 @@ export function IncidentsWorkspace(): ReactNode {
           </Button>
         </div>
       </div>
+
+      {runDetectors.isError || updateStatus.isError ? (
+        <section
+          className="mb-4 rounded-lg border border-amber-900/40 bg-amber-950/20 p-4 html.theme-light:border-amber-200 html.theme-light:bg-amber-50"
+          role="alert"
+        >
+          {runDetectors.isError ? (
+            <p className="m-0 text-sm text-amber-200 html.theme-light:text-amber-900">
+              Run detectors failed: {mutationErrorMessage(runDetectors.error)}
+            </p>
+          ) : null}
+          {updateStatus.isError ? (
+            <p
+              className={`m-0 text-sm text-amber-200 html.theme-light:text-amber-900 ${runDetectors.isError ? 'mt-2' : ''}`}
+            >
+              Status update failed: {mutationErrorMessage(updateStatus.error)}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
       {runDetectors.data !== undefined ? (
         <p className="mb-4 text-xs text-slate-500">

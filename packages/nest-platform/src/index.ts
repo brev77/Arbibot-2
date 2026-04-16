@@ -9,7 +9,10 @@ export {
   getCorrelationId,
   runWithCorrelationId,
 } from './correlation';
-export { installMetricsOnFastify } from './metrics';
+export {
+  getArbibotMetricsRegistry,
+  installMetricsOnFastify,
+} from './metrics';
 export {
   applyArbibotHttpSecurity,
   parseCorsOrigins,

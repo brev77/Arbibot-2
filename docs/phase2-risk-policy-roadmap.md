@@ -2,14 +2,15 @@
 
 ## Current checkpoint
 
-- `risk-service` exposes **`GET /policy/phase2-readiness`** (static JSON) so operators and CI can probe that the HTTP surface exists before TokenProfile tables and adaptive engines land.
-- Canonical execution work (`P2-2.1-EPL`) must stay ahead of production playbooks: playbooks assume instrumented legs and venue feedback.
+- `risk-service` exposes **`GET /policy/phase2-readiness`** (schema v2), **`GET /policy/token-profiles`**, **`GET /policy/route-profiles`**, and **`POST /evaluate-risk`** accepts optional `instrumentKey` / `routeKey` with DB-backed caps (migration `015_token_route_profiles.sql`).
+- Prometheus **`arb_execution_leg_partial_fill_commits_total`** on `apply-fill` → `partiallyFilled` in `execution-orchestrator` (partial playbook signal).
+- Hedge/unwind orchestration runs and deeper adaptive engines remain backlog on top of this slice.
 
 ## Intended sequencing
 
-1. **`P2-2.2-PROF`** — PostgreSQL tables + read API for `TokenProfile` / `RouteProfile`; risk evaluation reads profiles; no silent defaults that bypass risk limits.
-2. **`P2-2.2-ADRISK`** — configurable modes and dynamic sizing; tests for boundary sizing; still single-writer on `RiskDecision`.
-3. **`P2-2.2-PLAY`** — orchestrator hooks partial fill / hedge / unwind with metrics; depends on `P2-2.1-EPL` + venue path.
+1. **`P2-2.2-PROF`** — Done baseline: PostgreSQL tables + read API + evaluate consumption (see plan `P2-2.2-PROF`).
+2. **`P2-2.2-ADRISK`** — Done minimal slice: profile caps compose with existing `riskMode` thresholds; extend with dedicated config service / sizing tables as needed.
+3. **`P2-2.2-PLAY`** — Done minimal slice: partial-fill metric; add hedge/unwind runbooks when operator APIs exist (`P2-2.1-EPL` + venue path already landed).
 
 ## Invariants
 

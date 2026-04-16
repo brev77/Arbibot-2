@@ -7,7 +7,7 @@
 The repo uses [graphify](https://github.com/safishamsi/graphify): `graphify-out/` is listed in `.gitignore` and is generated locally, not committed.
 
 - Install once: `python -m pip install graphifyy`, then from the repo root `python -m graphify cursor install` (writes [`.cursor/rules/graphify.mdc`](.cursor/rules/graphify.mdc)).
-- **Code-only refresh (AST, no LLM):** `python -c "from graphify.watch import _rebuild_code; from pathlib import Path; _rebuild_code(Path('.'))"` — updates `graphify-out/graph.json`, `GRAPH_REPORT.md`, and cache; use after code edits for a quick graph sync.
+- **Code-only refresh (AST, no LLM):** `python -c "from graphify.watch import _rebuild_code; from pathlib import Path; _rebuild_code(Path('.'))"` — updates `graphify-out/graph.json`, `GRAPH_REPORT.md`, and cache; use after code edits for a quick graph sync. On Windows if `python` is not on `PATH`, use the same one-liner with **`py -3`** instead of `python`.
 - **Full graph (docs, markdown, images, semantic edges):** in Cursor run `/graphify .` (skill); after large doc changes use `/graphify . --update` per graphify docs.
 - **Focused questions:** `python -m graphify query "<question>" --graph graphify-out/graph.json`
 - For architecture questions, read `graphify-out/GRAPH_REPORT.md` first when that directory exists.
@@ -54,8 +54,9 @@ From the repo root:
 - `npm run db:migrate` — apply SQL migrations under `infra/postgres/migrations/`
 - `npm run e2e:phase1-foundation` — HTTP smoke for Phase 1 DoD §50.3 (snapshot → opportunity → risk → reserve → arm); optional `E2E_INCLUDE_EXECUTION_LEG=true` extends through `apply-fill`; requires migrated DB and running `market-intake`, `opportunity`, `risk`, `capital`, `execution-orchestrator` (see `tools/e2e-phase1-foundation-chain.mjs` for ports / env overrides)
 - `npm run e2e:phase2-controlled-execution` — extends the Phase 1 chain through **all** execution legs until the plan is `completed` (see `tools/e2e-phase2-controlled-execution.mjs`); use `EXECUTION_BEGIN_LEG_COUNT` on **execution-orchestrator** for multi-leg; optional settlement envs as in `docs/settlement-post-commit.md`
-- `npm run bus:publish` — build and publish outbox rows to Kafka/Redpanda for `SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, and `PlanCompleted` (see `@arbibot/outbox-kafka-bridge`)
-- `npm run bus:consume` — build and run smoke consumer with inbox claim
+- `npm run ci:e2e-phase2` — same Phase 2 HTTP chain with **Postgres + lab HTTP venue + built Nest apps** (see `tools/ci-e2e-phase2.sh`); GitHub Actions runs this as job **`e2e-phase2`** after `npm run build`
+- `npm run bus:publish` — build and publish outbox rows to Kafka/Redpanda for `SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, and `PlanCompleted` (see `@arbibot/outbox-kafka-bridge`); checklist in [`docs/outbox-inbox.md`](docs/outbox-inbox.md) (profile `bus`, `DATABASE_URL`, `KAFKA_BROKERS`).
+- `npm run bus:consume` — build and run smoke consumer with inbox claim (logs `eventName` and `entityType` on successful claim)
 
 Copy [`.env.example`](.env.example) to `.env` and adjust URLs. Typical Nest env: `PORT`, `DATABASE_URL`, `REDIS_URL`, `CORS_ORIGINS`, `KAFKA_BROKERS`, and service-to-service URLs where applicable (e.g. **`RISK_SERVICE_URL`** for `opportunity-service` → risk). **`apps/web`** uses **`RISK_API_BASE`**, **`OPPORTUNITY_API_BASE`**, **`CAPITAL_API_BASE`**, **`EXECUTION_API_BASE`**, **`AUDIT_API_BASE`**, **`PORTFOLIO_API_BASE`**, **`RECONCILIATION_API_BASE`** for upstream HTTP (same defaults as local ports; override per deploy).
 
@@ -97,8 +98,16 @@ Operator session in dev: see `apps/web` middleware / `getOperatorSession` — `A
 
 - `opportunity-service` uses an in-DB relay for `RiskDecisionIssued` only.
 - `@arbibot/outbox-kafka-bridge` publishes `SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, and `PlanCompleted` to Kafka/Redpanda (filtered `event_type` list) and must not compete with the in-DB relay, which handles only `RiskDecisionIssued`.
-- SQL migrations are applied lexicographically by `tools/db-migrate.mjs`; recent migrations include canonical market, market intake idempotency, and outbox relay dead-letter fields.
+- SQL migrations are applied lexicographically by `tools/db-migrate.mjs`; recent migrations include canonical market, market intake idempotency, outbox relay dead-letter fields, execution/portfolio/reconciliation, **token/route profiles and risk decision keys** (`015_token_route_profiles.sql`).
 - Canonical registry tables are not auto-seeded; after migrations, `venue_refs`, `canonical_instruments`, and `canonical_routes` must be populated manually before `resolve-*` endpoints return data.
+
+### Phase 2 slice (controlled execution / policy)
+
+- **HTTP venue:** `VENUE_HTTP_BASE_URL` + optional `VENUE_HTTP_TIMEOUT_MS`; lab stand [`tools/lab-venue-stand.mjs`](tools/lab-venue-stand.mjs) (`LAB_VENUE_PORT`); CI Phase 2 chain: `npm run ci:e2e-phase2` / job **`e2e-phase2`**.
+- **Risk profiles:** `GET /policy/phase2-readiness`, `GET /policy/token-profiles`, `GET /policy/route-profiles`; `POST /evaluate-risk` optional `instrumentKey` / `routeKey` (DB caps). Roadmap: [`docs/phase2-risk-policy-roadmap.md`](docs/phase2-risk-policy-roadmap.md).
+- **Reconciliation P0 procedure** (operator checklist): [`docs/reconciliation-p0-procedures.md`](docs/reconciliation-p0-procedures.md).
+- **Metrics:** shared registry via `getArbibotMetricsRegistry()` from `@arbibot/nest-platform` (same registry as `GET /metrics`); orchestrator exposes `arb_execution_leg_partial_fill_commits_total` on partial fills.
+- **Observability v0:** SLO/on-call draft in [`docs/observability-tracing.md`](docs/observability-tracing.md).
 
 ### CI
 

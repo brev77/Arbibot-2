@@ -2,15 +2,18 @@ import { ConflictException } from '@nestjs/common';
 
 import { EVENT_NAMES } from '@arbibot/contracts';
 import {
-  CapitalReservationEntity,
   ExecutionLegEntity,
   ExecutionPlanEntity,
   OutboxEventEntity,
-  RiskDecisionEntity,
 } from '@arbibot/persistence';
 import type { DataSource, EntityManager, Repository } from 'typeorm';
 
 import type { IAuditClient } from '@arbibot/nest-platform';
+
+import type { CapitalReservationSnapshot } from '../integration/capital-http.client';
+import { CapitalHttpClient } from '../integration/capital-http.client';
+import type { RiskDecisionSnapshot } from '../integration/risk-http.client';
+import { RiskHttpClient } from '../integration/risk-http.client';
 
 import { CreatePlanDto } from './dto/create-plan.dto';
 import { PlansService } from './plans.service';
@@ -19,21 +22,29 @@ describe('PlansService', () => {
   let service: PlansService;
   const auditRecord = jest.fn();
   let plans: ExecutionPlanEntity[];
-  let reservations: CapitalReservationEntity[];
-  let riskDecisions: RiskDecisionEntity[];
   let outboxRows: OutboxEventEntity[];
   let executionLegs: { planId: string; state: string }[];
-  let fetchSpy: jest.SpiedFunction<typeof fetch>;
+  const capitalGetReservation = jest.fn<
+    Promise<CapitalReservationSnapshot>,
+    [string]
+  >();
+  const riskGetDecision = jest.fn<
+    Promise<RiskDecisionSnapshot>,
+    [string]
+  >();
 
   beforeEach(() => {
-    fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValue({
-      ok: true,
-    } as Response);
     plans = [];
-    reservations = [];
-    riskDecisions = [];
     outboxRows = [];
     executionLegs = [];
+    capitalGetReservation.mockReset();
+    riskGetDecision.mockReset();
+    capitalGetReservation.mockImplementation((id: string) =>
+      Promise.resolve(makeReservationSnapshot({ id })),
+    );
+    riskGetDecision.mockImplementation((id: string) =>
+      Promise.resolve(makeRiskSnapshot({ id })),
+    );
 
     const em = {
       create: jest.fn((_Entity: unknown, row: object) => ({ ...row })),
@@ -62,28 +73,16 @@ describe('PlansService', () => {
           if (Entity === ExecutionPlanEntity) {
             return plans.find((p) => p.id === opts.where.id) ?? null;
           }
-          if (Entity === CapitalReservationEntity) {
-            return reservations.find((r) => r.id === opts.where.id) ?? null;
-          }
-          if (Entity === RiskDecisionEntity) {
-            return riskDecisions.find((r) => r.id === opts.where.id) ?? null;
-          }
           return null;
         },
       ),
       save: jest.fn(
         (
           targetOrEntity: unknown,
-          maybeEntity?:
-            | ExecutionPlanEntity
-            | CapitalReservationEntity
-            | RiskDecisionEntity
-            | OutboxEventEntity,
+          maybeEntity?: ExecutionPlanEntity | OutboxEventEntity,
         ) => {
           const entity = (maybeEntity ?? targetOrEntity) as
             | ExecutionPlanEntity
-            | CapitalReservationEntity
-            | RiskDecisionEntity
             | OutboxEventEntity;
           if ('eventType' in entity) {
             outboxRows.push(entity);
@@ -95,13 +94,6 @@ describe('PlansService', () => {
               plans[idx] = entity;
             } else {
               plans.push(entity);
-            }
-          } else if ('expiresAt' in entity) {
-            const idx = reservations.findIndex((r) => r.id === entity.id);
-            if (idx >= 0) {
-              reservations[idx] = entity;
-            } else {
-              reservations.push(entity);
             }
           }
           return entity;
@@ -136,11 +128,21 @@ describe('PlansService', () => {
       record: auditRecord,
       appendEntry: jest.fn(),
     } as unknown as IAuditClient;
-    service = new PlansService(dataSource, plansRepo, audit);
-  });
 
-  afterEach(() => {
-    fetchSpy.mockRestore();
+    const capitalHttp = {
+      getReservation: capitalGetReservation,
+    } as unknown as CapitalHttpClient;
+    const riskHttp = {
+      getRiskDecision: riskGetDecision,
+    } as unknown as RiskHttpClient;
+
+    service = new PlansService(
+      dataSource,
+      plansRepo,
+      audit,
+      capitalHttp,
+      riskHttp,
+    );
   });
 
   function makePlan(overrides: Partial<ExecutionPlanEntity> = {}): ExecutionPlanEntity {
@@ -159,38 +161,26 @@ describe('PlansService', () => {
     };
   }
 
-  function makeReservation(
-    overrides: Partial<CapitalReservationEntity> = {},
-  ): CapitalReservationEntity {
+  function makeReservationSnapshot(
+    overrides: Partial<CapitalReservationSnapshot> = {},
+  ): CapitalReservationSnapshot {
     return {
       id: '33333333-3333-4333-8333-333333333333',
       planId: '11111111-1111-4111-8111-111111111111',
       correlationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-      amountUsd: '1000',
       state: 'active',
-      expiresAt: new Date(Date.now() + 60_000),
-      entityVersion: 1,
-      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      expiresAtIso: new Date(Date.now() + 60_000).toISOString(),
       ...overrides,
     };
   }
 
-  function makeRiskDecision(
-    overrides: Partial<RiskDecisionEntity> = {},
-  ): RiskDecisionEntity {
+  function makeRiskSnapshot(
+    overrides: Partial<RiskDecisionSnapshot> = {},
+  ): RiskDecisionSnapshot {
     return {
       id: '22222222-2222-4222-8222-222222222222',
       correlationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-      planReference: 'plan-1',
       outcome: 'approved',
-      reasons: ['ok'],
-      snapshotVersion: 1,
-      riskMode: 'standard',
-      notionalUsd: '1000',
-      idempotencyKey: null,
-      riskWindowReservationId: null,
-      entityVersion: 1,
-      createdAt: new Date('2026-01-01T00:00:00.000Z'),
       ...overrides,
     };
   }
@@ -210,7 +200,6 @@ describe('PlansService', () => {
 
   it('rejects linkReservation without approved risk decision', async () => {
     plans.push(makePlan({ riskDecisionId: null }));
-    reservations.push(makeReservation());
 
     await expect(
       service.linkReservation(
@@ -218,12 +207,15 @@ describe('PlansService', () => {
         '33333333-3333-4333-8333-333333333333',
       ),
     ).rejects.toThrow(ConflictException);
+    expect(capitalGetReservation).not.toHaveBeenCalled();
   });
 
   it('rejects linkReservation when reservation is not pre-linked to the plan', async () => {
     plans.push(makePlan());
-    riskDecisions.push(makeRiskDecision());
-    reservations.push(makeReservation({ planId: null }));
+    riskGetDecision.mockResolvedValue(makeRiskSnapshot());
+    capitalGetReservation.mockResolvedValue(
+      makeReservationSnapshot({ planId: null }),
+    );
 
     await expect(
       service.linkReservation(
@@ -235,8 +227,8 @@ describe('PlansService', () => {
 
   it('links reservation when risk is approved and reservation belongs to the plan', async () => {
     plans.push(makePlan());
-    riskDecisions.push(makeRiskDecision());
-    reservations.push(makeReservation());
+    riskGetDecision.mockResolvedValue(makeRiskSnapshot());
+    capitalGetReservation.mockResolvedValue(makeReservationSnapshot());
 
     const row = await service.linkReservation(
       '11111111-1111-4111-8111-111111111111',
@@ -247,13 +239,12 @@ describe('PlansService', () => {
     expect(row.capitalReservationId).toBe(
       '33333333-3333-4333-8333-333333333333',
     );
-    expect(reservations[0]?.planId).toBe('11111111-1111-4111-8111-111111111111');
-    expect(fetchSpy).toHaveBeenCalledWith(
-      'http://127.0.0.1:3011/capital/reservations/33333333-3333-4333-8333-333333333333',
-      {
-        method: 'GET',
-        headers: { accept: 'application/json' },
-      },
+    expect(riskGetDecision).toHaveBeenCalledWith(
+      '22222222-2222-4222-8222-222222222222',
+    );
+    expect(capitalGetReservation).toHaveBeenCalledTimes(2);
+    expect(capitalGetReservation).toHaveBeenCalledWith(
+      '33333333-3333-4333-8333-333333333333',
     );
   });
 
@@ -264,12 +255,13 @@ describe('PlansService', () => {
         capitalReservationId: '33333333-3333-4333-8333-333333333333',
       }),
     );
-    reservations.push(makeReservation());
-    riskDecisions.push(makeRiskDecision({ outcome: 'rejected' }));
+    riskGetDecision.mockResolvedValue(makeRiskSnapshot({ outcome: 'rejected' }));
+    capitalGetReservation.mockResolvedValue(makeReservationSnapshot());
 
     await expect(
       service.arm('11111111-1111-4111-8111-111111111111'),
     ).rejects.toThrow('must be approved');
+    expect(capitalGetReservation).not.toHaveBeenCalled();
   });
 
   it('arms plan and writes PlanArmed outbox in the same transaction', async () => {
@@ -280,8 +272,8 @@ describe('PlansService', () => {
         entityVersion: 1,
       }),
     );
-    reservations.push(makeReservation());
-    riskDecisions.push(makeRiskDecision());
+    riskGetDecision.mockResolvedValue(makeRiskSnapshot());
+    capitalGetReservation.mockResolvedValue(makeReservationSnapshot());
 
     const row = await service.arm('11111111-1111-4111-8111-111111111111');
 
@@ -295,6 +287,7 @@ describe('PlansService', () => {
     expect(payload.capitalReservationId).toBe('33333333-3333-4333-8333-333333333333');
     expect(payload.riskDecisionId).toBe('22222222-2222-4222-8222-222222222222');
     expect(payload.entityVersion).toBe(2);
+    expect(capitalGetReservation).toHaveBeenCalledTimes(2);
   });
 
   it('tryMarkPlanCompletedWhenAllLegsFilled completes executing plan', async () => {

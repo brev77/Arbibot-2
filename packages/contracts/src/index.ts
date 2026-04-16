@@ -17,6 +17,8 @@ export const RISK_HTTP_ROUTES = {
   evaluateRisk: 'POST /evaluate-risk',
   getRiskDecision: 'GET /risk-decisions/:id',
   policyPhase2Readiness: 'GET /policy/phase2-readiness',
+  listTokenProfiles: 'GET /policy/token-profiles',
+  listRouteProfiles: 'GET /policy/route-profiles',
 } as const;
 
 export const OPPORTUNITY_HTTP_ROUTES = {

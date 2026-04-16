@@ -18,7 +18,7 @@
 
 - **Opportunity → Risk:** sync `EvaluateRisk` (или внутренний вызов) до перехода opportunity в `risk_checked`.
 - **Risk → Capital:** решение `approved` и reservation-first: Capital Service выдаёт reservation token до arm.
-- **Capital + Risk → Orchestrator:** ArmPlan принимает валидные токены резерва и correlation id.
+- **Capital + Risk → Orchestrator:** `link-reservation` / `arm` валидируют резервацию и решение по риску через **HTTP** владельцев (`GET /capital/reservations/:id`, `GET /risk-decisions/:id`), без чтения чужих таблиц из БД оркестратора; перед мутацией плана выполняется **двойной** GET резервации (смягчение TOCTOU). Базовые URL: `CAPITAL_SERVICE_BASE_URL` / `CAPITAL_SERVICE_URL`, `RISK_SERVICE_BASE_URL` / `RISK_SERVICE_URL` (дефолты локальной сетки портов). При разнесённых БД по сервисам это обязательный контракт; общая Postgres в dev не отменяет границу владения записью.
 - **Все пишущие доменные операции:** запись в **outbox** в той же транзакции, что и изменение агрегата; релей в Kafka/Redpanda — отдельный процесс (P1-1.1-OIB). Phase 1: **in-DB релей `RiskDecisionIssued` → opportunity-service** и **публикация в Kafka** (`SnapshotUpdated`, `CapitalReserved`, `PlanArmed` через `@arbibot/outbox-kafka-bridge`); прочие события — по мере внедрения (см. `docs/outbox-inbox.md`).
 
 ## Идентификаторы

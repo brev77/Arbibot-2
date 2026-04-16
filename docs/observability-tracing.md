@@ -36,16 +36,18 @@ These are **documentation targets** for Prometheus/Grafana (metrics already on `
 | `PostgresConnectionsHigh` | pool / `pg_stat_activity` derivative | ticket | Capacity headroom. |
 | `ReconciliationOpenMismatches` | `count(reconciliation_mismatch_open)` or periodic `GET /mismatches?status=open` exporter | ticket | Settlement / execution gaps (`P2-2.1-RECON`); pair with `/mismatches/run-detectors` schedule. |
 
-## SLO and on-call (draft, `PRIO-P1-ALERT`)
+## SLO and on-call (v0, `PRIO-P1-ALERT`)
 
-This section is a **placeholder** until product owners sign SLOs and paging routes.
+**Status:** engineering v0 — targets below are **defaults for local/staging** until product owners replace owners and wire paging.
 
 | Tier | Latency (sync API p99) | Availability | Owner |
 |------|------------------------|--------------|-------|
-| Tier1 | 500 ms (evaluate / reserve / arm path) | 99.5% monthly | TBD on-call rotation |
-| Tier2 | 2 s (read dashboards) | 99% monthly | Best-effort business hours |
+| Tier1 | 500 ms (evaluate / reserve / arm path) | 99.5% monthly | Platform on-call (see team roster) |
+| Tier2 | 2 s (read dashboards) | 99% monthly | Business hours coverage |
 
-**On-call:** wire Prometheus/Grafana alerts from the table above to your incident tool (PagerDuty, Opsgenie, etc.); document escalation in the operator handbook when it exists.
+**On-call v0:** route `ArbibotHttp5xxRate`, `ReconciliationOpenMismatches`, and `KafkaPublishFailures` (when exporters exist) to the team’s primary incident channel; document escalation paths in the operator handbook when published.
+
+**Histogram note:** `http_request_duration_seconds` in alert rows remains a **target** until histogram instrumentation lands in `@arbibot/nest-platform`; use `arb_http_requests_total` and logs with `x-correlation-id` for regressions meanwhile.
 
 ## Grafana (P2-2.3-GRAF)
 

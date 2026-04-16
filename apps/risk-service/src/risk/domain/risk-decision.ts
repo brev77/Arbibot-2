@@ -25,4 +25,6 @@ export interface EvaluateRiskInput {
   readonly notionalUsd: number;
   readonly snapshotVersion: number;
   readonly riskMode: RiskMode;
+  readonly instrumentKey: string | null;
+  readonly routeKey: string | null;
 }

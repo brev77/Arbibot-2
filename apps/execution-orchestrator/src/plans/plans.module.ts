@@ -1,24 +1,16 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import {
-  CapitalReservationEntity,
-  ExecutionLegEntity,
-  ExecutionPlanEntity,
-  RiskDecisionEntity,
-} from '@arbibot/persistence';
+import { ExecutionLegEntity, ExecutionPlanEntity } from '@arbibot/persistence';
 
+import { IntegrationModule } from '../integration/integration.module';
 import { PlansController } from './plans.controller';
 import { PlansService } from './plans.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      ExecutionPlanEntity,
-      ExecutionLegEntity,
-      CapitalReservationEntity,
-      RiskDecisionEntity,
-    ]),
+    IntegrationModule,
+    TypeOrmModule.forFeature([ExecutionPlanEntity, ExecutionLegEntity]),
   ],
   controllers: [PlansController],
   providers: [PlansService],

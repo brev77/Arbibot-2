@@ -19,3 +19,32 @@ jobs:
       - run: npm run lint
       - run: npm run build
       - run: npm run test
+
+  e2e-phase2:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: arbibot
+          POSTGRES_PASSWORD: arbibot
+          POSTGRES_DB: arbibot
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U arbibot -d arbibot"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Phase 2 controlled execution (HTTP chain)
+        env:
+          DATABASE_URL: postgres://arbibot:arbibot@127.0.0.1:5432/arbibot
+        run: bash tools/ci-e2e-phase2.sh

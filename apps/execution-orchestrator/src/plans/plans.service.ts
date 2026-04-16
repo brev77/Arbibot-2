@@ -7,7 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 
 import {
   EVENT_NAMES,
@@ -18,17 +18,18 @@ import {
   type PlanCompletedPayloadV1,
 } from '@arbibot/contracts';
 import {
-  CapitalReservationEntity,
   ExecutionLegEntity,
   ExecutionPlanEntity,
   OutboxEventEntity,
-  RiskDecisionEntity,
 } from '@arbibot/persistence';
 import {
   AuditClientService,
-  getCorrelationId,
   type IAuditClient,
 } from '@arbibot/nest-platform';
+
+import type { CapitalReservationSnapshot } from '../integration/capital-http.client';
+import { CapitalHttpClient } from '../integration/capital-http.client';
+import { RiskHttpClient } from '../integration/risk-http.client';
 
 import type { CreatePlanDto } from './dto/create-plan.dto';
 
@@ -39,6 +40,8 @@ export class PlansService {
     @InjectRepository(ExecutionPlanEntity)
     private readonly plans: Repository<ExecutionPlanEntity>,
     @Inject(AuditClientService) private readonly audit: IAuditClient,
+    private readonly capitalHttp: CapitalHttpClient,
+    private readonly riskHttp: RiskHttpClient,
   ) {}
 
   async create(dto: CreatePlanDto): Promise<ExecutionPlanEntity> {
@@ -69,7 +72,23 @@ export class PlansService {
     planId: string,
     capitalReservationId: string,
   ): Promise<ExecutionPlanEntity> {
-    await this.refreshReservationState(capitalReservationId);
+    const peek = await this.plans.findOne({ where: { id: planId } });
+    if (peek === null) {
+      throw new NotFoundException(`Plan not found: ${planId}`);
+    }
+    if (peek.state !== 'planned') {
+      throw new ConflictException(
+        `Plan ${planId} must be planned to link reservation (current: ${peek.state})`,
+      );
+    }
+    await this.assertApprovedRiskViaHttp(peek);
+    const res = await this.loadReservationSnapshotTwice(
+      capitalReservationId,
+      'not-found',
+    );
+    this.assertReservationActive(res);
+    this.assertReservationMatchesPlan(peek, res);
+
     return this.dataSource.transaction(async (em) => {
       const plan = await em.findOne(ExecutionPlanEntity, {
         where: { id: planId },
@@ -83,18 +102,6 @@ export class PlansService {
           `Plan ${planId} must be planned to link reservation (current: ${plan.state})`,
         );
       }
-      await this.assertApprovedRiskDecision(em, plan);
-      const res = await em.findOne(CapitalReservationEntity, {
-        where: { id: capitalReservationId },
-        lock: { mode: 'pessimistic_write' },
-      });
-      if (res === null) {
-        throw new NotFoundException(
-          `Reservation not found: ${capitalReservationId}`,
-        );
-      }
-      this.assertReservationActive(res);
-      this.assertReservationMatchesPlan(plan, res);
       plan.capitalReservationId = capitalReservationId;
       plan.state = 'reserved';
       plan.entityVersion += 1;
@@ -117,10 +124,25 @@ export class PlansService {
 
   async arm(planId: string): Promise<ExecutionPlanEntity> {
     const peek = await this.plans.findOne({ where: { id: planId } });
-    const reservationId = peek?.capitalReservationId ?? null;
-    if (reservationId !== null) {
-      await this.refreshReservationState(reservationId);
+    if (peek === null) {
+      throw new NotFoundException(`Plan not found: ${planId}`);
     }
+    if (peek.state !== 'reserved') {
+      throw new ConflictException(
+        `Plan ${planId} must be reserved before arm (current: ${peek.state})`,
+      );
+    }
+    if (peek.capitalReservationId === null) {
+      throw new ConflictException(`Plan ${planId} has no capital reservation`);
+    }
+    await this.assertApprovedRiskViaHttp(peek);
+    const res = await this.loadReservationSnapshotTwice(
+      peek.capitalReservationId,
+      'conflict',
+    );
+    this.assertReservationActive(res);
+    this.assertReservationMatchesPlan(peek, res);
+
     return this.dataSource.transaction(async (em) => {
       const plan = await em.findOne(ExecutionPlanEntity, {
         where: { id: planId },
@@ -134,21 +156,9 @@ export class PlansService {
           `Plan ${planId} must be reserved before arm (current: ${plan.state})`,
         );
       }
-      await this.assertApprovedRiskDecision(em, plan);
       if (plan.capitalReservationId === null) {
         throw new ConflictException(`Plan ${planId} has no capital reservation`);
       }
-      const res = await em.findOne(CapitalReservationEntity, {
-        where: { id: plan.capitalReservationId },
-        lock: { mode: 'pessimistic_write' },
-      });
-      if (res === null) {
-        throw new ConflictException(
-          `Reservation ${plan.capitalReservationId} missing`,
-        );
-      }
-      this.assertReservationActive(res);
-      this.assertReservationMatchesPlan(plan, res);
       plan.state = 'armed';
       plan.entityVersion += 1;
       const saved = await em.save(ExecutionPlanEntity, plan);
@@ -278,41 +288,23 @@ export class PlansService {
     });
   }
 
-  private async refreshReservationState(id: string): Promise<void> {
-    const baseUrl =
-      process.env.CAPITAL_SERVICE_BASE_URL ?? 'http://127.0.0.1:3011';
+  /** Two authoritative reads before mutating the plan (TOCTOU mitigation vs single GET). */
+  private async loadReservationSnapshotTwice(
+    reservationId: string,
+    ifMissing: 'not-found' | 'conflict',
+  ): Promise<CapitalReservationSnapshot> {
     try {
-      const cid = getCorrelationId();
-      const headers: Record<string, string> = { accept: 'application/json' };
-      if (cid !== undefined && cid.length > 0) {
-        headers['x-correlation-id'] = cid;
+      await this.capitalHttp.getReservation(reservationId);
+      return await this.capitalHttp.getReservation(reservationId);
+    } catch (e) {
+      if (e instanceof NotFoundException && ifMissing === 'conflict') {
+        throw new ConflictException(`Reservation ${reservationId} missing`);
       }
-      await fetch(`${baseUrl}/capital/reservations/${id}`, {
-        method: 'GET',
-        headers,
-      });
-    } catch {
-      // Best effort: capital-service remains the single writer for reservation
-      // lifecycle, while the local state checks below still block expired rows.
+      throw e;
     }
   }
 
-  private assertReservationActive(res: CapitalReservationEntity): void {
-    if (res.state !== 'active') {
-      if (res.state === 'expired') {
-        throw new ConflictException(`Reservation ${res.id} has expired`);
-      }
-      throw new ConflictException(
-        `Reservation ${res.id} is not active (state=${res.state})`,
-      );
-    }
-    if (res.expiresAt.getTime() <= Date.now()) {
-      throw new ConflictException(`Reservation ${res.id} has expired`);
-    }
-  }
-
-  private async assertApprovedRiskDecision(
-    em: EntityManager,
+  private async assertApprovedRiskViaHttp(
     plan: ExecutionPlanEntity,
   ): Promise<void> {
     if (plan.riskDecisionId === null) {
@@ -320,14 +312,16 @@ export class PlansService {
         `Plan ${plan.id} must reference an approved risk decision before reservation/arm`,
       );
     }
-    const risk = await em.findOne(RiskDecisionEntity, {
-      where: { id: plan.riskDecisionId },
-      lock: { mode: 'pessimistic_read' },
-    });
-    if (risk === null) {
-      throw new ConflictException(
-        `Risk decision ${plan.riskDecisionId} missing for plan ${plan.id}`,
-      );
+    let risk: { id: string; correlationId: string; outcome: string };
+    try {
+      risk = await this.riskHttp.getRiskDecision(plan.riskDecisionId);
+    } catch (e) {
+      if (e instanceof NotFoundException) {
+        throw new ConflictException(
+          `Risk decision ${plan.riskDecisionId} missing for plan ${plan.id}`,
+        );
+      }
+      throw e;
     }
     if (risk.outcome !== 'approved') {
       throw new ConflictException(
@@ -341,9 +335,24 @@ export class PlansService {
     }
   }
 
+  private assertReservationActive(res: CapitalReservationSnapshot): void {
+    if (res.state !== 'active') {
+      if (res.state === 'expired') {
+        throw new ConflictException(`Reservation ${res.id} has expired`);
+      }
+      throw new ConflictException(
+        `Reservation ${res.id} is not active (state=${res.state})`,
+      );
+    }
+    const expiresMs = Date.parse(res.expiresAtIso);
+    if (!Number.isFinite(expiresMs) || expiresMs <= Date.now()) {
+      throw new ConflictException(`Reservation ${res.id} has expired`);
+    }
+  }
+
   private assertReservationMatchesPlan(
     plan: ExecutionPlanEntity,
-    res: CapitalReservationEntity,
+    res: CapitalReservationSnapshot,
   ): void {
     if (res.planId === null) {
       throw new ConflictException(

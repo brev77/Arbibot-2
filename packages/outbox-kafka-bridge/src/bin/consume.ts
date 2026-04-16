@@ -60,13 +60,15 @@ async function main(): Promise<void> {
       }
       const eventName =
         typeof envelope.eventName === 'string' ? envelope.eventName : '?';
+      const entityType =
+        typeof envelope.entityType === 'string' ? envelope.entityType : '';
       const correlation =
         typeof envelope.correlationId === 'string' ? envelope.correlationId : '';
       await ds.transaction(async (em) => {
         const first = await tryClaimInboxMessage(em, consumerId, messageId);
         if (first) {
           console.log(
-            `[outbox-kafka-consume] claim ${messageId} event=${eventName} correlationId=${correlation}`,
+            `[outbox-kafka-consume] claim ${messageId} event=${eventName} entityType=${entityType || '-'} correlationId=${correlation}`,
           );
         }
       });

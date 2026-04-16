@@ -29,3 +29,9 @@
 - **Kafka/Redpanda (dev):** пакет `@arbibot/outbox-kafka-bridge` публикует в топик строки с `event_type` в наборе **`SnapshotUpdated`**, **`CapitalReserved`**, **`PlanArmed`**, **`LegFilled`**, **`PlanCompleted`** (полный JSON `envelope` в значении сообщения). In-DB relay по `RiskDecisionIssued` по-прежнему фильтрует свой `event_type` и не трогает эти строки. После успешного `producer.send` в той же транзакции выставляется `processed_at` (строка считается доставленной на шину; повторная публикация при сбое до commit допускается — consumer идемпотентен через inbox).
 - **Smoke-consumer** в том же пакете: читает топик, парсит `envelope.messageId`, выполняет `tryClaimInboxMessage` с `consumer_id` по умолчанию `outbox-kafka-bridge-smoke` (без мутации чужих агрегатов). В топике могут быть разные `eventName` в envelope — smoke только фиксирует доставку через inbox.
 - Compose: профиль `bus` в `infra/docker-compose.dev.yml` (Redpanda, порт **19092** на хосте). Переменные: `KAFKA_BROKERS`, `KAFKA_TOPIC` (по умолчанию `arbibot.domain.events`), `DATABASE_URL`. Скрипты: `npm run bus:publish`, `npm run bus:consume` из корня монорепо.
+
+### Проверка `npm run bus:publish`
+
+1. Поднять профиль `bus` и иметь мигрированный Postgres с непустыми строками `outbox_events` (`processed_at IS NULL`) для типов из фильтра bridge.
+2. Задать `DATABASE_URL` и `KAFKA_BROKERS` (см. `.env.example`); без них скрипт завершится ошибкой.
+3. Убедиться, что в сообщениях в топике у envelope присутствуют `messageId`, `eventName` / `event_type` согласно контракту; smoke-consumer (`npm run bus:consume`) логирует `eventName` и `entityType` при успешном inbox-claim.

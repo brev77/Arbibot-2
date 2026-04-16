@@ -20,7 +20,7 @@ import type { IAuditClient } from '@arbibot/nest-platform';
 
 import { MockVenueAdapter } from '../venue/mock-venue.adapter';
 import type { VenueAdapter } from '../venue/venue-adapter';
-import { VenueTerminalSubmitError } from '../venue/venue-adapter';
+import { VenueSubmitClientError, VenueTerminalSubmitError } from '../venue/venue-adapter';
 import type { FillOutboundService } from './fill-outbound.service';
 import { LegsService, resolveInstrumentKeyForPlan } from './legs.service';
 
@@ -309,6 +309,41 @@ describe('LegsService', () => {
     expect(auditRecord).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'MarkLegSentTerminal' }),
     );
+  });
+
+  it('markSent returns 422 when venue throws VenueSubmitClientError', async () => {
+    venue.submitLeg = jest.fn(() =>
+      Promise.reject(new VenueSubmitClientError('venue said no')),
+    );
+    const planId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+    const legId = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+    plans.push({
+      id: planId,
+      state: 'executing',
+      entityVersion: 1,
+      correlationId: null,
+      capitalReservationId: null,
+      riskDecisionId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as ExecutionPlanEntity);
+    legs.push({
+      id: legId,
+      planId,
+      legIndex: 0,
+      state: 'created',
+      entityVersion: 1,
+      venueRef: null,
+      ...legDefaults(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as ExecutionLegEntity);
+
+    const err = await service.markSent(planId, legId).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(HttpException);
+    expect((err as HttpException).getStatus()).toBe(HttpStatus.UNPROCESSABLE_ENTITY);
+    expect(String((err as HttpException).message)).toMatch(/venue client error/);
+    expect(String((err as HttpException).message)).not.toMatch(/transient; retry/);
   });
 
   it('markSent returns 502 when venue throws', async () => {

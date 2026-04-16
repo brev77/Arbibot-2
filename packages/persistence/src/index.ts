@@ -14,9 +14,11 @@ export { OutboxEventEntity } from './outbox-event.entity';
 export { PortfolioPositionEntity } from './portfolio-position.entity';
 export { PortfolioPositionFillIdempotencyEntity } from './portfolio-position-fill-idempotency.entity';
 export { ReconciliationMismatchEntity } from './reconciliation-mismatch.entity';
+export { RouteProfileEntity } from './route-profile.entity';
 export { RiskDecisionEntity } from './risk-decision.entity';
 export { RiskWindowReservationEntity } from './risk-window-reservation.entity';
 export { materializeRiskWindowReservationExpiryIfNeeded } from './risk-window-reservation-expiry';
+export { TokenProfileEntity } from './token-profile.entity';
 export { VenueRefEntity } from './venue-ref.entity';
 
 import { ArbitrageOpportunityEntity } from './arbitrage-opportunity.entity';
@@ -34,8 +36,10 @@ import { OutboxEventEntity } from './outbox-event.entity';
 import { PortfolioPositionFillIdempotencyEntity } from './portfolio-position-fill-idempotency.entity';
 import { PortfolioPositionEntity } from './portfolio-position.entity';
 import { ReconciliationMismatchEntity } from './reconciliation-mismatch.entity';
+import { RouteProfileEntity } from './route-profile.entity';
 import { RiskDecisionEntity } from './risk-decision.entity';
 import { RiskWindowReservationEntity } from './risk-window-reservation.entity';
+import { TokenProfileEntity } from './token-profile.entity';
 import { VenueRefEntity } from './venue-ref.entity';
 
 /** All entities for TypeORM `entities` array. */
@@ -58,4 +62,6 @@ export const ARBIBOT_TYPEORM_ENTITIES = [
   PortfolioPositionEntity,
   PortfolioPositionFillIdempotencyEntity,
   ReconciliationMismatchEntity,
+  TokenProfileEntity,
+  RouteProfileEntity,
 ] as const;

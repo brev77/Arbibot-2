@@ -41,6 +41,12 @@ export class RiskDecisionEntity {
   })
   riskWindowReservationId!: string | null;
 
+  @Column({ name: 'instrument_key', type: 'text', nullable: true })
+  instrumentKey!: string | null;
+
+  @Column({ name: 'route_key', type: 'text', nullable: true })
+  routeKey!: string | null;
+
   @Column({ name: 'entity_version', type: 'int', default: 1 })
   entityVersion!: number;
 
