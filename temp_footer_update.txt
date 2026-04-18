@@ -1,0 +1,107 @@
+*Последнее обновление: **2026-04-17** — **Док-синхрон (Architecture Guard):** `P1-1.1-OIB` / `PRIO-P0-OIB` — allowlist in-DB relay (`RiskDecisionIssued`, `PaperPromotionCandidateRequested`, дедуп **`018`**); исторический bullet Kafka-bridge сведён к актуальному allowlist; **`FE-ROUTE-openclaw`** → **`done`** (stub до **`P5-5-OCUI`**); **`FE-ROUTE-incidents`** — BFF/RBAC и backlog two-step для опасных мутаций. Phase 3: шаги **`P3-3-PAPER` / `P3-3-PAPER-UI` / `P3-3-TOKENS` / `P3-3-DISC`** → **`done`** (backend и frontend review пройдены; узкий slice: paper-service, outbox+relay, read-only UI, drift metric + doc alert v0); миграция **`018`** (дедуп `paper-enqueue` в outbox); relay paper HTTP вне длинной транзакции; state machines корректны, idempotency реализована. Ранее **2026-04-16** — **Phase 2.1:** шаги **`P2-2.1-VEN` / `EPL` / `FILL` / `PORT` / `RECON`** и матрица **`PRIO-P0-EPL`** — **`done`**; `HttpVenueAdapter` + `lab-venue-stand.mjs`, GitHub Actions **`e2e-phase2`**, `npm run ci:e2e-phase2` (`tools/ci-e2e-phase2.sh`); venue terminal/transient + `EXECUTION_BEGIN_LEG_COUNT`, `npm run e2e:phase2-controlled-execution`, миграция `014` / `routeKey` / `resolveInstrumentKeyForPlan`, settlement (обязательный portfolio URL при включённом режиме), BFF `/api/operator` RBAC, portfolio decimal precision, `/incidents` `investigating`→`resolved`, алерт `ReconciliationOpenMismatches`; **freeze `P2-2.2-*` снят по процессу** после `done` по `P2-2.1-*` (см. `docs/TODO.md`). Ранее **2026-04-13:** Phase 1 DoD, partial fill, settlement, portfolio, reconciliation `PATCH`, bus `LegFilled`/`PlanCompleted`. **Дополнение 2026-04-16:** `PRIO-P0-RECON` / **`P2-2.2-*`** / **`PRIO-P1-ALERT`** / **`FE-ROUTE`** (dashboard, portfolio, opportunities, settings) → **`done`**; HTTP venue **408** transient; lab **x-correlation-id** echo; smoke-consumer логирует **entityType**; миграция **`015`**, профили риска + метрика **`arb_execution_leg_partial_fill_commits_total`**; [`docs/reconciliation-p0-procedures.md`](../../docs/reconciliation-p0-procedures.md), SLO **v0** в observability.*
+
+---
+
+## Frontend RBAC baseline
+
+Матрица минимальных ролей и защищённых действий для operator UI.
+
+| Route | Minimum role | Protected actions (require approval) |
+|-------|---------------|---------------------------------------|
+| /dashboard | viewer | none (read-only) |
+| /portfolio | operator | none (read-only) |
+| /opportunities | viewer | none (read-only) |
+| /execution | operator | force hedge/unwind (two-step approval required) |
+| /tokens | operator | promote to live (two-step approval required) |
+| /paper | operator | approve/reject trade (single-step approval) |
+| /incidents | operator | mark resolved (two-step approval required) |
+| /runbooks | operator | run playbook (two-step approval required) |
+| /openclaw | operator | all actions (two-step approval required) |
+| /settings | operator | sensitive settings (two-step approval required) |
+
+**Role hierarchy:** `viewer` < `operator` < `admin` (future)
+
+**RBAC enforcement:**
+- Middleware `/api/operator/*` проверяет роль (см. `apps/web/middleware.ts`, `lib/operator-role.ts`)
+- На фронте: disabled buttons/actions для недоступных ролей
+- Approval flow реализуется на backend как отдельный endpoint с double-check
+
+---
+
+## Operator Safety UI Patterns
+
+Требования к UI для опасных действий оператора.
+
+### Destructive actions checklist
+
+Для всех действий с риском капитала или состояния системы:
+
+1. **Confirmation dialogs:**
+   - Single-step confirmation для medium-risk (кнопка "Cancel" / "Confirm")
+   - Two-step confirmation для high-risk (preview → explicit warning → confirm)
+
+2. **Impact preview (high-risk только):**
+   - Read-only summary того, что изменится
+   - Какие планы/позиции/токены затронуты
+   - Оценка рисков и потенциальных последствий
+   - Ссылки на связанные runbooks (если применимо)
+
+3. **Operation status tracking:**
+   - Pending → Running → Success / Failure
+   - Визуальный индикатор для async операций
+   - Таймаут и автоматический переход в Failure при stall
+
+4. **Audit trail:**
+   - Каждое действие записывается в audit log
+   - Отображение истории действий в UI (кто/когда/что)
+   - Возможность отслеживания по correlation ID
+
+### Error handling patterns
+
+1. **Секции independent error states:** (уже реализовано в Phase 3)
+   - Каждая секция имеет свой error boundary
+   - Partial failures не блокируют весь UI
+
+2. **Network errors vs API errors:**
+   - Дифференциация 4xx (validation/permission) vs 5xx (server)
+   - Явное сообщение оператору о повторной попытке или необходимости контакта с support
+
+3. **Rollback UX:**
+   - При optimistic update failure — явный rollback в UI
+   - Возможность retry для transient errors
+   - Immutable audit log даже при rollback
+
+---
+
+## Frontend Non-Functional Requirements
+
+### Frontend Performance Baseline
+
+- **TanStack Table virtualization:** для списков > 1000 строк
+- **First Meaningful Paint (FMP):** < 1.5s на /dashboard
+- **Initial paint:** < 1s для всех маршрутов
+- **Large table rendering:** pagination или virtualization (минимум 100 строк на viewport)
+
+### Frontend Accessibility Baseline
+
+- **Keyboard navigation:** все интерактивные элементы доступны с клавиатуры
+- **ARIA labels:** для всех кнопок и status indicators
+- **Color contrast:** WCAG AA compliance
+- **Screen reader test:** ключевые маршруты протестированы
+
+### Frontend Responsive Design Baseline
+
+- **Breakpoints:**
+  - mobile: < 768px
+  - tablet: 768-1024px
+  - desktop: > 1024px
+- **Tables:** scrollable на mobile, full-width на desktop
+- **Navigation:** collapsible hamburger на mobile
+
+### Frontend Data Freshness Strategy
+
+- **Real-time routes:** /execution, /incidents — polling (30s) или SSE
+- **Stale data strategy:**
+  - `staleTime` и `refetchInterval` задокументированы для каждого query
+  - Manual refresh кнопки на всех read-only списках
+  - Auto-invalidation при мутациях (React Query `invalidateQueries`)

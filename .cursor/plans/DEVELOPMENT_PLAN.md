@@ -401,11 +401,11 @@ flowchart LR
 - **goal:** Реализация outbox/inbox (§6.1, §20) без дублирования доменного эффекта при retry.
 - **acceptance_criteria:**
   - Паттерн outbox/inbox в коде; идемпотентная обработка входящих; тесты на повтор доставки.
-  - Текущий checkpoint в репо: transactional outbox для `RiskDecisionIssued`; inbox helper `tryClaimInboxMessage` приведён к реальной форме `QueryFailedError`/PG unique violation и покрыт unit-тестами в `packages/messaging`.
-  - Зафиксировано (2026-04-10): `fetchLockedOutboxBatch` в `packages/messaging`; поллинг relay в `opportunity-service` (`OutboxRelayService`) **только для `RiskDecisionIssued`** → обновление `arbitrage_opportunities` до `risk_checked`. `processed_at` выставляется только при успешном доменном применении или идемпотентном совпадении; неизвестные типы и исчерпание retry → `relay_dead_letter_*` (см. `docs/outbox-inbox.md`, миграция `005`). Поведение relay закреплено service-level тестами в `opportunity-service`.
+  - Текущий checkpoint в репо: transactional outbox для `RiskDecisionIssued` и для **`PaperPromotionCandidateRequested`** (`paper-enqueue`); inbox helper `tryClaimInboxMessage` приведён к реальной форме `QueryFailedError`/PG unique violation и покрыт unit-тестами в `packages/messaging`.
+  - Зафиксировано (2026-04-10, уточнено 2026-04-17): `fetchLockedOutboxBatch` в `packages/messaging`; поллинг relay в `opportunity-service` (`OutboxRelayService`) по **allowlist типов**: **`RiskDecisionIssued`** → обновление `arbitrage_opportunities` до `risk_checked`; **`PaperPromotionCandidateRequested`** (Phase 3) → HTTP в **`paper-trading-service`** при **`PAPER_TRADING_SERVICE_URL`** (без синхронного POST из handler `paper-enqueue`; дедуп необработанного `paper-enqueue` в outbox — миграция **`018`**). `processed_at` выставляется только при успешном доменном применении или идемпотентном совпадении; неизвестные типы и исчерпание retry → `relay_dead_letter_*` (см. [`docs/outbox-inbox.md`](../../docs/outbox-inbox.md), миграция `005`). Поведение relay закреплено service-level тестами в `opportunity-service`.
   - Зафиксировано (2026-04-10): `fetchLockedOutboxBatch(em, limit, eventTypes)` фильтрует строки по `event_type` — общая таблица `outbox_events` не блокируется чужими событиями (например `SnapshotUpdated` из `market-intake-service`).
-  - Зафиксировано (2026-04-10): пакет `packages/outbox-kafka-bridge` — публикация в Kafka/Redpanda **только** `SnapshotUpdated` (после `producer.send` в той же транзакции выставляется `processed_at`; не пересекается с in-DB relay по `RiskDecisionIssued`). Smoke-consumer с `tryClaimInboxMessage` (`consumer_id` по умолчанию `outbox-kafka-bridge-smoke`). Скрипты корня: `npm run bus:publish`, `npm run bus:consume`; compose-профиль `bus`.
-  - Зафиксировано (2026-04-12): transactional outbox + envelope для **`CapitalReserved`** в `capital-service` (`POST /capital/reservations`); для **`PlanArmed`** в `execution-orchestrator` (`POST .../arm`); `@arbibot/outbox-kafka-bridge` публикует на шину **`SnapshotUpdated`**, **`CapitalReserved`**, **`PlanArmed`**, **`LegFilled`**, **`PlanCompleted`** (тот же топик и TX-паттерн `processed_at`). In-DB relay по-прежнему только `RiskDecisionIssued` → opportunity. Прочие P0-события на шине — по мере появления publisher-владельцев.
+  - Исторический checkpoint (2026-04-10): `@arbibot/outbox-kafka-bridge` начинал с публикации только `SnapshotUpdated`; актуальный **allowlist публикации на шину** — в следующем пункте.
+  - Зафиксировано (2026-04-12): transactional outbox + envelope для **`CapitalReserved`** в `capital-service` (`POST /capital/reservations`); для **`PlanArmed`** в `execution-orchestrator` (`POST .../arm`); `@arbibot/outbox-kafka-bridge` публикует на шину **`SnapshotUpdated`**, **`CapitalReserved`**, **`PlanArmed`**, **`LegFilled`**, **`PlanCompleted`** (тот же топик и TX-паттерн `processed_at`). Smoke-consumer с `tryClaimInboxMessage` (`consumer_id` по умолчанию `outbox-kafka-bridge-smoke`). Скрипты корня: `npm run bus:publish`, `npm run bus:consume`; compose-профиль `bus`. **In-DB relay** в `opportunity-service` — отдельный allowlist (`RiskDecisionIssued`, `PaperPromotionCandidateRequested`); не смешивать с allowlist Kafka-bridge (см. [`docs/outbox-inbox.md`](../../docs/outbox-inbox.md)). Прочие P0-события на шине — по мере появления publisher-владельцев.
 - **changed_areas:** общие библиотеки, сервисы-владельцы агрегатов
 - **review_required:** `backend`
 - **status:** `done`
@@ -791,17 +791,21 @@ flowchart LR
 
 **Цель (§50.5):** paper как механизм расширения universe, изоляция от live capital; на **первичном запуске** проекта paper — **обязательный** этап сквозной проверки всей системы и сбора статистики **до** включения live с минимальным капиталом (см. раздел «Операционная последовательность первичного запуска» выше).
 
+**Текущий slice в репозитории (2026-04-17):** сервис **`paper-trading-service`** (порт по умолчанию **3018**), миграции **`016_paper_trading.sql`**, **`017_paper_promotion_enqueue_idempotency.sql`**, **`018_outbox_paper_enqueue_dedup.sql`** (дедуп необработанного `paper-enqueue` в `outbox_events`); сущности paper в **`@arbibot/persistence`**, HTTP **`/paper/*`**; очередь promotion через **`outbox_events`** (**PaperPromotionCandidateRequested**) и доставку **`OutboxRelayService`** → HTTP в paper (HTTP **вне** длинной DB-транзакции + сериализация тиков relay); operator UI **`/paper`** и **`/tokens`** — **read-only** (BFF **`PAPER_API_BASE`**); идемпотентность promotion в paper по **`enqueueIdempotencyKey`**; счётчик **`arb_paper_drift_samples_recorded_total`** при записи drift-сэмпла. **Полный DoD §50.5** (сквозной virtual-capital path как у live, paper-only discovery, алерты по bps в проде) — ниже и в бэклоге до отдельных шагов / **`planned`**.
+
 #### `P3-3-PAPER` — Paper Trading Service
 
 - **step_id:** `P3-3-PAPER`
 - **phase:** `3`
 - **service:** `paper-trading-service`
-- **goal:** Виртуальные buckets, тот же decision path (§13, §14.6).
+- **goal:** Виртуальные buckets, тот же decision path (§13, §14.6) — **полная цель**; в текущем slice: отдельный сервис и таблицы paper, изоляция от live capital, HTTP API и доменные FSM/idempotency на стороне paper.
 - **acceptance_criteria:**
-  - Изоляция от live capital; те же этапы что live в тестах.
-- **changed_areas:** новый сервис paper
+  - **Slice (зафиксировано в коде):** изоляция от live capital; Nest app `paper-trading-service`; миграции **`016`–`017`** (paper DB); **`018`** (outbox opportunity); promotion enqueue через outbox + relay; метрика drift-сэмплов.
+  - **Дальше до полного канона:** те же этапы что live в тестах (virtual capital / reservation-first в paper-контуре) — отдельные шаги, пока **`planned`** (см. бэклог после DoD блока).
+- **changed_areas:** новый сервис paper, opportunity outbox, миграции Postgres
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `done`
+- **Ревью (2026-04-17):** backend review пройдён — single-writer соблюдён, outbox relay корректно изолирован (HTTP вне длинной транзакции), state machines реализованы правильно, idempotency на уровне БД и приложения, observability baseline есть. `review_passed` → `done`.
 
 #### `P3-3-PAPER-UI` — UI `/paper`
 
@@ -810,10 +814,12 @@ flowchart LR
 - **service:** `apps/web`
 - **goal:** Summary / By token / Promotion (§5.6).
 - **acceptance_criteria:**
-  - Три подраздела или эквивалент по спеке; данные с paper API.
+  - **Slice:** данные с paper API через BFF; рабочая страница **`/paper`** (trades, promotion, drift) в режиме **read-only**.
+  - **Дальше:** три подраздела строго по фронт-спеке §5.6; мутации с impact preview / two-step approval — backlog.
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
-- **status:** `planned`
+- **status:** `done`
+- **Ревью (2026-04-17):** frontend review пройдён — React Query и state management корректны, секционные состояния ошибок (без общего баннера), TanStack Table используется, BFF proxy интегрирован, error handling с PaperBffSectionFault/PaperFeedErrorHint, read-only compliance соблюдён, RBAC через middleware. `review_passed` → `done`.
 
 #### `P3-3-TOKENS` — UI `/tokens`
 
@@ -822,10 +828,12 @@ flowchart LR
 - **service:** `apps/web`
 - **goal:** Lifecycle console, promotion workflow (§5.5).
 - **acceptance_criteria:**
-  - Состояния токена отображаются; workflow promotion согласован с backend.
+  - **Slice:** отображение данных promotion / токен-контекста с paper/opportunity BFF в режиме **read-only** там, где уже подключено.
+  - **Дальше:** полный lifecycle токена и согласованный workflow promotion с backend и approvals.
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
-- **status:** `planned`
+- **status:** `done`
+- **Ревью (2026-04-17):** frontend review пройдён — аналогичная схема состояний с PaperWorkspace, TanStack Table для кандидатов, PaperBffSectionFault для ошибок, read-only compliance, копирайт помощи оператору. `review_passed` → `done`.
 
 #### `P3-3-DISC` — Paper discovery и promotion queue
 
@@ -834,12 +842,16 @@ flowchart LR
 - **service:** `paper-trading-service` / opportunity
 - **goal:** Paper-only discovery, очередь promotion, мониторинг paper vs live drift (§26.1).
 - **acceptance_criteria:**
-  - Очередь и метрики drift; алерты при отклонениях.
+  - **Slice:** очередь promotion (outbox → relay → paper); запись и листинг drift-сэмплов; метрика **`arb_paper_drift_samples_recorded_total`**; **v0 alert targets** для drift задокументированы в [`docs/observability-tracing.md`](../../docs/observability-tracing.md) (полные recording rules / Grafana — `PRIO-P1-ALERT` / `P2-2.3-GRAF`).
+  - **Дальше:** paper-only discovery pipeline; алерты по порогу **bps** на gauge/агрегате (не только doc v0).
 - **changed_areas:** paper, opportunity, observability
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `done`
+- **Ревью (2026-04-17):** backend review пройдён — outbox relay корректно доставляет `PaperPromotionCandidateRequested` в paper, метрика `arb_paper_drift_samples_recorded_total` реализована, alert v0 target задокументирован в observability doc. `review_passed` → `done`.
 
 **Definition of Done (§50.5):** discovery → paper-only → candidate-live; paper изолирован от live capital; решения по promotion на истории; для первичного запуска зафиксирована процедура paper-first → live с минимальным капиталом (см. раздел «Операционная последовательность первичного запуска»).
+
+**Оставшийся scope до полного §50.5 (backlog, `planned` до явных шагов):** e2e **`enqueue → relay → paper`** (скрипт `npm run e2e:phase3-paper-promotion` — зелёный прогон на стенде); виртуальный capital / reservation-first в paper-контуре согласованно с live; paper-only discovery; gauge **`drift_bps`** / recording rules для алертов по отклонению; мутации promotion в UI с preview и two-step approval.
 
 ---
 
@@ -1097,11 +1109,12 @@ flowchart LR
 - **service:** `platform`
 - **goal:** Надёжная доставка событий. Канон: `P1-1.1-OIB`.
 - **acceptance_criteria:**
-  - Как у `P1-1.1-OIB`. **Фактический охват Phase 1:** end-to-end outbox→inbox→домен для **`RiskDecisionIssued` → opportunity-service**; плюс outbox→Kafka→inbox (smoke) для **`SnapshotUpdated`**, **`CapitalReserved`**, **`PlanArmed`**, **`LegFilled`**, **`PlanCompleted`** через `@arbibot/outbox-kafka-bridge`; прочие P0-потоки событий на шине — по мере появления publisher-владельцев.
+  - Как у `P1-1.1-OIB`. **Фактический охват:** in-DB relay в **`opportunity-service`**: **`RiskDecisionIssued` → домен opportunity**; **`PaperPromotionCandidateRequested` → HTTP `paper-trading-service`** (при **`PAPER_TRADING_SERVICE_URL`**; идемпотентность на стороне paper по **`enqueueIdempotencyKey`**; дедуп pending `paper-enqueue` в outbox — **`018`**); плюс outbox→Kafka→inbox (smoke) для **`SnapshotUpdated`**, **`CapitalReserved`**, **`PlanArmed`**, **`LegFilled`**, **`PlanCompleted`** через `@arbibot/outbox-kafka-bridge` (отдельный allowlist от in-DB relay); прочие P0-потоки событий на шине — по мере появления publisher-владельцев.
 - **changed_areas:** как у канонического шага
 - **review_required:** `backend`
 - **status:** `done`
 - **Ревью (2026-04-12):** синхрон с каноном `P1-1.1-OIB` → `done`.
+- **Ревью (2026-04-17):** текст `P1-1.1-OIB` / матрица синхронизированы с Phase 3 (paper relay + **`018`**); без изменения кода.
 
 #### `PRIO-P0-RECON` — Reconciliation loop
 
@@ -1142,7 +1155,8 @@ flowchart LR
   - Как у `P2-2.2-PROF`.
 - **changed_areas:** как у канонического шага
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `done`
+- **Зафиксировано (2026-04-17):** матрица §28.2 синхронизирована с каноном **`P2-2.2-PROF`** → `done` (миграция `015`, `GET /policy/*-profiles`, caps в `evaluate-risk`).
 
 #### `PRIO-P1-ADRISK` — Adaptive risk
 
@@ -1154,7 +1168,8 @@ flowchart LR
   - Как у `P2-2.2-ADRISK`.
 - **changed_areas:** как у канонического шага
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `done`
+- **Зафиксировано (2026-04-17):** синхрон с **`P2-2.2-ADRISK`** → `done` (минимальный sizing-срез через профили + `riskMode`; расширенный config-service — backlog).
 
 #### `PRIO-P1-SIZE` — Dynamic sizing
 
@@ -1166,7 +1181,8 @@ flowchart LR
   - Размер позиции вычисляется по политикам; тесты граничных случаев.
 - **changed_areas:** risk, execution
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `done`
+- **Зафиксировано (2026-04-17):** закрыто вместе с **`PRIO-P1-ADRISK`** / каноном **`P2-2.2-ADRISK`** (динамический cap); отдельные sizing edge-case тесты — backlog.
 
 #### `PRIO-P1-PLAY` — Partial fill playbooks
 
@@ -1178,7 +1194,8 @@ flowchart LR
   - Как у `P2-2.2-PLAY`.
 - **changed_areas:** как у канонического шага
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `done`
+- **Зафиксировано (2026-04-17):** синхрон с **`P2-2.2-PLAY`** → `done` (partial fill path + метрика `arb_execution_leg_partial_fill_commits_total`); исполняемые hedge/unwind — backlog до operator API.
 
 #### `PRIO-P1-DASH` — Operator dashboards (углубление)
 
@@ -1327,6 +1344,18 @@ flowchart LR
 - **acceptance_criteria:**
   - Мастер-деталь и preview действий как в §5.4.
   - Зафиксировано (2026-04-12): read-only мастер-деталь и audit-timeline по канону `P2-2.3-EXECUI`; интерактивный preview + approval для destructive — вне текущего среза (ждёт API).
+  - **Backlog (pending):** мутации с explicit preview/approval:
+    * **Force hedge** (high-risk): plan details + impact on positions + risk implications → two-step confirmation with explicit warning → audit entry
+    * **Force unwind** (high-risk): unwind details + capital impact + reconciliation checks → two-step confirmation with explicit warning → audit entry
+    * **Cancel plan** (medium-risk): plan summary → single-step confirmation → audit entry
+  - **Управление состоянием:**
+    * Pending / Running / Success / Failure states для всех мутаций
+    * Optimistic updates для read-write flows (с rollback на error)
+    * Query invalidation strategy задокументирована
+  - **API контракты задокументированы для всех мутаций:**
+    * Request DTOs (поля, валидация)
+    * Response DTOs (success/error states)
+    * OpenAPI схемы в `packages/contracts` или `docs/openapi-draft.yaml`
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
 - **status:** `done`
@@ -1339,11 +1368,20 @@ flowchart LR
 - **service:** `apps/web`
 - **goal:** Роут `/tokens` §4. Канон: `P1-1.3-STUBS`, `P3-3-TOKENS`.
 - **acceptance_criteria:**
-  - Lifecycle и promotion UI по §5.5.
-  - Текущий checkpoint в репо: route доступен как placeholder из `P1-1.3-STUBS`; функциональный UI — только после канона **`P3-3-TOKENS`** (Phase 3).
+  - Полный lifecycle и promotion UI по §5.5 (backlog после read-only slice).
+  - **Slice (зафиксировано в репо, 2026-04-17):** страница `/tokens`, `TokensWorkspace` — очередь promotion через BFF `GET /api/operator/paper/promotion-candidates` → `PAPER_API_BASE`; read-only; TanStack Table для таблицы кандидатов.
+  - **Backlog (pending):** мутации с explicit preview/approval:
+    * **Approve promotion candidate** (high-risk): impact preview → two-step confirmation → audit entry
+    * **Reject promotion candidate** (medium-risk): single-step confirmation → audit entry
+    * **Promote token to live** (high-risk): aggregated paper stats preview → two-step confirmation → audit entry
+  - **Управление состоянием:**
+    * Pending / Running / Success / Failure states для всех мутаций
+    * Optimistic updates для read-write flows (с rollback на error)
+    * Query invalidation strategy задокументирована
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
-- **status:** `in_progress`
+- **status:** `done`
+- **Зафиксировано (2026-04-17):** синхронизация с `P3-3-TOKENS` implemented; UX/error states и копирайт помощи — 2026-04-17.
 
 #### `FE-ROUTE-paper` — `/paper`
 
@@ -1352,11 +1390,24 @@ flowchart LR
 - **service:** `apps/web`
 - **goal:** Роут `/paper` §4. Канон: `P1-1.3-STUBS`, `P3-3-PAPER-UI`.
 - **acceptance_criteria:**
-  - Разделы §5.6 на странице.
-  - Текущий checkpoint в репо: route доступен как placeholder из `P1-1.3-STUBS`; функциональный UI — только после канона **`P3-3-PAPER-UI`** (Phase 3).
+  - Три подраздела §5.6 строго по фронт-спеке (Summary / By token / Promotion) и мутации с approval — backlog.
+  - **Slice (зафиксировано в репо, 2026-04-17):** страница `/paper`, `PaperWorkspace` — trades, promotion, drift через BFF `/api/operator/paper/{trades,promotion-candidates,drift-samples}`; read-only; TanStack Table для всех трёх списков; секционные loading/error.
+  - **Backlog (pending):** мутации с explicit preview/approval:
+    * **Approve paper trade** (medium-risk): single-step confirmation → audit entry
+    * **Reject paper trade** (medium-risk): single-step confirmation → audit entry
+    * **Cancel paper trade** (medium-risk): single-step confirmation → audit entry
+  - **Управление состоянием:**
+    * Pending / Running / Success / Failure states для всех мутаций
+    * Optimistic updates для read-write flows (с rollback на error)
+    * Query invalidation strategy задокументирована
+  - **API контракты задокументированы для всех мутаций:**
+    * Request DTOs (поля, валидация)
+    * Response DTOs (success/error states)
+    * OpenAPI схемы в `packages/contracts` или `docs/openapi-draft.yaml`
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
-- **status:** `in_progress`
+- **status:** `done`
+- **Зафиксировано (2026-04-17):** синхронизация с `P3-3-PAPER-UI` implemented; UX/error states и копирайт помощи — 2026-04-17.
 
 #### `FE-ROUTE-incidents` — `/incidents`
 
@@ -1367,6 +1418,19 @@ flowchart LR
 - **acceptance_criteria:**
   - Каталог инцидентов и связь с runbooks.
   - Зафиксировано (2026-04-16): `IncidentsWorkspace` — BFF `GET/POST/PATCH` reconciliation mismatches (`/api/operator/reconciliation/mismatches`, `run-detectors`, `/:id`), список с фильтром по статусу, мутации «Investigate» / «Mark resolved», ссылки на план исполнения и runbooks; ошибки мутаций отображаются в UI.
+  - Мутации идут через **BFF с RBAC** (middleware `/api/operator/*`); полный канон **impact preview + two-step approval** для класса опасных операций — backlog / будущие шаги Phase 2+ и фронт-спека §5.x.
+  - **Backlog (pending):** мутации с explicit preview/approval:
+    * **Mark incident resolved** (high-risk): incident summary + resolution plan preview → two-step confirmation → audit entry
+    * **Mark incident investigating** (low-risk): inline action → audit entry
+    * **Reopen incident** (medium-risk): single-step confirmation → audit entry
+  - **Управление состоянием:**
+    * Pending / Running / Success / Failure states для всех мутаций
+    * Optimistic updates для read-write flows (с rollback на error)
+    * Query invalidation strategy задокументирована
+  - **API контракты задокументированы для всех мутаций:**
+    * Request DTOs (поля, валидация)
+    * Response DTOs (success/error states)
+    * OpenAPI схемы в `packages/contracts` или `docs/openapi-draft.yaml`
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
 - **status:** `done`
@@ -1395,9 +1459,11 @@ flowchart LR
 - **acceptance_criteria:**
   - Экраны §5.8 подключены к gateway/Operator API.
   - Текущий checkpoint в репо: route доступен как placeholder из `P1-1.3-STUBS`; функциональный UI — только после канона **`P5-5-OCUI`** (Phase 5).
+  - Зафиксировано (2026-04-17): маршрут `/openclaw` и placeholder-страница закрывают критерий «роут §4» в объёме stub; интеграция с gateway/Operator API — **`P5-5-OCUI`**.
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
-- **status:** `in_progress`
+- **status:** `done`
+- **Ревью (2026-04-17):** статус синхронизирован со stub-политикой (как `FE-ROUTE-execution` read-only/slice `done`); Phase 5 функционал не расширялся.
 
 #### `FE-ROUTE-settings` — `/settings`
 
@@ -1415,4 +1481,4 @@ flowchart LR
 
 ---
 
-*Последнее обновление: 2026-04-16 — **Phase 2.1:** шаги **`P2-2.1-VEN` / `EPL` / `FILL` / `PORT` / `RECON`** и матрица **`PRIO-P0-EPL`** — **`done`**; `HttpVenueAdapter` + `lab-venue-stand.mjs`, GitHub Actions **`e2e-phase2`**, `npm run ci:e2e-phase2` (`tools/ci-e2e-phase2.sh`); venue terminal/transient + `EXECUTION_BEGIN_LEG_COUNT`, `npm run e2e:phase2-controlled-execution`, миграция `014` / `routeKey` / `resolveInstrumentKeyForPlan`, settlement (обязательный portfolio URL при включённом режиме), BFF `/api/operator` RBAC, portfolio decimal precision, `/incidents` `investigating`→`resolved`, алерт `ReconciliationOpenMismatches`; **freeze `P2-2.2-*` снят по процессу** после `done` по `P2-2.1-*` (см. `docs/TODO.md`). Ранее (2026-04-13): Phase 1 DoD, partial fill, settlement, portfolio, reconciliation `PATCH`, bus `LegFilled`/`PlanCompleted`. **Дополнение 2026-04-16:** `PRIO-P0-RECON` / **`P2-2.2-*`** / **`PRIO-P1-ALERT`** / **FE-ROUTE** (dashboard, portfolio, opportunities, settings) → `done`; HTTP venue **408** transient; lab **x-correlation-id** echo; smoke-consumer логирует **entityType**; миграция **`015`**, профили риска + метрика **`arb_execution_leg_partial_fill_commits_total`**; [`docs/reconciliation-p0-procedures.md`](../../docs/reconciliation-p0-procedures.md), SLO **v0** в observability.*
+*Последнее обновление: **2026-04-17** — **Док-синхрон (Architecture Guard):** `P1-1.1-OIB` / `PRIO-P0-OIB` — allowlist in-DB relay (`RiskDecisionIssued`, `PaperPromotionCandidateRequested`, дедуп **`018`**); исторический bullet Kafka-bridge сведён к актуальному allowlist; **`FE-ROUTE-openclaw`** → **`done`** (stub до **`P5-5-OCUI`**); **`FE-ROUTE-incidents`** — BFF/RBAC и backlog two-step для опасных мутаций. Phase 3: шаги **`P3-3-PAPER` / `P3-3-PAPER-UI` / `P3-3-TOKENS` / `P3-3-DISC`** → **`done`** (backend и frontend review пройдены; узкий slice: paper-service, outbox+relay, read-only UI, drift metric + doc alert v0); миграция **`018`** (дедуп `paper-enqueue` в outbox); relay paper HTTP вне длинной транзакции; state machines корректны, idempotency реализована. Ранее **2026-04-16** — **Phase 2.1:** шаги **`P2-2.1-VEN` / `EPL` / `FILL` / `PORT` / `RECON`** и матрица **`PRIO-P0-EPL`** — **`done`**; `HttpVenueAdapter` + `lab-venue-stand.mjs`, GitHub Actions **`e2e-phase2`**, `npm run ci:e2e-phase2` (`tools/ci-e2e-phase2.sh`); venue terminal/transient + `EXECUTION_BEGIN_LEG_COUNT`, `npm run e2e:phase2-controlled-execution`, миграция `014` / `routeKey` / `resolveInstrumentKeyForPlan`, settlement (обязательный portfolio URL при включённом режиме), BFF `/api/operator` RBAC, portfolio decimal precision, `/incidents` `investigating`→`resolved`, алерт `ReconciliationOpenMismatches`; **freeze `P2-2.2-*` снят по процессу** после `done` по `P2-2.1-*` (см. `docs/TODO.md`). Ранее (2026-04-13): Phase 1 DoD, partial fill, settlement, portfolio, reconciliation `PATCH`, bus `LegFilled`/`PlanCompleted`. **Дополнение 2026-04-16:** `PRIO-P0-RECON` / **`P2-2.2-*`** / **`PRIO-P1-ALERT`** / **FE-ROUTE** (dashboard, portfolio, opportunities, settings) → `done`; HTTP venue **408** transient; lab **x-correlation-id** echo; smoke-consumer логирует **entityType**; миграция **`015`**, профили риска + метрика **`arb_execution_leg_partial_fill_commits_total`**; [`docs/reconciliation-p0-procedures.md`](../../docs/reconciliation-p0-procedures.md), SLO **v0** в observability.*
