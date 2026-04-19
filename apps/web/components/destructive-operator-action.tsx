@@ -18,7 +18,10 @@ interface DestructiveOperatorActionProps {
   readonly level: ActionLevel;
   readonly actionLabel: string;
   readonly impactPreview?: ImpactPreview;
-  readonly onConfirm: () => Promise<void>;
+  /** When set with `level="high"`, step 2 requires this exact phrase before execute. */
+  readonly requireTypedConfirmPhrase?: string;
+  /** May return any Promise (e.g. React Query mutateAsync); result is ignored. */
+  readonly onConfirm: () => void | Promise<unknown>;
   readonly disabled: boolean;
 }
 
@@ -26,20 +29,29 @@ export function DestructiveOperatorAction({
   level,
   actionLabel,
   impactPreview,
+  requireTypedConfirmPhrase,
   onConfirm,
   disabled,
 }: DestructiveOperatorActionProps): ReactNode {
   const [status, setStatus] = useState<OperationStatus>('idle');
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [highRiskStep, setHighRiskStep] = useState<1 | 2>(1);
+  const [typedPhrase, setTypedPhrase] = useState('');
 
   const isHighRisk = level === 'high';
   const isMediumRisk = level === 'medium';
+  const needsTypedSecondStep =
+    isHighRisk &&
+    requireTypedConfirmPhrase !== undefined &&
+    requireTypedConfirmPhrase.length > 0;
 
   const handleClick = () => {
     if (isHighRisk || isMediumRisk) {
+      setHighRiskStep(1);
+      setTypedPhrase('');
       setShowConfirmation(true);
     } else {
-      executeAction();
+      void executeAction();
     }
   };
 
@@ -49,6 +61,8 @@ export function DestructiveOperatorAction({
       await onConfirm();
       setStatus('success');
       setShowConfirmation(false);
+      setHighRiskStep(1);
+      setTypedPhrase('');
     } catch (error) {
       setStatus('failure');
       console.error('Operation failed:', error);
@@ -58,6 +72,8 @@ export function DestructiveOperatorAction({
   const handleCancel = () => {
     setShowConfirmation(false);
     setStatus('idle');
+    setHighRiskStep(1);
+    setTypedPhrase('');
   };
 
   const getButtonText = (): string => {
@@ -106,39 +122,67 @@ export function DestructiveOperatorAction({
               preview before confirming.
             </p>
 
-            {impactPreview && (
-              <div className="mt-4 rounded-md border border-amber-900/40 bg-amber-950/20 p-4 html.theme-light:border-amber-200 html.theme-light:bg-amber-50">
-                <h3 className="text-sm font-medium text-amber-200 html.theme-light:text-amber-900">
-                  Impact preview
-                </h3>
-                <dl className="mt-2 space-y-2 text-sm">
-                  <div>
-                    <dt className="text-slate-400 html.theme-light:text-slate-600">
-                      Affected resources:
-                    </dt>
-                    <dd className="text-slate-100 html.theme-light:text-slate-900">
-                      {impactPreview.affectedResources}
-                    </dd>
+            {highRiskStep === 1 && (
+              <>
+                {impactPreview ? (
+                  <div className="mt-4 rounded-md border border-amber-900/40 bg-amber-950/20 p-4 html.theme-light:border-amber-200 html.theme-light:bg-amber-50">
+                    <h3 className="text-sm font-medium text-amber-200 html.theme-light:text-amber-900">
+                      Impact preview
+                    </h3>
+                    <dl className="mt-2 space-y-2 text-sm">
+                      <div>
+                        <dt className="text-slate-400 html.theme-light:text-slate-600">
+                          Affected resources:
+                        </dt>
+                        <dd className="text-slate-100 html.theme-light:text-slate-900">
+                          {impactPreview.affectedResources}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-slate-400 html.theme-light:text-slate-600">
+                          Potential consequences:
+                        </dt>
+                        <dd className="text-slate-100 html.theme-light:text-slate-900">
+                          {impactPreview.potentialConsequences}
+                        </dd>
+                      </div>
+                      {impactPreview.mitigation && (
+                        <div>
+                          <dt className="text-slate-400 html.theme-light:text-slate-600">
+                            Mitigation:
+                          </dt>
+                          <dd className="text-slate-100 html.theme-light:text-slate-900">
+                            {impactPreview.mitigation}
+                          </dd>
+                        </div>
+                      )}
+                    </dl>
                   </div>
-                  <div>
-                    <dt className="text-slate-400 html.theme-light:text-slate-600">
-                      Potential consequences:
-                    </dt>
-                    <dd className="text-slate-100 html.theme-light:text-slate-900">
-                      {impactPreview.potentialConsequences}
-                    </dd>
-                  </div>
-                  {impactPreview.mitigation && (
-                    <div>
-                      <dt className="text-slate-400 html.theme-light:text-slate-600">
-                        Mitigation:
-                      </dt>
-                      <dd className="text-slate-100 html.theme-light:text-slate-900">
-                        {impactPreview.mitigation}
-                      </dd>
-                    </div>
-                  )}
-                </dl>
+                ) : (
+                  <p className="mt-4 text-sm text-slate-400 html.theme-light:text-slate-600">
+                    Please confirm this high-risk operation.
+                  </p>
+                )}
+              </>
+            )}
+
+            {highRiskStep === 2 && needsTypedSecondStep && (
+              <div className="mt-4 space-y-2">
+                <p className="text-sm text-slate-300 html.theme-light:text-slate-700">
+                  Type{' '}
+                  <span className="font-mono font-semibold text-amber-200 html.theme-light:text-amber-900">
+                    {requireTypedConfirmPhrase}
+                  </span>{' '}
+                  to confirm.
+                </p>
+                <input
+                  type="text"
+                  value={typedPhrase}
+                  onChange={(e) => setTypedPhrase(e.target.value)}
+                  className="flex h-9 w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-1 text-sm font-mono text-slate-100 placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 html.theme-light:border-slate-300 html.theme-light:bg-white html.theme-light:text-slate-900"
+                  autoComplete="off"
+                  placeholder={requireTypedConfirmPhrase}
+                />
               </div>
             )}
 
@@ -151,14 +195,32 @@ export function DestructiveOperatorAction({
               >
                 Cancel
               </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={executeAction}
-                disabled={status === 'running'}
-              >
-                {status === 'running' ? 'Processing…' : 'Confirm and execute'}
-              </Button>
+              {needsTypedSecondStep && highRiskStep === 1 && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setHighRiskStep(2)}
+                  disabled={status === 'running'}
+                >
+                  Continue to confirmation
+                </Button>
+              )}
+              {(!needsTypedSecondStep || highRiskStep === 2) && (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={() => {
+                    void executeAction();
+                  }}
+                  disabled={
+                    status === 'running' ||
+                    (needsTypedSecondStep &&
+                      typedPhrase !== requireTypedConfirmPhrase)
+                  }
+                >
+                  {status === 'running' ? 'Processing…' : 'Confirm and execute'}
+                </Button>
+              )}
             </div>
 
             {status === 'failure' && (
@@ -217,7 +279,9 @@ export function DestructiveOperatorAction({
               </Button>
               <Button
                 type="button"
-                onClick={executeAction}
+                onClick={() => {
+                  void executeAction();
+                }}
                 disabled={status === 'running'}
               >
                 {status === 'running' ? 'Processing…' : 'Confirm'}

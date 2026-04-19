@@ -1,0 +1,113 @@
+# Paper Discovery Recording Rules for Grafana
+# P3-4 - Paper Discovery Pipeline
+#
+# Recording rules for paper discovery metrics to enable efficient querying
+# in Grafana dashboards.
+
+groups:
+  - name: arbibot_paper_discovery
+    interval: 30s
+    rules:
+      # Discovery rate - eligible candidates per 5 minutes
+      - record: paper_discovery_rate_5m
+        expr: |
+          sum(
+            rate(
+              arb_paper_discovery_eligible_total[5m]
+            )
+          )
+        labels:
+          job: paper-trading-service
+      # Discovery rate - candidates found per 5 minutes
+      - record: paper_discovery_found_rate_5m
+        expr: |
+          sum(
+            rate(
+              arb_paper_discovery_candidates_total{status="eligible"}[5m]
+            ) +
+            rate(
+              arb_paper_discovery_candidates_total{status="ineligible"}[5m]
+            )
+          )
+        labels:
+          job: paper-trading-service
+      # Discovery rate - enqueued candidates per 5 minutes
+      - record: paper_discovery_enqueued_rate_5m
+        expr: |
+          sum(
+            rate(
+              arb_paper_discovery_enqueued_total[5m]
+            )
+          )
+        labels:
+          job: paper-trading-service
+      # Discovery success rate - percentage of cycles that succeed
+      - record: paper_discovery_success_rate_5m
+        expr: |
+          (
+            sum(
+              rate(
+                arb_paper_discovery_cycles_total{status="success"}[5m]
+              )
+            ) /
+            sum(
+              rate(
+                arb_paper_discovery_cycles_total[5m]
+              )
+            )
+          ) * 100
+        labels:
+          job: paper-trading-service
+      # Discovery error rate - percentage of cycles that fail
+      - record: paper_discovery_error_rate_5m
+        expr: |
+          (
+            sum(
+              rate(
+                arb_paper_discovery_cycles_total{status="error"}[5m]
+              )
+            ) /
+            sum(
+              rate(
+                arb_paper_discovery_cycles_total[5m]
+              )
+            )
+          ) * 100
+        labels:
+          job: paper-trading-service
+      # Discovery latency - P95 latency over 5 minutes
+      - record: paper_discovery_latency_p95_5m
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(
+              rate(
+                arb_paper_discovery_latency_ms_bucket[5m]
+              )
+            )
+          )
+        labels:
+          job: paper-trading-service
+          quantile: "0.95"
+      # Discovery latency - P99 latency over 5 minutes
+      - record: paper_discovery_latency_p99_5m
+        expr: |
+          histogram_quantile(
+            0.99,
+            sum(
+              rate(
+                arb_paper_discovery_latency_ms_bucket[5m]
+              )
+            )
+          )
+        labels:
+          job: paper-trading-service
+          quantile: "0.99"
+      # Average discovery cycle latency
+      - record: paper_discovery_latency_avg_5m
+        expr: |
+          avg(
+            arb_paper_discovery_latency_ms
+          )
+        labels:
+          job: paper-trading-service

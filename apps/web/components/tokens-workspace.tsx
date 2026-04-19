@@ -55,7 +55,7 @@ export function TokensWorkspace(): ReactNode {
         </section>
       ) : (
         <div className="rounded-lg border border-slate-800 html.theme-light:border-slate-200 p-2">
-          <PaperPromotionTable items={q.data.items} />
+          <PaperPromotionTable items={q.data.items} onRefresh={() => void q.refetch()} />
         </div>
       )}
     </main>

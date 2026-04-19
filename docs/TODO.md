@@ -24,7 +24,7 @@
 
 | Когда | Что | Связь с планом |
 |--------|-----|----------------|
-| После `done` по блоку `P2-2.1-*` | **P2-2.2 не блокирует DoD §50.4:** профили в БД, adaptive risk в evaluate, исполняемые playbooks — стартовать после закрытия Phase 2.1 (см. freeze в `DEVELOPMENT_PLAN.md`, 2026-04-16) | `P2-2.2-PROF`, `P2-2.2-ADRISK`, `P2-2.2-PLAY` |
+| По мере появления writer-путей | **Watchlist auto-tiering / route scoring writers:** таблицы и read API в risk-service есть; фоновые джобы или intake-хуки, которые заполняют snapshots/history — backlog | `PRIO-P2-TIER`, `PRIO-P2-SCORE` |
 | Phase 1+ по необходимости | **Интеграционный / e2e** сценарий: snapshot → … → risk → reserve → arm — `npm run e2e:phase1-foundation` ([`tools/e2e-phase1-foundation-chain.mjs`](../tools/e2e-phase1-foundation-chain.mjs)) | DoD §50.3 в `DEVELOPMENT_PLAN.md`; отдельного `step_id` нет |
 | Phase 2 | **`npm run e2e:phase2-controlled-execution`** — полный контур ног до `plan.completed` ([`tools/e2e-phase2-controlled-execution.mjs`](../tools/e2e-phase2-controlled-execution.mjs)); в CI: job **`e2e-phase2`** + **`npm run ci:e2e-phase2`** ([`tools/ci-e2e-phase2.sh`](../tools/ci-e2e-phase2.sh)); multi-leg: `EXECUTION_BEGIN_LEG_COUNT` на orchestrator | `P2-2.1-EPL` |
 | По желанию | **Post-gate HTTP venue:** расширить таксономию 4xx (per-venue mapping), dedupe нагрузочные тесты — базово уже есть `VENUE_HTTP_TIMEOUT_MS`, `x-correlation-id`, `submitIdempotencyKey`, transient **408**, lab echo correlation | follow-up к `P2-2.1-VEN` |
@@ -42,6 +42,7 @@
 
 | Дата | Что |
 |------|-----|
+| 2026-04-19 | Краткосрочный план 2–3 недели: adaptive `evaluate-risk`, policy read APIs (watchlist tiers, route scoring history), migrations `024`–`028`, execution `playbook_config` + partial-fill playbook service + doc, paper promotion quality fields + `docs/paper-promotion-criteria.md`, drift `route_key`, recalibration `tools/recalibration`, histogram bucket doc, исправления `020`/`024` SQL. |
 | 2026-04-17 | Phase 3 slice: `@arbibot/paper-trading-service` (порт 3018), миграция `016_paper_trading.sql`, BFF `PAPER_API_BASE`, UI `/paper` + `/tokens` (read), `POST /opportunities/:id/paper-enqueue` → paper queue; матрица `PRIO-P1-PROF`/`ADRISK`/`SIZE`/`PLAY` синхронизирована с `P2-2.2-*` в `DEVELOPMENT_PLAN.md`. |
 | 2026-04-16 | «Дожать начатое»: `docs/reconciliation-p0-procedures.md`, `PRIO-P0-RECON` / `P2-2.2-*` / `PRIO-P1-ALERT` / FE-ROUTE (dashboard, portfolio, opportunities, settings) в `DEVELOPMENT_PLAN.md`; миграция `015`, профили риска + `GET /policy/*-profiles`, метрика `arb_execution_leg_partial_fill_commits_total`, HTTP venue **408**, lab `x-correlation-id`, smoke `entityType`, `MismatchesService` jest, `docs/outbox-inbox.md` / `observability-tracing.md` / `phase2-risk-policy-roadmap.md`. |
 | 2026-04-16 | Phase 2.1 gate: CI job **`e2e-phase2`** (`tools/ci-e2e-phase2.sh`, `HttpVenueAdapter` + `lab-venue-stand.mjs`), `npm run ci:e2e-phase2`, актуализация `DEVELOPMENT_PLAN` / `TODO` / settlement doc. |
@@ -52,4 +53,4 @@
 | 2026-04-12 | **P2-2.1-RECON:** детектор `completed_plan_missing_portfolio`, `POST /mismatches/run-detectors`, BFF + кнопка на `/incidents`. **OIB:** outbox + Kafka bridge для **`LegFilled`** / **`PlanCompleted`** (execution-orchestrator). **Layout:** единый access-panel (Home / Dashboard) при `session === null` и на `/` при `forbidden=1`. **`.env.example`:** `EXECUTION_SETTLEMENT_ENABLED`, `PORTFOLIO_SERVICE_URL`. |
 | 2026-04-13 | Near-term план: `npm run e2e:phase1-foundation`, `docs/settlement-post-commit.md`, retries settlement, ключ позиций `arb:execution:{planId}:leg:{n}`, `MOCK_VENUE_FAIL_SUBMIT_REMAINING`, второй детектор reconciliation + `PATCH /mismatches/:id`, UI `/portfolio` и `/incidents`, SLO draft в observability, лог `eventName` в smoke-consumer. |
 
-*Последняя актуализация файла: 2026-04-17 (Phase 3 paper slice + PRIO §28.2 sync + bus TODO уточнение).*
+*Последняя актуализация файла: 2026-04-19 (Phase 2.2 short-term delivery + backlog уточнение для tier/score writers).*

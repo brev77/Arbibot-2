@@ -34,6 +34,7 @@ import type { EvaluateRiskResponseDto } from './dto/evaluate-risk-response.dto';
 import type { ReserveRiskWindowRequestDto } from './dto/reserve-risk-window-request.dto';
 import type { ReserveRiskWindowResponseDto } from './dto/reserve-risk-window-response.dto';
 import type { RiskDecisionResponseDto } from './dto/risk-decision-response.dto';
+import { AdaptiveRiskService } from '../policy/adaptive-risk.service';
 import { toEvaluateRiskResponse, toRiskDecisionResponse } from './risk.mapper';
 import { evaluateRiskPolicy } from './risk.policy';
 
@@ -56,6 +57,7 @@ export class RiskService {
     @InjectRepository(RiskDecisionEntity)
     private readonly decisionRepo: Repository<RiskDecisionEntity>,
     @Inject(AuditClientService) private readonly audit: IAuditClient,
+    private readonly adaptiveRisk: AdaptiveRiskService,
   ) {}
 
   async reserveRiskWindow(
@@ -160,13 +162,23 @@ export class RiskService {
         riskWindowReservationId = resv.id;
       }
 
-      const profileMax = await this.loadProfileCapsUsd(em, request);
+      const now = new Date();
+      const profileMax = await this.loadProfileCapsUsd(em, request, input.riskMode, now);
       const { outcome, reasons } = evaluateRiskPolicy({
         notionalUsd: input.notionalUsd,
         riskMode: input.riskMode,
-        now: new Date(),
+        now,
         profileMaxNotionalUsd: profileMax,
       });
+      const policyReasons =
+        request.adaptiveRisk === true
+          ? [
+              ...reasons,
+              profileMax === undefined
+                ? `${this.adaptiveRisk.describeMultiplier(now, input.riskMode)} (no profile cap applied)`
+                : this.adaptiveRisk.describeMultiplier(now, input.riskMode),
+            ]
+          : reasons;
 
       const id = randomUUID();
       const messageId = randomUUID();
@@ -177,7 +189,7 @@ export class RiskService {
         correlationId: input.correlationId,
         planReference: input.planReference,
         outcome,
-        reasons: [...reasons],
+        reasons: [...policyReasons],
         snapshotVersion: input.snapshotVersion,
         riskMode: input.riskMode,
         notionalUsd: String(input.notionalUsd),
@@ -197,7 +209,7 @@ export class RiskService {
         notionalUsd: input.notionalUsd,
         snapshotVersion: input.snapshotVersion,
         riskMode: input.riskMode,
-        reasons,
+        reasons: [...policyReasons],
       };
 
       const envelope = {
@@ -256,6 +268,8 @@ export class RiskService {
   private async loadProfileCapsUsd(
     em: EntityManager,
     request: EvaluateRiskRequestDto,
+    riskMode: RiskMode,
+    now: Date,
   ): Promise<number | undefined> {
     let cap: number | undefined;
     const ik = request.instrumentKey?.trim();
@@ -282,6 +296,10 @@ export class RiskService {
         }
       }
     }
+    if (cap !== undefined && request.adaptiveRisk === true) {
+      const m = this.adaptiveRisk.multiplierFor(now, riskMode);
+      cap *= m;
+    }
     return cap;
   }
 
@@ -298,6 +316,10 @@ export class RiskService {
     const instrumentMatch =
       (row.instrumentKey ?? null) === (input.instrumentKey ?? null);
     const routeMatch = (row.routeKey ?? null) === (input.routeKey ?? null);
+    const adaptiveMatch =
+      (request.adaptiveRisk === true) ===
+      row.reasons.some((r) => r.startsWith('Adaptive risk:'));
+
     const same =
       row.correlationId === input.correlationId &&
       row.planReference === input.planReference &&
@@ -306,7 +328,8 @@ export class RiskService {
       notionalMatches &&
       resvMatch &&
       instrumentMatch &&
-      routeMatch;
+      routeMatch &&
+      adaptiveMatch;
     if (!same) {
       throw new ConflictException(
         `Risk idempotency key ${row.idempotencyKey} conflicts with request payload`,

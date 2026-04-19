@@ -8,9 +8,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { QueryFailedError, Repository } from 'typeorm';
 
 import { PaperTradeEntity, type PaperTradeState } from '@arbibot/persistence';
+import { AuditClientService, type AuditRecordInput } from '@arbibot/nest-platform';
 
 import type { CreatePaperTradeDto } from './dto/create-paper-trade.dto';
 import type { PatchPaperTradeDto } from './dto/patch-paper-trade.dto';
+import { PaperCapitalService } from './paper-capital.service';
 
 /** Minimal lifecycle: draft → active → settled | canceled; active → canceled. */
 const TRADE_STATE_ALLOWED: Record<
@@ -42,6 +44,8 @@ export class PaperTradesService {
   constructor(
     @InjectRepository(PaperTradeEntity)
     private readonly repo: Repository<PaperTradeEntity>,
+    private readonly auditClient: AuditClientService,
+    private readonly paperCapitalService: PaperCapitalService,
   ) {}
 
   async list(): Promise<PaperTradeEntity[]> {
@@ -115,5 +119,113 @@ export class PaperTradesService {
       row.entityVersion += 1;
       return em.save(PaperTradeEntity, row);
     });
+  }
+
+  async approve(id: string, operatorId: string): Promise<PaperTradeEntity> {
+    const before = await this.repo.findOne({ where: { id } });
+    if (before === null) {
+      throw new NotFoundException(`Paper trade not found: ${id}`);
+    }
+    if (before.state !== 'draft') {
+      throw new BadRequestException(`Cannot approve paper trade in state ${before.state}`);
+    }
+
+    // Create virtual capital reservation before transitioning to active
+    await this.paperCapitalService.reserveCapital(before.instrumentKey, before.notional);
+
+    const after = await this.patch(id, {
+      expectedVersion: before.entityVersion,
+      state: 'active',
+    });
+
+    const auditInput: AuditRecordInput = {
+      actor: operatorId,
+      action: 'paper_trade_approved',
+      resourceType: 'PaperTrade',
+      resourceId: id,
+      payload: {
+        instrumentKey: before.instrumentKey,
+        notional: before.notional,
+        fromState: before.state,
+        toState: after.state,
+      },
+    };
+    void this.auditClient.appendEntry(auditInput).catch((err) => {
+      console.error(`Failed to record audit for paper trade approve: ${err}`);
+    });
+
+    return after;
+  }
+
+  async reject(id: string, operatorId: string): Promise<PaperTradeEntity> {
+    const before = await this.repo.findOne({ where: { id } });
+    if (before === null) {
+      throw new NotFoundException(`Paper trade not found: ${id}`);
+    }
+    if (before.state !== 'draft') {
+      throw new BadRequestException(`Cannot reject paper trade in state ${before.state}`);
+    }
+
+    const after = await this.patch(id, {
+      expectedVersion: before.entityVersion,
+      state: 'canceled',
+    });
+
+    const auditInput: AuditRecordInput = {
+      actor: operatorId,
+      action: 'paper_trade_rejected',
+      resourceType: 'PaperTrade',
+      resourceId: id,
+      payload: {
+        instrumentKey: before.instrumentKey,
+        notional: before.notional,
+        fromState: before.state,
+        toState: after.state,
+      },
+    };
+    void this.auditClient.appendEntry(auditInput).catch((err) => {
+      console.error(`Failed to record audit for paper trade reject: ${err}`);
+    });
+
+    return after;
+  }
+
+  async cancel(id: string, operatorId: string): Promise<PaperTradeEntity> {
+    const before = await this.repo.findOne({ where: { id } });
+    if (before === null) {
+      throw new NotFoundException(`Paper trade not found: ${id}`);
+    }
+    if (before.state !== 'active') {
+      throw new BadRequestException(`Cannot cancel paper trade in state ${before.state}`);
+    }
+
+    // Expire virtual capital reservation when canceling active trade
+    const activeReservation = await this.paperCapitalService.getActiveReservation(before.instrumentKey);
+    if (activeReservation !== null) {
+      await this.paperCapitalService.expireReservation(activeReservation.id);
+    }
+
+    const after = await this.patch(id, {
+      expectedVersion: before.entityVersion,
+      state: 'canceled',
+    });
+
+    const auditInput: AuditRecordInput = {
+      actor: operatorId,
+      action: 'paper_trade_canceled',
+      resourceType: 'PaperTrade',
+      resourceId: id,
+      payload: {
+        instrumentKey: before.instrumentKey,
+        notional: before.notional,
+        fromState: before.state,
+        toState: after.state,
+      },
+    };
+    void this.auditClient.appendEntry(auditInput).catch((err) => {
+      console.error(`Failed to record audit for paper trade cancel: ${err}`);
+    });
+
+    return after;
   }
 }

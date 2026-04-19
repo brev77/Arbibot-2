@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  Patch,
   Post,
   Put,
   Query,
@@ -22,6 +23,8 @@ import {
 } from '../dto/configuration-response.dto';
 import { RollbackConfigurationDto } from '../dto/rollback-configuration.dto';
 import { RollbackResponseDto } from '../dto/configuration-response.dto';
+import { PromoteConfigurationDto } from '../dto/promote-configuration.dto';
+import { UpdateConfigurationStatusDto } from '../dto/update-configuration-status.dto';
 
 @Controller('policy')
 export class ConfigController {
@@ -152,5 +155,39 @@ export class ConfigController {
       return;
     }
     return this.configurationsService.rollback(configKey, dto, operatorId);
+  }
+
+  /**
+   * Promote configuration from source scope to target scope (CFG-3).
+   */
+  @Post('configurations/:configKey/promote')
+  async promote(
+    @Param('configKey') configKey: string,
+    @Body() dto: PromoteConfigurationDto,
+    @Body('operatorId') operatorId: string,
+    reply: FastifyReply,
+  ): Promise<ConfigurationResponseDto | void> {
+    if (!operatorId) {
+      reply.status(HttpStatus.BAD_REQUEST).send({ error: 'operatorId is required' });
+      return;
+    }
+    return this.configurationsService.promote(configKey, dto, operatorId);
+  }
+
+  /**
+   * Activate latest draft row for a scope (CFG-3).
+   */
+  @Patch('configurations/:configKey/status')
+  async updateStatus(
+    @Param('configKey') configKey: string,
+    @Body() dto: UpdateConfigurationStatusDto,
+    @Body('operatorId') operatorId: string,
+    reply: FastifyReply,
+  ): Promise<ConfigurationResponseDto | void> {
+    if (!operatorId) {
+      reply.status(HttpStatus.BAD_REQUEST).send({ error: 'operatorId is required' });
+      return;
+    }
+    return this.configurationsService.updateStatus(configKey, dto, operatorId);
   }
 }

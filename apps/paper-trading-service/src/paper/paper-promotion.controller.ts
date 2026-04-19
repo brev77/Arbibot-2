@@ -9,13 +9,18 @@ import {
   Patch,
   Post,
   Query,
+  Req,
 } from '@nestjs/common';
 
-import { PaperPromotionService } from './paper-promotion.service';
+import {
+  PaperPromotionService,
+  promotionQualityFor,
+} from './paper-promotion.service';
 import { CreatePromotionCandidateDto } from './dto/create-promotion-candidate.dto';
 import { PatchPromotionCandidateDto } from './dto/patch-promotion-candidate.dto';
 
 function promoView(row: Awaited<ReturnType<PaperPromotionService['list']>>[number]) {
+  const quality = promotionQualityFor(row);
   return {
     id: row.id,
     instrumentKey: row.instrumentKey,
@@ -27,6 +32,8 @@ function promoView(row: Awaited<ReturnType<PaperPromotionService['list']>>[numbe
     evidence: row.evidence,
     enqueueIdempotencyKey: row.enqueueIdempotencyKey,
     entityVersion: row.entityVersion,
+    qualityTier: quality.tier,
+    qualityScore: quality.score,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -55,6 +62,28 @@ export class PaperPromotionController {
     @Body() body: PatchPromotionCandidateDto,
   ) {
     const row = await this.service.patch(id, body);
+    return promoView(row);
+  }
+
+  @Post(':id/approve')
+  @HttpCode(HttpStatus.OK)
+  async approve(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() req: Request,
+  ) {
+    const operatorId = (req.headers.get('x-operator-id') as string) ?? 'unknown';
+    const row = await this.service.approve(id, operatorId);
+    return promoView(row);
+  }
+
+  @Post(':id/reject')
+  @HttpCode(HttpStatus.OK)
+  async reject(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() req: Request,
+  ) {
+    const operatorId = (req.headers.get('x-operator-id') as string) ?? 'unknown';
+    const row = await this.service.reject(id, operatorId);
     return promoView(row);
   }
 }

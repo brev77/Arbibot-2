@@ -26,11 +26,6 @@ const RELAY_OUTBOX_EVENT_TYPES = [
 /** After dispatch: whether to set processed_at on the outbox row. */
 type RelayDispatchResult = 'mark_processed' | 'leave_open';
 
-type PaperRelayWork = {
-  readonly rowId: string;
-  readonly payload: PaperPromotionCandidateRequestedPayloadV1;
-};
-
 @Injectable()
 export class OutboxRelayService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(OutboxRelayService.name);

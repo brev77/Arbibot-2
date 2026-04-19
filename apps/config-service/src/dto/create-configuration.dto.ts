@@ -1,7 +1,6 @@
 import {
   IsBoolean,
   IsEnum,
-  IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -12,6 +11,12 @@ export enum ConfigScopeType {
   GLOBAL = 'global',
   ENVIRONMENT = 'environment',
   TENANT = 'tenant',
+}
+
+/** Draft rows are stored with `is_active = false` and are hidden from read APIs. */
+export enum ConfigurationStatus {
+  DRAFT = 'draft',
+  ACTIVE = 'active',
 }
 
 export class CreateConfigurationDto {
@@ -42,6 +47,10 @@ export class CreateConfigurationDto {
   @IsOptional()
   @MaxLength(255)
   approveReason?: string;
+
+  @IsEnum(ConfigurationStatus)
+  @IsOptional()
+  status?: ConfigurationStatus;
 }
 
 // DTOs for scoped queries

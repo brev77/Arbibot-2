@@ -79,6 +79,7 @@ export const config = {
     '/incidents/:path*',
     '/runbooks/:path*',
     '/openclaw/:path*',
+    '/settings',
     '/settings/:path*',
   ],
 };

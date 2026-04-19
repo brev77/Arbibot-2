@@ -1,11 +1,17 @@
 import { QueryFailedError } from 'typeorm';
 
+import { AuditClientService } from '@arbibot/nest-platform';
+
 import { PaperPromotionService } from './paper-promotion.service';
+
+const auditMock = {
+  appendEntry: jest.fn().mockResolvedValue(undefined),
+} as unknown as AuditClientService;
 
 describe('PaperPromotionService', () => {
   it('builds with mocked repository', () => {
     const repo = {} as never;
-    const svc = new PaperPromotionService(repo);
+    const svc = new PaperPromotionService(repo, auditMock);
     expect(svc).toBeDefined();
   });
 
@@ -36,7 +42,7 @@ describe('PaperPromotionService', () => {
       save: jest.fn(),
     } as never;
 
-    const svc = new PaperPromotionService(repo);
+    const svc = new PaperPromotionService(repo, auditMock);
     const row = await svc.create({
       instrumentKey: 'x',
       opportunityId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
@@ -87,7 +93,7 @@ describe('PaperPromotionService', () => {
       }),
     } as never;
 
-    const svc = new PaperPromotionService(repo);
+    const svc = new PaperPromotionService(repo, auditMock);
     const row = await svc.create({
       instrumentKey: 'y',
       enqueueIdempotencyKey: 'idem-2',

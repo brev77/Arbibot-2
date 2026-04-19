@@ -7,15 +7,51 @@ import {
   type ColumnDef,
 } from '@tanstack/react-table';
 import type { ReactNode } from 'react';
-import { useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import type { PaperTradeListItem } from '@/lib/paper-types';
+import { Button } from './ui/button';
 
 type Props = {
   readonly items: readonly PaperTradeListItem[];
+  readonly onRefresh?: () => void;
 };
 
-export function PaperTradesTable({ items }: Props): ReactNode {
+export function PaperTradesTable({ items, onRefresh }: Props): ReactNode {
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  const handleAction = useCallback(
+    async (id: string, action: 'approve' | 'reject' | 'cancel') => {
+      setActionLoading(id);
+      try {
+        const response = await fetch(
+          `/api/operator/paper/trades/${encodeURIComponent(id)}?action=${encodeURIComponent(action)}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          },
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error((errorData as { error?: string }).error || `Failed to ${action} paper trade`);
+        }
+
+        if (onRefresh) {
+          onRefresh();
+        }
+      } catch (error) {
+        console.error(`Failed to ${action} paper trade ${id}:`, error);
+        alert(error instanceof Error ? error.message : `Failed to ${action} paper trade`);
+      } finally {
+        setActionLoading(null);
+      }
+    },
+    [onRefresh],
+  );
+
   const columns = useMemo<ColumnDef<PaperTradeListItem>[]>(
     () => [
       {
@@ -30,11 +66,20 @@ export function PaperTradesTable({ items }: Props): ReactNode {
       {
         accessorKey: 'state',
         header: 'State',
-        cell: (ctx) => (
-          <span className="text-xs uppercase text-slate-300 html.theme-light:text-slate-700">
-            {String(ctx.getValue<string>())}
-          </span>
-        ),
+        cell: (ctx) => {
+          const state = ctx.getValue<string>();
+          const stateColors: Record<string, string> = {
+            draft: 'text-yellow-600 bg-yellow-100 dark:text-yellow-400 dark:bg-yellow-900/30',
+            active: 'text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-900/30',
+            settled: 'text-blue-600 bg-blue-100 dark:text-blue-400 dark:bg-blue-900/30',
+            canceled: 'text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-900/30',
+          };
+          return (
+            <span className={`px-2 py-0.5 rounded text-xs uppercase ${stateColors[state] || 'text-slate-600 bg-slate-100'}`}>
+              {state}
+            </span>
+          );
+        },
       },
       {
         accessorKey: 'notional',
@@ -59,11 +104,63 @@ export function PaperTradesTable({ items }: Props): ReactNode {
           }
         },
       },
+      {
+        id: 'actions',
+        header: 'Actions',
+        cell: (ctx) => {
+          const row = ctx.row.original;
+          const state = row.state;
+          const isLoading = actionLoading === row.id;
+
+          return (
+            <div className="flex gap-2">
+              {state === 'draft' && (
+                <>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      void handleAction(row.id, 'approve');
+                    }}
+                    disabled={isLoading}
+                  >
+                    Approve
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      void handleAction(row.id, 'reject');
+                    }}
+                    disabled={isLoading}
+                  >
+                    Reject
+                  </Button>
+                </>
+              )}
+              {state === 'active' && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    void handleAction(row.id, 'cancel');
+                  }}
+                  disabled={isLoading}
+                >
+                  Cancel
+                </Button>
+              )}
+            </div>
+          );
+        },
+      },
     ],
-    [],
+    [actionLoading, handleAction],
   );
 
-  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table v8
   const table = useReactTable({
     data: items.length === 0 ? [] : [...items],
     columns,

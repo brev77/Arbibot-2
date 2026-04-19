@@ -47,16 +47,65 @@ Arbibot 2 is a **Turborepo monorepo** (`npm` workspaces: `apps/*`, `packages/*`)
 
 There is **no** `core-backend/` or `operator-frontend/` directory; older docs or audits may refer to that layout.
 
-**Current status (2026-04-18):**
+**Current status (2026-04-19):**
+- **Phase 2.2 short-term slice:** risk-service — token/route profile services, **`adaptiveRisk`** on `POST /evaluate-risk`, read APIs **`GET /policy/watchlist/tiers`**, **`GET /policy/route-scoring-history/:routeKey`**; execution-orchestrator — **`playbook_config`** + `PartialFillPlaybookService`; paper-trading — promotion **`qualityTier`** / **`qualityScore`**, drift samples optional **`routeKey`**; **`tools/recalibration`**; docs **`partial-fill-playbooks.md`**, **`recalibration-spec.md`**, **`paper-promotion-criteria.md`**; observability — histogram bucket reference in **`docs/observability-tracing.md`**; operator UI — **`/settings`** → «Route scoring history» + BFF **`GET /api/operator/settings/route-scoring/[routeKey]`**
+- **Last major update (2026-04-19, session close):** review gate `PRIO-P2-PAPERDISC` closed (backend + frontend + architecture checks passed), Monorepo ESLint fixed (all 19 packages green), bug fix in `PaperDiscoveryService.runDiscoveryCycle` (entity ID handling), worker improvements (metrics registry integration, ScheduleModule removal)
+- **Bus-smoke verification (2026-04-19):** connection tests successful — Docker compose --profile bus running (Redpanda port 19092), `@arbibot/outbox-kafka-bridge` built, publisher/consumer connected to Kafka (consumer group: `arbibot-bus-smoke`), all artifacts from `docs/outbox-inbox.md` checklist verified
+- **CFG-3 UI in `/settings`:** promote/activate draft completed (promote/activate draft workflows with React Query, draft checkboxes, Promote modal, `DestructiveOperatorAction` integration)
+- **Paper discovery × config-service integration:** effective JSON on key `paper.discovery` with cache, env fallback, single-writer pattern respected
+- **Review gate checklist:** [`docs/review-gate-cfg3-paper-discovery.md`](docs/review-gate-cfg3-paper-discovery.md) — backend/frontend/architecture checks passed
 - **Phase 0–2** (foundation + controlled execution): completed
 - **Phase 3** (paper trading): basic slice implemented (paper-trading-service, UI `/paper`, `/tokens`, `POST /opportunities/:id/paper-enqueue`)
-- **Config service (CFG-1, CFG-2, CFG-3 slice):** implemented (NestJS + Fastify, Redis cache, audit, scopes / effective / history / rollback; any remaining **CFG-3** backlog — [.cursor/plans/DEVELOPMENT_PLAN.md](.cursor/plans/DEVELOPMENT_PLAN.md))
+- **Config service (CFG-1, CFG-2, CFG-3 slice):** implemented (NestJS + Fastify, Redis cache, audit, scopes / effective / history / rollback; **CFG-3 UI** completed — promote/activate draft in `/settings`; remaining CFG-3 backlog — [.cursor/plans/DEVELOPMENT_PLAN.md](.cursor/plans/DEVELOPMENT_PLAN.md))
 - **Operator dashboards M2 (PRIO-P1-DASH):** completed (dashboard summary with incidents/capital widgets)
-- **Paper quality improvements:** completed (Grafana dashboards, drift alerts v1, SLO v1)
+- **Paper quality improvements:** completed (Grafana dashboards, drift alerts v1/v2, SLO v1)
 - **Paper Trading Complete (P3-1, P3-2, P3-3, P3-5, P3-6):** completed (paper trades mutations, promotion candidates mutations, virtual capital, drift gauges, E2E tests)
-- **Paper Discovery Pipeline (P3-4):** implemented (discovery worker, candidate entity, E2E tests)
-- **Migrations:** 001–023 (core, risk, canonical/intake, execution, portfolio, reconciliation, profiles, **paper**, **policy configurations** + **policy scope** `020_policy_configuration_scopes.sql`, **paper capital reservations** `021_paper_capital_reservations.sql`, **paper discovery candidates** `022_paper_discovery_candidates.sql`, `023_paper_discovery_candidates_fixes.sql`)
-- **DEVELOPMENT_PLAN:** ~**90%** of steps in `done` (as of **2026-04**); remaining: Phase 4–5, **CFG-3** polish where needed, PRIO-P2 matrix — see [.cursor/plans/DEVELOPMENT_PLAN.md](.cursor/plans/DEVELOPMENT_PLAN.md)
+- **Paper Discovery Pipeline (P3-4):** implemented (discovery worker, candidate entity, E2E tests, **config-service integration**, bug fixes for entity ID handling)
+- **Migrations:** 001–028 (в т.ч. **`024_fix_rollback_configuration_function.sql`**, **`025_execution_plan_playbook.sql`**, **`026_watchlist_tier_snapshots.sql`**, **`027_route_scoring_history.sql`**, **`028_paper_drift_route_key.sql`**); policy scope **`020_policy_configuration_scopes.sql`** (исправленный rollback / совместимость)
+- **DEVELOPMENT_PLAN:** ~**90%** of steps in `done` (as of **2026-04-19**); **`PRIO-P2-PAPERDISC`** → **`done`** (review gate closed); remaining: Phase 4–5 — see [.cursor/plans/DEVELOPMENT_PLAN.md](.cursor/plans/DEVELOPMENT_PLAN.md)
+
+**Known issues:**
+- (none tracked here — migration **020** rollback path repaired via **`024`**; применяйте миграции по порядку на чистых БД)
+
+### Last session details (2026-04-19)
+
+**Bus-smoke verification:**
+- Docker compose --profile bus запущен (Redpanda на порту 19092)
+- `@arbibot/outbox-kafka-bridge` успешно собран
+- Publisher verification: `npm run start:publish` запущен с переменными окружения (`KAFKA_BROKERS`, `DATABASE_URL`)
+- Consumer verification: `npm run start:consume` запущен и подключился к Kafka:
+  - Consumer group: `arbibot-bus-smoke`
+  - Member ID: `arbibot-outbox-consumer-90b69e03-4491-4fe2-a91e-ea9a2eb71f5a`
+  - Topic: `arbibot.domain.events` (partition 0)
+- Проверенные артефакты (по чеклисту из `docs/outbox-inbox.md`):
+  - Entrypoints: `dist/bin/publish.js`, `dist/bin/consume.js` — подтверждены
+  - Фильтр event_type: `KAFKA_PUBLISH_EVENT_TYPES` — соответствует документации (`SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, `PlanCompleted`)
+  - Smoke-consumer логирование: `eventName`, `entityType`, `correlationId` — подтверждены в коде
+  - Env vars: `DATABASE_URL`, `KAFKA_BROKERS`, `KAFKA_TOPIC` — все обработаны
+
+**Review gate PRIO-P2-PAPERDISC (closed):**
+- Backend review: effective `paper.discovery`, кэш, env fallback, single-writer
+- Frontend: `/settings` проверен
+- Architecture: paper ↔ config read-only HTTP
+- Observability: `installMetricsOnFastify` + `serviceName` во всех `apps/*/src/main.ts`
+- Исправлен bug в `PaperDiscoveryService.runDiscoveryCycle` — обработка eligible-кандидатов по `id` сущностей из `create()`, а не по несуществующему `DiscoveryCandidate.id`
+- Persistence: в `PaperDiscoveryCandidateEntity` добавлены колонки `token_key`/`route_key`; исправлен `@Index` на `created_at`; `paper-capital-reservation`: удалён недопустимый для TypeORM `check` в `@Column`
+- Worker: Prometheus-метрики привязаны к `getArbibotMetricsRegistry()` через `registers: []`; удалены `ScheduleModule` и зависимость `@nestjs/schedule`; интервал через `setInterval` + `unref`/`clearInterval` в `onModuleDestroy`; метрика переименована в `arb_paper_discovery_processed_total`
+- Тесты: моки `AuditClientService`/`PaperCapitalService` в `paper-trades`/`paper-promotion` specs; `paper-discovery.worker.spec` с `getArbibotMetricsRegistry().clear()` в `beforeEach`
+- `DEVELOPMENT_PLAN.md`: `PRIO-P2-PAPERDISC` → `done` (с записью review)
+
+**Monorepo ESLint (fixed):**
+- Все 19 пакетов прошли ESLint check
+- Исправлены ошибки в config-service и web:
+  - `configurations.service.ts`: проверка `latest.is_active` без лишнего `Boolean()`
+  - `promote-configuration.dto.ts`: удалён неиспользуемый импорт `IsNotEmpty`
+  - `configurations.service.spec.ts`: `appendEntry` как отдельный `jest.fn()`
+  - `paper-trades/[id]/route.ts`: удалён неиспользуемый импорт
+  - `paper-promotion-table.tsx`, `paper-trades-table.tsx`: `handleAction` в `useCallback`, зависимости колонок в `useMemo`
+
+**Open questions:**
+- Full E2E bus-smoke с запущенными сервисами и сообщениями в топике отложен до необходимости
+- Для полной проверки end-to-end с сообщениями в топике требуются сервисы с сгенерированными outbox_events (future)
 
 **Operational backlog (what / when):** [`docs/TODO.md`](docs/TODO.md) — живой список рядом с каноном [.cursor/plans/DEVELOPMENT_PLAN.md](.cursor/plans/DEVELOPMENT_PLAN.md).
 
@@ -92,7 +141,7 @@ From the repo root:
 - `npm run lint` — Turbo lint (Nest apps, packages, `apps/web`)
 - `npm run build` — Turbo build
 - `npm run test` — Turbo test
-- `npm run db:migrate` — apply SQL migrations under `infra/postgres/migrations/` (001–020)
+- `npm run db:migrate` — apply SQL migrations under `infra/postgres/migrations/` (001–023)
 - `npm run e2e:phase1-foundation` — HTTP smoke for Phase 1 DoD §50.3 (snapshot → opportunity → risk → reserve → arm); optional `E2E_INCLUDE_EXECUTION_LEG=true` extends through `apply-fill`; requires migrated DB and running `market-intake`, `opportunity`, `risk`, `capital`, `execution-orchestrator` (see `tools/e2e-phase1-foundation-chain.mjs` for ports / env overrides)
 - `npm run e2e:phase2-controlled-execution` — extends the Phase 1 chain through **all** execution legs until the plan is `completed` (see `tools/e2e-phase2-controlled-execution.mjs`); use `EXECUTION_BEGIN_LEG_COUNT` on **execution-orchestrator** for multi-leg; optional settlement envs as in `docs/settlement-post-commit.md`
 - `npm run e2e:phase3-paper-promotion` — smoke: create opportunity → `paper-enqueue` (dedup) → poll paper **`/paper/promotion-candidates`** until relay delivers (see `tools/e2e-phase3-paper-promotion.mjs`); requires migrated DB (**`018`**), **paper-trading-service**, **opportunity-service** with **`PAPER_TRADING_SERVICE_URL`** set to paper base URL; script waits for **`GET /metrics`** on both services first
@@ -147,16 +196,18 @@ Shared libraries live under [`packages/`](packages/), especially:
   - `/api/operator/settings/configurations/[configKey]/effective` (resolved value with scope fallback)
   - `/api/operator/settings/configurations/[configKey]/history` (version history)
   - `/api/operator/settings/configurations/[configKey]/rollback` (rollback to prior version)
+  - `/api/operator/settings/configurations/[configKey]/promote` (CFG-3: scope promotion)
+  - `/api/operator/settings/configurations/[configKey]/status` (CFG-3: activate draft — `PATCH`)
 
 - UI routes: `/dashboard`, `/portfolio`, `/opportunities`, `/execution`, `/tokens`, `/paper`, `/incidents`, `/runbooks`, `/openclaw`, **`/settings`** (policy configurations via config-service BFF). Phase 3 slice: `/paper` and `/tokens` include paper trades, promotion candidates, drift samples, discovery candidates with proper mutation flows and operator safety.
 
 Operator session in dev: see `apps/web` middleware / `getOperatorSession` — `ARBIBOT_DEV_ROLE` or `arbibot_role` cookie.
 
-### Current Phase 1 notes (2026-04-18)
+### Current Phase 1 notes (2026-04-19)
 
 - **`opportunity-service` in-DB outbox relay** (`OutboxRelayService`): forwards **`RiskDecisionIssued`** and **`PaperPromotionCandidateRequested`** to **paper-trading-service** over HTTP when `PAPER_TRADING_SERVICE_URL` is set (enqueue is **outbox-first** — no synchronous "fire POST from the handler" path for promotion). Relay and bridge each use their own **event-type allowlists**; do not assume Kafka covers relay-only types.
 - **`@arbibot/outbox-kafka-bridge`** publishes `SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, and `PlanCompleted` to Kafka/Redpanda (filtered `event_type` list). It is a **separate** publisher from the opportunity in-DB relay; keep filters documented and avoid double-publishing the same logical delivery. See [`docs/outbox-inbox.md`](docs/outbox-inbox.md).
-- SQL migrations are applied lexicographically by `tools/db-migrate.mjs`; current migrations 001–020 include: canonical market, market intake idempotency, outbox relay dead-letter fields, execution/portfolio/reconciliation, fill/idempotency, **token/route profiles and risk decision keys** (`015_token_route_profiles.sql`), **paper trading** (`016_paper_trading.sql`, `017_paper_promotion_enqueue_idempotency.sql`), **outbox dedup for `paper-enqueue`** (`018_outbox_paper_enqueue_dedup.sql`), **policy configurations** (`019_policy_configurations.sql`), and **policy configuration scopes** (`020_policy_configuration_scopes.sql`, CFG-3).
+- SQL migrations are applied lexicographically by `tools/db-migrate.mjs`; current migrations **001–023** include: canonical market, market intake idempotency, outbox relay dead-letter fields, execution/portfolio/reconciliation, fill/idempotency, **token/route profiles and risk decision keys** (`015_token_route_profiles.sql`), **paper trading** (`016_paper_trading.sql`, `017_paper_promotion_enqueue_idempotency.sql`), **outbox dedup for `paper-enqueue`** (`018_outbox_paper_enqueue_dedup.sql`), **policy configurations** (`019_policy_configurations.sql`), **policy configuration scopes** (`020_policy_configuration_scopes.sql`, CFG-3), **paper capital reservations** (`021_paper_capital_reservations.sql`), **paper discovery candidates** (`022_paper_discovery_candidates.sql`, `023_paper_discovery_candidates_fixes.sql`).
 - Canonical registry tables are not auto-seeded; after migrations, `venue_refs`, `canonical_instruments`, and `canonical_routes` must be populated manually before `resolve-*` endpoints return data.
 
 ### Phase 2 slice (controlled execution / policy)
@@ -194,7 +245,11 @@ Operator session in dev: see `apps/web` middleware / `getOperatorSession` — `A
 - **Migrations:** `022_paper_discovery_candidates.sql`, `023_paper_discovery_candidates_fixes.sql`
 - **State machine:** discovered → processed | rejected (enqueued removed per paper isolation)
 - **E2E:** `tools/e2e-p3-paper-discovery.mjs` — complete discovery workflow test
-- **Env vars:** `PAPER_DISCOVERY_ENABLED`, `PAPER_DISCOVERY_INTERVAL_MS`, `PAPER_DISCOVERY_MIN_PROFIT_USD`, `PAPER_DISCOVERY_MIN_LIQUIDITY_SCORE`, `PAPER_DISCOVERY_MAX_CANDIDATES_PER_RUN`, `PAPER_DISCOVERY_PAPER_ONLY_TOKENS`, `PAPER_DISCOVERY_PAPER_ONLY_ROUTES`
+- **Policy (config-service):** effective JSON on key **`paper.discovery`** (`GET /policy/configurations/paper.discovery/effective`); cache `PAPER_DISCOVERY_CONFIG_CACHE_MS`; fallback env lists — [`docs/paper-discovery-config-keys.md`](docs/paper-discovery-config-keys.md)
+- **Tests:** `paper-discovery.service.spec.ts` — expanded with mock fetch and env-specific module build
+- **Review gate:** checklist for CFG-3 UI and paper discovery integration — [`docs/review-gate-cfg3-paper-discovery.md`](docs/review-gate-cfg3-paper-discovery.md)
+- **Status:** `PRIO-P2-PAPERDISC` → **`done`** (see [`docs/review-gate-cfg3-paper-discovery.md`](docs/review-gate-cfg3-paper-discovery.md))
+- **Env vars:** `CONFIG_SERVICE_URL` or `CONFIG_API_BASE`, `PAPER_DISCOVERY_CONFIG_CACHE_MS`, `PAPER_DISCOVERY_CONFIG_ENVIRONMENT`, `PAPER_DISCOVERY_CONFIG_TENANT_ID`, plus `PAPER_DISCOVERY_ENABLED`, `PAPER_DISCOVERY_INTERVAL_MS`, `PAPER_DISCOVERY_MIN_PROFIT_USD`, `PAPER_DISCOVERY_MIN_LIQUIDITY_SCORE`, `PAPER_DISCOVERY_MAX_CANDIDATES_PER_RUN`, `PAPER_DISCOVERY_PAPER_ONLY_TOKENS`, `PAPER_DISCOVERY_PAPER_ONLY_ROUTES`
 
 #### P3-5: Drift Gauges & Recording Rules
 - **Service:** `updateStaleGauges()` method in `PaperDriftService`
@@ -222,12 +277,19 @@ Operator session in dev: see `apps/web` middleware / `getOperatorSession` — `A
   - `GET /configurations/:configKey` — single key (optional scope)
   - `GET /configurations/:configKey/effective` — resolved value with scope fallback (global → environment → tenant)
   - `GET /configurations/:configKey/history` — version history per scope
-  - `POST /configurations`, `PUT /configurations/:configKey` — create/update (new row per change); body **`operatorId`** required (400 if missing)
+  - `POST /configurations`, `PUT /configurations/:configKey` — create/update (new row per change); body **`operatorId`** required (400 if missing); optional **`status`** `draft` \| `active` (default `active`)
   - `POST /configurations/:configKey/rollback` — rollback to a prior version (CFG-3)
+  - `POST /configurations/:configKey/promote` — promote active row from one scope to another (CFG-3); optional **`idempotencyKey`**
+  - `PATCH /configurations/:configKey/status` — activate latest draft in scope (`status: active`)
 - **Sensitive keys:** pattern `risk.*`, `execution.*`, `capital.*` require **`approveReason`** on mutations.
 - **Audit:** Mutations call **`AuditClientService.appendEntry`**.
 - **BFF / UI:** **`CONFIG_API_BASE`** for **`/settings`**; optional **`ARBIBOT_DEV_OPERATOR_ID`** in env for stable audit actor in dev.
-- **Docs:** staged rollout nuances — [`docs/cfg-3-staged-rollout.md`](docs/cfg-3-staged-rollout.md); service map — [`docs/services.md`](docs/services.md).
+- **Docs:**
+- Staged rollout nuances — [`docs/cfg-3-staged-rollout.md`](docs/cfg-3-staged-rollout.md)
+- Service map — [`docs/services.md`](docs/services.md)
+- Paper discovery config keys — [`docs/paper-discovery-config-keys.md`](docs/paper-discovery-config-keys.md)
+- Review gate checklist — [`docs/review-gate-cfg3-paper-discovery.md`](docs/review-gate-cfg3-paper-discovery.md)
+- Session summary — [`docs/session_summary.md`](docs/session_summary.md)
 - **E2E:** Cache/audit verified manually; automated config E2E not required in root CI today.
 
 ### CI
@@ -237,10 +299,13 @@ Operator session in dev: see `apps/web` middleware / `getOperatorSession` — `A
 1. **build** — `npm ci`, then Turbo `lint`, `build`, `test` for the whole monorepo.
 2. **`e2e-phase2`** — after `npm ci` + `npm run build`, runs `npm run ci:e2e-phase2` (Postgres service container + lab HTTP venue + built Nest apps — controlled execution chain).
 3. **`e2e-phase3-paper-promotion`** — after `npm ci` + `npm run build`, runs `npm run ci:e2e-phase3` / `bash tools/ci-e2e-phase3-paper-promotion.sh` (Postgres + **paper-trading-service** + **opportunity-service**, paper promotion relay smoke).
-4. **`e2e-phase3-paper-discovery`** — manual E2E test for P3-4 (not yet in CI automation): `node tools/e2e-p3-paper-discovery.mjs` (tests discovery worker, candidate creation, metrics).
+4. **`e2e-phase3-paper-discovery`** — after `npm ci` + `npm run build`, runs `npm run ci:e2e-phase3-paper-discovery` / `bash tools/ci-e2e-phase3-paper-discovery.sh` (Postgres + **paper-trading-service** + **market-intake-service**, then `node tools/e2e-p3-paper-discovery.mjs`).
+5. **`review-gate-cfg3-paper-discovery`** — checklist [`docs/review-gate-cfg3-paper-discovery.md`](docs/review-gate-cfg3-paper-discovery.md) (required items completed 2026-04-19; optional bus-smoke pending).
 
 ### Frontend Documentation
 
 - **`apps/web/FRONTEND_FIXES_SUMMARY.md`** — comprehensive summary of frontend architecture fixes (destructive operator actions, type consolidation, Tailwind migration, query invalidation strategy)
 - **`apps/web/QUERY_INVALIDATION.md`** — complete React Query invalidation strategy for all dashboard queries (dashboard, incidents, opportunities, execution, portfolio, paper, settings)
 - **`components/README-APPROVAL-FLOW.md`** — documentation for `DestructiveOperatorAction` component with usage examples and compliance checklist
+- **`apps/web/components/settings-workspace.tsx`** — CFG-3 UI with promote/activate draft, draft checkboxes, Promote modal, DestructiveOperatorAction integration, React Query invalidation
+- **`docs/review-gate-cfg3-paper-discovery.md`** — review gate checklist for CFG-3 UI and paper discovery integration (backend/frontend/architecture, metrics, bus-smoke optional)

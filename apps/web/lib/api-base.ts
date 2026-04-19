@@ -8,4 +8,8 @@ export const apiBases = {
   portfolio: process.env.PORTFOLIO_API_BASE ?? 'http://127.0.0.1:3016',
   reconciliation: process.env.RECONCILIATION_API_BASE ?? 'http://127.0.0.1:3017',
   paper: process.env.PAPER_API_BASE ?? 'http://127.0.0.1:3018',
+  config: process.env.CONFIG_API_BASE ?? 'http://127.0.0.1:3019',
 } as const;
+
+/** Alias for BFF routes targeting `config-service`. */
+export const CONFIG_API_BASE = apiBases.config;

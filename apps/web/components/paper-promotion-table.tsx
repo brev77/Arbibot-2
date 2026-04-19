@@ -8,15 +8,53 @@ import {
 } from '@tanstack/react-table';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import type { PaperPromotionCandidateItem } from '@/lib/paper-types';
+import { Button } from './ui/button';
 
 type Props = {
   readonly items: readonly PaperPromotionCandidateItem[];
+  readonly onRefresh?: () => void;
 };
 
-export function PaperPromotionTable({ items }: Props): ReactNode {
+export function PaperPromotionTable({ items, onRefresh }: Props): ReactNode {
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  const handleAction = useCallback(
+    async (id: string, action: 'approve' | 'reject') => {
+      setActionLoading(id);
+      try {
+        const response = await fetch(
+          `/api/operator/paper/promotion-candidates/${encodeURIComponent(id)}?action=${encodeURIComponent(action)}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          },
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(
+            (errorData as { error?: string }).error || `Failed to ${action} promotion candidate`,
+          );
+        }
+
+        if (onRefresh) {
+          onRefresh();
+        }
+      } catch (error) {
+        console.error(`Failed to ${action} promotion candidate ${id}:`, error);
+        alert(error instanceof Error ? error.message : `Failed to ${action} promotion candidate`);
+      } finally {
+        setActionLoading(null);
+      }
+    },
+    [onRefresh],
+  );
+
   const columns = useMemo<ColumnDef<PaperPromotionCandidateItem>[]>(
     () => [
       {
@@ -31,11 +69,23 @@ export function PaperPromotionTable({ items }: Props): ReactNode {
       {
         accessorKey: 'status',
         header: 'Status',
-        cell: (ctx) => (
-          <span className="text-xs uppercase tracking-wide text-slate-300 html.theme-light:text-slate-700">
-            {String(ctx.getValue<string>())}
-          </span>
-        ),
+        cell: (ctx) => {
+          const status = ctx.getValue<string>();
+          const statusColors: Record<string, string> = {
+            queued: 'text-yellow-600 bg-yellow-100 dark:text-yellow-400 dark:bg-yellow-900/30',
+            under_review: 'text-blue-600 bg-blue-100 dark:text-blue-400 dark:bg-blue-900/30',
+            promoted: 'text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-900/30',
+            rejected: 'text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-900/30',
+            expired: 'text-slate-600 bg-slate-100 dark:text-slate-400 dark:bg-slate-900/30',
+          };
+          return (
+            <span
+              className={`px-2 py-0.5 rounded text-xs uppercase tracking-wide ${statusColors[status] || 'text-slate-600 bg-slate-100'}`}
+            >
+              {status.replace('_', ' ')}
+            </span>
+          );
+        },
       },
       {
         accessorKey: 'opportunityId',
@@ -65,9 +115,19 @@ export function PaperPromotionTable({ items }: Props): ReactNode {
       {
         accessorKey: 'driftBps',
         header: 'Drift bps',
-        cell: (ctx) => (
-          <span className="text-xs text-slate-400">{String(ctx.getValue<string | null>() ?? '—')}</span>
-        ),
+        cell: (ctx) => {
+          const drift = ctx.getValue<string | null>();
+          if (drift === null) {
+            return <span className="text-xs text-slate-500">—</span>;
+          }
+          const driftNum = Number(drift);
+          const isHigh = Number.isFinite(driftNum) && driftNum > 30;
+          return (
+            <span className={`text-xs ${isHigh ? 'text-red-400 font-medium' : 'text-slate-400'}`}>
+              {driftNum.toFixed(1)}
+            </span>
+          );
+        },
       },
       {
         accessorKey: 'updatedAt',
@@ -83,11 +143,51 @@ export function PaperPromotionTable({ items }: Props): ReactNode {
           }
         },
       },
+      {
+        id: 'actions',
+        header: 'Actions',
+        cell: (ctx) => {
+          const row = ctx.row.original;
+          const status = row.status;
+          const isLoading = actionLoading === row.id;
+          const canAct = status === 'queued' || status === 'under_review';
+
+          if (!canAct) {
+            return null;
+          }
+
+          return (
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  void handleAction(row.id, 'approve');
+                }}
+                disabled={isLoading}
+              >
+                Approve
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  void handleAction(row.id, 'reject');
+                }}
+                disabled={isLoading}
+              >
+                Reject
+              </Button>
+            </div>
+          );
+        },
+      },
     ],
-    [],
+    [actionLoading, handleAction],
   );
 
-  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table v8
   const table = useReactTable({
     data: items.length === 0 ? [] : [...items],
     columns,

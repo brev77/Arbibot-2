@@ -20,6 +20,8 @@ export const RISK_HTTP_ROUTES = {
   policyPhase2Readiness: 'GET /policy/phase2-readiness',
   listTokenProfiles: 'GET /policy/token-profiles',
   listRouteProfiles: 'GET /policy/route-profiles',
+  listWatchlistTiers: 'GET /policy/watchlist/tiers',
+  listRouteScoringHistory: 'GET /policy/route-scoring-history/:routeKey',
 } as const;
 
 export const OPPORTUNITY_HTTP_ROUTES = {

@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Req,
 } from '@nestjs/common';
 
 import { PaperTradesService } from './paper-trades.service';
@@ -65,6 +66,39 @@ export class PaperTradesController {
     @Body() body: PatchPaperTradeDto,
   ) {
     const row = await this.service.patch(id, body);
+    return tradeView(row);
+  }
+
+  @Post(':id/approve')
+  @HttpCode(HttpStatus.OK)
+  async approve(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() req: Request,
+  ) {
+    const operatorId = (req.headers.get('x-operator-id') as string) ?? 'unknown';
+    const row = await this.service.approve(id, operatorId);
+    return tradeView(row);
+  }
+
+  @Post(':id/reject')
+  @HttpCode(HttpStatus.OK)
+  async reject(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() req: Request,
+  ) {
+    const operatorId = (req.headers.get('x-operator-id') as string) ?? 'unknown';
+    const row = await this.service.reject(id, operatorId);
+    return tradeView(row);
+  }
+
+  @Post(':id/cancel')
+  @HttpCode(HttpStatus.OK)
+  async cancel(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() req: Request,
+  ) {
+    const operatorId = (req.headers.get('x-operator-id') as string) ?? 'unknown';
+    const row = await this.service.cancel(id, operatorId);
     return tradeView(row);
   }
 }

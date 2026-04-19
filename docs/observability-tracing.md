@@ -36,7 +36,8 @@ These are **documentation targets** for Prometheus/Grafana (metrics already on `
 | `PostgresConnectionsHigh` | pool / `pg_stat_activity` derivative | ticket | Capacity headroom. |
 | `ReconciliationOpenMismatches` | `count(reconciliation_mismatch_open)` or periodic `GET /mismatches?status=open` exporter | ticket | Settlement / execution gaps (`P2-2.1-RECON`); pair with `/mismatches/run-detectors` schedule. |
 | `PaperDriftSamplingStalled` (v0) | `increase(arb_paper_drift_samples_recorded_total[30m]) == 0` on **`paper-trading-service`** while paper drift ingestion is expected (tune `for`/`unless` with deploy labels). | ticket | **v0 doc target only:** counter proves samples were recorded, not bps magnitude. **Future:** expose last / max **drift bps** (gauge or aggregated series) and alert `PaperDriftBpsHigh` above a route/instrument threshold; wire in `PRIO-P1-ALERT` / `P2-2.3-GRAF`. |
-| `PaperDriftBpsHigh` (v1) | `max(arb_paper_drift_bps{route_key=~".+"}) > 50` over 5m window on **`paper-trading-service`** when drift samples are being recorded. | ticket | **v1:** alert when drift exceeds 50 bps on any route; indicates paper vs live price divergence requiring investigation before promotion. Target for `PRIO-P2-PAPERDISC` quality gates. |
+| `PaperDriftBpsHigh` (v1) | `max(arb_paper_drift_bps_current{route_key=~".+"}) > 50` over 5m window on **`paper-trading-service`** when drift samples are being recorded. | ticket | **v1:** alert when drift exceeds 50 bps on any route; indicates paper vs live price divergence requiring investigation before promotion. Uses recording rule `arb_paper_drift_bps_max_15m` for accuracy. Target for `PRIO-P2-PAPERDISC` quality gates. |
+| `PaperDriftBpsSustainedHigh` (v2) | `arb_paper_drift_bps_avg_5m > 30` for 15m consecutive windows on **`paper-trading-service`**. | warning | **v2:** alert when average drift exceeds 30 bps for sustained period (15m); indicates persistent paper vs live divergence that may affect promotion decisions. Uses recording rule `arb_paper_drift_bps_avg_5m`. |
 
 ## SLO and on-call (v0, `PRIO-P1-ALERT`)
 
@@ -49,7 +50,9 @@ These are **documentation targets** for Prometheus/Grafana (metrics already on `
 
 **On-call v0:** route `ArbibotHttp5xxRate`, `ReconciliationOpenMismatches`, and `KafkaPublishFailures` (when exporters exist) to the team’s primary incident channel; document escalation paths in the operator handbook when published.
 
-**Histogram note:** `http_request_duration_seconds` in alert rows remains a **target** until histogram instrumentation lands in `@arbibot/nest-platform`; use `arb_http_requests_total` and logs with `x-correlation-id` for regressions meanwhile.
+**Histogram note:** `http_request_duration_seconds` is emitted from `@arbibot/nest-platform` (`installMetricsOnFastify` with a `service` label). Use Grafana panels that group by `service`; keep `arb_http_requests_total` for rate/error ratios alongside quantiles.
+
+**Bucket reference (PRIO-P1-ALERT):** default latency buckets are `[0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 2, 5]` seconds — exposed from code via `getHistogramBuckets()` and `getHttpRequestHistogram()` in `@arbibot/nest-platform` (`packages/nest-platform/src/metrics.ts`) for dashboards and custom SLO queries.
 
 ## Grafana (P2-2.3-GRAF)
 
@@ -107,12 +110,10 @@ Starter dashboard JSON: [`infra/grafana/dashboards/arbibot-http-overview.json`](
 5. **Resolution:** Fix deployed, monitoring returns to normal
 6. **Post-mortem:** Document in `/runbooks` within 24h (Section: What happened, Impact, Root cause, Timeline, Prevention)
 
-**Note on `http_request_duration_seconds` histogram:** Still a **target** until histogram instrumentation lands in `@arbibot/nest-platform`; use `arb_http_requests_total` and logs with `x-correlation-id` for latency regressions meanwhile.
-
-**Histogram instrumentation (implemented 2026-04-18):**
-- **Metric:** `http_request_duration_seconds` (histogram) registered per service via `@arbibot/nest-platform`
-- **Buckets:** `[0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 2, 5]` (1ms, 5ms, 10ms, 50ms, 100ms, 500ms, 1s, 2s, 5s)
-- **Critical path override:** tighter buckets `[0.001, 0.005, 0.01, 0.05, 0.1, 0.3]` for opportunity/risk/orchestrator (max 300ms Tier 1 SLO)
+**Histogram instrumentation (`@arbibot/nest-platform`):**
+- **Metric:** `http_request_duration_seconds` (histogram) registered per service via `installMetricsOnFastify(fastify, { serviceName })`
+- **Buckets:** `[0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 2, 5]` (1ms through 5s)
+- **Optional:** per-service tighter buckets can be added later via a second histogram name if Tier-1 SLO needs finer resolution than the default series
 - **Alert calculation:**
   - p99: `histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, service))`
   - p95: `histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, service))`

@@ -246,6 +246,37 @@ await queryClient.invalidateQueries({
 
 ---
 
+### Settings (policy configurations)
+
+```typescript
+// lib/settings-query-keys.ts
+settingsQueryKeys.configurations(environment?, tenantId?)
+settingsQueryKeys.history(configKey, scopeType)
+```
+
+**Queries:**
+- `GET /api/operator/settings/configurations` — list (scoped by optional `environment` / `tenantId`)
+- `GET /api/operator/settings/configurations/:configKey/history` — version history per scope
+
+**Stale time:** 30s for the configurations list (`SettingsWorkspace`)
+
+**Invalidation:**
+
+| Trigger | Invalidate |
+|--------|------------|
+| Create configuration (`POST`) | `settingsQueryKeys.configurations(environment, tenantId)` |
+| Update configuration (`PUT`) | Same |
+| Rollback (`POST .../rollback`) | Configurations list + `['settings', 'history']` (prefix) so history modals refetch |
+| Promote (`POST .../promote`) | Configurations list (source and target scopes appear in full list when unscoped) |
+| Activate draft (`PATCH .../status`) | Same as update |
+
+**Lifecycle (summary):**
+1. **Create / update / rollback** — invalidate the configurations query for the current environment/tenant filter.
+2. **Rollback** — also invalidate all `settings` + `history` queries so open history views stay consistent.
+3. **Promote / PATCH status** — treat like update for cache purposes (invalidate configurations list).
+
+---
+
 ## Global Query Client Defaults
 
 ```typescript

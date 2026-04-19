@@ -9,129 +9,87 @@ import {
 const registry = new Registry();
 collectDefaultMetrics({ register: registry });
 
-// Histogram buckets for latency (1ms to 5s)
 const LATENCY_BUCKETS = [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 2, 5];
 
-// HTTP request latency histogram (PRIO-P1-ALERT)
+const REQUEST_START = Symbol('arbibotHttpRequestStartNs');
+
+/** Standard Prometheus name; aligns with Grafana `http_request_duration_seconds_*`. */
 const httpRequestDuration = new Histogram({
-  name: 'arb_http_request_duration_seconds',
+  name: 'http_request_duration_seconds',
   help: 'HTTP request duration in seconds (Arbibot Nest + Fastify)',
-  labelNames: ['method', 'route', 'status_code'],
+  labelNames: ['method', 'route', 'status_code', 'service'],
   buckets: LATENCY_BUCKETS,
   registers: [registry],
 });
 
-// HTTP requests counter (existing)
 const httpRequests = new Counter({
   name: 'arb_http_requests_total',
   help: 'Total HTTP requests (Arbibot Nest + Fastify)',
-  labelNames: ['method', 'route', 'status_code'],
+  labelNames: ['method', 'route', 'status_code', 'service'],
   registers: [registry],
 });
+
+export interface InstallMetricsOptions {
+  /** Path for the Prometheus scrape endpoint (default `/metrics`). */
+  path?: string;
+  /** Value for the `service` label; falls back to `METRICS_SERVICE_NAME` or `OTEL_SERVICE_NAME`. */
+  serviceName?: string;
+}
 
 /** Same registry as `GET /metrics` — use for app-specific counters/histograms. */
 export function getArbibotMetricsRegistry(): Registry {
   return registry;
 }
 
-/**
- * Middleware for HTTP request latency tracking.
- * Records request duration in histogram for SLO compliance.
- */
-export interface MetricsMiddlewareOptions {
-  /** Custom buckets for this service (overrides default LATENCY_BUCKETS) */
-  buckets?: number[];
-  /** Skip specific routes from latency tracking */
-  skipRoutes?: string[];
-  /** Only track specific routes (if set, others are skipped) */
-  onlyRoutes?: string[];
-}
-
-export function createMetricsMiddleware(options: MetricsMiddlewareOptions = {}) {
-  const {
-    buckets = LATENCY_BUCKETS,
-    skipRoutes = [],
-    onlyRoutes,
-  } = options;
-
-  // Create service-specific histogram if custom buckets provided
-  let serviceHistogram = httpRequestDuration;
-  if (buckets !== LATENCY_BUCKETS) {
-    serviceHistogram = new Histogram({
-      name: 'arb_http_request_duration_seconds',
-      help: 'HTTP request duration in seconds (Arbibot Nest + Fastify)',
-      labelNames: ['method', 'route', 'status_code'],
-      buckets,
-      registers: [registry],
-    });
+function resolveServiceLabel(options: InstallMetricsOptions): string {
+  const fromOpt = options.serviceName?.trim();
+  if (fromOpt && fromOpt.length > 0) {
+    return fromOpt;
   }
-
-  return async function metricsMiddleware(
-    request: any,
-    reply: any,
-    done: () => void,
-  ) {
-    const startTime = Date.now();
-
-    // Get route (similar to installMetricsOnFastify)
-    const route =
-      (request as { routerPath?: string }).routerPath ??
-        request.url.split('?')[0] ?? 'unknown';
-
-    // Check if route should be tracked
-    const shouldSkip =
-      skipRoutes.some((pattern) => route.includes(pattern)) ||
-      (onlyRoutes && !onlyRoutes.some((pattern) => route.includes(pattern)));
-
-    // Override done to record latency
-    const originalDone = done;
-    const wrappedDone = () => {
-      const durationMs = Date.now() - startTime;
-      const durationSeconds = durationMs / 1000;
-
-      if (!shouldSkip) {
-        // Record latency in histogram
-        serviceHistogram.observe(
-          {
-            method: request.method,
-            route: String(route).slice(0, 200),
-            status_code: String(reply.statusCode),
-          },
-          durationSeconds,
-        );
-      }
-
-      // Call original done
-      originalDone();
-    };
-
-    return wrappedDone;
-  };
+  const fromEnv =
+    process.env.METRICS_SERVICE_NAME?.trim() ||
+    process.env.OTEL_SERVICE_NAME?.trim();
+  if (fromEnv && fromEnv.length > 0) {
+    return fromEnv;
+  }
+  return 'unknown';
 }
 
 /**
- *
- * Registers `GET /metrics` (or `path`) and an `onResponse` hook for request counts and latency.
+ * Registers `GET /metrics` (or `path`), request counter, and latency histogram.
  * Idempotent per process: safe to call once per Fastify instance.
  */
 export function installMetricsOnFastify(
   app: FastifyInstance,
-  path = '/metrics',
+  options: InstallMetricsOptions = {},
 ): void {
-  app.addHook('onResponse', async (request, reply) => {
+  const path = options.path ?? '/metrics';
+  const serviceLabel = resolveServiceLabel(options);
+
+  app.addHook('onRequest', (request, _reply, done) => {
+    (request as { [REQUEST_START]?: bigint })[REQUEST_START] = process.hrtime.bigint();
+    done();
+  });
+
+  app.addHook('onResponse', (request, reply, done) => {
+    const start = (request as { [REQUEST_START]?: bigint })[REQUEST_START];
+    let durationSeconds = 0;
+    if (start !== undefined) {
+      durationSeconds = Number(process.hrtime.bigint() - start) / 1e9;
+    }
     const route =
       (request as { routerPath?: string }).routerPath ??
-        request.url.split('?')[0] ?? 'unknown';
-
-    // Increment request counter (existing)
-    httpRequests.inc({
+      request.url.split('?')[0] ??
+      'unknown';
+    const labels = {
       method: request.method,
       route: String(route).slice(0, 200),
       status_code: String(reply.statusCode),
-    });
-
-    // Request duration is already recorded by middleware
-    // No need to duplicate here
+      service: serviceLabel,
+    };
+    httpRequests.inc(labels);
+    httpRequestDuration.observe(labels, durationSeconds);
+    done();
   });
 
   app.get(path, async (_request, reply) => {
@@ -140,35 +98,10 @@ export function installMetricsOnFastify(
   });
 }
 
-/**
- * Service-specific latency override options for critical paths (PRIO-P1-ALERT).
- * Tier 1 services: opportunity, risk, orchestrator
- */
-export const CRITICAL_SERVICE_OPTIONS: MetricsMiddlewareOptions = {
-  buckets: [0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1], // More granular for Tier 1
-  onlyRoutes: ['/api/'], // Track all API routes
-};
-
-/**
- * Service-specific latency override options for standard services.
- * Tier 2 services: capital, portfolio, reconciliation, etc.
- */
-export const STANDARD_SERVICE_OPTIONS: MetricsMiddlewareOptions = {
-  buckets: LATENCY_BUCKETS, // Default buckets
-  onlyRoutes: ['/api/'],
-};
-
-/**
- * Export histogram for use in alert queries (PRIO-P1-ALERT).
- * Example: `histogram_quantile(0.99, rate(arb_http_request_duration_seconds_bucket[5m]))`
- */
 export function getHistogramBuckets(): number[] {
-  return LATENCY_BUCKETS;
+  return [...LATENCY_BUCKETS];
 }
 
-/**
- * Export histogram instance for direct observation in tests/custom logic.
- */
 export function getHttpRequestHistogram(): Histogram<string> {
   return httpRequestDuration;
 }

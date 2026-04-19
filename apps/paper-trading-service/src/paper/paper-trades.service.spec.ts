@@ -1,11 +1,25 @@
 import { ConflictException } from '@nestjs/common';
 
+import { AuditClientService } from '@arbibot/nest-platform';
+
+import { PaperCapitalService } from './paper-capital.service';
 import { PaperTradesService } from './paper-trades.service';
+
+const auditMock = {
+  appendEntry: jest.fn().mockResolvedValue(undefined),
+} as unknown as AuditClientService;
+
+const paperCapitalMock = {
+  reserveCapital: jest.fn(),
+  getActiveReservation: jest.fn(),
+  expireReservation: jest.fn(),
+  expireReservations: jest.fn(),
+} as unknown as PaperCapitalService;
 
 describe('PaperTradesService', () => {
   it('builds with mocked repository', () => {
     const repo = {} as never;
-    const svc = new PaperTradesService(repo);
+    const svc = new PaperTradesService(repo, auditMock, paperCapitalMock);
     expect(svc).toBeDefined();
   });
 
@@ -38,7 +52,7 @@ describe('PaperTradesService', () => {
       },
     } as never;
 
-    const svc = new PaperTradesService(repo);
+    const svc = new PaperTradesService(repo, auditMock, paperCapitalMock);
 
     await svc.patch(stored.id, { expectedVersion: 1, state: 'active' });
     expect(stored.state).toBe('active');
@@ -75,7 +89,7 @@ describe('PaperTradesService', () => {
       },
     } as never;
 
-    const svc = new PaperTradesService(repo);
+    const svc = new PaperTradesService(repo, auditMock, paperCapitalMock);
 
     await expect(
       svc.patch(stored.id, { expectedVersion: 1, state: 'settled' }),

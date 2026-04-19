@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
 
 import { fetchOperatorBffJson } from '@/lib/operator-client-api';
 import type { DashboardSummary } from '@/lib/dashboard-types';
@@ -54,7 +53,7 @@ async function getCapitalSummary(): Promise<{
   }
 }
 
-export async function GET(request: NextRequest): Promise<NextResponse> {
+export async function GET(): Promise<NextResponse> {
   const [incidents, capital] = await Promise.all([
     getIncidentsSummary(),
     getCapitalSummary(),

@@ -11,7 +11,11 @@ export { InboxEventEntity } from './inbox-event.entity';
 export { MarketSnapshotEntity } from './market-snapshot.entity';
 export { MarketSnapshotIngestIdempotencyEntity } from './market-snapshot-ingest-idempotency.entity';
 export { OutboxEventEntity } from './outbox-event.entity';
+export { PaperCapitalReservationEntity } from './paper-capital-reservation.entity';
+export type { PaperCapitalReservationState } from './paper-capital-reservation.entity';
 export { PaperDriftSampleEntity } from './paper-drift-sample.entity';
+export { PaperDiscoveryCandidateEntity } from './paper-discovery-candidate.entity';
+export type { PaperDiscoveryCandidateStatus } from './paper-discovery-candidate.entity';
 export {
   PaperPromotionCandidateEntity,
   PAPER_PROMOTION_STATUSES,
@@ -24,11 +28,13 @@ export { PortfolioPositionEntity } from './portfolio-position.entity';
 export { PortfolioPositionFillIdempotencyEntity } from './portfolio-position-fill-idempotency.entity';
 export { ReconciliationMismatchEntity } from './reconciliation-mismatch.entity';
 export { RouteProfileEntity } from './route-profile.entity';
+export { RouteScoringHistoryEntity } from './route-scoring-history.entity';
 export { RiskDecisionEntity } from './risk-decision.entity';
 export { RiskWindowReservationEntity } from './risk-window-reservation.entity';
 export { materializeRiskWindowReservationExpiryIfNeeded } from './risk-window-reservation-expiry';
 export { TokenProfileEntity } from './token-profile.entity';
 export { VenueRefEntity } from './venue-ref.entity';
+export { WatchlistTierSnapshotEntity } from './watchlist-tier-snapshot.entity';
 
 import { ArbitrageOpportunityEntity } from './arbitrage-opportunity.entity';
 import { AuditLogEntity } from './audit-log.entity';
@@ -42,7 +48,9 @@ import { InboxEventEntity } from './inbox-event.entity';
 import { MarketSnapshotEntity } from './market-snapshot.entity';
 import { MarketSnapshotIngestIdempotencyEntity } from './market-snapshot-ingest-idempotency.entity';
 import { OutboxEventEntity } from './outbox-event.entity';
+import { PaperCapitalReservationEntity } from './paper-capital-reservation.entity';
 import { PaperDriftSampleEntity } from './paper-drift-sample.entity';
+import { PaperDiscoveryCandidateEntity } from './paper-discovery-candidate.entity';
 import { PaperPromotionCandidateEntity } from './paper-promotion-candidate.entity';
 import { PaperTradeEntity } from './paper-trade.entity';
 import { PolicyConfigurationEntity } from './policy-configuration.entity';
@@ -50,10 +58,12 @@ import { PortfolioPositionFillIdempotencyEntity } from './portfolio-position-fil
 import { PortfolioPositionEntity } from './portfolio-position.entity';
 import { ReconciliationMismatchEntity } from './reconciliation-mismatch.entity';
 import { RouteProfileEntity } from './route-profile.entity';
+import { RouteScoringHistoryEntity } from './route-scoring-history.entity';
 import { RiskDecisionEntity } from './risk-decision.entity';
 import { RiskWindowReservationEntity } from './risk-window-reservation.entity';
 import { TokenProfileEntity } from './token-profile.entity';
 import { VenueRefEntity } from './venue-ref.entity';
+import { WatchlistTierSnapshotEntity } from './watchlist-tier-snapshot.entity';
 
 /** All entities for TypeORM `entities` array. */
 export const ARBIBOT_TYPEORM_ENTITIES = [
@@ -78,7 +88,11 @@ export const ARBIBOT_TYPEORM_ENTITIES = [
   ReconciliationMismatchEntity,
   TokenProfileEntity,
   RouteProfileEntity,
+  WatchlistTierSnapshotEntity,
+  RouteScoringHistoryEntity,
   PaperTradeEntity,
   PaperPromotionCandidateEntity,
   PaperDriftSampleEntity,
+  PaperCapitalReservationEntity,
+  PaperDiscoveryCandidateEntity,
 ] as const;

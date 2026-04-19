@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsIn,
   IsInt,
   IsNumber,
@@ -53,4 +54,9 @@ export class EvaluateRiskRequestDto {
   @MinLength(1)
   @MaxLength(256)
   routeKey?: string;
+
+  /** When true, profile DB caps are scaled by a deterministic UTC-hour multiplier (adaptive risk). */
+  @IsOptional()
+  @IsBoolean()
+  adaptiveRisk?: boolean;
 }

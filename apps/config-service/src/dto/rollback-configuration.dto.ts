@@ -1,13 +1,11 @@
 import {
   IsBoolean,
   IsEnum,
-  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
   MaxLength,
-  Max,
 } from 'class-validator';
 
 import { ConfigScopeType } from './create-configuration.dto';

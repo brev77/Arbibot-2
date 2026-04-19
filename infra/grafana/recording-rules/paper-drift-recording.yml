@@ -1,0 +1,27 @@
+groups:
+  - name: arbibot_paper_drift
+    interval: 30s
+    rules:
+      # Average drift over 5 minutes
+      - record: arb_paper_drift_bps_avg_5m
+        expr: avg_over_time(arb_paper_drift_bps_current[5m])
+
+      # Maximum drift over 15 minutes
+      - record: arb_paper_drift_bps_max_15m
+        expr: max_over_time(arb_paper_drift_bps_current[15m])
+
+      # P95 drift sample recording rate over 1 hour
+      - record: arb_paper_drift_samples_p95_rate_1h
+        expr: histogram_quantile(0.95, rate(arb_paper_drift_samples_recorded_total[1h]))
+
+      # Total drift samples per minute
+      - record: arb_paper_drift_samples_rate_1m
+        expr: rate(arb_paper_drift_samples_recorded_total[1m])
+
+      # Instruments with high sustained drift (>30 bps for 15m)
+      - record: arb_paper_drift_high_instruments
+        expr: count(increase(arb_paper_drift_bps_current[15m]) > 30)
+
+      # Stale drift instruments count
+      - record: arb_paper_drift_stale_instruments
+        expr: arb_paper_drift_bps_stale

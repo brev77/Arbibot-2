@@ -10,7 +10,10 @@ import {
   CreateConfigurationDto,
   QueryConfigurationsDto,
   ConfigScopeType,
+  ConfigurationStatus,
 } from '../dto/create-configuration.dto';
+import { PromoteConfigurationDto } from '../dto/promote-configuration.dto';
+import { UpdateConfigurationStatusDto } from '../dto/update-configuration-status.dto';
 import {
   ConfigurationResponseDto,
   ConfigurationHistoryItemDto,
@@ -21,6 +24,37 @@ import { RedisConnection } from '../redis/redis-connection';
 
 const CACHE_TTL_SECONDS = 60;
 const SENSITIVE_KEYS_PATTERN = /^(risk\..*|execution\..*|capital\..*)/;
+
+function formatUnknownError(err: unknown): string {
+  if (err instanceof Error) {
+    return err.message;
+  }
+  return String(err);
+}
+
+/** Narrow DB scalars before string coercion (satisfies no-base-to-string). */
+function asDbString(value: unknown): string {
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    typeof value === 'bigint'
+  ) {
+    return String(value);
+  }
+  throw new TypeError('Expected string-like DB scalar');
+}
+
+function asDbNullableString(value: unknown): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  return asDbString(value);
+}
+
+type SqlParam = string | number | boolean | Date | null | ConfigScopeType;
 
 @Injectable()
 export class ConfigurationsService {
@@ -61,13 +95,15 @@ export class ConfigurationsService {
           return JSON.parse(cached);
         }
       } catch (err) {
-        this.logger.warn(`Redis get failed, falling back to DB: ${err}`);
+        this.logger.warn(
+          `Redis get failed, falling back to DB: ${formatUnknownError(err)}`,
+        );
       }
     }
 
     // Query with scope filter
     let sql = 'SELECT * FROM v_policy_configurations_latest';
-    const params: any[] = [];
+    const params: SqlParam[] = [];
     const conditions: string[] = [];
 
     if (scopeType) {
@@ -88,13 +124,17 @@ export class ConfigurationsService {
 
     const configs = await this.configRepository.query(sql, params);
 
-    const result = configs.map(this.entityToDto);
+    const result = configs.map((row: Record<string, unknown>) =>
+      this.entityToDto(row),
+    );
 
     if (client) {
       try {
         await client.setEx(cacheKey, CACHE_TTL_SECONDS, JSON.stringify(result));
       } catch (err) {
-        this.logger.warn(`Redis set failed, serving without cache: ${err}`);
+        this.logger.warn(
+          `Redis set failed, serving without cache: ${formatUnknownError(err)}`,
+        );
       }
     }
 
@@ -129,7 +169,7 @@ export class ConfigurationsService {
         }
       } catch (err) {
         this.logger.warn(
-          `Redis get failed for ${configKey}, falling back to DB: ${err}`,
+          `Redis get failed for ${configKey}, falling back to DB: ${formatUnknownError(err)}`,
         );
       }
     }
@@ -152,7 +192,7 @@ export class ConfigurationsService {
         await client.setEx(cacheKey, CACHE_TTL_SECONDS, JSON.stringify(result));
       } catch (err) {
         this.logger.warn(
-          `Redis set failed for ${configKey}, serving without cache: ${err}`,
+          `Redis set failed for ${configKey}, serving without cache: ${formatUnknownError(err)}`,
         );
       }
     }
@@ -182,14 +222,14 @@ export class ConfigurationsService {
         }
       } catch (err) {
         this.logger.warn(
-          `Redis get failed for ${configKey}, falling back to DB: ${err}`,
+          `Redis get failed for ${configKey}, falling back to DB: ${formatUnknownError(err)}`,
         );
       }
     }
 
     // Query DB with optional scope filter
     let sql = 'SELECT * FROM v_policy_configurations_latest WHERE config_key = $1';
-    const params: any[] = [configKey];
+    const params: SqlParam[] = [configKey];
 
     if (scopeType) {
       sql += ' AND scope_type = $2';
@@ -215,7 +255,7 @@ export class ConfigurationsService {
         await client.setEx(cacheKey, CACHE_TTL_SECONDS, JSON.stringify(result));
       } catch (err) {
         this.logger.warn(
-          `Redis set failed for ${configKey}, serving without cache: ${err}`,
+          `Redis set failed for ${configKey}, serving without cache: ${formatUnknownError(err)}`,
         );
       }
     }
@@ -236,7 +276,9 @@ export class ConfigurationsService {
       [configKey, scopeType, scopeValue || null],
     );
 
-    return history.map(this.entityToHistoryDto);
+    return history.map((row: Record<string, unknown>) =>
+      this.entityToHistoryDto(row),
+    );
   }
 
   /**
@@ -274,25 +316,15 @@ export class ConfigurationsService {
     );
     const nextVersion = versionResult[0]?.next_version || 1;
 
-    const entity = this.configRepository.create({
-      id,
-      configKey: dto.configKey,
-      configValue: dto.configValue,
-      isSensitive,
-      entityVersion: nextVersion,
-      createdAt: now,
-      updatedAt: now,
-      updatedBy: operatorId,
-      // Note: scopeType and scopeValue will be added to entity after migration
-      // For now, we'll insert directly via raw SQL
-    });
+    const effectiveStatus = dto.status ?? ConfigurationStatus.ACTIVE;
+    const isActiveRow = effectiveStatus === ConfigurationStatus.ACTIVE;
 
     // Insert with scope columns (raw query to handle new columns)
     await this.configRepository.query(
       `INSERT INTO policy_configurations
        (id, config_key, config_value, is_sensitive, entity_version,
         created_at, updated_at, updated_by, scope_type, scope_value, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
       [
         id,
         dto.configKey,
@@ -304,6 +336,7 @@ export class ConfigurationsService {
         operatorId,
         scopeType,
         scopeValue,
+        isActiveRow,
       ],
     );
 
@@ -322,6 +355,7 @@ export class ConfigurationsService {
         scopeType,
         scopeValue,
         approveReason: dto.approveReason,
+        status: effectiveStatus,
       },
       correlationId: uuidv4(),
     });
@@ -329,6 +363,21 @@ export class ConfigurationsService {
     this.logger.log(
       `Configuration created: ${dto.configKey} [${scopeType}:${scopeValue || 'global'}] v${nextVersion} by ${operatorId}`,
     );
+
+    if (!isActiveRow) {
+      return {
+        id,
+        configKey: dto.configKey,
+        configValue: dto.configValue,
+        isSensitive,
+        entityVersion: nextVersion,
+        createdAt: now,
+        updatedAt: now,
+        updatedBy: operatorId,
+        scopeType,
+        scopeValue,
+      };
+    }
 
     return this.getByKey(dto.configKey, scopeType, scopeValue) as Promise<ConfigurationResponseDto>;
   }
@@ -364,12 +413,15 @@ export class ConfigurationsService {
     const now = new Date();
     const newVersion = existing.entityVersion + 1;
 
+    const effectiveStatus = dto.status ?? ConfigurationStatus.ACTIVE;
+    const isActiveRow = effectiveStatus === ConfigurationStatus.ACTIVE;
+
     // Insert new version with scope columns
     await this.configRepository.query(
       `INSERT INTO policy_configurations
        (id, config_key, config_value, is_sensitive, entity_version,
         created_at, updated_at, updated_by, scope_type, scope_value, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
       [
         id,
         configKey,
@@ -381,6 +433,7 @@ export class ConfigurationsService {
         operatorId,
         scopeType,
         scopeValue,
+        isActiveRow,
       ],
     );
 
@@ -401,6 +454,7 @@ export class ConfigurationsService {
         scopeType,
         scopeValue,
         approveReason: dto.approveReason,
+        status: effectiveStatus,
       },
       correlationId: uuidv4(),
     });
@@ -408,6 +462,282 @@ export class ConfigurationsService {
     this.logger.log(
       `Configuration updated: ${configKey} [${scopeType}:${scopeValue || 'global'}] v${newVersion} by ${operatorId}`,
     );
+
+    if (!isActiveRow) {
+      return {
+        id,
+        configKey,
+        configValue: dto.configValue,
+        isSensitive,
+        entityVersion: newVersion,
+        createdAt: now,
+        updatedAt: now,
+        updatedBy: operatorId,
+        scopeType,
+        scopeValue,
+      };
+    }
+
+    return this.getByKey(configKey, scopeType, scopeValue) as Promise<ConfigurationResponseDto>;
+  }
+
+  /**
+   * Promote configuration from one scope to another (CFG-3 staged rollout).
+   * Deactivates the source scope row and creates a new active row in the target scope.
+   */
+  async promote(
+    configKey: string,
+    dto: PromoteConfigurationDto,
+    operatorId: string,
+  ): Promise<ConfigurationResponseDto> {
+    const fromScopeType = dto.fromScopeType;
+    const fromScopeValue = dto.fromScopeValue ?? null;
+    const toScopeType = dto.toScopeType;
+    const toScopeValue = dto.toScopeValue ?? null;
+
+    if (
+      fromScopeType === toScopeType &&
+      fromScopeValue === toScopeValue
+    ) {
+      throw new Error(
+        'Promotion requires different source and target scopes',
+      );
+    }
+
+    if (SENSITIVE_KEYS_PATTERN.test(configKey) && !dto.approveReason) {
+      throw new Error(
+        `Config key '${configKey}' is sensitive and requires approve_reason for promotion`,
+      );
+    }
+
+    const idempotencyKey = dto.idempotencyKey?.trim();
+    const client = this.redis.client;
+    if (idempotencyKey && client) {
+      try {
+        const cached = await client.get(
+          `arb:config:v1:promote:idemp:${idempotencyKey}`,
+        );
+        if (cached) {
+          return JSON.parse(cached) as ConfigurationResponseDto;
+        }
+      } catch (err) {
+        this.logger.warn(
+          `Redis idempotency get failed: ${formatUnknownError(err)}`,
+        );
+      }
+    }
+
+    const source = await this.getByKey(
+      configKey,
+      fromScopeType,
+      fromScopeValue,
+    );
+    if (!source) {
+      throw new Error(
+        `Source configuration not found: ${configKey} [${fromScopeType}:${fromScopeValue ?? 'global'}]`,
+      );
+    }
+
+    const targetExisting = await this.getByKey(
+      configKey,
+      toScopeType,
+      toScopeValue,
+    );
+    if (targetExisting) {
+      throw new Error(
+        `Target scope already has an active configuration for '${configKey}'. Update or rollback the target scope first.`,
+      );
+    }
+
+    const versionResult = await this.configRepository.query(
+      `SELECT COALESCE(MAX(entity_version), 0) + 1 as next_version
+       FROM policy_configurations
+       WHERE config_key = $1 AND scope_type = $2 AND scope_value IS NOT DISTINCT FROM $3`,
+      [configKey, toScopeType, toScopeValue],
+    );
+    const nextVersion = versionResult[0]?.next_version || 1;
+
+    const id = uuidv4();
+    const now = new Date();
+
+    await this.configRepository.query(
+      `INSERT INTO policy_configurations
+       (id, config_key, config_value, is_sensitive, entity_version,
+        created_at, updated_at, updated_by, scope_type, scope_value, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true)`,
+      [
+        id,
+        configKey,
+        source.configValue,
+        source.isSensitive,
+        nextVersion,
+        now,
+        now,
+        operatorId,
+        toScopeType,
+        toScopeValue,
+      ],
+    );
+
+    await this.configRepository.query(
+      `UPDATE policy_configurations
+       SET is_active = false, updated_at = $1, updated_by = $2
+       WHERE id = $3`,
+      [now, operatorId, source.id],
+    );
+
+    await this.invalidateCache(configKey, fromScopeType, fromScopeValue);
+    await this.invalidateCache(configKey, toScopeType, toScopeValue);
+
+    await this.auditClient.appendEntry({
+      action: 'CONFIG_PROMOTED',
+      resourceType: 'policy_configuration',
+      resourceId: id,
+      actor: operatorId,
+      payload: {
+        configKey,
+        fromScopeType,
+        fromScopeValue,
+        toScopeType,
+        toScopeValue,
+        sourceVersion: source.entityVersion,
+        targetVersion: nextVersion,
+        approveReason: dto.approveReason,
+      },
+      correlationId: uuidv4(),
+    });
+
+    this.logger.log(
+      `Configuration promoted: ${configKey} ${fromScopeType}:${fromScopeValue ?? 'global'} → ${toScopeType}:${toScopeValue ?? 'global'} by ${operatorId}`,
+    );
+
+    const result = (await this.getByKey(
+      configKey,
+      toScopeType,
+      toScopeValue,
+    )) as ConfigurationResponseDto;
+
+    if (idempotencyKey && client) {
+      try {
+        await client.setEx(
+          `arb:config:v1:promote:idemp:${idempotencyKey}`,
+          86400,
+          JSON.stringify(result),
+        );
+      } catch (err) {
+        this.logger.warn(
+          `Redis idempotency set failed: ${formatUnknownError(err)}`,
+        );
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Activate the latest draft row for a scope (CFG-3).
+   */
+  async updateStatus(
+    configKey: string,
+    dto: UpdateConfigurationStatusDto,
+    operatorId: string,
+  ): Promise<ConfigurationResponseDto> {
+    if (dto.status !== ConfigurationStatus.ACTIVE) {
+      throw new Error(
+        'Only activation (status=active) is supported via this endpoint; create drafts with POST.',
+      );
+    }
+
+    const scopeType = dto.scopeType ?? ConfigScopeType.GLOBAL;
+    const scopeValue = dto.scopeValue ?? null;
+
+    if (SENSITIVE_KEYS_PATTERN.test(configKey) && !dto.approveReason) {
+      throw new Error(
+        `Config key '${configKey}' is sensitive and requires approve_reason for activation`,
+      );
+    }
+
+    const latestRows = await this.configRepository.query(
+      `SELECT *
+       FROM policy_configurations
+       WHERE config_key = $1
+         AND scope_type = $2
+         AND scope_value IS NOT DISTINCT FROM $3
+       ORDER BY entity_version DESC
+       LIMIT 1`,
+      [configKey, scopeType, scopeValue],
+    );
+
+    if (!latestRows || latestRows.length === 0) {
+      throw new Error(
+        `Configuration not found: ${configKey} [${scopeType}:${scopeValue ?? 'global'}]`,
+      );
+    }
+
+    const latest = latestRows[0] as Record<string, unknown>;
+    if (latest.is_active === true) {
+      return this.getByKey(configKey, scopeType, scopeValue) as Promise<ConfigurationResponseDto>;
+    }
+
+    const draftValue = asDbString(latest.config_value);
+    const isSensitive = Boolean(latest.is_sensitive);
+    const now = new Date();
+
+    await this.configRepository.query(
+      `UPDATE policy_configurations
+       SET is_active = false, updated_at = $1, updated_by = $2
+       WHERE config_key = $3
+         AND scope_type = $4
+         AND scope_value IS NOT DISTINCT FROM $5
+         AND is_active = true`,
+      [now, operatorId, configKey, scopeType, scopeValue],
+    );
+
+    const versionResult = await this.configRepository.query(
+      `SELECT COALESCE(MAX(entity_version), 0) + 1 as next_version
+       FROM policy_configurations
+       WHERE config_key = $1 AND scope_type = $2 AND scope_value IS NOT DISTINCT FROM $3`,
+      [configKey, scopeType, scopeValue],
+    );
+    const nextVersion = versionResult[0]?.next_version || 1;
+
+    const id = uuidv4();
+    await this.configRepository.query(
+      `INSERT INTO policy_configurations
+       (id, config_key, config_value, is_sensitive, entity_version,
+        created_at, updated_at, updated_by, scope_type, scope_value, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true)`,
+      [
+        id,
+        configKey,
+        draftValue,
+        isSensitive,
+        nextVersion,
+        now,
+        now,
+        operatorId,
+        scopeType,
+        scopeValue,
+      ],
+    );
+
+    await this.invalidateCache(configKey, scopeType, scopeValue);
+
+    await this.auditClient.appendEntry({
+      action: 'CONFIG_STATUS_ACTIVATED',
+      resourceType: 'policy_configuration',
+      resourceId: id,
+      actor: operatorId,
+      payload: {
+        configKey,
+        scopeType,
+        scopeValue,
+        previousDraftVersion: Number(latest.entity_version),
+        newVersion: nextVersion,
+        approveReason: dto.approveReason,
+      },
+      correlationId: uuidv4(),
+    });
 
     return this.getByKey(configKey, scopeType, scopeValue) as Promise<ConfigurationResponseDto>;
   }
@@ -435,7 +765,7 @@ export class ConfigurationsService {
     // Execute rollback function
     const result = await this.configRepository.query(
       'SELECT * FROM rollback_configuration($1, $2, $3, $4, $5)',
-      [configKey, dto.toVersion, scopeType, scopeValue, operatorId],
+      [configKey, dto.toVersion, operatorId, scopeType, scopeValue],
     );
 
     if (!result || result.length === 0) {
@@ -470,8 +800,7 @@ export class ConfigurationsService {
       `Configuration rolled back: ${configKey} [${scopeType}:${scopeValue || 'global'}] to v${dto.toVersion} by ${operatorId}`,
     );
 
-    // Get the rolled back configuration
-    const rolledBackConfig = await this.getByKey(configKey, scopeType, scopeValue);
+    await this.getByKey(configKey, scopeType, scopeValue);
 
     return {
       rollbackId,
@@ -532,7 +861,9 @@ export class ConfigurationsService {
 
       this.logger.debug(`Cache invalidated for: ${configKey}`);
     } catch (err) {
-      this.logger.warn(`Redis cache invalidation failed for ${configKey}: ${err}`);
+      this.logger.warn(
+        `Redis cache invalidation failed for ${configKey}: ${formatUnknownError(err)}`,
+      );
     }
   }
 
@@ -542,7 +873,7 @@ export class ConfigurationsService {
   private buildCacheKey(
     base: string,
     scopeType?: ConfigScopeType | null,
-    scopeValue?: string | null | undefined,
+    scopeValue?: string | null,
   ): string {
     if (!scopeType) {
       return `arb:config:v1:${base}`;
@@ -550,32 +881,34 @@ export class ConfigurationsService {
     return `arb:config:scope:${scopeType}:${scopeValue || 'global'}:${base}`;
   }
 
-  private entityToDto(entity: any): ConfigurationResponseDto {
+  private entityToDto(row: Record<string, unknown>): ConfigurationResponseDto {
     return {
-      id: entity.id,
-      configKey: entity.config_key,
-      configValue: entity.config_value,
-      isSensitive: entity.is_sensitive,
-      entityVersion: entity.entity_version,
-      createdAt: entity.created_at,
-      updatedAt: entity.updated_at,
-      updatedBy: entity.updated_by,
-      scopeType: entity.scope_type,
-      scopeValue: entity.scope_value,
+      id: asDbString(row.id),
+      configKey: asDbString(row.config_key),
+      configValue: asDbString(row.config_value),
+      isSensitive: Boolean(row.is_sensitive),
+      entityVersion: Number(row.entity_version),
+      createdAt: row.created_at as Date,
+      updatedAt: row.updated_at as Date,
+      updatedBy: asDbNullableString(row.updated_by),
+      scopeType: row.scope_type as ConfigurationResponseDto['scopeType'],
+      scopeValue: asDbNullableString(row.scope_value),
     };
   }
 
-  private entityToHistoryDto(entity: any): ConfigurationHistoryItemDto {
+  private entityToHistoryDto(
+    row: Record<string, unknown>,
+  ): ConfigurationHistoryItemDto {
     return {
-      id: entity.id,
-      configKey: entity.config_key,
-      configValue: entity.config_value,
-      isSensitive: entity.is_sensitive,
-      entityVersion: entity.entity_version,
-      createdAt: entity.created_at,
-      updatedAt: entity.updated_at,
-      updatedBy: entity.updated_by,
-      isActive: entity.is_active,
+      id: asDbString(row.id),
+      configKey: asDbString(row.config_key),
+      configValue: asDbString(row.config_value),
+      isSensitive: Boolean(row.is_sensitive),
+      entityVersion: Number(row.entity_version),
+      createdAt: row.created_at as Date,
+      updatedAt: row.updated_at as Date,
+      updatedBy: asDbNullableString(row.updated_by),
+      isActive: Boolean(row.is_active),
     };
   }
 }

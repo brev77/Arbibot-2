@@ -2,14 +2,17 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   NotFoundException,
   Param,
   ParseUUIDPipe,
   Post,
+  UnauthorizedException,
 } from '@nestjs/common';
 
+import { PaperDiscoveryService } from '../paper-discovery/paper-discovery.service';
 import { CreateOpportunityDto } from './dto/create-opportunity.dto';
 import { EnrichOpportunityDto } from './dto/enrich-opportunity.dto';
 import { PaperEnqueueDto } from './dto/paper-enqueue.dto';
@@ -18,7 +21,10 @@ import { OpportunitiesService } from './opportunities.service';
 
 @Controller('opportunities')
 export class OpportunitiesController {
-  constructor(private readonly service: OpportunitiesService) {}
+  constructor(
+    private readonly service: OpportunitiesService,
+    private readonly paperDiscovery: PaperDiscoveryService,
+  ) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -32,6 +38,22 @@ export class OpportunitiesController {
       entityVersion: row.entityVersion,
       createdAt: row.createdAt.toISOString(),
     };
+  }
+
+  /** Manual paper discovery scan (token from `PAPER_DISCOVERY_RUN_TOKEN`). */
+  @Post('paper-discovery/run')
+  @HttpCode(HttpStatus.OK)
+  async runPaperDiscovery(
+    @Headers('x-paper-discovery-token') token: string | undefined,
+  ) {
+    const expected = process.env.PAPER_DISCOVERY_RUN_TOKEN?.trim();
+    if (expected === undefined || expected.length === 0) {
+      throw new NotFoundException();
+    }
+    if (token !== expected) {
+      throw new UnauthorizedException();
+    }
+    return this.paperDiscovery.discoverPaperOpportunities();
   }
 
   @Post(':id/enrich')

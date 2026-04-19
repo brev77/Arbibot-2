@@ -1,8 +1,14 @@
 -- Config service: staged rollout with scope support (CFG-3).
 -- Adds per-scope overrides (environment/tenant/global) and rollback capability.
 
--- Scope types enum for type safety
-CREATE TYPE policy_config_scope_type AS ENUM ('global', 'environment', 'tenant');
+-- Scope types enum for type safety (idempotent: partial runs may have committed the type)
+DO $$
+BEGIN
+  CREATE TYPE policy_config_scope_type AS ENUM ('global', 'environment', 'tenant');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END
+$$;
 
 -- Add scope columns to existing policy_configurations table
 ALTER TABLE policy_configurations
@@ -10,9 +16,11 @@ ALTER TABLE policy_configurations
   ADD COLUMN IF NOT EXISTS scope_value TEXT NULL, -- NULL for 'global' scope
   ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true; -- Soft delete for rollback
 
--- Update unique constraint to include scope
+-- Update unique constraint to include scope (may be a UNIQUE CONSTRAINT, not a standalone index)
+ALTER TABLE policy_configurations
+  DROP CONSTRAINT IF EXISTS policy_configurations_key_version_unique;
 DROP INDEX IF EXISTS policy_configurations_key_version_unique;
-CREATE UNIQUE INDEX policy_configurations_scope_key_version_unique
+CREATE UNIQUE INDEX IF NOT EXISTS policy_configurations_scope_key_version_unique
   ON policy_configurations (config_key, entity_version, scope_type, scope_value);
 
 -- Create index for scoped queries
@@ -111,9 +119,9 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION rollback_configuration(
   p_config_key TEXT,
   p_to_version INT,
+  p_operator_id TEXT,
   p_scope_type policy_config_scope_type DEFAULT 'global',
-  p_scope_value TEXT DEFAULT NULL,
-  p_operator_id TEXT NOT NULL
+  p_scope_value TEXT DEFAULT NULL
 ) RETURNS TEXT AS $$
 DECLARE
   v_rollback_id TEXT;
@@ -126,7 +134,7 @@ BEGIN
   WHERE config_key = p_config_key
     AND entity_version = p_to_version
     AND scope_type = p_scope_type
-    AND scope_value = p_scope_value
+    AND (scope_value IS NOT DISTINCT FROM p_scope_value)
     AND is_active = true;
 
   IF NOT FOUND THEN
@@ -141,13 +149,13 @@ BEGIN
       updated_by = p_operator_id
   WHERE config_key = p_config_key
     AND scope_type = p_scope_type
-    AND scope_value = p_scope_value
+    AND (scope_value IS NOT DISTINCT FROM p_scope_value)
     AND entity_version > p_to_version
     AND is_active = true;
 
   -- Create a new version pointing back to the rollback target value
   -- This maintains version history while effectively reverting to the old value
-  v_rollback_id := gen_random_uuid();
+  v_rollback_id := gen_random_uuid()::text;
 
   INSERT INTO policy_configurations (
     id,
@@ -162,7 +170,7 @@ BEGIN
     scope_value,
     is_active
   )
-  SELECT
+  VALUES (
     v_rollback_id,
     p_config_key,
     v_target_record.config_value,
@@ -172,7 +180,7 @@ BEGIN
       FROM policy_configurations
       WHERE config_key = p_config_key
         AND scope_type = p_scope_type
-        AND scope_value = p_scope_value
+        AND (scope_value IS NOT DISTINCT FROM p_scope_value)
     ),
     v_now,
     v_now,
@@ -180,7 +188,7 @@ BEGIN
     p_scope_type,
     p_scope_value,
     true
-  FROM v_target_record;
+  );
 
   RETURN v_rollback_id;
 END;
@@ -217,7 +225,7 @@ BEGIN
   FROM policy_configurations
   WHERE config_key = p_config_key
     AND scope_type = p_scope_type
-    AND scope_value = p_scope_value
+    AND (scope_value IS NOT DISTINCT FROM p_scope_value)
   ORDER BY entity_version DESC;
 END;
 $$ LANGUAGE plpgsql;

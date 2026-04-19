@@ -15,6 +15,7 @@ import { VENUE_ADAPTER, type VenueAdapter } from '../venue/venue-adapter';
 
 import { FillOutboundService } from './fill-outbound.service';
 import { LegsService } from './legs.service';
+import { PartialFillPlaybookService } from './partial-fill-playbook.service';
 import { PlanExecutionController } from './plan-execution.controller';
 import { PlanLegActionsController } from './plan-leg-actions.controller';
 
@@ -32,6 +33,7 @@ import { PlanLegActionsController } from './plan-leg-actions.controller';
   providers: [
     FillOutboundService,
     LegsService,
+    PartialFillPlaybookService,
     MockVenueAdapter,
     {
       provide: VENUE_ADAPTER,

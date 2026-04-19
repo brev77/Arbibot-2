@@ -1,14 +1,43 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { RouteProfileEntity, TokenProfileEntity } from '@arbibot/persistence';
+import {
+  RouteProfileEntity,
+  RouteScoringHistoryEntity,
+  TokenProfileEntity,
+  WatchlistTierSnapshotEntity,
+} from '@arbibot/persistence';
 
+import { AdaptiveRiskService } from './adaptive-risk.service';
 import { PolicyController } from './policy.controller';
-import { PolicyProfilesService } from './policy-profiles.service';
+import { RouteProfileService } from './route-profile.service';
+import { RouteScoringHistoryService } from './route-scoring-history.service';
+import { TokenProfileService } from './token-profile.service';
+import { WatchlistTierService } from './watchlist-tier.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([TokenProfileEntity, RouteProfileEntity])],
+  imports: [
+    TypeOrmModule.forFeature([
+      TokenProfileEntity,
+      RouteProfileEntity,
+      WatchlistTierSnapshotEntity,
+      RouteScoringHistoryEntity,
+    ]),
+  ],
   controllers: [PolicyController],
-  providers: [PolicyProfilesService],
+  providers: [
+    TokenProfileService,
+    RouteProfileService,
+    AdaptiveRiskService,
+    WatchlistTierService,
+    RouteScoringHistoryService,
+  ],
+  exports: [
+    TokenProfileService,
+    RouteProfileService,
+    AdaptiveRiskService,
+    WatchlistTierService,
+    RouteScoringHistoryService,
+  ],
 })
 export class PolicyModule {}

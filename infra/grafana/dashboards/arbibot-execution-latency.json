@@ -195,7 +195,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(rate(arb_http_requests_total{status=~\"5..\"}[5m])) by (status_code)",
+          "expr": "sum(rate(arb_http_requests_total{status_code=~\"5..\"}[5m])) by (status_code)",
           "legendFormat": "5{{status_code}}",
           "refId": "A"
         }

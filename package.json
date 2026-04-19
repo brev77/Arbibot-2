@@ -15,6 +15,8 @@
     "e2e:phase2-controlled-execution": "node tools/e2e-phase2-controlled-execution.mjs",
     "e2e:phase3-paper-promotion": "node tools/e2e-phase3-paper-promotion.mjs",
     "ci:e2e-phase2": "bash tools/ci-e2e-phase2.sh",
+    "ci:e2e-phase3": "bash tools/ci-e2e-phase3-paper-promotion.sh",
+    "ci:e2e-phase3-paper-discovery": "bash tools/ci-e2e-phase3-paper-discovery.sh",
     "dev:risk": "npm run start:dev -w @arbibot/risk-service",
     "dev:opportunity": "npm run start:dev -w @arbibot/opportunity-service",
     "dev:capital": "npm run start:dev -w @arbibot/capital-service",

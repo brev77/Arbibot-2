@@ -79,7 +79,7 @@ export function PaperWorkspace(): ReactNode {
         ) : tradesQ.data.items.length === 0 ? (
           <p className="text-sm text-slate-500">No paper trades yet.</p>
         ) : (
-          <PaperTradesTable items={tradesQ.data.items} />
+          <PaperTradesTable items={tradesQ.data.items} onRefresh={() => void tradesQ.refetch()} />
         )}
       </section>
 
@@ -101,7 +101,7 @@ export function PaperWorkspace(): ReactNode {
           <p className="text-sm text-slate-500">No promotion candidates.</p>
         ) : (
           <div className="rounded-lg border border-slate-800 html.theme-light:border-slate-200 p-2">
-            <PaperPromotionTable items={promoQ.data.items} />
+            <PaperPromotionTable items={promoQ.data.items} onRefresh={() => void promoQ.refetch()} />
           </div>
         )}
       </section>

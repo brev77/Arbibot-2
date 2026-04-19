@@ -4,6 +4,11 @@ export enum ConfigScopeType {
   TENANT = 'tenant',
 }
 
+export enum ConfigurationStatus {
+  DRAFT = 'draft',
+  ACTIVE = 'active',
+}
+
 export interface ConfigurationDto {
   id: string;
   configKey: string;
@@ -44,6 +49,23 @@ export interface CreateConfigurationDto {
   isSensitive?: boolean;
   scopeType?: ConfigScopeType;
   scopeValue?: string;
+  approveReason?: string;
+  status?: ConfigurationStatus;
+}
+
+export interface PromoteConfigurationDto {
+  fromScopeType: ConfigScopeType;
+  fromScopeValue?: string | null;
+  toScopeType: ConfigScopeType;
+  toScopeValue?: string | null;
+  approveReason?: string;
+  idempotencyKey?: string;
+}
+
+export interface UpdateConfigurationStatusDto {
+  status: ConfigurationStatus;
+  scopeType?: ConfigScopeType;
+  scopeValue?: string | null;
   approveReason?: string;
 }
 

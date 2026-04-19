@@ -29,7 +29,7 @@ async function bootstrap(): Promise<void> {
   const fastify = app.getHttpAdapter().getInstance();
   fastify.addHook('preHandler', correlationIdPreHandler);
   if (process.env.METRICS_ENABLED !== 'false') {
-    installMetricsOnFastify(fastify);
+    installMetricsOnFastify(fastify, { serviceName: 'market-intake-service' });
   }
   app.useGlobalPipes(
     new ValidationPipe({

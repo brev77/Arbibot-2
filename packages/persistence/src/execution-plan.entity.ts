@@ -33,6 +33,10 @@ export class ExecutionPlanEntity {
   @Column({ name: 'entity_version', type: 'int', default: 1 })
   entityVersion!: number;
 
+  /** Optional partial-fill / settlement playbook (JSON). See docs/partial-fill-playbooks.md */
+  @Column({ name: 'playbook_config', type: 'jsonb', nullable: true })
+  playbookConfig!: Record<string, unknown> | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;
 

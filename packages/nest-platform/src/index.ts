@@ -11,7 +11,10 @@ export {
 } from './correlation';
 export {
   getArbibotMetricsRegistry,
+  getHistogramBuckets,
+  getHttpRequestHistogram,
   installMetricsOnFastify,
+  type InstallMetricsOptions,
 } from './metrics';
 export {
   applyArbibotHttpSecurity,

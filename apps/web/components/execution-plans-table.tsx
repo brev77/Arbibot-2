@@ -86,6 +86,8 @@ export function ExecutionPlansTable({ items }: Props): ReactNode {
     [],
   );
 
+  /* TanStack Table's useReactTable is marked incompatible with React Compiler memoization; behaviour is intentional. */
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table API
   const table = useReactTable({
     data: [...filtered],
     columns,

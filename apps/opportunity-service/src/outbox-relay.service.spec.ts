@@ -34,14 +34,15 @@ describe('OutboxRelayService', () => {
 
     const em = {
       create: jest.fn((_Entity: unknown, row: object) => ({ ...row })),
-      query: jest.fn(async (sql: string, params?: unknown[]) => {
+      query: jest.fn((sql: string, params?: unknown[]) => {
         const trimmed = sql.trimStart();
         if (
           trimmed.startsWith('UPDATE outbox_events') &&
           sql.includes('relay_delivery_attempts') &&
           sql.includes('RETURNING')
         ) {
-          const id = String(params?.[0] ?? '');
+          const rawId = params?.[0];
+          const id = typeof rawId === 'string' ? rawId : '';
           const row = rows.find((candidate) => candidate.id === id);
           if (row !== undefined) {
             row.relayDeliveryAttempts = (row.relayDeliveryAttempts ?? 0) + 1;
