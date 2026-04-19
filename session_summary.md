@@ -8,47 +8,19 @@
 
 ---
 
-## Focus: изменённые файлы, принятые решения, открытые вопросы
+## Focus (compact)
 
-### Изменённые файлы
+**Изменённые файлы:** AGENTS.md, docs/progress.md
 
-**Обновлённые файлы (2):**
-1. `AGENTS.md` — полная документация Phase 3 Complete, Paper Discovery Pipeline, BFF routes, frontend docs
-2. `docs/progress.md` — добавлена запись о AGENTS.md update (2026-04-19)
+**Принятые решения:**
+- AGENTS.md обновлён для Phase 3 Complete (P3-1, P3-2, P3-3, P3-4, P3-5, P3-6)
+- Миграции: 001–023 (021: paper_capital_reservations, 022: paper_discovery_candidates, 023: paper_discovery_candidates_fixes)
+- BFF routes: paper mutations, config history/rollback задокументированы
+- Frontend docs: ссылки на FRONTEND_FIXES_SUMMARY.md, QUERY_INVALIDATION.md, README-APPROVAL-FLOW.md
+- CI: e2e-phase3-paper-discovery documentation
+- Progress: 85% → 90%
 
-### Принятые решения
-
-1. **AGENTS.md полностью обновлён для Phase 3 Complete:**
-   - Добавлена документация для всех P3-х шагов (P3-1, P3-2, P3-3, P3-4, P3-5, P3-6)
-   - Paper Discovery Pipeline (P3-4) полностью задокументирован: service, controller, worker, entity, E2E тесты
-   - Virtual Capital (P3-3) задокументирован: миграция, entity, service, интеграция с PaperTradesService
-   - Drift Gauges (P3-5) задокументированы: recording rules, alerts v1/v2, updateStaleGauges метод
-   - E2E Tests (P3-6) задокументированы: paper promotion, paper discovery скрипты
-
-2. **Миграции обновлены до 023:**
-   - 021: paper_capital_reservations (virtual capital для paper)
-   - 022: paper_discovery_candidates (P3-4 discovery pipeline)
-   - 023: paper_discovery_candidates_fixes (fixes для paper isolation)
-
-3. **BFF routes задокументированы:**
-   - Paper trades mutations: `/api/operator/paper/trades/[id]?action=approve|reject|cancel`
-   - Paper promotion candidates mutations: `/api/operator/paper/promotion-candidates/[id]?action=approve|reject`
-   - Config service routes: `/api/operator/settings/configurations/[configKey]/{history|rollback}`
-
-4. **Frontend документация добавлена:**
-   - Ссылки на FRONTEND_FIXES_SUMMARY.md, QUERY_INVALIDATION.md, README-APPROVAL-FLOW.md
-   - Полное описание approval flow компонента и query invalidation стратегии
-
-5. **CI документация расширена:**
-   - Добавлена информация о `e2e-phase3-paper-discovery` тесте (ручной запуск)
-   - Обновлён статус Phase 3 на "complete implementation"
-
-6. **Progress percentage обновлён:**
-   - С 85% до 90% (учтён Phase 3 Complete)
-
-### Открытые вопросы
-
-**Нет открытых вопросов.** Все несоответствия AGENTS.md с текущим состоянием проекта были устранены.
+**Открытые вопросы:** нет
 
 ---
 

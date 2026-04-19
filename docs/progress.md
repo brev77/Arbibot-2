@@ -431,3 +431,26 @@
 **Следующие шаги:** CFG-3 staged rollout completion, frontend `/settings` approval flows integration, histogram instrumentation implementation.
 
 ---
+
+### 2026-04-19 — Session compact & summary save
+
+**Задача:** Compact section "Focus: изменённые файлы..." в session_summary.md, сохранить summary в docs/progress.md.
+
+**Статус:** ✅ выполнено
+
+**Результат:**
+- Session summary compacted до краткого формата (изменённые файлы, принятые решения, открытые вопросы)
+- Добавлена запись в docs/progress.md (текущая)
+- session_summary.md сохранён с полным контекстом сессии
+
+**Изменённые файлы:**
+- `session_summary.md` — compact section обновлён
+- `docs/progress.md` — добавлена запись о compact & summary save
+
+**Проверки качества:**
+- Lint: SUCCESS (no errors found)
+- Git commit: SUCCESS (commit 3971629)
+
+**Следующие шаги:** Начало новой сессии по запросу пользователя.
+
+---
