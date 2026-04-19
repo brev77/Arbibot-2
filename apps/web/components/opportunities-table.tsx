@@ -44,7 +44,7 @@ export function OpportunitiesTable({ items }: Props): ReactNode {
         cell: (ctx) => (
           <Link
             href={`/opportunities/${ctx.getValue<string>()}`}
-            style={{ color: '#38bdf8', textDecoration: 'none' }}
+            className="text-sky-400 hover:underline"
           >
             {String(ctx.getValue<string>()).slice(0, 8)}…
           </Link>
@@ -91,27 +91,15 @@ export function OpportunitiesTable({ items }: Props): ReactNode {
   });
 
   return (
-    <div style={{ overflowX: 'auto' }}>
-      <table
-        style={{
-          width: '100%',
-          borderCollapse: 'collapse',
-          fontSize: 13,
-        }}
-      >
+    <div className="overflow-x-auto">
+      <table className="w-full border-collapse text-[13px]">
         <thead>
           {table.getHeaderGroups().map((hg) => (
             <tr key={hg.id}>
               {hg.headers.map((h) => (
                 <th
                   key={h.id}
-                  style={{
-                    textAlign: 'left',
-                    padding: '0.5rem 0.75rem',
-                    borderBottom: '1px solid #334155',
-                    color: '#94a3b8',
-                    fontWeight: 600,
-                  }}
+                  className="border-b border-slate-700 px-3 py-2 text-left font-semibold text-slate-400 html.theme-light:border-slate-300"
                 >
                   {h.isPlaceholder
                     ? null
@@ -127,10 +115,7 @@ export function OpportunitiesTable({ items }: Props): ReactNode {
               {row.getVisibleCells().map((cell) => (
                 <td
                   key={cell.id}
-                  style={{
-                    padding: '0.5rem 0.75rem',
-                    borderBottom: '1px solid #1e293b',
-                  }}
+                  className="border-b border-slate-800 px-3 py-2"
                 >
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
                 </td>
@@ -140,8 +125,8 @@ export function OpportunitiesTable({ items }: Props): ReactNode {
         </tbody>
       </table>
       {filtered.length === 0 ? (
-        <p style={{ color: '#64748b', padding: '1rem 0.75rem' }}>
-          No rows match the current filters.
+        <p className="p-3 px-3 text-slate-500">
+          No rows match current filters.
         </p>
       ) : null}
     </div>

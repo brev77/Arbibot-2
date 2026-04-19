@@ -7,4 +7,5 @@ export const apiBases = {
   audit: process.env.AUDIT_API_BASE ?? 'http://127.0.0.1:3013',
   portfolio: process.env.PORTFOLIO_API_BASE ?? 'http://127.0.0.1:3016',
   reconciliation: process.env.RECONCILIATION_API_BASE ?? 'http://127.0.0.1:3017',
+  paper: process.env.PAPER_API_BASE ?? 'http://127.0.0.1:3018',
 } as const;

@@ -20,7 +20,21 @@ export const EVENT_NAMES = {
   planCompleted: 'PlanCompleted',
   opportunityDetected: 'OpportunityDetected',
   snapshotUpdated: 'SnapshotUpdated',
+  paperPromotionCandidateRequested: 'PaperPromotionCandidateRequested',
 } as const;
+
+/** Outbox `schema_version` / envelope `version` for PaperPromotionCandidateRequested (opportunity-service → relay → paper HTTP). */
+export const PAPER_PROMOTION_CANDIDATE_REQUESTED_PAYLOAD_SCHEMA_VERSION = 1 as const;
+
+export type PaperPromotionCandidateRequestedPayloadV1 = {
+  readonly opportunityId: string;
+  readonly instrumentKey: string;
+  readonly source: string;
+  readonly enqueueIdempotencyKey: string;
+  readonly score?: number;
+  readonly driftBps?: number;
+  readonly evidence: Record<string, unknown>;
+};
 
 export type RiskDecisionIssuedPayloadV1 = {
   readonly decisionId: string;

@@ -5,7 +5,7 @@
 
 ```bash
 # PowerShell
-$env:DATABASE_URL = "postgres://USER:PASS@127.0.0.1:5432/DBNAME"
+$env:DATABASE_URL = "postgres://USER:PASS@127.0.0.1:15432/DBNAME"
 npm run db:migrate
 ```
 
@@ -18,4 +18,4 @@ psql "$DATABASE_URL" -f infra/postgres/bootstrap-schema-migrations.sql
 npm run db:migrate
 ```
 
-Переменная окружения: `DATABASE_URL` (например `postgres://arbibot:arbibot@localhost:5432/arbibot` — как в [`.env.example`](../../.env.example)).
+Переменная окружения: `DATABASE_URL` (например `postgres://arbibot:arbibot@localhost:15432/arbibot` — как в [`.env.example`](../../.env.example); порт **15432** соответствует `infra/docker-compose.dev.yml`).

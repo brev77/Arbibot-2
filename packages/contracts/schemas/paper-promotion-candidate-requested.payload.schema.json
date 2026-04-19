@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://arbibot.local/schemas/paper-promotion-candidate-requested.payload.schema.json",
+  "title": "PaperPromotionCandidateRequested payload v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "opportunityId",
+    "instrumentKey",
+    "source",
+    "enqueueIdempotencyKey",
+    "evidence"
+  ],
+  "properties": {
+    "opportunityId": { "type": "string", "format": "uuid" },
+    "instrumentKey": { "type": "string", "minLength": 1, "maxLength": 512 },
+    "source": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "enqueueIdempotencyKey": { "type": "string", "minLength": 8, "maxLength": 512 },
+    "score": { "type": "number" },
+    "driftBps": { "type": "number" },
+    "evidence": { "type": "object" }
+  }
+}

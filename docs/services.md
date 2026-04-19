@@ -12,11 +12,13 @@
 | **execution-orchestrator** | ExecutionPlan, ExecutionLeg | ArmPlan, ExecutePlan (Phase 2+), read APIs | PlanArmed, LegFilled, PlanCompleted, … | Execution workers |
 | **audit** (модуль/сервис) | AuditLogEntry | Read API (оператор) | — | — |
 | **reconciliation-service** | ReconciliationRun (Phase 2) | Triggers, status | ReconciliationMismatchDetected | Recon loops |
+| **paper-trading-service** (`apps/paper-trading-service`) | PaperTrade, PaperPromotionCandidate, PaperDriftSample | `GET/POST/PATCH` под `/paper/*` (см. `PAPER_HTTP_ROUTES` в `@arbibot/contracts`) | события paper — по мере внедрения outbox | — |
 | **outbox-kafka-bridge** (`packages/outbox-kafka-bridge`) | — (процесс доставки) | — | читает outbox → Kafka: `SnapshotUpdated`, `CapitalReserved`, `PlanArmed` | `npm run bus:publish` / `bus:consume` |
 
 ## Границы интеграции
 
 - **Opportunity → Risk:** sync `EvaluateRisk` (или внутренний вызов) до перехода opportunity в `risk_checked`.
+- **Opportunity → Paper (Phase 3, опционально):** при заданном `PAPER_TRADING_SERVICE_URL` вызов `POST /opportunities/:id/paper-enqueue` пишет строку в `outbox_events` (`PaperPromotionCandidateRequested`, колонка **`paper_enqueue_idempotency_key`** для дедупа необработанных повторов); **OutboxRelayService** после короткой транзакции с lock вызывает HTTP `POST /paper/promotion-candidates` и отдельной транзакцией фиксирует `processed_at` (single-writer очереди остаётся в paper БД).
 - **Risk → Capital:** решение `approved` и reservation-first: Capital Service выдаёт reservation token до arm.
 - **Capital + Risk → Orchestrator:** `link-reservation` / `arm` валидируют резервацию и решение по риску через **HTTP** владельцев (`GET /capital/reservations/:id`, `GET /risk-decisions/:id`), без чтения чужих таблиц из БД оркестратора; перед мутацией плана выполняется **двойной** GET резервации (смягчение TOCTOU). Базовые URL: `CAPITAL_SERVICE_BASE_URL` / `CAPITAL_SERVICE_URL`, `RISK_SERVICE_BASE_URL` / `RISK_SERVICE_URL` (дефолты локальной сетки портов). При разнесённых БД по сервисам это обязательный контракт; общая Postgres в dev не отменяет границу владения записью.
 - **Все пишущие доменные операции:** запись в **outbox** в той же транзакции, что и изменение агрегата; релей в Kafka/Redpanda — отдельный процесс (P1-1.1-OIB). Phase 1: **in-DB релей `RiskDecisionIssued` → opportunity-service** и **публикация в Kafka** (`SnapshotUpdated`, `CapitalReserved`, `PlanArmed` через `@arbibot/outbox-kafka-bridge`); прочие события — по мере внедрения (см. `docs/outbox-inbox.md`).

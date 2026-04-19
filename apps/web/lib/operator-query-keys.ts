@@ -6,4 +6,9 @@ export const operatorKeys = {
   auditEntries: (limit: number) => ['operator', 'audit', 'entries', limit] as const,
   reconciliationMismatches: ['operator', 'reconciliation', 'mismatches'] as const,
   portfolioPositions: ['operator', 'portfolio', 'positions'] as const,
+  dashboardSummary: ['operator', 'dashboard', 'summary'] as const,
+  paperTrades: ['operator', 'paper', 'trades'] as const,
+  paperPromotionCandidates: ['operator', 'paper', 'promotion-candidates'] as const,
+  paperDriftSamples: (instrumentKey: string | undefined, limit: number) =>
+    ['operator', 'paper', 'drift-samples', instrumentKey ?? 'all', limit] as const,
 };

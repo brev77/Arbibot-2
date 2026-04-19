@@ -12,6 +12,7 @@ import {
 
 import { CreateOpportunityDto } from './dto/create-opportunity.dto';
 import { EnrichOpportunityDto } from './dto/enrich-opportunity.dto';
+import { PaperEnqueueDto } from './dto/paper-enqueue.dto';
 import { RequestRiskEvaluationDto } from './dto/request-risk-evaluation.dto';
 import { OpportunitiesService } from './opportunities.service';
 
@@ -49,6 +50,15 @@ export class OpportunitiesController {
       entityVersion: row.entityVersion,
       updatedAt: row.updatedAt.toISOString(),
     };
+  }
+
+  @Post(':id/paper-enqueue')
+  @HttpCode(HttpStatus.OK)
+  async paperEnqueue(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() body: PaperEnqueueDto,
+  ) {
+    return this.service.paperEnqueue(id, body);
   }
 
   @Post(':id/request-risk-evaluation')

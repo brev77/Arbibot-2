@@ -32,6 +32,12 @@ JSON Schema для payload лежат в [`packages/contracts/schemas/`](../pack
 
 Payload (schema version 1): см. `packages/contracts/schemas/risk-decision-issued.payload.schema.json`.
 
+## PaperPromotionCandidateRequested
+
+Пишется **opportunity-service** в `outbox_events` в той же транзакции, что и обработка `POST /opportunities/:id/paper-enqueue` (очередь на доставку в paper, не прямой HTTP из запроса handler). Повторный enqueue с тем же **`enqueueIdempotencyKey`** не создаёт вторую необработанную строку (**`paper_enqueue_idempotency_key`** + частичный уникальный индекс, миграция **`018`**). **OutboxRelayService** забирает строки этого `event_type`, вызывает `POST /paper/promotion-candidates` **после** commit короткой транзакции с lock, с полем `enqueueIdempotencyKey`, затем отдельной транзакцией выставляет `processed_at` при успешном ответе paper-сервиса (at-least-once; идемпотентность на стороне paper).
+
+Payload (schema version 1): `packages/contracts/schemas/paper-promotion-candidate-requested.payload.schema.json`.
+
 ## SnapshotUpdated
 
 Публикуется **market-intake-service** после применения снимка к `market_snapshots` и записи в outbox в той же транзакции (только если состояние изменилось и сгенерировано новое событие).

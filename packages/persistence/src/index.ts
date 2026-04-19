@@ -11,6 +11,15 @@ export { InboxEventEntity } from './inbox-event.entity';
 export { MarketSnapshotEntity } from './market-snapshot.entity';
 export { MarketSnapshotIngestIdempotencyEntity } from './market-snapshot-ingest-idempotency.entity';
 export { OutboxEventEntity } from './outbox-event.entity';
+export { PaperDriftSampleEntity } from './paper-drift-sample.entity';
+export {
+  PaperPromotionCandidateEntity,
+  PAPER_PROMOTION_STATUSES,
+} from './paper-promotion-candidate.entity';
+export type { PaperPromotionStatus } from './paper-promotion-candidate.entity';
+export { PaperTradeEntity, PAPER_TRADE_STATES } from './paper-trade.entity';
+export type { PaperTradeState } from './paper-trade.entity';
+export { PolicyConfigurationEntity } from './policy-configuration.entity';
 export { PortfolioPositionEntity } from './portfolio-position.entity';
 export { PortfolioPositionFillIdempotencyEntity } from './portfolio-position-fill-idempotency.entity';
 export { ReconciliationMismatchEntity } from './reconciliation-mismatch.entity';
@@ -33,6 +42,10 @@ import { InboxEventEntity } from './inbox-event.entity';
 import { MarketSnapshotEntity } from './market-snapshot.entity';
 import { MarketSnapshotIngestIdempotencyEntity } from './market-snapshot-ingest-idempotency.entity';
 import { OutboxEventEntity } from './outbox-event.entity';
+import { PaperDriftSampleEntity } from './paper-drift-sample.entity';
+import { PaperPromotionCandidateEntity } from './paper-promotion-candidate.entity';
+import { PaperTradeEntity } from './paper-trade.entity';
+import { PolicyConfigurationEntity } from './policy-configuration.entity';
 import { PortfolioPositionFillIdempotencyEntity } from './portfolio-position-fill-idempotency.entity';
 import { PortfolioPositionEntity } from './portfolio-position.entity';
 import { ReconciliationMismatchEntity } from './reconciliation-mismatch.entity';
@@ -59,9 +72,13 @@ export const ARBIBOT_TYPEORM_ENTITIES = [
   CanonicalRouteEntity,
   MarketSnapshotEntity,
   MarketSnapshotIngestIdempotencyEntity,
+  PolicyConfigurationEntity,
   PortfolioPositionEntity,
   PortfolioPositionFillIdempotencyEntity,
   ReconciliationMismatchEntity,
   TokenProfileEntity,
   RouteProfileEntity,
+  PaperTradeEntity,
+  PaperPromotionCandidateEntity,
+  PaperDriftSampleEntity,
 ] as const;

@@ -16,7 +16,7 @@
 
 | Когда | Что | Заметки |
 |--------|-----|--------|
-| При проверке bus | Убедиться, что `npm run bus:publish` поднимает профиль `bus` и публикует записи с `SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, `PlanCompleted` | Требуются `DATABASE_URL`, `KAFKA_BROKERS` (см. `.env.example`); без них скрипт завершится с ошибкой — см. [outbox-inbox.md](outbox-inbox.md), [AGENTS.md](../AGENTS.md) |
+| При проверке bus | Убедиться, что `npm run bus:publish` поднимает профиль `bus` и публикует записи с `SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, `PlanCompleted` | Скрипты в репо: корневой `npm run bus:publish` / `bus:consume` → `@arbibot/outbox-kafka-bridge`; требуются `DATABASE_URL`, `KAFKA_BROKERS` и compose `--profile bus` — см. [outbox-inbox.md](outbox-inbox.md), [AGENTS.md](../AGENTS.md). **Проверка артефактов:** entrypoints и фильтр `event_type` в коде bridge подтверждены; полный прогон с живым Redpanda — локально после `docker compose … --profile bus up -d`. |
 
 ---
 
@@ -42,6 +42,7 @@
 
 | Дата | Что |
 |------|-----|
+| 2026-04-17 | Phase 3 slice: `@arbibot/paper-trading-service` (порт 3018), миграция `016_paper_trading.sql`, BFF `PAPER_API_BASE`, UI `/paper` + `/tokens` (read), `POST /opportunities/:id/paper-enqueue` → paper queue; матрица `PRIO-P1-PROF`/`ADRISK`/`SIZE`/`PLAY` синхронизирована с `P2-2.2-*` в `DEVELOPMENT_PLAN.md`. |
 | 2026-04-16 | «Дожать начатое»: `docs/reconciliation-p0-procedures.md`, `PRIO-P0-RECON` / `P2-2.2-*` / `PRIO-P1-ALERT` / FE-ROUTE (dashboard, portfolio, opportunities, settings) в `DEVELOPMENT_PLAN.md`; миграция `015`, профили риска + `GET /policy/*-profiles`, метрика `arb_execution_leg_partial_fill_commits_total`, HTTP venue **408**, lab `x-correlation-id`, smoke `entityType`, `MismatchesService` jest, `docs/outbox-inbox.md` / `observability-tracing.md` / `phase2-risk-policy-roadmap.md`. |
 | 2026-04-16 | Phase 2.1 gate: CI job **`e2e-phase2`** (`tools/ci-e2e-phase2.sh`, `HttpVenueAdapter` + `lab-venue-stand.mjs`), `npm run ci:e2e-phase2`, актуализация `DEVELOPMENT_PLAN` / `TODO` / settlement doc. |
 | 2026-04-16 | Phase 2.1 slice: venue terminal/transient errors, `EXECUTION_BEGIN_LEG_COUNT`, `e2e:phase2-controlled-execution`, `014`/`routeKey`/`instrumentKey` resolution, settlement DoD + simulate env, incidents UI `investigating`→`resolved`, alert row `ReconciliationOpenMismatches`, P2-2.2 scope freeze в плане/TODO. |
@@ -51,4 +52,4 @@
 | 2026-04-12 | **P2-2.1-RECON:** детектор `completed_plan_missing_portfolio`, `POST /mismatches/run-detectors`, BFF + кнопка на `/incidents`. **OIB:** outbox + Kafka bridge для **`LegFilled`** / **`PlanCompleted`** (execution-orchestrator). **Layout:** единый access-panel (Home / Dashboard) при `session === null` и на `/` при `forbidden=1`. **`.env.example`:** `EXECUTION_SETTLEMENT_ENABLED`, `PORTFOLIO_SERVICE_URL`. |
 | 2026-04-13 | Near-term план: `npm run e2e:phase1-foundation`, `docs/settlement-post-commit.md`, retries settlement, ключ позиций `arb:execution:{planId}:leg:{n}`, `MOCK_VENUE_FAIL_SUBMIT_REMAINING`, второй детектор reconciliation + `PATCH /mismatches/:id`, UI `/portfolio` и `/incidents`, SLO draft в observability, лог `eventName` в smoke-consumer. |
 
-*Последняя актуализация файла: 2026-04-16 (закрытие «дожать начатое»: `PRIO-P0-RECON`, FE-ROUTE, `P2-2.2-*`, bus/smoke/venue follow-up см. `DEVELOPMENT_PLAN` / `docs/reconciliation-p0-procedures.md`).*
+*Последняя актуализация файла: 2026-04-17 (Phase 3 paper slice + PRIO §28.2 sync + bus TODO уточнение).*

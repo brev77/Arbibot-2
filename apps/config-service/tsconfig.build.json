@@ -1,0 +1,5 @@
+{
+  "extends": "@arbibot/tsconfig/nest.json",
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "test", "**/*spec.ts"]
+}

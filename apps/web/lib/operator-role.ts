@@ -51,6 +51,9 @@ function minimumRoleForOperatorBffPathname(pathname: string): OperatorRole | nul
   if (pathname.startsWith('/api/operator/reconciliation')) {
     return 'operator';
   }
+  if (pathname.startsWith('/api/operator/paper')) {
+    return 'operator';
+  }
   return 'operator';
 }
 

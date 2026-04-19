@@ -8,6 +8,11 @@ export type PortfolioPositionListItem = {
    */
   readonly instrumentKey: string;
   readonly quantity: string;
+  /**
+   * Calculated notional value in USD (if available from venue data).
+   * May be null for positions without pricing data.
+   */
+  readonly notionalUsd: string | null;
   readonly entityVersion: number;
   readonly createdAt: string;
   readonly updatedAt: string;

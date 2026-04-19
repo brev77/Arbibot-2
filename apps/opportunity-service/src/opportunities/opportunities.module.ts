@@ -5,11 +5,13 @@ import { ArbitrageOpportunityEntity } from '@arbibot/persistence';
 
 import { OpportunitiesController } from './opportunities.controller';
 import { OpportunitiesService } from './opportunities.service';
+import { PaperClientService } from './paper-client.service';
 import { RiskClientService } from './risk-client.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([ArbitrageOpportunityEntity])],
   controllers: [OpportunitiesController],
-  providers: [OpportunitiesService, RiskClientService],
+  providers: [OpportunitiesService, RiskClientService, PaperClientService],
+  exports: [PaperClientService],
 })
 export class OpportunitiesModule {}

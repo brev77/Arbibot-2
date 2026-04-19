@@ -2,7 +2,8 @@
 # Usage: docker compose -f infra/docker-compose.dev.yml up -d
 #
 # Env (example):
-#   DATABASE_URL=postgres://arbibot:arbibot@127.0.0.1:5432/arbibot
+#   DATABASE_URL=postgres://arbibot:arbibot@127.0.0.1:15432/arbibot
+# Host port 15432 avoids clashing with a local PostgreSQL install bound to 5432 (common on dev machines).
 #   REDIS_URL=redis://127.0.0.1:6379
 #
 # Backend defaults (host-run Nest apps): risk 3000, opportunity 3010, capital 3011,
@@ -28,7 +29,7 @@ services:
       POSTGRES_PASSWORD: arbibot
       POSTGRES_DB: arbibot
     ports:
-      - '5432:5432'
+      - '15432:5432'
     volumes:
       - arbibot_pg_data:/var/lib/postgresql/data
     healthcheck:

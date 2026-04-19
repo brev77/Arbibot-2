@@ -33,45 +33,20 @@ export function OperatorNav({
   );
 
   return (
-    <header
-      className="operator-top-nav"
-      style={{
-        borderBottom: '1px solid #1e293b',
-        padding: '0.75rem 1.5rem',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '1rem',
-        flexWrap: 'wrap',
-        background: '#0f172a',
-      }}
-    >
+    <header className="flex items-center justify-between gap-4 flex-wrap p-3 px-6 border-b border-slate-800 bg-slate-900 html.theme-light:border-slate-200 html.theme-light:bg-slate-100">
       <Link href="/dashboard" className="operator-brand">
         Arbibot 2
       </Link>
-      <nav style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+      <nav className="flex gap-3 flex-wrap">
         {visibleLinks.map((l) => (
           <Link key={l.href} href={l.href} className="operator-nav-link">
             {l.label}
           </Link>
         ))}
       </nav>
-      <div
-        style={{
-          marginLeft: 'auto',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.75rem',
-        }}
-      >
+      <div className="ml-auto flex items-center gap-3">
         <ThemeToggle />
-        <div
-          style={{
-            color: '#94a3b8',
-            fontSize: 12,
-            textTransform: 'uppercase',
-            letterSpacing: '0.08em',
-          }}
-        >
+        <div className="text-xs text-slate-400 uppercase tracking-widest html.theme-light:text-slate-600">
           {session.role}
         </div>
       </div>

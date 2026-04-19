@@ -10,6 +10,7 @@ import type { ReconciliationMismatchListItem } from '@/lib/reconciliation-types'
 import type { ListResponse } from '@/lib/server-api';
 
 import { Button } from './ui/button';
+import { DestructiveOperatorAction } from './destructive-operator-action';
 
 type StatusFilter = 'all' | 'open' | 'investigating' | 'resolved';
 
@@ -198,37 +199,41 @@ export function IncidentsWorkspace(): ReactNode {
                 {m.status === 'open' || m.status === 'investigating' ? (
                   <div className="mt-2 flex flex-wrap gap-2">
                     {m.status === 'open' ? (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        disabled={updateStatus.isPending}
-                        onClick={() =>
-                          void updateStatus.mutate({
+                      <DestructiveOperatorAction
+                        level="low"
+                        actionLabel="Investigate"
+                        impactPreview={{
+                          affectedResources: `Incident ${m.id}`,
+                          potentialConsequences: 'Changes status from open to investigating for tracking purposes',
+                          mitigation: 'Reversible - can be reopened if needed',
+                        }}
+                        onConfirm={() =>
+                          updateStatus.mutateAsync({
                             id: m.id,
                             status: 'investigating',
                             version: m.entityVersion,
                           })
                         }
-                      >
-                        Investigate
-                      </Button>
+                        disabled={updateStatus.isPending}
+                      />
                     ) : null}
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      disabled={updateStatus.isPending}
-                      onClick={() =>
-                        void updateStatus.mutate({
+                    <DestructiveOperatorAction
+                      level="high"
+                      actionLabel="Mark resolved"
+                      impactPreview={{
+                        affectedResources: `Incident ${m.id}`,
+                        potentialConsequences: 'Closing this incident will mark it as resolved. This may hide ongoing reconciliation issues if not properly investigated.',
+                        mitigation: 'Ensure all underlying mismatches are properly addressed before resolving',
+                      }}
+                      onConfirm={() =>
+                        updateStatus.mutateAsync({
                           id: m.id,
                           status: 'resolved',
                           version: m.entityVersion,
                         })
                       }
-                    >
-                      Mark resolved
-                    </Button>
+                      disabled={updateStatus.isPending}
+                    />
                   </div>
                 ) : null}
               </li>

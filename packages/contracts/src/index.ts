@@ -10,6 +10,7 @@ export const SERVICE_IDS = {
   marketIntakeService: 'market-intake-service',
   portfolioService: 'portfolio-service',
   reconciliationService: 'reconciliation-service',
+  paperTradingService: 'paper-trading-service',
 } as const;
 
 /** HTTP routes — mirror OpenAPI paths when added. */
@@ -27,6 +28,7 @@ export const OPPORTUNITY_HTTP_ROUTES = {
   getOne: 'GET /opportunities/:id',
   enrich: 'POST /opportunities/:id/enrich',
   requestRiskEvaluation: 'POST /opportunities/:id/request-risk-evaluation',
+  paperEnqueue: 'POST /opportunities/:id/paper-enqueue',
 } as const;
 
 export const CAPITAL_HTTP_ROUTES = {
@@ -58,6 +60,18 @@ export const RECONCILIATION_HTTP_ROUTES = {
   listMismatches: 'GET /mismatches',
   runDetectors: 'POST /mismatches/run-detectors',
   patchMismatchStatus: 'PATCH /mismatches/:id',
+} as const;
+
+export const PAPER_HTTP_ROUTES = {
+  listTrades: 'GET /paper/trades',
+  createTrade: 'POST /paper/trades',
+  getTrade: 'GET /paper/trades/:id',
+  patchTrade: 'PATCH /paper/trades/:id',
+  listPromotionCandidates: 'GET /paper/promotion-candidates',
+  createPromotionCandidate: 'POST /paper/promotion-candidates',
+  patchPromotionCandidate: 'PATCH /paper/promotion-candidates/:id',
+  listDriftSamples: 'GET /paper/drift-samples',
+  recordDriftSample: 'POST /paper/drift-samples',
 } as const;
 
 export const AUDIT_HTTP_ROUTES = {

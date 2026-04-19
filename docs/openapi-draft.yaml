@@ -153,6 +153,166 @@ paths:
         '503':
           description: Risk-service недоступен
 
+  /opportunities/{id}/paper-enqueue:
+    post:
+      operationId: enqueuePaperPromotion
+      summary: Запись в outbox на создание кандидата promotion в paper-trading-service (доставка relay)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaperEnqueueRequest'
+      responses:
+        '200':
+          description: Строка outbox записана (relay доставит в paper при доступном PAPER_TRADING_SERVICE_URL)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaperEnqueueResponse'
+        '404':
+          description: Возможность не найдена
+
+  /paper/trades:
+    get:
+      operationId: listPaperTrades
+      summary: Список paper trades (read)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PaperTrade'
+    post:
+      operationId: createPaperTrade
+      summary: Создать paper trade (опционально idempotencyKey)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePaperTradeRequest'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaperTrade'
+
+  /paper/trades/{id}:
+    get:
+      operationId: getPaperTrade
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaperTrade'
+        '404':
+          description: Не найдено
+    patch:
+      operationId: patchPaperTrade
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchPaperTradeRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaperTrade'
+        '404':
+          description: Не найдено
+        '409':
+          description: Версия или недопустимый переход state
+
+  /paper/promotion-candidates:
+    get:
+      operationId: listPaperPromotionCandidates
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PaperPromotionCandidate'
+    post:
+      operationId: createPaperPromotionCandidate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePaperPromotionCandidateRequest'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaperPromotionCandidate'
+
+  /paper/promotion-candidates/{id}:
+    patch:
+      operationId: patchPaperPromotionCandidate
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchPaperPromotionCandidateRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaperPromotionCandidate'
+
   /capital/reservations:
     post:
       operationId: reserveCapital
@@ -346,6 +506,160 @@ components:
           type: array
           items:
             type: string
+
+    PaperEnqueueRequest:
+      type: object
+      properties:
+        instrumentKey:
+          type: string
+        score:
+          type: number
+        driftBps:
+          type: number
+        evidence:
+          type: object
+
+    PaperEnqueueResponse:
+      type: object
+      required: [enqueued, paperServiceConfigured]
+      properties:
+        enqueued:
+          type: boolean
+          description: true если запись в outbox создана (relay доставит в paper)
+        paperServiceConfigured:
+          type: boolean
+
+    CreatePaperTradeRequest:
+      type: object
+      required: [instrumentKey]
+      properties:
+        opportunityId:
+          type: string
+          format: uuid
+        instrumentKey:
+          type: string
+        routeKey:
+          type: string
+        notional:
+          type: string
+        summary:
+          type: object
+        idempotencyKey:
+          type: string
+
+    PatchPaperTradeRequest:
+      type: object
+      required: [expectedVersion]
+      properties:
+        expectedVersion:
+          type: integer
+          minimum: 1
+        state:
+          type: string
+          enum: [draft, active, settled, canceled]
+        notional:
+          type: string
+
+    PaperTrade:
+      type: object
+      required: [id, instrumentKey, state, notional, entityVersion, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        opportunityId:
+          type: string
+          format: uuid
+          nullable: true
+        instrumentKey:
+          type: string
+        routeKey:
+          type: string
+          nullable: true
+        state:
+          type: string
+          enum: [draft, active, settled, canceled]
+        notional:
+          type: string
+        summary:
+          type: object
+        entityVersion:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreatePaperPromotionCandidateRequest:
+      type: object
+      required: [instrumentKey]
+      properties:
+        instrumentKey:
+          type: string
+        opportunityId:
+          type: string
+          format: uuid
+        source:
+          type: string
+        score:
+          type: number
+        driftBps:
+          type: number
+        evidence:
+          type: object
+        enqueueIdempotencyKey:
+          type: string
+          description: Стабильный ключ для идемпотентного create (ретраи relay / повторные POST)
+
+    PatchPaperPromotionCandidateRequest:
+      type: object
+      required: [expectedVersion, status]
+      properties:
+        expectedVersion:
+          type: integer
+          minimum: 1
+        status:
+          type: string
+          enum: [queued, under_review, promoted, rejected, expired]
+
+    PaperPromotionCandidate:
+      type: object
+      required: [id, instrumentKey, source, status, evidence, entityVersion, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        instrumentKey:
+          type: string
+        opportunityId:
+          type: string
+          format: uuid
+          nullable: true
+        source:
+          type: string
+        status:
+          type: string
+        score:
+          type: string
+          nullable: true
+        driftBps:
+          type: string
+          nullable: true
+        evidence:
+          type: object
+        enqueueIdempotencyKey:
+          type: string
+          nullable: true
+        entityVersion:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
 
     RiskDecision:
       allOf:

@@ -2,12 +2,38 @@
 
 ## Cursor / agent instructions
 
+### Arbibot 2 Cursor Skills
+
+The repo uses custom Cursor skills in `.cursor/skills/` for architecture validation and code reviews:
+
+1. **architecture-guard-agent** — validates changes against Arbibot 2 system architecture
+   - Path: `.cursor/skills/architecture-guard-agent/SKILL.md`
+   - Checks: service boundaries, single-writer, reservation-first, outbox/inbox, reconciliation, paper/live isolation, operator approval for destructive actions, OpenAPI/AsyncAPI consistency
+   - Triggers: architecture review, guard check, boundary review, invariant check, ADR review
+   - Usage: Run via `/architecture-guard` or when prompted by the system
+
+2. **backend-review-agent** — reviews backend code against Arbibot 2 architecture
+   - Path: `.cursor/skills/backend-review-agent/SKILL.md`
+   - Checks: NestJS/Fastify services, OpenAPI/AsyncAPI/schema review, single-writer patterns, reservation-first, outbox/inbox, ExecutionPlan state machine, event envelopes
+   - Triggers: backend review, PR review, risk service review, contracts review, approve backend PR
+   - Usage: Run via `/backend-review` or when requested for backend code review
+
+3. **frontend-review-agent** — reviews frontend code against Arbibot 2 conventions
+   - Path: `.cursor/skills/frontend-review-agent/SKILL.md`
+   - Checks: Next.js/React review, operator dashboard PR, App Router, React Query, Zustand, shadcn/ui, TanStack Table, operator safety, RBAC, destructive action flows
+   - Triggers: frontend review, dashboard review, UI review, operator UX, RBAC review
+   - Usage: Run via `/frontend-review` or when requested for frontend code review
+
+**Workflow:** When making changes that cross service boundaries or involve critical flows, use architecture-guard-agent before committing. For PR reviews, use backend-review-agent or frontend-review-agent based on the code area.
+
 ### graphify (knowledge graph)
 
 The repo uses [graphify](https://github.com/safishamsi/graphify): `graphify-out/` is listed in `.gitignore` and is generated locally, not committed.
 
+**Current graph state (2026-04-18, code-only AST refresh):** **754** nodes, **634** edges, **230** communities — details in `graphify-out/GRAPH_REPORT.md` (276 TypeScript/TS source files scanned).
+
 - Install once: `python -m pip install graphifyy`, then from the repo root `python -m graphify cursor install` (writes [`.cursor/rules/graphify.mdc`](.cursor/rules/graphify.mdc)).
-- **Code-only refresh (AST, no LLM):** `python -c "from graphify.watch import _rebuild_code; from pathlib import Path; _rebuild_code(Path('.'))"` — updates `graphify-out/graph.json`, `GRAPH_REPORT.md`, and cache; use after code edits for a quick graph sync. On Windows if `python` is not on `PATH`, use the same one-liner with **`py -3`** instead of `python`.
+- **Code-only refresh (AST, no LLM):** `python -c "from graphify.watch import _rebuild_code; from pathlib import Path; _rebuild_code(Path(\'.\'))"` — updates `graphify-out/graph.json`, `GRAPH_REPORT.md`, and cache; use after code edits for a quick graph sync. On Windows if `python` is not on `PATH`, use the same one-liner with **`py -3`** instead of `python`.
 - **Full graph (docs, markdown, images, semantic edges):** in Cursor run `/graphify .` (skill); after large doc changes use `/graphify . --update` per graphify docs.
 - **Focused questions:** `python -m graphify query "<question>" --graph graphify-out/graph.json`
 - For architecture questions, read `graphify-out/GRAPH_REPORT.md` first when that directory exists.
@@ -20,6 +46,17 @@ Arbibot 2 is a **Turborepo monorepo** (`npm` workspaces: `apps/*`, `packages/*`)
 - **Operator UI:** Next.js App Router in **`apps/web`** (`@arbibot/web`).
 
 There is **no** `core-backend/` or `operator-frontend/` directory; older docs or audits may refer to that layout.
+
+**Current status (2026-04-18):**
+- **Phase 0–2** (foundation + controlled execution): completed
+- **Phase 3** (paper trading): basic slice implemented (paper-trading-service, UI `/paper`, `/tokens`, `POST /opportunities/:id/paper-enqueue`)
+- **Config service (CFG-1, CFG-2, CFG-3 slice):** implemented (NestJS + Fastify, Redis cache, audit, scopes / effective / history / rollback; any remaining **CFG-3** backlog — [.cursor/plans/DEVELOPMENT_PLAN.md](.cursor/plans/DEVELOPMENT_PLAN.md))
+- **Operator dashboards M2 (PRIO-P1-DASH):** completed (dashboard summary with incidents/capital widgets)
+- **Paper quality improvements:** completed (Grafana dashboards, drift alerts v1, SLO v1)
+- **Paper Trading Complete (P3-1, P3-2, P3-3, P3-5, P3-6):** completed (paper trades mutations, promotion candidates mutations, virtual capital, drift gauges, E2E tests)
+- **Paper Discovery Pipeline (P3-4):** implemented (discovery worker, candidate entity, E2E tests)
+- **Migrations:** 001–023 (core, risk, canonical/intake, execution, portfolio, reconciliation, profiles, **paper**, **policy configurations** + **policy scope** `020_policy_configuration_scopes.sql`, **paper capital reservations** `021_paper_capital_reservations.sql`, **paper discovery candidates** `022_paper_discovery_candidates.sql`, `023_paper_discovery_candidates_fixes.sql`)
+- **DEVELOPMENT_PLAN:** ~**90%** of steps in `done` (as of **2026-04**); remaining: Phase 4–5, **CFG-3** polish where needed, PRIO-P2 matrix — see [.cursor/plans/DEVELOPMENT_PLAN.md](.cursor/plans/DEVELOPMENT_PLAN.md)
 
 **Operational backlog (what / when):** [`docs/TODO.md`](docs/TODO.md) — живой список рядом с каноном [.cursor/plans/DEVELOPMENT_PLAN.md](.cursor/plans/DEVELOPMENT_PLAN.md).
 
@@ -41,7 +78,11 @@ Optional Kafka-compatible bus (Redpanda): add `--profile bus`.
 docker compose -f infra/docker-compose.dev.yml --profile bus up -d
 ```
 
-Use [`.env.example`](.env.example) as the source of truth for local env vars (`DATABASE_URL`, `REDIS_URL`, `CORS_ORIGINS`, `KAFKA_BROKERS`, `ARBIBOT_DEV_ROLE`). For **`apps/web`** server-side BFF proxies, use **`*_API_BASE`** (see [`apps/web/lib/api-base.ts`](apps/web/lib/api-base.ts)), including **`PORTFOLIO_API_BASE`** and **`RECONCILIATION_API_BASE`**.
+**Postgres host port (dev compose):** `infra/docker-compose.dev.yml` maps Postgres to host port **15432** (`15432:5432`) so a separate PostgreSQL on **localhost:5432** does not intercept `DATABASE_URL`. Match [`.env.example`](.env.example) (`127.0.0.1:15432`). CI (GitHub Actions) still uses the service container on **5432** inside the job.
+
+**Windows — repo path with spaces and Nest:** If the checkout path contains spaces (for example `...\\Arbibot 2\\...`), `nest build` / `nest start --watch` may finish without emitting `apps/<service>/dist/main.js`, then fail with `Cannot find module ... dist\\main`. Workaround: use a clone path **without spaces**, or `subst X: "C:\\path\\to\\Arbibot 2"` and run `npm run build` / `npm run start:dev` from **`X:\\`**.
+
+Use [`.env.example`](.env.example) as the source of truth for local env vars (`DATABASE_URL`, `REDIS_URL`, `CORS_ORIGINS`, `KAFKA_BROKERS`, `ARBIBOT_DEV_ROLE`, optional **`ARBIBOT_DEV_OPERATOR_ID`** for config-service audit in BFF). For **`apps/web`** server-side BFF proxies, use **`*_API_BASE`** (see [`apps/web/lib/api-base.ts`](apps/web/lib/api-base.ts)), including **`CONFIG_API_BASE`**, **`PORTFOLIO_API_BASE`**, **`RECONCILIATION_API_BASE`**, and **`PAPER_API_BASE`**.
 
 ### Root workspace
 
@@ -51,14 +92,16 @@ From the repo root:
 - `npm run lint` — Turbo lint (Nest apps, packages, `apps/web`)
 - `npm run build` — Turbo build
 - `npm run test` — Turbo test
-- `npm run db:migrate` — apply SQL migrations under `infra/postgres/migrations/`
+- `npm run db:migrate` — apply SQL migrations under `infra/postgres/migrations/` (001–020)
 - `npm run e2e:phase1-foundation` — HTTP smoke for Phase 1 DoD §50.3 (snapshot → opportunity → risk → reserve → arm); optional `E2E_INCLUDE_EXECUTION_LEG=true` extends through `apply-fill`; requires migrated DB and running `market-intake`, `opportunity`, `risk`, `capital`, `execution-orchestrator` (see `tools/e2e-phase1-foundation-chain.mjs` for ports / env overrides)
 - `npm run e2e:phase2-controlled-execution` — extends the Phase 1 chain through **all** execution legs until the plan is `completed` (see `tools/e2e-phase2-controlled-execution.mjs`); use `EXECUTION_BEGIN_LEG_COUNT` on **execution-orchestrator** for multi-leg; optional settlement envs as in `docs/settlement-post-commit.md`
+- `npm run e2e:phase3-paper-promotion` — smoke: create opportunity → `paper-enqueue` (dedup) → poll paper **`/paper/promotion-candidates`** until relay delivers (see `tools/e2e-phase3-paper-promotion.mjs`); requires migrated DB (**`018`**), **paper-trading-service**, **opportunity-service** with **`PAPER_TRADING_SERVICE_URL`** set to paper base URL; script waits for **`GET /metrics`** on both services first
+- `npm run ci:e2e-phase3` — CI wrapper: Postgres + **paper-trading-service** + **opportunity-service** with fast **`OUTBOX_RELAY_POLL_MS`**, then `e2e:phase3-paper-promotion` (see `tools/ci-e2e-phase3-paper-promotion.sh`); GitHub Actions job **`e2e-phase3-paper-promotion`**
 - `npm run ci:e2e-phase2` — same Phase 2 HTTP chain with **Postgres + lab HTTP venue + built Nest apps** (see `tools/ci-e2e-phase2.sh`); GitHub Actions runs this as job **`e2e-phase2`** after `npm run build`
 - `npm run bus:publish` — build and publish outbox rows to Kafka/Redpanda for `SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, and `PlanCompleted` (see `@arbibot/outbox-kafka-bridge`); checklist in [`docs/outbox-inbox.md`](docs/outbox-inbox.md) (profile `bus`, `DATABASE_URL`, `KAFKA_BROKERS`).
 - `npm run bus:consume` — build and run smoke consumer with inbox claim (logs `eventName` and `entityType` on successful claim)
 
-Copy [`.env.example`](.env.example) to `.env` and adjust URLs. Typical Nest env: `PORT`, `DATABASE_URL`, `REDIS_URL`, `CORS_ORIGINS`, `KAFKA_BROKERS`, and service-to-service URLs where applicable (e.g. **`RISK_SERVICE_URL`** for `opportunity-service` → risk). **`apps/web`** uses **`RISK_API_BASE`**, **`OPPORTUNITY_API_BASE`**, **`CAPITAL_API_BASE`**, **`EXECUTION_API_BASE`**, **`AUDIT_API_BASE`**, **`PORTFOLIO_API_BASE`**, **`RECONCILIATION_API_BASE`** for upstream HTTP (same defaults as local ports; override per deploy).
+Copy [`.env.example`](.env.example) to `.env` and adjust URLs. Typical Nest env: `PORT`, `DATABASE_URL`, `REDIS_URL`, `CORS_ORIGINS`, `KAFKA_BROKERS`, and service-to-service URLs where applicable (e.g. **`RISK_SERVICE_URL`** for `opportunity-service` → risk; **`REDIS_URL`** also for **config-service** cache; optional **`PAPER_TRADING_SERVICE_URL`** for `opportunity-service` → paper promotion enqueue). **`apps/web`** uses **`RISK_API_BASE`**, **`OPPORTUNITY_API_BASE`**, **`CAPITAL_API_BASE`**, **`EXECUTION_API_BASE`**, **`AUDIT_API_BASE`**, **`CONFIG_API_BASE`**, **`PORTFOLIO_API_BASE`**, **`RECONCILIATION_API_BASE`**, **`PAPER_API_BASE`** for upstream HTTP (same defaults as local ports; override per deploy).
 
 ### Backend services (`apps/*`)
 
@@ -73,8 +116,10 @@ Copy [`.env.example`](.env.example) to `.env` and adjust URLs. Typical Nest env:
 | market-intake-service | 3015 |
 | portfolio-service | 3016 |
 | reconciliation-service | 3017 |
+| paper-trading-service | 3018 |
+| config-service | 3019 |
 
-Each service: `npm run start:dev -w @arbibot/<name>` or use root scripts (`dev:risk`, `dev:opportunity`, … in [`package.json`](package.json)).
+Each service: `npm run start:dev -w @arbibot/<name>` or use root scripts in [`package.json`](package.json): `dev:risk`, `dev:opportunity`, `dev:capital`, `dev:execution`, `dev:audit`, `dev:canonical`, `dev:intake`, `dev:portfolio`, `dev:reconciliation`, `dev:paper`, **`dev:config`**, `dev:web`.
 
 Shared libraries live under [`packages/`](packages/), especially:
 
@@ -90,15 +135,28 @@ Shared libraries live under [`packages/`](packages/), especially:
 - Stack conventions (React Query BFF, shadcn-style UI, RSC vs client): [`apps/web/STACK-CONVENTIONS.md`](apps/web/STACK-CONVENTIONS.md).
 - Dev: `npm run dev -w @arbibot/web` (Next.js defaults to port **3000**; use another port if a Nest app uses 3000, e.g. `PORT=3001 npm run dev -w @arbibot/web`).
 - Lint / build: `npm run lint -w @arbibot/web`, `npm run build -w @arbibot/web`.
-- Server-side BFF fetches use **`*_API_BASE`** env vars (`RISK_API_BASE`, `OPPORTUNITY_API_BASE`, `CAPITAL_API_BASE`, `EXECUTION_API_BASE`, `AUDIT_API_BASE`, `PORTFOLIO_API_BASE`, `RECONCILIATION_API_BASE`); see [`apps/web/lib/api-base.ts`](apps/web/lib/api-base.ts) and [`.env.example`](.env.example).
+- Server-side BFF fetches use **`*_API_BASE`** env vars (`RISK_API_BASE`, `OPPORTUNITY_API_BASE`, `CAPITAL_API_BASE`, `EXECUTION_API_BASE`, `AUDIT_API_BASE`, **`CONFIG_API_BASE`**, `PORTFOLIO_API_BASE`, `RECONCILIATION_API_BASE`, `PAPER_API_BASE`); see [`apps/web/lib/api-base.ts`](apps/web/lib/api-base.ts) and [`.env.example`](.env.example).
+
+#### BFF Routes
+- **Dashboard:** `/api/operator/dashboard/summary` (incidents open/resolved today, capital positions count, total notional USD)
+- **Paper trades mutations:** `/api/operator/paper/trades/[id]?action=approve|reject|cancel`
+- **Paper promotion candidates mutations:** `/api/operator/paper/promotion-candidates/[id]?action=approve|reject`
+- **Settings (config-service):**
+  - `/api/operator/settings/configurations` (list, create)
+  - `/api/operator/settings/configurations/[configKey]` (get, update)
+  - `/api/operator/settings/configurations/[configKey]/effective` (resolved value with scope fallback)
+  - `/api/operator/settings/configurations/[configKey]/history` (version history)
+  - `/api/operator/settings/configurations/[configKey]/rollback` (rollback to prior version)
+
+- UI routes: `/dashboard`, `/portfolio`, `/opportunities`, `/execution`, `/tokens`, `/paper`, `/incidents`, `/runbooks`, `/openclaw`, **`/settings`** (policy configurations via config-service BFF). Phase 3 slice: `/paper` and `/tokens` include paper trades, promotion candidates, drift samples, discovery candidates with proper mutation flows and operator safety.
 
 Operator session in dev: see `apps/web` middleware / `getOperatorSession` — `ARBIBOT_DEV_ROLE` or `arbibot_role` cookie.
 
-### Current Phase 1 notes
+### Current Phase 1 notes (2026-04-18)
 
-- `opportunity-service` uses an in-DB relay for `RiskDecisionIssued` only.
-- `@arbibot/outbox-kafka-bridge` publishes `SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, and `PlanCompleted` to Kafka/Redpanda (filtered `event_type` list) and must not compete with the in-DB relay, which handles only `RiskDecisionIssued`.
-- SQL migrations are applied lexicographically by `tools/db-migrate.mjs`; recent migrations include canonical market, market intake idempotency, outbox relay dead-letter fields, execution/portfolio/reconciliation, **token/route profiles and risk decision keys** (`015_token_route_profiles.sql`).
+- **`opportunity-service` in-DB outbox relay** (`OutboxRelayService`): forwards **`RiskDecisionIssued`** and **`PaperPromotionCandidateRequested`** to **paper-trading-service** over HTTP when `PAPER_TRADING_SERVICE_URL` is set (enqueue is **outbox-first** — no synchronous "fire POST from the handler" path for promotion). Relay and bridge each use their own **event-type allowlists**; do not assume Kafka covers relay-only types.
+- **`@arbibot/outbox-kafka-bridge`** publishes `SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, and `PlanCompleted` to Kafka/Redpanda (filtered `event_type` list). It is a **separate** publisher from the opportunity in-DB relay; keep filters documented and avoid double-publishing the same logical delivery. See [`docs/outbox-inbox.md`](docs/outbox-inbox.md).
+- SQL migrations are applied lexicographically by `tools/db-migrate.mjs`; current migrations 001–020 include: canonical market, market intake idempotency, outbox relay dead-letter fields, execution/portfolio/reconciliation, fill/idempotency, **token/route profiles and risk decision keys** (`015_token_route_profiles.sql`), **paper trading** (`016_paper_trading.sql`, `017_paper_promotion_enqueue_idempotency.sql`), **outbox dedup for `paper-enqueue`** (`018_outbox_paper_enqueue_dedup.sql`), **policy configurations** (`019_policy_configurations.sql`), and **policy configuration scopes** (`020_policy_configuration_scopes.sql`, CFG-3).
 - Canonical registry tables are not auto-seeded; after migrations, `venue_refs`, `canonical_instruments`, and `canonical_routes` must be populated manually before `resolve-*` endpoints return data.
 
 ### Phase 2 slice (controlled execution / policy)
@@ -107,8 +165,82 @@ Operator session in dev: see `apps/web` middleware / `getOperatorSession` — `A
 - **Risk profiles:** `GET /policy/phase2-readiness`, `GET /policy/token-profiles`, `GET /policy/route-profiles`; `POST /evaluate-risk` optional `instrumentKey` / `routeKey` (DB caps). Roadmap: [`docs/phase2-risk-policy-roadmap.md`](docs/phase2-risk-policy-roadmap.md).
 - **Reconciliation P0 procedure** (operator checklist): [`docs/reconciliation-p0-procedures.md`](docs/reconciliation-p0-procedures.md).
 - **Metrics:** shared registry via `getArbibotMetricsRegistry()` from `@arbibot/nest-platform` (same registry as `GET /metrics`); orchestrator exposes `arb_execution_leg_partial_fill_commits_total` on partial fills.
-- **Observability v0:** SLO/on-call draft in [`docs/observability-tracing.md`](docs/observability-tracing.md).
+- **Observability v1:** SLO v1 and on-call in [`docs/observability-tracing.md`](docs/observability-tracing.md) — production-ready baseline with 3 tiers (Tier 1: 500ms p99, 99.9% monthly).
+
+### Phase 3 slice (paper) — complete implementation (2026-04-18)
+
+- **`@arbibot/paper-trading-service`** (default port **3018**): single-writer HTTP API for paper trades, promotion candidates, drift samples, and discovery candidates; persistence in Postgres via migrations **`016_paper_trading.sql`**, **`017_paper_promotion_enqueue_idempotency.sql`**, **`018_outbox_paper_enqueue_dedup.sql`**, **`021_paper_capital_reservations.sql`**, **`022_paper_discovery_candidates.sql`**, **`023_paper_discovery_candidates_fixes.sql`** (apply with `npm run db:migrate`).
+- **Opportunity → paper:** `POST /opportunities/:id/paper-enqueue` writes **`PaperPromotionCandidateRequested`** to **`outbox_events`**; pending-row dedup for enqueue is enforced by **`018_outbox_paper_enqueue_dedup.sql`** on the same OLTP DB as the outbox. The opportunity relay delivers to paper (idempotent **`enqueueIdempotencyKey`** on the paper side). Env: **`PAPER_TRADING_SERVICE_URL`** (service-to-service), **`PAPER_API_BASE`** / BFF for operator reads.
+
+#### P3-1, P3-2: Paper Trades & Promotion Candidates Mutations
+- **Backend:** `POST /paper/trades/:id/approve|reject|cancel`, `POST /paper/promotion-candidates/:id/approve|reject`
+- **Service:** `PaperTradesService`, `PaperPromotionService` with audit integration
+- **BFF:** `/api/operator/paper/trades/[id]?action=approve|reject|cancel`, `/api/operator/paper/promotion-candidates/[id]?action=approve|reject`
+- **Frontend:** approval buttons in `PaperTradesTable`, `PaperPromotionTable`
+
+#### P3-3: Virtual Capital (Paper-Only)
+- **Migration:** `021_paper_capital_reservations.sql` — table with state machine (active → expired)
+- **Entity:** `PaperCapitalReservationEntity` in @arbibot/persistence
+- **Service:** `PaperCapitalService` with reserveCapital/expireReservations/getActiveReservation
+- **Integration:** PaperTradesService.approve creates reservation, PaperTradesService.cancel expires reservations
+- **TTL:** 60 minutes default, background job for expiry
+- **Isolation:** complete separation from live capital-service
+
+#### P3-4: Paper Discovery Pipeline
+- **Service:** `PaperDiscoveryService` — worker for automatic paper-only opportunities
+- **Controller:** `PaperDiscoveryController` — endpoints for triggering discovery, listing candidates
+- **Worker:** `PaperDiscoveryWorker` — periodic discovery cycles (configurable via env vars)
+- **Entity:** `PaperDiscoveryCandidateEntity` in @arbibot/persistence
+- **Migrations:** `022_paper_discovery_candidates.sql`, `023_paper_discovery_candidates_fixes.sql`
+- **State machine:** discovered → processed | rejected (enqueued removed per paper isolation)
+- **E2E:** `tools/e2e-p3-paper-discovery.mjs` — complete discovery workflow test
+- **Env vars:** `PAPER_DISCOVERY_ENABLED`, `PAPER_DISCOVERY_INTERVAL_MS`, `PAPER_DISCOVERY_MIN_PROFIT_USD`, `PAPER_DISCOVERY_MIN_LIQUIDITY_SCORE`, `PAPER_DISCOVERY_MAX_CANDIDATES_PER_RUN`, `PAPER_DISCOVERY_PAPER_ONLY_TOKENS`, `PAPER_DISCOVERY_PAPER_ONLY_ROUTES`
+
+#### P3-5: Drift Gauges & Recording Rules
+- **Service:** `updateStaleGauges()` method in `PaperDriftService`
+- **Gauges:** `paperDriftBpsCurrent` (current drift), `paperDriftBpsStale` (stale instruments count)
+- **Recording rules:** `infra/grafana/recording-rules/paper-drift-recording.yml`
+  - `arb_paper_drift_bps_avg_5m` — average drift over 5m
+  - `arb_paper_drift_bps_max_15m` — maximum drift over 15m
+  - `arb_paper_drift_samples_p95_rate_1h` — P95 rate over 1h
+  - `arb_paper_drift_samples_rate_1m` — rate per minute
+- **Alerts:** v1 (PaperDriftBpsHigh > 50 bps), v2 (PaperDriftBpsSustainedHigh > 30 bps for 15m)
+
+#### P3-6: E2E Test & CI
+- **E2E script:** `tools/e2e-phase3-paper-promotion.mjs` — extended with promotion approval, virtual capital reservation, paper trade cancel
+- **CI job:** `e2e-phase3-paper-promotion` in GitHub Actions
+- **Script wrapper:** `tools/ci-e2e-phase3-paper-promotion.sh`
+
+- **Operator UI:** **`/paper`** and **`/tokens`** include paper trades, promotion candidates, drift samples, and discovery candidates with proper mutation flows
+- **Paper quality:** Grafana dashboards (`arbibot-paper-trading.json`), drift alerts v1/v2, promotion candidate tracking, drift samples collection
+
+### Config service (CFG-1, CFG-2, CFG-3 slice) — 2026-04-18
+
+- **`@arbibot/config-service`** (default port **3019**): single-writer HTTP API for managed policy configuration with Redis cache and audit integration; persistence in Postgres via migrations **`019_policy_configurations.sql`** and **`020_policy_configuration_scopes.sql`** (apply with `npm run db:migrate`).
+- **API endpoints (prefix `/policy`):**
+  - `GET /configurations` — list (optional scope query); Redis-backed cache (~60s TTL) with DB fallback
+  - `GET /configurations/:configKey` — single key (optional scope)
+  - `GET /configurations/:configKey/effective` — resolved value with scope fallback (global → environment → tenant)
+  - `GET /configurations/:configKey/history` — version history per scope
+  - `POST /configurations`, `PUT /configurations/:configKey` — create/update (new row per change); body **`operatorId`** required (400 if missing)
+  - `POST /configurations/:configKey/rollback` — rollback to a prior version (CFG-3)
+- **Sensitive keys:** pattern `risk.*`, `execution.*`, `capital.*` require **`approveReason`** on mutations.
+- **Audit:** Mutations call **`AuditClientService.appendEntry`**.
+- **BFF / UI:** **`CONFIG_API_BASE`** for **`/settings`**; optional **`ARBIBOT_DEV_OPERATOR_ID`** in env for stable audit actor in dev.
+- **Docs:** staged rollout nuances — [`docs/cfg-3-staged-rollout.md`](docs/cfg-3-staged-rollout.md); service map — [`docs/services.md`](docs/services.md).
+- **E2E:** Cache/audit verified manually; automated config E2E not required in root CI today.
 
 ### CI
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on Node **22**: `npm ci`, then Turbo `lint`, `build`, `test` for the whole monorepo.
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on Node **22**:
+
+1. **build** — `npm ci`, then Turbo `lint`, `build`, `test` for the whole monorepo.
+2. **`e2e-phase2`** — after `npm ci` + `npm run build`, runs `npm run ci:e2e-phase2` (Postgres service container + lab HTTP venue + built Nest apps — controlled execution chain).
+3. **`e2e-phase3-paper-promotion`** — after `npm ci` + `npm run build`, runs `npm run ci:e2e-phase3` / `bash tools/ci-e2e-phase3-paper-promotion.sh` (Postgres + **paper-trading-service** + **opportunity-service**, paper promotion relay smoke).
+4. **`e2e-phase3-paper-discovery`** — manual E2E test for P3-4 (not yet in CI automation): `node tools/e2e-p3-paper-discovery.mjs` (tests discovery worker, candidate creation, metrics).
+
+### Frontend Documentation
+
+- **`apps/web/FRONTEND_FIXES_SUMMARY.md`** — comprehensive summary of frontend architecture fixes (destructive operator actions, type consolidation, Tailwind migration, query invalidation strategy)
+- **`apps/web/QUERY_INVALIDATION.md`** — complete React Query invalidation strategy for all dashboard queries (dashboard, incidents, opportunities, execution, portfolio, paper, settings)
+- **`components/README-APPROVAL-FLOW.md`** — documentation for `DestructiveOperatorAction` component with usage examples and compliance checklist

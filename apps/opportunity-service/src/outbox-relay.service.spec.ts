@@ -6,6 +6,7 @@ import type {
 } from '@arbibot/persistence';
 import type { DataSource, EntityManager } from 'typeorm';
 
+import type { PaperClientService } from './opportunities/paper-client.service';
 import { OutboxRelayService } from './outbox-relay.service';
 
 describe('OutboxRelayService', () => {
@@ -16,11 +17,14 @@ describe('OutboxRelayService', () => {
       relayDeadLetterAt: Date | null;
       relayDeadLetterReason: string | null;
       processedAt: Date | null;
+      paperEnqueueIdempotencyKey?: string | null;
     }
   >;
   let opportunities: ArbitrageOpportunityEntity[];
   let inbox: InboxEventEntity[];
   let service: OutboxRelayService;
+  let paperClient: { enqueuePromotionCandidate: jest.Mock };
+  let dataSource: DataSource;
 
   beforeEach(() => {
     rows = [];
@@ -30,7 +34,21 @@ describe('OutboxRelayService', () => {
 
     const em = {
       create: jest.fn((_Entity: unknown, row: object) => ({ ...row })),
-      query: jest.fn((_sql: string, params?: unknown[]) => {
+      query: jest.fn(async (sql: string, params?: unknown[]) => {
+        const trimmed = sql.trimStart();
+        if (
+          trimmed.startsWith('UPDATE outbox_events') &&
+          sql.includes('relay_delivery_attempts') &&
+          sql.includes('RETURNING')
+        ) {
+          const id = String(params?.[0] ?? '');
+          const row = rows.find((candidate) => candidate.id === id);
+          if (row !== undefined) {
+            row.relayDeliveryAttempts = (row.relayDeliveryAttempts ?? 0) + 1;
+            return [{ attempts: row.relayDeliveryAttempts }];
+          }
+          return [];
+        }
         const allowed = params?.[1] as string[] | undefined;
         const row = rows.find(
           (candidate) =>
@@ -65,7 +83,7 @@ describe('OutboxRelayService', () => {
       update: jest.fn(
         (
           Entity: { name?: string },
-          criteria: { id: string },
+          criteria: { id: string } & Record<string, unknown>,
           partial: Partial<OutboxEventEntity>,
         ) => {
           if (Entity.name === 'OutboxEventEntity') {
@@ -74,6 +92,7 @@ describe('OutboxRelayService', () => {
               Object.assign(row, partial);
             }
           }
+          return Promise.resolve({ affected: 1, generatedMaps: [], raw: [] });
         },
       ),
       save: jest.fn((Entity: { name?: string }, entity: ArbitrageOpportunityEntity) => {
@@ -119,13 +138,19 @@ describe('OutboxRelayService', () => {
       })),
     } as unknown as EntityManager;
 
-    const dataSource = {
+    dataSource = {
       transaction: jest.fn(async (fn: (manager: EntityManager) => Promise<unknown>) =>
         fn(em),
       ),
     } as unknown as DataSource;
 
-    service = new OutboxRelayService(dataSource);
+    paperClient = {
+      enqueuePromotionCandidate: jest.fn().mockResolvedValue(true),
+    };
+    service = new OutboxRelayService(
+      dataSource,
+      paperClient as unknown as PaperClientService,
+    );
   });
 
   afterEach(() => {
@@ -152,6 +177,7 @@ describe('OutboxRelayService', () => {
       relayDeadLetterAt: null,
       relayDeadLetterReason: null,
       relayDeliveryAttempts: 0,
+      paperEnqueueIdempotencyKey: null,
       ...overrides,
     };
   }
@@ -190,5 +216,60 @@ describe('OutboxRelayService', () => {
 
     expect(rows[0]?.processedAt).toBeNull();
     expect(rows[0]?.relayDeadLetterAt).toBeNull();
+  });
+
+  it('dispatches PaperPromotionCandidateRequested and marks processed when paper HTTP succeeds', async () => {
+    rows.push(
+      makeRow({
+        id: '2',
+        eventType: 'PaperPromotionCandidateRequested',
+        entityType: 'ArbitrageOpportunity',
+        entityId: 'opp-2',
+        payload: {
+          opportunityId: '22222222-2222-4222-8222-222222222222',
+          instrumentKey: 'inst:a',
+          source: 'opportunity_hook',
+          enqueueIdempotencyKey: '22222222-2222-4222-8222-222222222222:inst:a',
+          evidence: {},
+        },
+      }),
+    );
+
+    await service.processBatch();
+
+    expect(paperClient.enqueuePromotionCandidate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        instrumentKey: 'inst:a',
+        opportunityId: '22222222-2222-4222-8222-222222222222',
+        enqueueIdempotencyKey: '22222222-2222-4222-8222-222222222222:inst:a',
+      }),
+    );
+    expect(rows[0]?.processedAt).toBeInstanceOf(Date);
+    expect((dataSource.transaction as jest.Mock).mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('increments relay attempts when paper promotion POST fails', async () => {
+    paperClient.enqueuePromotionCandidate.mockResolvedValue(false);
+    rows.push(
+      makeRow({
+        id: '3',
+        eventType: 'PaperPromotionCandidateRequested',
+        entityType: 'ArbitrageOpportunity',
+        entityId: 'opp-3',
+        payload: {
+          opportunityId: '33333333-3333-4333-8333-333333333333',
+          instrumentKey: 'inst:b',
+          source: 'opportunity_hook',
+          enqueueIdempotencyKey: '33333333-3333-4333-8333-333333333333:inst:b',
+          evidence: {},
+        },
+      }),
+    );
+
+    await service.processBatch();
+
+    expect(rows[0]?.processedAt).toBeNull();
+    expect(rows[0]?.relayDeliveryAttempts).toBe(2);
+    expect(rows[0]?.relayDeadLetterAt).toBeInstanceOf(Date);
   });
 });

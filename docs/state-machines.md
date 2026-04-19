@@ -57,4 +57,23 @@ stateDiagram-v2
 
 ## PortfolioPosition (Phase 2+)
 
-Отдельная спека при появлении сервиса портфеля; связь с `PlanCompleted` / `PositionClosed`.
+**Baseline state machine (Phase 0):**
+```
+portfolio_position: draft → confirmed → open → closed | error
+```
+
+**Transitions:**
+- `draft → confirmed`: fill received from execution orchestrator (`POST /positions/confirm-fill`)
+- `confirmed → open`: fill committed, position becomes active
+- `open → closed`: position fully closed (all legs executed) or manually closed
+- `any → error`: reconciliation failure, validation error, or data inconsistency
+
+**Owner:** `portfolio-service` (single-writer)
+
+**Versioning:** `version` column with optimistic concurrency on updates
+
+**Future extensions (Phase 2+):**
+- Position splits (partial close)
+- Hedge/unwind state machines
+- Position lifecycle hooks (events: `PositionOpened`, `PositionClosed`, `PositionError`)
+- Link to `PlanCompleted` / `LegFilled` events for full reconciliation

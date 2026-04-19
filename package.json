@@ -13,6 +13,7 @@
     "db:migrate": "node tools/db-migrate.mjs",
     "e2e:phase1-foundation": "node tools/e2e-phase1-foundation-chain.mjs",
     "e2e:phase2-controlled-execution": "node tools/e2e-phase2-controlled-execution.mjs",
+    "e2e:phase3-paper-promotion": "node tools/e2e-phase3-paper-promotion.mjs",
     "ci:e2e-phase2": "bash tools/ci-e2e-phase2.sh",
     "dev:risk": "npm run start:dev -w @arbibot/risk-service",
     "dev:opportunity": "npm run start:dev -w @arbibot/opportunity-service",
@@ -23,6 +24,8 @@
     "dev:intake": "npm run start:dev -w @arbibot/market-intake-service",
     "dev:portfolio": "npm run start:dev -w @arbibot/portfolio-service",
     "dev:reconciliation": "npm run start:dev -w @arbibot/reconciliation-service",
+    "dev:paper": "npm run start:dev -w @arbibot/paper-trading-service",
+    "dev:config": "npm run start:dev -w @arbibot/config-service",
     "dev:web": "npm run dev -w @arbibot/web",
     "bus:publish": "npm run build -w @arbibot/outbox-kafka-bridge && npm run start:publish -w @arbibot/outbox-kafka-bridge",
     "bus:consume": "npm run build -w @arbibot/outbox-kafka-bridge && npm run start:consume -w @arbibot/outbox-kafka-bridge"

@@ -40,4 +40,12 @@ export class OutboxEventEntity {
 
   @Column({ name: 'relay_delivery_attempts', type: 'int', default: 0 })
   relayDeliveryAttempts!: number;
+
+  /** Pending paper promotion rows: at most one per key (partial unique index, migration 018). */
+  @Column({
+    name: 'paper_enqueue_idempotency_key',
+    type: 'text',
+    nullable: true,
+  })
+  paperEnqueueIdempotencyKey!: string | null;
 }
