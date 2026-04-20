@@ -1,7 +1,12 @@
 import type { ExecutionLegEntity, ExecutionPlanEntity } from '@arbibot/persistence';
 import { getCorrelationId } from '@arbibot/nest-platform';
 
-import type { VenueAdapter, VenueLegSubmitResult, VenueLegTerminalState } from './venue-adapter';
+import type {
+  VenueAdapter,
+  VenueHttpClientErrorCategory,
+  VenueLegSubmitResult,
+  VenueLegTerminalState,
+} from './venue-adapter';
 import {
   VenueSubmitClientError,
   VenueSubmitTransientError,
@@ -41,6 +46,37 @@ function parseTerminalState(value: unknown): VenueLegTerminalState | null {
 
 function isAbortError(err: unknown): boolean {
   return err instanceof Error && err.name === 'AbortError';
+}
+
+function readVenueErrorCode(body: unknown): string | undefined {
+  if (typeof body !== 'object' || body === null) {
+    return undefined;
+  }
+  const o = body as Record<string, unknown>;
+  const direct =
+    typeof o.venueErrorCode === 'string'
+      ? o.venueErrorCode
+      : typeof o.errorCode === 'string'
+        ? o.errorCode
+        : undefined;
+  return direct?.trim() || undefined;
+}
+
+/** Maps HTTP status (+ optional JSON body) to a stable category for logs / future metrics. */
+export function classifyVenueHttpClientError(
+  status: number,
+  body: unknown,
+): VenueHttpClientErrorCategory {
+  void body;
+  if (status === 400) return 'validation';
+  if (status === 401) return 'unauthorized';
+  if (status === 403) return 'forbidden';
+  if (status === 404) return 'not_found';
+  if (status === 409) return 'conflict';
+  if (status === 422) return 'semantic';
+  if (status === 429) return 'rate_limited';
+  if (status >= 400 && status < 500) return 'client_other';
+  return 'client_other';
 }
 
 function resolveCorrelationHeader(plan: ExecutionPlanEntity): string | undefined {
@@ -121,6 +157,7 @@ export class HttpVenueAdapter implements VenueAdapter {
         if (res.ok) {
           throw new VenueSubmitClientError(
             `HttpVenueAdapter: ${res.status} invalid JSON from ${url}; check venue logs`,
+            { httpStatus: res.status, category: 'validation' },
           );
         }
         body = {};
@@ -136,6 +173,7 @@ export class HttpVenueAdapter implements VenueAdapter {
       }
       throw new VenueSubmitClientError(
         `HttpVenueAdapter: ${res.status} missing externalOrderId from ${url}; check venue logs`,
+        { httpStatus: res.status, category: 'validation' },
       );
     }
 
@@ -164,6 +202,11 @@ export class HttpVenueAdapter implements VenueAdapter {
       }
       throw new VenueSubmitClientError(
         `HttpVenueAdapter: 409 conflict without terminalState from ${url}: ${text.slice(0, 200)}`,
+        {
+          httpStatus: 409,
+          category: 'conflict',
+          venueErrorCode: readVenueErrorCode(body),
+        },
       );
     }
 
@@ -174,8 +217,16 @@ export class HttpVenueAdapter implements VenueAdapter {
     }
 
     if (res.status >= 400 && res.status < 500) {
+      // Taxonomy: 400 validation, 401/403 authz, 404 unknown leg, 408 timeout (also handled above),
+      // 409 conflict+terminalState (handled above), 422 semantic / venue-specific business rule.
+      const category = classifyVenueHttpClientError(res.status, body);
       throw new VenueSubmitClientError(
         `HttpVenueAdapter: client HTTP ${res.status} from ${url}: ${text.slice(0, 200)}`,
+        {
+          httpStatus: res.status,
+          category,
+          venueErrorCode: readVenueErrorCode(body),
+        },
       );
     }
 

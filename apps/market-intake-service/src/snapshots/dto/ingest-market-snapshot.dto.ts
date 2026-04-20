@@ -31,6 +31,18 @@ export class IngestMarketSnapshotDto {
   @IsUUID('4')
   canonicalInstrumentId?: string;
 
+  /** Optional token/instrument key for watchlist tier + throttling (Phase 4). */
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  instrumentKey?: string;
+
+  /** Optional route key for route-scoring gate (Phase 4). */
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  routeKey?: string;
+
   @IsOptional()
   @Type(() => Number)
   @IsNumber()

@@ -21,6 +21,7 @@ import { PaperCapitalService } from './paper-capital.service';
 import { PaperDiscoveryService } from '../paper-discovery/paper-discovery.service';
 import { PaperDiscoveryWorker } from '../paper-discovery/paper-discovery-worker';
 import { PaperDiscoveryController } from '../paper-discovery/paper-discovery.controller';
+import { PaperPromotionQualityWorker } from './paper-promotion-quality.worker';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { PaperDiscoveryController } from '../paper-discovery/paper-discovery.con
     PaperCapitalService,
     PaperDiscoveryService,
     PaperDiscoveryWorker,
+    PaperPromotionQualityWorker,
     AuditClientService,
   ],
   exports: [

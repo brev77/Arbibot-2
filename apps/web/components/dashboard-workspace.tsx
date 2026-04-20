@@ -40,6 +40,19 @@ export function DashboardWorkspace(): ReactNode {
       fetchOperatorBffJson<DashboardSummary>('/dashboard/summary'),
     staleTime: 30000,
   });
+  const intakeHealth = useQuery({
+    queryKey: operatorKeys.intakeDegradation,
+    queryFn: () =>
+      fetchOperatorBffJson<{
+        tier: string;
+        fallbackMode: boolean;
+        throttledRate: number;
+        intakeThrottlingEnabled: boolean;
+        lastPolicyRefreshAtIso: string | null;
+      }>('/health/degradation'),
+    staleTime: 30000,
+    refetchInterval: 30_000,
+  });
 
   const oppItems = opps.data?.items ?? [];
   const preview = oppItems.slice(0, 6);
@@ -74,12 +87,55 @@ export function DashboardWorkspace(): ReactNode {
               void plans.refetch();
               void audit.refetch();
               void summary.refetch();
+              void intakeHealth.refetch();
             }}
           >
             Refresh data
           </Button>
         </div>
       </div>
+
+      <section className="mb-8">
+        <h2 className="text-lg font-medium">Market intake (Phase 4)</h2>
+        <p className="text-sm text-slate-400 html.theme-light:text-slate-600">
+          Policy cache / throttling signals from{' '}
+          <code className="text-xs">market-intake-service</code>.
+        </p>
+        {intakeHealth.isError ? (
+          <p className="mt-2 text-sm text-amber-400">
+            Could not load intake degradation (
+            {intakeHealth.error instanceof Error
+              ? intakeHealth.error.message
+              : 'error'}
+            ).
+          </p>
+        ) : intakeHealth.isPending ? (
+          <p className="mt-2 text-sm text-slate-500">Loading intake status…</p>
+        ) : (
+          <div className="mt-3 rounded-lg border border-slate-800 bg-slate-900/50 p-4 text-sm html.theme-light:border-slate-200 html.theme-light:bg-slate-100">
+            <div>
+              <span className="text-slate-400">Tier: </span>
+              <span className="font-medium">{intakeHealth.data.tier}</span>
+              {intakeHealth.data.fallbackMode ? (
+                <span className="ml-2 text-amber-400">(fallback)</span>
+              ) : null}
+            </div>
+            <div className="mt-1">
+              <span className="text-slate-400">Throttling: </span>
+              {intakeHealth.data.intakeThrottlingEnabled ? 'on' : 'off'}
+            </div>
+            <div className="mt-1">
+              <span className="text-slate-400">Throttle rate (1/s est.): </span>
+              {intakeHealth.data.throttledRate.toFixed(4)}
+            </div>
+            {intakeHealth.data.lastPolicyRefreshAtIso !== null ? (
+              <div className="mt-1 text-xs text-slate-500">
+                Last policy refresh: {intakeHealth.data.lastPolicyRefreshAtIso}
+              </div>
+            ) : null}
+          </div>
+        )}
+      </section>
 
       <section className="mb-8">
         <h2 className="text-lg font-medium">Incidents summary</h2>

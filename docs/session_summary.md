@@ -80,3 +80,11 @@ Based on this session's completion, suggested next steps:
 **Session Duration:** ~3 hours
 **Total Files Changed:** 20+
 **Total Lines Added:** ~800+
+
+---
+
+## 2026-04-20 — Phase 5 OpenClaw gateway + handoff (see root `session_summary.md`)
+
+**Note:** The canonical handoff for **2026-04-20** (compact, decisions, open questions, next steps) is in the repository root **[`session_summary.md`](../session_summary.md)** (new section at top). This file is **append-only** history.
+
+**Summary:** `P5-5-GW` — read API on `openclaw-gateway`, web BFF `/api/operator/openclaw/v1/*`, read-only `/openclaw`; bus-smoke on Windows: use PowerShell or Docker WSL integration if bash lacks `docker.sock`. Next: `P5-5-OAPI`, `P5-5-OCUI`, CI monitoring on PR.

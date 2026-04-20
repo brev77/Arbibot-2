@@ -15,9 +15,30 @@ export class VenueSubmitTransientError extends Error {
   }
 }
 
+/**
+ * Taxonomy for HTTP 4xx from lab / per-venue HTTP fronts (observability + operator logs).
+ * Optional `venueErrorCode` may be returned in JSON for per-venue mapping.
+ */
+export type VenueHttpClientErrorCategory =
+  | 'validation'
+  | 'unauthorized'
+  | 'forbidden'
+  | 'not_found'
+  | 'conflict'
+  | 'semantic'
+  | 'rate_limited'
+  | 'client_other';
+
 /** Venue or contract rejected the submit; do not retry `mark-sent` with the same payload. */
 export class VenueSubmitClientError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    public readonly meta?: {
+      readonly httpStatus?: number;
+      readonly category?: VenueHttpClientErrorCategory;
+      readonly venueErrorCode?: string;
+    },
+  ) {
     super(message);
     this.name = 'VenueSubmitClientError';
   }

@@ -4,6 +4,7 @@ import { typeOrmRootForEntities } from '@arbibot/nest-database';
 import {
   PortfolioPositionEntity,
   PortfolioPositionFillIdempotencyEntity,
+  PortfolioPositionCloseIdempotencyEntity,
 } from '@arbibot/persistence';
 
 @Module({
@@ -11,6 +12,7 @@ import {
     typeOrmRootForEntities([
       PortfolioPositionEntity,
       PortfolioPositionFillIdempotencyEntity,
+      PortfolioPositionCloseIdempotencyEntity,
     ]),
   ],
 })

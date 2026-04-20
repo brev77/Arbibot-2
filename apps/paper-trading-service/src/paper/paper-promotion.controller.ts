@@ -20,7 +20,17 @@ import { CreatePromotionCandidateDto } from './dto/create-promotion-candidate.dt
 import { PatchPromotionCandidateDto } from './dto/patch-promotion-candidate.dto';
 
 function promoView(row: Awaited<ReturnType<PaperPromotionService['list']>>[number]) {
-  const quality = promotionQualityFor(row);
+  const derived = promotionQualityFor(row);
+  const tier =
+    row.qualityTier === 'high' ||
+    row.qualityTier === 'medium' ||
+    row.qualityTier === 'low'
+      ? row.qualityTier
+      : derived.tier;
+  const score =
+    row.qualityScore !== null && row.qualityScore !== undefined
+      ? Math.round(Number(row.qualityScore) * 1000) / 1000
+      : derived.score;
   return {
     id: row.id,
     instrumentKey: row.instrumentKey,
@@ -32,8 +42,8 @@ function promoView(row: Awaited<ReturnType<PaperPromotionService['list']>>[numbe
     evidence: row.evidence,
     enqueueIdempotencyKey: row.enqueueIdempotencyKey,
     entityVersion: row.entityVersion,
-    qualityTier: quality.tier,
-    qualityScore: quality.score,
+    qualityTier: tier,
+    qualityScore: score,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

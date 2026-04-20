@@ -44,6 +44,14 @@ export class PaperPromotionCandidateEntity {
   @Column({ name: 'entity_version', type: 'int', default: 1 })
   entityVersion!: number;
 
+  /** Persisted quality score (worker); optional — API may derive live from score/drift. */
+  @Column({ name: 'quality_score', type: 'numeric', precision: 38, scale: 18, nullable: true })
+  qualityScore!: string | null;
+
+  /** Persisted tier: high | medium | low (worker). */
+  @Column({ name: 'quality_tier', type: 'text', nullable: true })
+  qualityTier!: string | null;
+
   /** Stable key for idempotent create (e.g. opportunityId + instrumentKey). */
   @Column({ name: 'enqueue_idempotency_key', type: 'text', nullable: true })
   enqueueIdempotencyKey!: string | null;

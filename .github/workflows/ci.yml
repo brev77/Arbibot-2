@@ -49,6 +49,35 @@ jobs:
           DATABASE_URL: postgres://arbibot:arbibot@127.0.0.1:5432/arbibot
         run: bash tools/ci-e2e-phase2.sh
 
+  e2e-phase2-watchlist-route-scoring:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: arbibot
+          POSTGRES_PASSWORD: arbibot
+          POSTGRES_DB: arbibot
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U arbibot -d arbibot"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Phase 2.2 watchlist tiering + route scoring writers smoke
+        env:
+          DATABASE_URL: postgres://arbibot:arbibot@127.0.0.1:5432/arbibot
+        run: bash tools/ci-e2e-phase2-watchlist-route-scoring.sh
+
   e2e-phase3-paper-promotion:
     runs-on: ubuntu-latest
     services:
@@ -116,3 +145,44 @@ jobs:
           PAPER_DISCOVERY_PAPER_ONLY_ROUTES: 'btc-eth-uniswap,eth-usdc-curve'
           ARBIBOT_DEV_OPERATOR_ID: 'e2e-test-operator'
         run: bash tools/ci-e2e-phase3-paper-discovery.sh
+
+  e2e-phase4-tier-routing:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: arbibot
+          POSTGRES_PASSWORD: arbibot
+          POSTGRES_DB: arbibot
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready -U arbibot -d arbibot
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Phase 4 intake tier routing + throttle smoke
+        env:
+          DATABASE_URL: postgres://arbibot:arbibot@127.0.0.1:5432/arbibot
+        run: bash tools/ci-e2e-phase4-tier-routing.sh
+
+  bus-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Outbox-kafka-bridge build + optional Redpanda compose
+        run: bash tools/ci-bus-smoke.sh

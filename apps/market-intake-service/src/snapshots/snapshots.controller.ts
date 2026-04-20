@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  HttpStatus,
   Post,
   Query,
   Res,
@@ -22,6 +23,13 @@ export class SnapshotsController {
     @Res({ passthrough: true }) res: FastifyReply,
   ) {
     const result = await this.snapshots.ingest(body);
+    if (result.throttled === true) {
+      void res.status(HttpStatus.TOO_MANY_REQUESTS);
+      return {
+        throttled: true,
+        reason: result.throttleReason ?? 'throttled',
+      };
+    }
     if (result.idempotentReplay) {
       void res.header('X-Idempotent-Replayed', 'true');
     }

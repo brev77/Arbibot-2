@@ -60,15 +60,49 @@ async function main(): Promise<void> {
       }
       const eventName =
         typeof envelope.eventName === 'string' ? envelope.eventName : '?';
+      const knownBus = new Set([
+        'SnapshotUpdated',
+        'CapitalReserved',
+        'PlanArmed',
+        'LegFilled',
+        'PlanCompleted',
+      ]);
+      if (eventName !== '?' && !knownBus.has(eventName)) {
+        console.warn(
+          `[outbox-kafka-consume] unexpected eventName=${eventName} (expected one of Kafka bridge allowlist)`,
+        );
+      }
       const entityType =
         typeof envelope.entityType === 'string' ? envelope.entityType : '';
+      const entityId =
+        typeof envelope.entityId === 'string' ? envelope.entityId : '';
       const correlation =
         typeof envelope.correlationId === 'string' ? envelope.correlationId : '';
+      const payload =
+        typeof envelope.payload === 'object' && envelope.payload !== null
+          ? (envelope.payload as Record<string, unknown>)
+          : null;
+      let busDetail = '';
+      if (
+        (eventName === 'LegFilled' || eventName === 'PlanCompleted') &&
+        payload !== null
+      ) {
+        const planId =
+          typeof payload.planId === 'string' ? payload.planId : undefined;
+        const legId =
+          typeof payload.legId === 'string' ? payload.legId : undefined;
+        if (planId) {
+          busDetail = ` planId=${planId}`;
+        }
+        if (legId) {
+          busDetail += ` legId=${legId}`;
+        }
+      }
       await ds.transaction(async (em) => {
         const first = await tryClaimInboxMessage(em, consumerId, messageId);
         if (first) {
           console.log(
-            `[outbox-kafka-consume] claim ${messageId} event=${eventName} entityType=${entityType || '-'} correlationId=${correlation}`,
+            `[outbox-kafka-consume] claim ${messageId} event=${eventName} entityType=${entityType || '-'} entityId=${entityId || '-'} correlationId=${correlation}${busDetail}`,
           );
         }
       });

@@ -1,10 +1,7 @@
 import type { ReactNode } from 'react';
 
+import { OpenclawWorkspace } from '@/components/openclaw/openclaw-workspace';
+
 export default function OpenClawPage(): ReactNode {
-  return (
-    <main style={{ padding: '1.5rem 2rem' }}>
-      <h1>OpenClaw</h1>
-      <p style={{ color: '#94a3b8' }}>Placeholder — Phase 5 operator assist.</p>
-    </main>
-  );
+  return <OpenclawWorkspace />;
 }

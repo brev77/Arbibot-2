@@ -9,6 +9,8 @@ export const apiBases = {
   reconciliation: process.env.RECONCILIATION_API_BASE ?? 'http://127.0.0.1:3017',
   paper: process.env.PAPER_API_BASE ?? 'http://127.0.0.1:3018',
   config: process.env.CONFIG_API_BASE ?? 'http://127.0.0.1:3019',
+  /** market-intake-service (snapshots, Phase 4 degradation signals). */
+  marketIntake: process.env.MARKET_INTAKE_API_BASE ?? 'http://127.0.0.1:3015',
 } as const;
 
 /** Alias for BFF routes targeting `config-service`. */

@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { AuditClientService } from '@arbibot/nest-platform';
 import { createHash, randomUUID } from 'node:crypto';
 
 import {
@@ -20,6 +21,7 @@ import {
 import { DataSource, EntityManager, QueryFailedError } from 'typeorm';
 
 import type { IngestMarketSnapshotDto } from './dto/ingest-market-snapshot.dto';
+import { IntakeThrottleService } from '../policy/intake-throttle.service';
 
 /** Outbox / envelope payload schema for SnapshotUpdated (must match JSON Schema + consumers). */
 const SNAPSHOT_EVENT_SCHEMA_VERSION = 2;
@@ -31,6 +33,9 @@ export type IngestMarketSnapshotResult = {
   entityVersion: number;
   idempotentReplay: boolean;
   unchanged: boolean;
+  /** When true, no DB write occurred (backpressure / sampling). */
+  throttled?: boolean;
+  throttleReason?: string;
 };
 
 function optDecimal(n: number | undefined): string | null {
@@ -83,9 +88,40 @@ async function advisoryLockIngestKey(
 
 @Injectable()
 export class SnapshotsService {
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly throttle: IntakeThrottleService,
+    private readonly audit: AuditClientService,
+  ) {}
 
   async ingest(dto: IngestMarketSnapshotDto): Promise<IngestMarketSnapshotResult> {
+    const td = await this.throttle.evaluate(dto);
+    if (!td.allow) {
+      if (td.requireAudit) {
+        this.audit.record({
+          actor: 'market-intake-service',
+          action: 'INTAKE_SNAPSHOT_THROTTLED',
+          resourceType: 'MarketSnapshot',
+          resourceId: `${dto.venueCode}:${dto.venueSymbol}`,
+          payload: {
+            reason: td.reason,
+            routingTier: td.routingTier,
+            instrumentKey: dto.instrumentKey ?? null,
+            routeKey: dto.routeKey ?? null,
+          },
+        });
+      }
+      return {
+        snapshotId: '',
+        outboxMessageId: null,
+        entityVersion: 0,
+        idempotentReplay: false,
+        unchanged: false,
+        throttled: true,
+        throttleReason: td.reason,
+      };
+    }
+
     const observedAt = new Date(dto.observedAt);
     if (Number.isNaN(observedAt.getTime())) {
       throw new BadRequestException('Invalid observedAt');

@@ -10,9 +10,23 @@ import { QueryFailedError } from 'typeorm';
 
 import { SnapshotsService } from './snapshots.service';
 
-jest.mock('@arbibot/nest-platform', () => ({
-  getCorrelationId: jest.fn(() => '00000000-0000-4000-8000-000000000001'),
-}));
+jest.mock('@arbibot/nest-platform', () => {
+  const actual = jest.requireActual<typeof import('@arbibot/nest-platform')>(
+    '@arbibot/nest-platform',
+  );
+  return {
+    ...actual,
+    getCorrelationId: jest.fn(() => '00000000-0000-4000-8000-000000000001'),
+  };
+});
+
+const mockThrottle = {
+  evaluate: jest.fn().mockResolvedValue({
+    allow: true,
+    reason: 'throttling_disabled',
+    routingTier: 'hot',
+  }),
+};
 
 describe('SnapshotsService', () => {
   let service: SnapshotsService;
@@ -143,7 +157,12 @@ describe('SnapshotsService', () => {
       }),
     } as unknown as jest.Mocked<Pick<DataSource, 'transaction' | 'getRepository'>>;
 
-    service = new SnapshotsService(dataSource as unknown as DataSource);
+    const audit = { record: jest.fn(), appendEntry: jest.fn() };
+    service = new SnapshotsService(
+      dataSource as unknown as DataSource,
+      mockThrottle as never,
+      audit as never,
+    );
   });
 
   it('ingest creates snapshot and SnapshotUpdated outbox row (schema v2)', async () => {

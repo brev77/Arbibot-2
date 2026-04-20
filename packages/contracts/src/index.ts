@@ -22,6 +22,8 @@ export const RISK_HTTP_ROUTES = {
   listRouteProfiles: 'GET /policy/route-profiles',
   listWatchlistTiers: 'GET /policy/watchlist/tiers',
   listRouteScoringHistory: 'GET /policy/route-scoring-history/:routeKey',
+  runWatchlistTieringJob: 'POST /policy/jobs/watchlist-tiering',
+  runRouteScoringJob: 'POST /policy/jobs/route-scoring',
 } as const;
 
 export const OPPORTUNITY_HTTP_ROUTES = {

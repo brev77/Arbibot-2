@@ -894,7 +894,20 @@ flowchart LR
   - Политика тиров в конфиге; маршрутизация нагрузки по tier.
 - **changed_areas:** intake, config, infra
 - **review_required:** `architecture`
-- **status:** `planned`
+- **status:** `done`
+- **Зафиксировано (2026-04-21):** JSON `intake.routing.tiers` в config-service + fallback на risk `GET /policy/watchlist/tiers`; миграция **`029_intake_policy_seed.sql`**; `IntakeThrottleService` + `PolicyCacheService` в **market-intake**; см. `docs/intake-policy-config-keys.md`, `docs/adr-phase4-intake-throttling.md`.
+
+#### `P4-4-TIER-ROUTING-E2E` — CI smoke tier routing + throttle
+
+- **step_id:** `P4-4-TIER-ROUTING-E2E`
+- **phase:** `4`
+- **service:** `platform`
+- **goal:** Автоматическая проверка warm/cold sampling (429) и health degradation read API.
+- **acceptance_criteria:**
+  - Скрипт `npm run e2e:phase4-tier-routing`; CI job **`e2e-phase4-tier-routing`** (`tools/ci-e2e-phase4-tier-routing.sh`).
+- **changed_areas:** `tools/`, `.github/workflows/ci.yml`
+- **review_required:** `architecture`
+- **status:** `done`
 
 #### `P4-4-SCORE` — Route scoring history и replay
 
@@ -930,7 +943,8 @@ flowchart LR
   - UI показывает деградацию сегментов согласованно с backend сигналами.
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
-- **status:** `planned`
+- **status:** `done`
+- **Зафиксировано (2026-04-21):** BFF `GET /api/operator/health/degradation`, `DegradedStatusBanner`, dashboard intake section; см. `docs/phase4-ui-degraded-signals.md`.
 
 **Definition of Done (§50.6):** расширенный universe; bulkhead; оператор видит throttling и degraded сегменты.
 
@@ -950,7 +964,9 @@ flowchart LR
   - Развёртывание документировано; безопасное подключение к Operator API.
 - **changed_areas:** `infra/`, gateway сервис
 - **review_required:** `architecture`
-- **status:** `planned`
+- **status:** `done`
+- **Зафиксировано (2026-04-20):** `GET /openclaw/v1/plans` (cursor `limit`/`cursor`), `GET /openclaw/v1/plans/:id` (plan + legs), `GET /openclaw/v1/positions`, `GET /openclaw/v1/incidents` (reconciliation mismatches), `GET /openclaw/v1/dashboard/summary` (operator BFF); **`OpenclawAuthGuard`** — `x-openclaw-api-key` + `OPENCLAW_API_KEYS`; **`OpenclawUpstreamService`** — upstream `fetch` с `x-correlation-id`; **`apps/web`** BFF **`GET /api/operator/openclaw/v1/[[...path]]`** + env `OPENCLAW_GATEWAY_URL`, `OPENCLAW_BFF_API_KEY`; read-only **`/openclaw`** UI; документы [`apps/openclaw-gateway/README.md`](../../apps/openclaw-gateway/README.md), [`docs/openclaw-gateway-runbook.md`](../../docs/openclaw-gateway-runbook.md).
+- **Ревью (2026-04-20):** architecture + backend checklist (read-only proxy, no domain writes, API key gate); корневой `npm run lint` / `build` / `test` для `@arbibot/openclaw-gateway` — успех; `review_passed` → `done`.
 
 #### `P5-5-OAPI` — Operator API для OpenClaw
 
@@ -962,7 +978,8 @@ flowchart LR
   - Только approve-required мутации; аудит вызовов.
 - **changed_areas:** новый API слой
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `done`
+- **Зафиксировано (2026-04-20):** `POST /openclaw/v1/plans/:id/arm`, `POST .../execute` (begin-execution), `POST .../positions/:id/close` → **501** до API portfolio, `POST .../incidents/:id/resolve` → `PATCH` reconciliation; `POST .../safe-mode/enable|disable`; audit через `AuditClientService`; rate limit per API key (`OpenclawRateLimitService`); BFF `POST`/`PATCH` на `/api/operator/openclaw/v1/*` с merge `operatorId` из сессии; env `AUDIT_API_BASE`, `OPENCLAW_MUTATION_RATE_LIMIT_*`.
 
 #### `P5-5-OCUI` — UI `/openclaw`
 
@@ -974,7 +991,8 @@ flowchart LR
   - Экраны по спеке; связь с gateway/Operator API.
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
-- **status:** `planned`
+- **status:** `done`
+- **Зафиксировано (2026-04-20):** `OpenclawWorkspace` — plans, dashboard, briefs, approvals queue, sessions placeholder, safe mode controls; `SafeModeBanner` в operator layout; React Query keys `openclaw*` в `operator-query-keys.ts`. **2026-04-20:** секция portfolio positions + close через gateway.
 
 #### `P5-5-BRIEF` — Incident briefs и safe mode
 
@@ -986,7 +1004,8 @@ flowchart LR
   - Сценарии описаны и покрыты тестами/ручным чеклистом; policy не обходится.
 - **changed_areas:** gateway, docs
 - **review_required:** `architecture`
-- **status:** `planned`
+- **status:** `done`
+- **Зафиксировано (2026-04-20):** `GET /openclaw/v1/incident-briefs`, `GET .../safe-mode/status`, in-process `SafeModeService` + runbook [`docs/openclaw-safe-mode-runbook.md`](../../docs/openclaw-safe-mode-runbook.md); unit tests `safe-mode.service.spec.ts`, `incident-briefs.service.spec.ts`.
 
 **Definition of Done (§50.7):** OpenClaw читает read models и запускает только approve-required workflows; policy control plane не обходится.
 
@@ -1294,25 +1313,29 @@ flowchart LR
 
 - **step_id:** `PRIO-P2-TIER`
 - **phase:** `4`
-- **service:** `platform`
+- **service:** `apps/risk-service`
 - **goal:** Авто-тиринг watchlist. Канон: `P4-4-TIER`.
 - **acceptance_criteria:**
   - Как у `P4-4-TIER` для watchlist use case.
-- **changed_areas:** как у канонического шага
+- **changed_areas:** `apps/risk-service`, `docs/watchlist-tiering-logic.md`, `packages/contracts`, `tools/e2e-phase2-watchlist-route-scoring.mjs`
 - **review_required:** `architecture`
-- **status:** `planned`
+- **status:** `done`
+- **Зафиксировано (2026-04-19):** `WatchlistTieringWriterService` — `token_profiles.max_notional_usd` → `hot`/`warm`/`cold` + append-only `watchlist_tier_snapshots` при смене tier/reason; `GET /policy/watchlist/tiers` — `DISTINCT ON` latest-per-instrument; фоновые `setInterval` + `POST /policy/jobs/watchlist-tiering` (`PolicyJobsController`); env `RISK_POLICY_JOBS_ENABLED`, `WATCHLIST_TIERING_INTERVAL_MS`, пороги `WATCHLIST_TIER_*`; метрики `arb_watchlist_tier_evaluations_total`, `arb_watchlist_tier_changes_total`; audit `WatchlistTieringJob`.
+- **Ревью (2026-04-19):** unit `watchlist-tiering-writer.service.spec.ts`; e2e `npm run e2e:phase2-watchlist-route-scoring` (при поднятом risk + `DATABASE_URL` + trigger token); single-writer risk-service; `review_passed` → `done`.
 
 #### `PRIO-P2-SCORE` — Route scoring history
 
 - **step_id:** `PRIO-P2-SCORE`
 - **phase:** `4`
-- **service:** `platform`
+- **service:** `apps/risk-service`
 - **goal:** История скоринга. Канон: `P4-4-SCORE`.
 - **acceptance_criteria:**
   - Как у `P4-4-SCORE`.
-- **changed_areas:** как у канонического шага
+- **changed_areas:** `apps/risk-service`, `docs/route-scoring-logic.md`, `packages/contracts`, `tools/e2e-phase2-watchlist-route-scoring.mjs`
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `done`
+- **Зафиксировано (2026-04-19):** `RouteScoringWriterService` — агрегат `risk_decisions` по `route_key` в lookback + `route_profiles.max_notional_usd` → score \([0,1]\); append `route_scoring_history` при смене score/model; `POST /policy/jobs/route-scoring`; env `ROUTE_SCORING_INTERVAL_MS`, `ROUTE_SCORING_LOOKBACK_HOURS`, `ROUTE_SCORING_NOTIONAL_REF_USD`; метрики `arb_route_scoring_evaluations_total`, `arb_route_scoring_changes_total`, histogram `arb_route_scoring_score_distribution`; audit `RouteScoringJob`.
+- **Ревью (2026-04-19):** unit `route-scoring-writer.service.spec.ts`, `policy-jobs.service.spec.ts`; e2e см. выше; `review_passed` → `done`.
 
 #### `PRIO-P2-PROMO` — Quality-based promotion to live
 
@@ -1324,7 +1347,9 @@ flowchart LR
   - Критерии promotion задокументированы и автоматизированы.
 - **changed_areas:** paper, tokens UI/API
 - **review_required:** `architecture`
-- **status:** `planned`
+- **status:** `done`
+- **Зафиксировано (2026-04-20):** колонки `quality_score` / `quality_tier` + миграция `030`; `PaperPromotionQualityWorker` периодически обновляет снимки для `queued`/`under_review`; API отдаёт persisted quality при наличии.
+- **Ревью (2026-04-20):** локальный CI-паритет (`npm run lint` / `build` / `test`); см. [`docs/review-handoff-2026-04-20.md`](../../docs/review-handoff-2026-04-20.md); `review_passed` → **`done`**.
 
 #### `PRIO-P2-RECAL` — Recalibration jobs (Python)
 
@@ -1336,7 +1361,9 @@ flowchart LR
   - Job запускается по расписанию; артефакты версионируются; без влияния на live без approval.
 - **changed_areas:** `tools/`, возможно отдельный пакет Python
 - **review_required:** `architecture`
-- **status:** `planned`
+- **status:** `done`
+- **Зафиксировано (2026-04-20):** `tools/recalibration/main.py` читает JSONL из `export:route-scoring-history`, агрегирует по route, выдаёт proposed `intake.throttling` / заготовки routing (без прямой записи в prod).
+- **Ревью (2026-04-20):** локальный CI-паритет; см. [`docs/review-handoff-2026-04-20.md`](../../docs/review-handoff-2026-04-20.md); `review_passed` → **`done`**.
 
 ---
 

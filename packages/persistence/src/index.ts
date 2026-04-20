@@ -26,6 +26,7 @@ export type { PaperTradeState } from './paper-trade.entity';
 export { PolicyConfigurationEntity } from './policy-configuration.entity';
 export { PortfolioPositionEntity } from './portfolio-position.entity';
 export { PortfolioPositionFillIdempotencyEntity } from './portfolio-position-fill-idempotency.entity';
+export { PortfolioPositionCloseIdempotencyEntity } from './portfolio-position-close-idempotency.entity';
 export { ReconciliationMismatchEntity } from './reconciliation-mismatch.entity';
 export { RouteProfileEntity } from './route-profile.entity';
 export { RouteScoringHistoryEntity } from './route-scoring-history.entity';
@@ -54,6 +55,7 @@ import { PaperDiscoveryCandidateEntity } from './paper-discovery-candidate.entit
 import { PaperPromotionCandidateEntity } from './paper-promotion-candidate.entity';
 import { PaperTradeEntity } from './paper-trade.entity';
 import { PolicyConfigurationEntity } from './policy-configuration.entity';
+import { PortfolioPositionCloseIdempotencyEntity } from './portfolio-position-close-idempotency.entity';
 import { PortfolioPositionFillIdempotencyEntity } from './portfolio-position-fill-idempotency.entity';
 import { PortfolioPositionEntity } from './portfolio-position.entity';
 import { ReconciliationMismatchEntity } from './reconciliation-mismatch.entity';
@@ -85,6 +87,7 @@ export const ARBIBOT_TYPEORM_ENTITIES = [
   PolicyConfigurationEntity,
   PortfolioPositionEntity,
   PortfolioPositionFillIdempotencyEntity,
+  PortfolioPositionCloseIdempotencyEntity,
   ReconciliationMismatchEntity,
   TokenProfileEntity,
   RouteProfileEntity,

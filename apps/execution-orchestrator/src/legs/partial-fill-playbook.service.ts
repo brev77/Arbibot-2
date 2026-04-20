@@ -46,9 +46,25 @@ export class PartialFillPlaybookService {
       }
     }
     return {
-      partialFillStrategy: partialFillStrategy as PartialFillPlaybookConfig['partialFillStrategy'],
-      driftBpsThreshold: driftBpsThreshold as number | undefined,
-      maxPartialLegCommits: maxPartialLegCommits as number | undefined,
+      partialFillStrategy:
+        partialFillStrategy === 'continue' ||
+        partialFillStrategy === 'hedge' ||
+        partialFillStrategy === 'unwind'
+          ? partialFillStrategy
+          : undefined,
+      driftBpsThreshold:
+        driftBpsThreshold !== undefined &&
+        typeof driftBpsThreshold === 'number' &&
+        Number.isFinite(driftBpsThreshold)
+          ? driftBpsThreshold
+          : undefined,
+      maxPartialLegCommits:
+        maxPartialLegCommits !== undefined &&
+        typeof maxPartialLegCommits === 'number' &&
+        Number.isInteger(maxPartialLegCommits) &&
+        maxPartialLegCommits >= 1
+          ? maxPartialLegCommits
+          : undefined,
     };
   }
 }

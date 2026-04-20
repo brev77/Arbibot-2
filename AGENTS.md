@@ -47,9 +47,10 @@ Arbibot 2 is a **Turborepo monorepo** (`npm` workspaces: `apps/*`, `packages/*`)
 
 There is **no** `core-backend/` or `operator-frontend/` directory; older docs or audits may refer to that layout.
 
-**Current status (2026-04-19):**
-- **Phase 2.2 short-term slice:** risk-service — token/route profile services, **`adaptiveRisk`** on `POST /evaluate-risk`, read APIs **`GET /policy/watchlist/tiers`**, **`GET /policy/route-scoring-history/:routeKey`**; execution-orchestrator — **`playbook_config`** + `PartialFillPlaybookService`; paper-trading — promotion **`qualityTier`** / **`qualityScore`**, drift samples optional **`routeKey`**; **`tools/recalibration`**; docs **`partial-fill-playbooks.md`**, **`recalibration-spec.md`**, **`paper-promotion-criteria.md`**; observability — histogram bucket reference in **`docs/observability-tracing.md`**; operator UI — **`/settings`** → «Route scoring history» + BFF **`GET /api/operator/settings/route-scoring/[routeKey]`**
-- **Last major update (2026-04-19, session close):** review gate `PRIO-P2-PAPERDISC` closed (backend + frontend + architecture checks passed), Monorepo ESLint fixed (all 19 packages green), bug fix in `PaperDiscoveryService.runDiscoveryCycle` (entity ID handling), worker improvements (metrics registry integration, ScheduleModule removal)
+**Current status (2026-04-20):**
+- **Phase 4 prep (short-term plan 2-3 weeks):** market-intake — **`PolicyCacheService`**, **`IntakeThrottleService`**, **`DegradationStateService`**, metrics `arb_intake_*`, **`GET /health`**, **`GET /health/degradation`**, throttling via `INTAKE_THROTTLING_ENABLED`, **429** response with explicit JSON on throttle, config JSON keys `intake.throttling` / `intake.routing.tiers` (tier priority: instrumentKey lists > fallback to watchlist tiers); UI — **`DegradedStatusBanner`** in operator layout, intake section on `/dashboard`, BFF **`GET /api/operator/health/degradation`**, **`MARKET_INTAKE_API_BASE`** env; Grafana — intake panels on `arbibot-risk-policy-writers.json`; intake degradation alert/runbook — **[`docs/intake-degradation-runbook.md`](docs/intake-degradation-runbook.md)**; P2 prep — **`docs/paper-promotion-quality-criteria.md`**, **`tools/recalibration/`** stub; Phase 5 — **`apps/openclaw-gateway`** **`GET/POST /openclaw/v1/*`** (mutations audited; rate limit per API key; **`GET .../incident-briefs`**, **`.../approvals-queue`**, **`.../safe-mode/status`**), BFF **`/api/operator/openclaw/v1/[[...path]]`** (**GET/POST/PATCH**), **`/openclaw`** UI (**`OpenclawWorkspace`**, **`SafeModeBanner`**), **`npm run dev:openclaw`**, **[`apps/openclaw-gateway/README.md`](apps/openclaw-gateway/README.md)**, **[`docs/openclaw-gateway-runbook.md`](docs/openclaw-gateway-runbook.md)**, **`docs/openclaw-operator-api-spec.md`**, **`docs/openclaw-ui-design.md`**, **`docs/openclaw-safe-mode-runbook.md`**, **`docs/ci-verification-checklist.md`**, **`docs/e2e-scenarios.md`**
+- **Phase 2.2 short-term slice:** risk-service — token/route profile services, **`adaptiveRisk`** on `POST /evaluate-risk`, read APIs **`GET /policy/watchlist/tiers`**, **`GET /policy/route-scoring-history/:routeKey`**, **policy writer jobs** (`WatchlistTieringWriterService` / `RouteScoringWriterService`, optional `RISK_POLICY_JOBS_ENABLED`, **`POST /policy/jobs/watchlist-tiering`**, **`POST /policy/jobs/route-scoring`** with `x-arbibot-job-trigger` + `RISK_POLICY_JOB_TRIGGER_TOKEN`); docs **`docs/watchlist-tiering-logic.md`**, **`docs/route-scoring-logic.md`**; smoke **`npm run e2e:phase2-watchlist-route-scoring`**; CI — **`e2e-phase2-watchlist-route-scoring`** job, **`tools/ci-e2e-phase2-watchlist-route-scoring.sh`**, Grafana **`arbibot-risk-policy-writers.json`** with writer metrics; execution-orchestrator — **`playbook_config`** + `PartialFillPlaybookService`; paper-trading — promotion **`qualityTier`** / **`qualityScore`**, drift samples optional **`routeKey`**; **`tools/recalibration/`**; docs **`partial-fill-playbooks.md`**, **`recalibration-spec.md`**, **`paper-promotion-criteria.md`**; observability — histogram bucket reference in **`docs/observability-tracing.md`**; operator UI — **`/settings`** → «Watchlist tiers» + «Route scoring history», BFF **`GET /api/operator/settings/watchlist-tiers`**, **`GET /api/operator/settings/route-scoring/[routeKey]`**, offline export **`tools/export-route-scoring-history.mjs`**, **`npm run export:route-scoring-history`**
+- **Last major update (2026-04-20, session close):** Phase 4 prep completed — market-intake throttling, degraded UI signals, P2 prep, OpenClaw skeleton; Phase 4 prep documentation — **`docs/phase4-prep-bridge.md`**, **`docs/adr-phase4-intake-throttling.md`**, **`docs/phase4-ui-degraded-signals.md`**; review gate `PRIO-P2-PAPERDISC` closed (2026-04-19), Monorepo ESLint fixed (all 19 packages green), bug fix in `PaperDiscoveryService.runDiscoveryCycle`, worker improvements; bus-smoke verification — connection tests successful
 - **Bus-smoke verification (2026-04-19):** connection tests successful — Docker compose --profile bus running (Redpanda port 19092), `@arbibot/outbox-kafka-bridge` built, publisher/consumer connected to Kafka (consumer group: `arbibot-bus-smoke`), all artifacts from `docs/outbox-inbox.md` checklist verified
 - **CFG-3 UI in `/settings`:** promote/activate draft completed (promote/activate draft workflows with React Query, draft checkboxes, Promote modal, `DestructiveOperatorAction` integration)
 - **Paper discovery × config-service integration:** effective JSON on key `paper.discovery` with cache, env fallback, single-writer pattern respected
@@ -61,8 +62,8 @@ There is **no** `core-backend/` or `operator-frontend/` directory; older docs or
 - **Paper quality improvements:** completed (Grafana dashboards, drift alerts v1/v2, SLO v1)
 - **Paper Trading Complete (P3-1, P3-2, P3-3, P3-5, P3-6):** completed (paper trades mutations, promotion candidates mutations, virtual capital, drift gauges, E2E tests)
 - **Paper Discovery Pipeline (P3-4):** implemented (discovery worker, candidate entity, E2E tests, **config-service integration**, bug fixes for entity ID handling)
-- **Migrations:** 001–028 (в т.ч. **`024_fix_rollback_configuration_function.sql`**, **`025_execution_plan_playbook.sql`**, **`026_watchlist_tier_snapshots.sql`**, **`027_route_scoring_history.sql`**, **`028_paper_drift_route_key.sql`**); policy scope **`020_policy_configuration_scopes.sql`** (исправленный rollback / совместимость)
-- **DEVELOPMENT_PLAN:** ~**90%** of steps in `done` (as of **2026-04-19**); **`PRIO-P2-PAPERDISC`** → **`done`** (review gate closed); remaining: Phase 4–5 — see [.cursor/plans/DEVELOPMENT_PLAN.md](.cursor/plans/DEVELOPMENT_PLAN.md)
+- **Migrations:** 001–031 (в т.ч. **`024_fix_rollback_configuration_function.sql`**, **`025_execution_plan_playbook.sql`**, **`026_watchlist_tier_snapshots.sql`**, **`027_route_scoring_history.sql`**, **`028_paper_drift_route_key.sql`**, **`029_intake_policy_seed.sql`** — defaults `intake.throttling` / `intake.routing.tiers`; **`030_paper_promotion_quality_fields.sql`**, **`031_portfolio_position_close_idempotency.sql`**); policy scope **`020_policy_configuration_scopes.sql`** (исправленный rollback / совместимость)
+- **DEVELOPMENT_PLAN:** ~**94%** of steps in `done` (as of **2026-04-20**); **`PRIO-P2-PAPERDISC`**, **`PRIO-P2-TIER`**, **`PRIO-P2-SCORE`** → **`done`**; Phase 4 prep completed; **`P5-5-GW`**, **`P5-5-OAPI`**, **`P5-5-OCUI`**, **`P5-5-BRIEF`** → **`done`**; remaining: Phase 4 analytics / further OpenClaw scope — see [.cursor/plans/DEVELOPMENT_PLAN.md](.cursor/plans/DEVELOPMENT_PLAN.md)
 
 **Known issues:**
 - (none tracked here — migration **020** rollback path repaired via **`024`**; применяйте миграции по порядку на чистых БД)
@@ -107,6 +108,47 @@ There is **no** `core-backend/` or `operator-frontend/` directory; older docs or
 - Full E2E bus-smoke с запущенными сервисами и сообщениями в топике отложен до необходимости
 - Для полной проверки end-to-end с сообщениями в топике требуются сервисы с сгенерированными outbox_events (future)
 
+**Phase 4 prep (2026-04-20):**
+- **market-intake throttling:**
+  - `PolicyCacheService` — policy cache via HTTP to config-service (`GET /policy/configurations/*/effective`) + risk `watchlist/tiers` + optional `route-scoring-history/:routeKey` (read-only, single-writer: risk-service)
+  - `IntakeThrottleService` — throttling logic with env `INTAKE_THROTTLING_ENABLED`; returns **429** + explicit JSON `{ throttled: true }` on throttle (not silent drop); optional audit on `requireAuditOnThrottle` in `intake.throttling` JSON
+  - `DegradationStateService` — tracks fallback mode, metrics `arb_intake_degradation_active`, `arb_intake_degradation_duration_seconds`
+  - Metrics: `arb_intake_throttled_total`, `arb_intake_samples_recorded_total`, `arb_intake_samples_dropped_total`, `arb_intake_tier_routing_total` (label: tier)
+  - Health: `GET /health/degradation` — returns `{ degraded, fallbackMode, degradationReasons }`
+  - Config JSON keys: `intake.throttling` (enabled, samplesPerSecond, requireAuditOnThrottle), `intake.routing.tiers` (priority list of instrumentKey arrays + sampling intervals)
+  - README: `apps/market-intake-service/README.md`; tests: `policy-cache.service.spec.ts`
+- **degraded UI signals:**
+  - `apps/web`: BFF `GET /api/operator/health/degradation` (proxy to market-intake), `DegradedStatusBanner` component (polling 30s), dashboard intake section
+  - Query keys: `operatorKeys.intakeDegradation`, `operatorKeys.dashboardSummary`
+  - Styling: warning banner in operator layout with dismiss option
+- **Phase 4 prep docs:**
+  - `docs/phase4-prep-bridge.md` — CI, observability, offline export plan
+  - `docs/adr-phase4-intake-throttling.md` — ADR for throttling architecture
+  - `docs/phase4-ui-degraded-signals.md` — degraded signals design
+  - `docs/paper-promotion-quality-criteria.md` — promotion quality criteria
+  - `docs/openclaw-operator-api-spec.md` — OpenClaw API specification
+- **Grafana:**
+  - `infra/grafana/dashboards/arbibot-risk-policy-writers.json` — intake panels added
+  - `infra/grafana/README.md` — updated with intake metrics
+- **P2 prep:**
+  - `tools/recalibration/main.py` — stub Python CLI, JSON output only
+  - `tools/recalibration/README.md` — recalibration spec
+- **Phase 5 OpenClaw (`P5-5-GW` done):**
+  - `apps/openclaw-gateway/` — Nest+Fastify, port 3020; **`OpenclawAuthGuard`** + **`GET /openclaw/v1/plans`**, **`plans/:id`** (plan+legs), **`positions`**, **`incidents`**, **`dashboard/summary`**
+  - `GET /health` — basic health; `GET /health/operator-bff` — BFF probe when `OPERATOR_WEB_BFF_BASE` set
+  - `apps/web`: **`GET /api/operator/openclaw/v1/*`** BFF → gateway (`OPENCLAW_GATEWAY_URL`, `OPENCLAW_BFF_API_KEY`); **`/openclaw`** page shows read-only summary + sample plans when configured
+  - `npm run dev:openclaw` — dev command; Jest tests: `openclaw-auth.guard.spec.ts`
+  - Docs: [`apps/openclaw-gateway/README.md`](apps/openclaw-gateway/README.md), [`docs/openclaw-gateway-runbook.md`](docs/openclaw-gateway-runbook.md)
+- **Env vars:**
+  - `MARKET_INTAKE_API_BASE` — for web BFF
+  - `INTAKE_THROTTLING_ENABLED` — feature flag
+  - `INTAKE_POLICY_CACHE_MS` — policy cache TTL
+  - `OPENCLAW_GATEWAY_PORT` — OpenClaw port (default 3020)
+  - `OPENCLAW_API_KEYS` — comma-separated keys for `x-openclaw-api-key` on **`openclaw-gateway`**
+  - `OPENCLAW_GATEWAY_URL` + `OPENCLAW_BFF_API_KEY` — **`apps/web`** server-only BFF to gateway
+  - `EXECUTION_API_BASE`, `PORTFOLIO_API_BASE`, `RECONCILIATION_API_BASE` — gateway upstream defaults
+  - `OPERATOR_WEB_BFF_BASE` — for OpenClaw gateway read-through + health probe
+
 **Operational backlog (what / when):** [`docs/TODO.md`](docs/TODO.md) — живой список рядом с каноном [.cursor/plans/DEVELOPMENT_PLAN.md](.cursor/plans/DEVELOPMENT_PLAN.md).
 
 **OpenClaw:** сводка функций, запретов и Phase 5 — [`docs/openclaw-reference.md`](docs/openclaw-reference.md); границы API — [`docs/openclaw-operator-boundaries.md`](docs/openclaw-operator-boundaries.md).
@@ -131,7 +173,7 @@ docker compose -f infra/docker-compose.dev.yml --profile bus up -d
 
 **Windows — repo path with spaces and Nest:** If the checkout path contains spaces (for example `...\\Arbibot 2\\...`), `nest build` / `nest start --watch` may finish without emitting `apps/<service>/dist/main.js`, then fail with `Cannot find module ... dist\\main`. Workaround: use a clone path **without spaces**, or `subst X: "C:\\path\\to\\Arbibot 2"` and run `npm run build` / `npm run start:dev` from **`X:\\`**.
 
-Use [`.env.example`](.env.example) as the source of truth for local env vars (`DATABASE_URL`, `REDIS_URL`, `CORS_ORIGINS`, `KAFKA_BROKERS`, `ARBIBOT_DEV_ROLE`, optional **`ARBIBOT_DEV_OPERATOR_ID`** for config-service audit in BFF). For **`apps/web`** server-side BFF proxies, use **`*_API_BASE`** (see [`apps/web/lib/api-base.ts`](apps/web/lib/api-base.ts)), including **`CONFIG_API_BASE`**, **`PORTFOLIO_API_BASE`**, **`RECONCILIATION_API_BASE`**, and **`PAPER_API_BASE`**.
+Use [`.env.example`](.env.example) as the source of truth for local env vars (`DATABASE_URL`, `REDIS_URL`, `CORS_ORIGINS`, `KAFKA_BROKERS`, `ARBIBOT_DEV_ROLE`, optional **`ARBIBOT_DEV_OPERATOR_ID`** for config-service audit in BFF). For **`apps/web`** server-side BFF proxies, use **`*_API_BASE`** (see [`apps/web/lib/api-base.ts`](apps/web/lib/api-base.ts)), including **`CONFIG_API_BASE`**, **`PORTFOLIO_API_BASE`**, **`RECONCILIATION_API_BASE`**, **`PAPER_API_BASE`**, and **`MARKET_INTAKE_API_BASE`**.
 
 ### Root workspace
 
@@ -141,16 +183,27 @@ From the repo root:
 - `npm run lint` — Turbo lint (Nest apps, packages, `apps/web`)
 - `npm run build` — Turbo build
 - `npm run test` — Turbo test
-- `npm run db:migrate` — apply SQL migrations under `infra/postgres/migrations/` (001–023)
+- `npm run db:migrate` — apply SQL migrations under `infra/postgres/migrations/` (001–031)
 - `npm run e2e:phase1-foundation` — HTTP smoke for Phase 1 DoD §50.3 (snapshot → opportunity → risk → reserve → arm); optional `E2E_INCLUDE_EXECUTION_LEG=true` extends through `apply-fill`; requires migrated DB and running `market-intake`, `opportunity`, `risk`, `capital`, `execution-orchestrator` (see `tools/e2e-phase1-foundation-chain.mjs` for ports / env overrides)
 - `npm run e2e:phase2-controlled-execution` — extends the Phase 1 chain through **all** execution legs until the plan is `completed` (see `tools/e2e-phase2-controlled-execution.mjs`); use `EXECUTION_BEGIN_LEG_COUNT` on **execution-orchestrator** for multi-leg; optional settlement envs as in `docs/settlement-post-commit.md`
+- `npm run e2e:phase2-watchlist-route-scoring` — seeds `token_profiles` / `route_profiles` / `risk_decisions` via `DATABASE_URL`, triggers **`POST /policy/jobs/*`** on **risk-service** (`RISK_SERVICE_URL`, `RISK_POLICY_JOB_TRIGGER_TOKEN`); see `tools/e2e-phase2-watchlist-route-scoring.mjs`
 - `npm run e2e:phase3-paper-promotion` — smoke: create opportunity → `paper-enqueue` (dedup) → poll paper **`/paper/promotion-candidates`** until relay delivers (see `tools/e2e-phase3-paper-promotion.mjs`); requires migrated DB (**`018`**), **paper-trading-service**, **opportunity-service** with **`PAPER_TRADING_SERVICE_URL`** set to paper base URL; script waits for **`GET /metrics`** on both services first
 - `npm run ci:e2e-phase3` — CI wrapper: Postgres + **paper-trading-service** + **opportunity-service** with fast **`OUTBOX_RELAY_POLL_MS`**, then `e2e:phase3-paper-promotion` (see `tools/ci-e2e-phase3-paper-promotion.sh`); GitHub Actions job **`e2e-phase3-paper-promotion`**
 - `npm run ci:e2e-phase2` — same Phase 2 HTTP chain with **Postgres + lab HTTP venue + built Nest apps** (see `tools/ci-e2e-phase2.sh`); GitHub Actions runs this as job **`e2e-phase2`** after `npm run build`
+- `npm run ci:e2e-phase2-watchlist-route-scoring` — Postgres + **risk-service** + `e2e:phase2-watchlist-route-scoring` (see `tools/ci-e2e-phase2-watchlist-route-scoring.sh`); GitHub Actions job **`e2e-phase2-watchlist-route-scoring`**
+- `npm run e2e:phase4-tier-routing` — Phase 4 intake tier routing + warm sampling throttle (requires `INTAKE_THROTTLING_ENABLED=true`, running **risk-service**, **config-service**, **market-intake**); see `tools/e2e-phase4-tier-routing.mjs`
+- `npm run ci:e2e-phase4-tier-routing` — Postgres + risk + config + market-intake + `e2e:phase4-tier-routing` (`tools/ci-e2e-phase4-tier-routing.sh`); GitHub Actions job **`e2e-phase4-tier-routing`**
+- `npm run seed:intake-policy-config` — HTTP upsert `intake.*` keys via config-service (`tools/seed-intake-policy-config.mjs`; config may need `AUDIT_CLIENT_ENABLED=false` if audit is down)
+- `npm run ci:bus-smoke` — build `@arbibot/outbox-kafka-bridge` + optional Docker `--profile bus` (`tools/ci-bus-smoke.sh`); GitHub Actions job **`bus-smoke`**; optional `SEED_OUTBOX=1` with `DATABASE_URL` runs [`tools/seed-outbox-events.mjs`](tools/seed-outbox-events.mjs)
+- `npm run seed:outbox-smoke-events` — insert one `SnapshotUpdated` row into `outbox_events` for manual bus publish tests
+- `npm run seed:outbox-smoke-events:all` — insert one row per Kafka bridge `event_type` (`SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, `PlanCompleted`) for full bus smoke
+- `npm run db:verify-migrations` — verify `schema_migrations` contains **030** and **031** (override list: `node tools/verify-migrations-applied.mjs <file.sql> ...`)
+- `npm run venue:load-test` — concurrent HTTP venue submits (`VENUE_HTTP_BASE_URL`, optional `VENUE_LOAD_CONCURRENCY`, `VENUE_LOAD_REQUESTS`)
+- `npm run export:route-scoring-history` — JSONL/CSV export from `route_scoring_history` for offline replay prep (`DATABASE_URL`, optional `ROUTE_KEY`, `LOOKBACK_HOURS`, `FORMAT`)
 - `npm run bus:publish` — build and publish outbox rows to Kafka/Redpanda for `SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, and `PlanCompleted` (see `@arbibot/outbox-kafka-bridge`); checklist in [`docs/outbox-inbox.md`](docs/outbox-inbox.md) (profile `bus`, `DATABASE_URL`, `KAFKA_BROKERS`).
 - `npm run bus:consume` — build and run smoke consumer with inbox claim (logs `eventName` and `entityType` on successful claim)
 
-Copy [`.env.example`](.env.example) to `.env` and adjust URLs. Typical Nest env: `PORT`, `DATABASE_URL`, `REDIS_URL`, `CORS_ORIGINS`, `KAFKA_BROKERS`, and service-to-service URLs where applicable (e.g. **`RISK_SERVICE_URL`** for `opportunity-service` → risk; **`REDIS_URL`** also for **config-service** cache; optional **`PAPER_TRADING_SERVICE_URL`** for `opportunity-service` → paper promotion enqueue). **`apps/web`** uses **`RISK_API_BASE`**, **`OPPORTUNITY_API_BASE`**, **`CAPITAL_API_BASE`**, **`EXECUTION_API_BASE`**, **`AUDIT_API_BASE`**, **`CONFIG_API_BASE`**, **`PORTFOLIO_API_BASE`**, **`RECONCILIATION_API_BASE`**, **`PAPER_API_BASE`** for upstream HTTP (same defaults as local ports; override per deploy).
+Copy [`.env.example`](.env.example) to `.env` and adjust URLs. Typical Nest env: `PORT`, `DATABASE_URL`, `REDIS_URL`, `CORS_ORIGINS`, `KAFKA_BROKERS`, and service-to-service URLs where applicable (e.g. **`RISK_SERVICE_URL`** for `opportunity-service` → risk; **`REDIS_URL`** also for **config-service** cache; optional **`PAPER_TRADING_SERVICE_URL`** for `opportunity-service` → paper promotion enqueue). **`apps/web`** uses **`RISK_API_BASE`**, **`OPPORTUNITY_API_BASE`**, **`CAPITAL_API_BASE`**, **`EXECUTION_API_BASE`**, **`AUDIT_API_BASE`**, **`CONFIG_API_BASE`**, **`PORTFOLIO_API_BASE`**, **`RECONCILIATION_API_BASE`**, **`PAPER_API_BASE`**, **`MARKET_INTAKE_API_BASE`** for upstream HTTP (same defaults as local ports; override per deploy).
 
 ### Backend services (`apps/*`)
 
@@ -163,12 +216,13 @@ Copy [`.env.example`](.env.example) to `.env` and adjust URLs. Typical Nest env:
 | audit-service | 3013 |
 | canonical-market-service | 3014 |
 | market-intake-service | 3015 |
+| openclaw-gateway | 3020 (`OPENCLAW_GATEWAY_PORT`) |
 | portfolio-service | 3016 |
 | reconciliation-service | 3017 |
 | paper-trading-service | 3018 |
 | config-service | 3019 |
 
-Each service: `npm run start:dev -w @arbibot/<name>` or use root scripts in [`package.json`](package.json): `dev:risk`, `dev:opportunity`, `dev:capital`, `dev:execution`, `dev:audit`, `dev:canonical`, `dev:intake`, `dev:portfolio`, `dev:reconciliation`, `dev:paper`, **`dev:config`**, `dev:web`.
+Each service: `npm run start:dev -w @arbibot/<name>` or use root scripts in [`package.json`](package.json): `dev:risk`, `dev:opportunity`, `dev:capital`, `dev:execution`, `dev:audit`, `dev:canonical`, `dev:intake`, `dev:portfolio`, `dev:reconciliation`, `dev:paper`, **`dev:config`**, **`dev:openclaw`**, `dev:web`.
 
 Shared libraries live under [`packages/`](packages/), especially:
 
@@ -184,20 +238,26 @@ Shared libraries live under [`packages/`](packages/), especially:
 - Stack conventions (React Query BFF, shadcn-style UI, RSC vs client): [`apps/web/STACK-CONVENTIONS.md`](apps/web/STACK-CONVENTIONS.md).
 - Dev: `npm run dev -w @arbibot/web` (Next.js defaults to port **3000**; use another port if a Nest app uses 3000, e.g. `PORT=3001 npm run dev -w @arbibot/web`).
 - Lint / build: `npm run lint -w @arbibot/web`, `npm run build -w @arbibot/web`.
-- Server-side BFF fetches use **`*_API_BASE`** env vars (`RISK_API_BASE`, `OPPORTUNITY_API_BASE`, `CAPITAL_API_BASE`, `EXECUTION_API_BASE`, `AUDIT_API_BASE`, **`CONFIG_API_BASE`**, `PORTFOLIO_API_BASE`, `RECONCILIATION_API_BASE`, `PAPER_API_BASE`); see [`apps/web/lib/api-base.ts`](apps/web/lib/api-base.ts) and [`.env.example`](.env.example).
+- Server-side BFF fetches use **`*_API_BASE`** env vars (`RISK_API_BASE`, `OPPORTUNITY_API_BASE`, `CAPITAL_API_BASE`, `EXECUTION_API_BASE`, `AUDIT_API_BASE`, **`CONFIG_API_BASE`**, `PORTFOLIO_API_BASE`, `RECONCILIATION_API_BASE`, `PAPER_API_BASE`, **`MARKET_INTAKE_API_BASE`**); see [`apps/web/lib/api-base.ts`](apps/web/lib/api-base.ts) and [`.env.example`](.env.example).
 
 #### BFF Routes
-- **Dashboard:** `/api/operator/dashboard/summary` (incidents open/resolved today, capital positions count, total notional USD)
+- **Dashboard:** `/api/operator/dashboard/summary` (incidents open/resolved today, capital positions count, total notional USD, intake degradation status — Phase 4)
 - **Paper trades mutations:** `/api/operator/paper/trades/[id]?action=approve|reject|cancel`
 - **Paper promotion candidates mutations:** `/api/operator/paper/promotion-candidates/[id]?action=approve|reject`
 - **Settings (config-service):**
   - `/api/operator/settings/configurations` (list, create)
   - `/api/operator/settings/configurations/[configKey]` (get, update)
-  - `/api/operator/settings/configurations/[configKey]/effective` (resolved value with scope fallback)
+  - `/api/operator/settings/configurations/[configKey]/effective` (**GET** — resolved value with scope fallback; query `environment`, `tenantId`)
   - `/api/operator/settings/configurations/[configKey]/history` (version history)
   - `/api/operator/settings/configurations/[configKey]/rollback` (rollback to prior version)
   - `/api/operator/settings/configurations/[configKey]/promote` (CFG-3: scope promotion)
   - `/api/operator/settings/configurations/[configKey]/status` (CFG-3: activate draft — `PATCH`)
+  - `/api/operator/settings/watchlist-tiers` (read-only: **GET** → risk `GET /policy/watchlist/tiers`)
+  - `/api/operator/settings/route-scoring/[routeKey]` (read-only: **GET** → risk `GET /policy/route-scoring-history/:routeKey`)
+- **Health (Phase 4 intake):**
+  - `/api/operator/health/degradation` (read-only: **GET** → market-intake `GET /health/degradation` — returns `{ degraded, fallbackMode, degradationReasons }`)
+- **OpenClaw (Phase 5 read-through + mutations):**
+  - `/api/operator/openclaw/v1/[[...path]]` (**GET** / **POST** / **PATCH** → `OPENCLAW_GATEWAY_URL/openclaw/v1/...` with server `OPENCLAW_BFF_API_KEY`; proxies reads + mutations; **POST/PATCH** require operator session and inject `operatorId`)
 
 - UI routes: `/dashboard`, `/portfolio`, `/opportunities`, `/execution`, `/tokens`, `/paper`, `/incidents`, `/runbooks`, `/openclaw`, **`/settings`** (policy configurations via config-service BFF). Phase 3 slice: `/paper` and `/tokens` include paper trades, promotion candidates, drift samples, discovery candidates with proper mutation flows and operator safety.
 
@@ -207,7 +267,7 @@ Operator session in dev: see `apps/web` middleware / `getOperatorSession` — `A
 
 - **`opportunity-service` in-DB outbox relay** (`OutboxRelayService`): forwards **`RiskDecisionIssued`** and **`PaperPromotionCandidateRequested`** to **paper-trading-service** over HTTP when `PAPER_TRADING_SERVICE_URL` is set (enqueue is **outbox-first** — no synchronous "fire POST from the handler" path for promotion). Relay and bridge each use their own **event-type allowlists**; do not assume Kafka covers relay-only types.
 - **`@arbibot/outbox-kafka-bridge`** publishes `SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, and `PlanCompleted` to Kafka/Redpanda (filtered `event_type` list). It is a **separate** publisher from the opportunity in-DB relay; keep filters documented and avoid double-publishing the same logical delivery. See [`docs/outbox-inbox.md`](docs/outbox-inbox.md).
-- SQL migrations are applied lexicographically by `tools/db-migrate.mjs`; current migrations **001–023** include: canonical market, market intake idempotency, outbox relay dead-letter fields, execution/portfolio/reconciliation, fill/idempotency, **token/route profiles and risk decision keys** (`015_token_route_profiles.sql`), **paper trading** (`016_paper_trading.sql`, `017_paper_promotion_enqueue_idempotency.sql`), **outbox dedup for `paper-enqueue`** (`018_outbox_paper_enqueue_dedup.sql`), **policy configurations** (`019_policy_configurations.sql`), **policy configuration scopes** (`020_policy_configuration_scopes.sql`, CFG-3), **paper capital reservations** (`021_paper_capital_reservations.sql`), **paper discovery candidates** (`022_paper_discovery_candidates.sql`, `023_paper_discovery_candidates_fixes.sql`).
+- SQL migrations are applied lexicographically by `tools/db-migrate.mjs`; current migrations **001–031** include: canonical market, market intake idempotency, outbox relay dead-letter fields, execution/portfolio/reconciliation, fill/idempotency, **token/route profiles and risk decision keys** (`015_token_route_profiles.sql`), **paper trading** (`016_paper_trading.sql`, `017_paper_promotion_enqueue_idempotency.sql`), **outbox dedup for `paper-enqueue`** (`018_outbox_paper_enqueue_dedup.sql`), **policy configurations** (`019_policy_configurations.sql`), **policy configuration scopes** (`020_policy_configuration_scopes.sql`, CFG-3), **paper capital reservations** (`021_paper_capital_reservations.sql`), **paper discovery candidates** (`022_paper_discovery_candidates.sql`, `023_paper_discovery_candidates_fixes.sql`), later **`024`–`028`** (execution playbooks, watchlist/scoring history, paper drift `route_key`), **`029_intake_policy_seed.sql`** (defaults for `intake.throttling` / `intake.routing.tiers`), **`030_paper_promotion_quality_fields.sql`**, **`031_portfolio_position_close_idempotency.sql`**.
 - Canonical registry tables are not auto-seeded; after migrations, `venue_refs`, `canonical_instruments`, and `canonical_routes` must be populated manually before `resolve-*` endpoints return data.
 
 ### Phase 2 slice (controlled execution / policy)
@@ -298,9 +358,12 @@ Operator session in dev: see `apps/web` middleware / `getOperatorSession` — `A
 
 1. **build** — `npm ci`, then Turbo `lint`, `build`, `test` for the whole monorepo.
 2. **`e2e-phase2`** — after `npm ci` + `npm run build`, runs `npm run ci:e2e-phase2` (Postgres service container + lab HTTP venue + built Nest apps — controlled execution chain).
-3. **`e2e-phase3-paper-promotion`** — after `npm ci` + `npm run build`, runs `npm run ci:e2e-phase3` / `bash tools/ci-e2e-phase3-paper-promotion.sh` (Postgres + **paper-trading-service** + **opportunity-service**, paper promotion relay smoke).
-4. **`e2e-phase3-paper-discovery`** — after `npm ci` + `npm run build`, runs `npm run ci:e2e-phase3-paper-discovery` / `bash tools/ci-e2e-phase3-paper-discovery.sh` (Postgres + **paper-trading-service** + **market-intake-service**, then `node tools/e2e-p3-paper-discovery.mjs`).
-5. **`review-gate-cfg3-paper-discovery`** — checklist [`docs/review-gate-cfg3-paper-discovery.md`](docs/review-gate-cfg3-paper-discovery.md) (required items completed 2026-04-19; optional bus-smoke pending).
+3. **`e2e-phase2-watchlist-route-scoring`** — after `npm ci` + `npm run build`, runs `npm run ci:e2e-phase2-watchlist-route-scoring` (Postgres + **risk-service** — policy writer smoke).
+4. **`e2e-phase3-paper-promotion`** — after `npm ci` + `npm run build`, runs `npm run ci:e2e-phase3` / `bash tools/ci-e2e-phase3-paper-promotion.sh` (Postgres + **paper-trading-service** + **opportunity-service**, paper promotion relay smoke).
+5. **`e2e-phase3-paper-discovery`** — after `npm ci` + `npm run build`, runs `npm run ci:e2e-phase3-paper-discovery` / `bash tools/ci-e2e-phase3-paper-discovery.sh` (Postgres + **paper-trading-service** + **market-intake-service**, then `node tools/e2e-p3-paper-discovery.mjs`).
+6. **`e2e-phase4-tier-routing`** — after `npm ci` + `npm run build`, runs `npm run ci:e2e-phase4-tier-routing` (Postgres + **risk-service** + **config-service** + **market-intake** + `tools/e2e-phase4-tier-routing.mjs`).
+7. **`bus-smoke`** — after `npm ci`, runs `npm run ci:bus-smoke` (bridge build + optional Docker `--profile bus`).
+8. **`review-gate-cfg3-paper-discovery`** — checklist [`docs/review-gate-cfg3-paper-discovery.md`](docs/review-gate-cfg3-paper-discovery.md) (required items completed 2026-04-19; optional bus-smoke pending).
 
 ### Frontend Documentation
 
@@ -308,4 +371,11 @@ Operator session in dev: see `apps/web` middleware / `getOperatorSession` — `A
 - **`apps/web/QUERY_INVALIDATION.md`** — complete React Query invalidation strategy for all dashboard queries (dashboard, incidents, opportunities, execution, portfolio, paper, settings)
 - **`components/README-APPROVAL-FLOW.md`** — documentation for `DestructiveOperatorAction` component with usage examples and compliance checklist
 - **`apps/web/components/settings-workspace.tsx`** — CFG-3 UI with promote/activate draft, draft checkboxes, Promote modal, DestructiveOperatorAction integration, React Query invalidation
+- **`apps/web/components/degraded-status-banner.tsx`** — Phase 4 degraded signals banner (polling 30s, dismissible, operator layout integration)
 - **`docs/review-gate-cfg3-paper-discovery.md`** — review gate checklist for CFG-3 UI and paper discovery integration (backend/frontend/architecture, metrics, bus-smoke optional)
+- **`docs/phase4-prep-bridge.md`** — Phase 4 prep plan: CI, observability, offline export for watchlist/route analytics
+- **`docs/adr-phase4-intake-throttling.md`** — ADR for Phase 4 intake throttling architecture (policy cache, fallback, single-writer)
+- **`docs/phase4-ui-degraded-signals.md`** — Phase 4 degraded UI signals design (market-intake health, operator dashboard, banner)
+- **`docs/intake-policy-config-keys.md`** — config JSON keys `intake.throttling` / `intake.routing.tiers` (Phase 4)
+- **`docs/paper-promotion-quality-criteria.md`** — Paper promotion quality criteria (P2 prep)
+- **`docs/openclaw-operator-api-spec.md`** — OpenClaw operator API specification (Phase 5 gateway)

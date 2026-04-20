@@ -23,6 +23,13 @@ interface SettingsWorkspaceProps {
   tenantId?: string;
 }
 
+type WatchlistTierRow = {
+  instrumentKey: string;
+  tier: string;
+  reason: string;
+  recordedAtIso: string;
+};
+
 const SENSITIVE_KEY = /^(risk\.|execution\.|capital\.)/;
 
 async function fetchConfigurations(
@@ -123,6 +130,104 @@ export function SettingsWorkspace({
     null,
   );
 
+  const [watchlistTiersLoading, setWatchlistTiersLoading] = useState(false);
+  const [watchlistTiersError, setWatchlistTiersError] = useState<string | null>(
+    null,
+  );
+  const [watchlistTierRows, setWatchlistTierRows] = useState<WatchlistTierRow[] | null>(
+    null,
+  );
+
+  const [intakePolicyLoading, setIntakePolicyLoading] = useState(false);
+  const [intakePolicyError, setIntakePolicyError] = useState<string | null>(null);
+  const [intakeThrottlingJson, setIntakeThrottlingJson] = useState<string | null>(null);
+  const [intakeTiersJson, setIntakeTiersJson] = useState<string | null>(null);
+
+  const loadWatchlistTiers = useCallback(async () => {
+    setWatchlistTiersLoading(true);
+    setWatchlistTiersError(null);
+    try {
+      const res = await fetch('/api/operator/settings/watchlist-tiers', {
+        credentials: 'include',
+      });
+      const body = (await res.json().catch(() => ({}))) as unknown;
+      if (!res.ok) {
+        const err = body as { error?: string };
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      const raw = body as { items?: unknown };
+      const items: WatchlistTierRow[] = Array.isArray(raw.items)
+        ? raw.items.filter(
+            (r): r is WatchlistTierRow =>
+              r !== null &&
+              typeof r === 'object' &&
+              'instrumentKey' in r &&
+              'tier' in r &&
+              'reason' in r &&
+              'recordedAtIso' in r,
+          )
+        : [];
+      setWatchlistTierRows(items);
+    } catch (e) {
+      setWatchlistTierRows(null);
+      setWatchlistTiersError(
+        e instanceof Error ? e.message : 'Failed to load watchlist tiers',
+      );
+    } finally {
+      setWatchlistTiersLoading(false);
+    }
+  }, []);
+
+  const loadIntakePolicyEffective = useCallback(async () => {
+    setIntakePolicyLoading(true);
+    setIntakePolicyError(null);
+    try {
+      const params = new URLSearchParams();
+      if (environment) params.append('environment', environment);
+      if (tenantId) params.append('tenantId', tenantId);
+      const qs = params.toString() ? `?${params.toString()}` : '';
+
+      const fetchEffective = async (key: string): Promise<string> => {
+        const res = await fetch(
+          `/api/operator/settings/configurations/${encodeURIComponent(key)}/effective${qs}`,
+          { credentials: 'include' },
+        );
+        const body = (await res.json().catch(() => ({}))) as unknown;
+        if (!res.ok) {
+          const err = body as { error?: string; message?: string };
+          throw new Error(
+            err.error || err.message || `HTTP ${res.status} for ${key}`,
+          );
+        }
+        const cv = (body as { configValue?: unknown }).configValue;
+        if (typeof cv === 'string') {
+          try {
+            const parsed: unknown = JSON.parse(cv);
+            return JSON.stringify(parsed, null, 2);
+          } catch {
+            return cv;
+          }
+        }
+        return JSON.stringify(cv ?? body, null, 2);
+      };
+
+      const [th, ti] = await Promise.all([
+        fetchEffective('intake.throttling'),
+        fetchEffective('intake.routing.tiers'),
+      ]);
+      setIntakeThrottlingJson(th);
+      setIntakeTiersJson(ti);
+    } catch (e) {
+      setIntakeThrottlingJson(null);
+      setIntakeTiersJson(null);
+      setIntakePolicyError(
+        e instanceof Error ? e.message : 'Failed to load intake policy',
+      );
+    } finally {
+      setIntakePolicyLoading(false);
+    }
+  }, [environment, tenantId]);
+
   const loadRouteScoring = useCallback(async () => {
     const key = routeScoringKey.trim();
     if (!key) {
@@ -141,7 +246,16 @@ export function SettingsWorkspace({
         const err = body as { error?: string };
         throw new Error(err.error || `HTTP ${res.status}`);
       }
-      setRouteScoringRows(Array.isArray(body) ? body : []);
+      const rows = Array.isArray(body)
+        ? body
+        : body &&
+            typeof body === 'object' &&
+            body !== null &&
+            'items' in body &&
+            Array.isArray((body as { items?: unknown }).items)
+          ? (body as { items: unknown[] }).items
+          : [];
+      setRouteScoringRows(rows);
     } catch (e) {
       setRouteScoringRows(null);
       setRouteScoringError(
@@ -762,6 +876,123 @@ export function SettingsWorkspace({
               </table>
             </div>
           </>
+        )}
+      </div>
+
+      <div className="border-t border-slate-200 pt-6 html.theme-light:border-slate-200">
+        <h2 className="text-xl font-semibold mb-2">Watchlist tiers (latest per instrument)</h2>
+        <p className="text-sm text-slate-500 mb-4">
+          Read-only: risk-service{' '}
+          <code className="text-xs bg-slate-100 px-1 py-0.5 rounded">
+            GET /policy/watchlist/tiers
+          </code>
+          . Shows the latest tier snapshot per instrument (Phase 2.2 writers / Phase 4 prep).
+        </p>
+        <div className="flex flex-wrap gap-2 items-end mb-4">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => void loadWatchlistTiers()}
+            disabled={watchlistTiersLoading}
+          >
+            {watchlistTiersLoading ? 'Loading…' : 'Load tiers'}
+          </Button>
+        </div>
+        {watchlistTiersError && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-800">
+            {watchlistTiersError}
+          </div>
+        )}
+        {watchlistTierRows !== null && (
+          <div className="border rounded-lg overflow-x-auto max-h-96 overflow-y-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 sticky top-0">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium text-slate-600">
+                    Instrument
+                  </th>
+                  <th className="px-3 py-2 text-left font-medium text-slate-600">
+                    Tier
+                  </th>
+                  <th className="px-3 py-2 text-left font-medium text-slate-600">
+                    Reason
+                  </th>
+                  <th className="px-3 py-2 text-left font-medium text-slate-600">
+                    Recorded (UTC)
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {watchlistTierRows.length === 0 ? (
+                  <tr>
+                    <td className="px-3 py-6 text-slate-500" colSpan={4}>
+                      No tier snapshots yet
+                    </td>
+                  </tr>
+                ) : (
+                  watchlistTierRows.map((row) => (
+                    <tr key={`${row.instrumentKey}-${row.recordedAtIso}`}>
+                      <td className="px-3 py-2 font-mono text-xs break-all">
+                        {row.instrumentKey}
+                      </td>
+                      <td className="px-3 py-2">{row.tier}</td>
+                      <td className="px-3 py-2 text-xs">{row.reason}</td>
+                      <td className="px-3 py-2 font-mono text-xs whitespace-nowrap">
+                        {row.recordedAtIso}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="border-t border-slate-200 pt-6 html.theme-light:border-slate-200">
+        <h2 className="text-xl font-semibold mb-2">Intake policy (effective)</h2>
+        <p className="text-sm text-slate-500 mb-4">
+          Read-only: config-service{' '}
+          <code className="text-xs bg-slate-100 px-1 py-0.5 rounded">
+            GET /policy/configurations/.../effective
+          </code>{' '}
+          for keys{' '}
+          <code className="text-xs bg-slate-100 px-1 py-0.5 rounded">intake.throttling</code> and{' '}
+          <code className="text-xs bg-slate-100 px-1 py-0.5 rounded">intake.routing.tiers</code>. Keys
+          are documented in repo file <code className="text-xs">docs/intake-policy-config-keys.md</code>.
+        </p>
+        <div className="flex flex-wrap gap-2 items-end mb-4">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => void loadIntakePolicyEffective()}
+            disabled={intakePolicyLoading}
+          >
+            {intakePolicyLoading ? 'Loading…' : 'Load intake policy'}
+          </Button>
+        </div>
+        {intakePolicyError && (
+          <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded text-sm text-amber-900">
+            {intakePolicyError}
+          </div>
+        )}
+        {intakeThrottlingJson !== null && (
+          <div className="mb-6">
+            <h3 className="text-sm font-medium text-slate-700 mb-2">intake.throttling</h3>
+            <pre className="text-xs bg-slate-50 border rounded p-3 overflow-x-auto max-h-64 overflow-y-auto whitespace-pre-wrap break-all">
+              {intakeThrottlingJson}
+            </pre>
+          </div>
+        )}
+        {intakeTiersJson !== null && (
+          <div className="mb-2">
+            <h3 className="text-sm font-medium text-slate-700 mb-2">intake.routing.tiers</h3>
+            <pre className="text-xs bg-slate-50 border rounded p-3 overflow-x-auto max-h-64 overflow-y-auto whitespace-pre-wrap break-all">
+              {intakeTiersJson}
+            </pre>
+          </div>
         )}
       </div>
 

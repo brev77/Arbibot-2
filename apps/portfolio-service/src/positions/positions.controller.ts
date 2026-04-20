@@ -1,5 +1,15 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Post,
+} from '@nestjs/common';
 
+import { ClosePositionDto } from './dto/close-position.dto';
 import { ConfirmFillDto } from './dto/confirm-fill.dto';
 import { PositionsService } from './positions.service';
 
@@ -29,5 +39,16 @@ export class PositionsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async confirmFill(@Body() body: ConfirmFillDto) {
     await this.service.confirmFill(body);
+  }
+
+  /** Operator-initiated close (quantity → 0). Used by OpenClaw and manual flows. */
+  @Post('positions/:id/close')
+  @HttpCode(HttpStatus.OK)
+  async close(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() body: ClosePositionDto,
+  ) {
+    const row = await this.service.close(id, body);
+    return rowView(row);
   }
 }

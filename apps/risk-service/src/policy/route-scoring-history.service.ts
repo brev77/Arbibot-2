@@ -58,4 +58,15 @@ export class RouteScoringHistoryService {
     });
     return this.repo.save(row);
   }
+
+  async findLatestForRoute(routeKey: string): Promise<RouteScoringHistoryEntity | null> {
+    const rk = routeKey.trim();
+    if (rk.length === 0) {
+      return null;
+    }
+    return this.repo.findOne({
+      where: { routeKey: rk },
+      order: { recordedAt: 'DESC' },
+    });
+  }
 }

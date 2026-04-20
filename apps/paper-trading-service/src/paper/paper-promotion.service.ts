@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { QueryFailedError, Repository } from 'typeorm';
+import { In, QueryFailedError, Repository } from 'typeorm';
 
 import {
   PAPER_PROMOTION_STATUSES,
@@ -278,5 +278,30 @@ export class PaperPromotionService {
     });
 
     return after;
+  }
+
+  /**
+   * Persist quality snapshot for queued / under_review rows (worker).
+   * Returns number of rows updated.
+   */
+  async refreshPersistedQualitySnapshots(): Promise<number> {
+    const rows = await this.repo.find({
+      where: { status: In(['queued', 'under_review'] as const) },
+      take: 500,
+      order: { updatedAt: 'ASC' },
+    });
+    let n = 0;
+    for (const row of rows) {
+      const q = promotionQualityFor(row);
+      await this.repo.update(
+        { id: row.id },
+        {
+          qualityScore: String(q.score),
+          qualityTier: q.tier,
+        },
+      );
+      n += 1;
+    }
+    return n;
   }
 }

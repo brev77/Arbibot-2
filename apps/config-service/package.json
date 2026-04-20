@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "lint": "eslint \"src/**/*.ts\" --config ../../eslint.config.mjs",
+    "lint": "eslint \"src/**/*.ts\" --ignore-pattern \"**/*.d.ts\" --config ../../eslint.config.mjs",
     "build": "nest build",
     "start": "nest start",
     "start:dev": "nest start --watch",
