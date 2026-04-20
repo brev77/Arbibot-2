@@ -1,6 +1,6 @@
 # Arbibot 2
 
-Монорепозиторий высокопроизводительной системы крипто-арбитража: canonical market → intake рынка → возможности → риск → капитал → оркестрация исполнения → портфель и сверка. Закрыты **Phase 0–2** (controlled execution), реализован базовый срез **Phase 3** (paper trading): snapshot → opportunity → risk → reserve → **arm**, полный контур ног до `plan.completed` (`npm run e2e:phase2-controlled-execution`, в CI — `npm run ci:e2e-phase2`), **portfolio** / **reconciliation** / UI `/incidents`, HTTP lab-venue, in-DB relay для `RiskDecisionIssued` и `PaperPromotionCandidateRequested`, Kafka bridge для `SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, `PlanCompleted`. Профили риска (**token_profiles** / **route_profiles**, миграция `015`) и read API в **risk-service** под `/policy/*` — [`docs/phase2-risk-policy-roadmap.md`](docs/phase2-risk-policy-roadmap.md); **policy configurations** (таблицы `policy_configurations`, миграции `019`–`020`) и Config API в **config-service** (`/policy/configurations`), operator UI **`/settings`** — дорожная карта staged rollout: [`docs/cfg-3-staged-rollout.md`](docs/cfg-3-staged-rollout.md).
+Монорепозиторий высокопроизводительной системы крипто-арбитража: canonical market → intake рынка → возможности → риск → капитал → оркестрация исполнения → портфель и сверка. Закрыты **Phase 0–2** (controlled execution); **Phase 3** (paper): trades / promotion / drift / discovery, виртуальный capital, BFF-мутации, E2E + CI; **Phase 4** (масштаб и политика): tier routing и throttling в **market-intake**, writers watchlist/scoring в **risk-service**, degraded UI, replay route scoring и ADR gate для аналитики/ClickHouse — см. [.cursor/plans/DEVELOPMENT_PLAN.md](.cursor/plans/DEVELOPMENT_PLAN.md); **Phase 5**: **openclaw-gateway** и operator UI **`/openclaw`**. Технический контур: snapshot → opportunity → risk → reserve → **arm**, полный цикл ног до `plan.completed` (`npm run e2e:phase2-controlled-execution`, в CI — `npm run ci:e2e-phase2`), **portfolio** / **reconciliation** / UI `/incidents`, HTTP lab-venue, in-DB relay для `RiskDecisionIssued` и `PaperPromotionCandidateRequested`, Kafka bridge для `SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, `PlanCompleted`. Профили риска и policy jobs — [`docs/phase2-risk-policy-roadmap.md`](docs/phase2-risk-policy-roadmap.md); **config-service** и **`/settings`** — [`docs/cfg-3-staged-rollout.md`](docs/cfg-3-staged-rollout.md).
 
 **Первичный запуск (канон):** перед выставлением реальных средств система **сначала** выводится в режим **paper trading** — сквозной операционный тест всей связки и сбор статистики; затем **live с минимальным капиталом**. Подробнее: [.cursor/plans/DEVELOPMENT_PLAN.md](.cursor/plans/DEVELOPMENT_PLAN.md) («Операционная последовательность первичного запуска»), `!Arbibot_2_Architecture_v1_final_docs_settings.md` (разделы 13 и 50.5).
 
@@ -68,15 +68,16 @@ npm ci
 | `apps/config-service` | Policy configurations: `GET/POST/PUT /policy/configurations`, Redis-кэш, audit для мутаций; порт по умолчанию **3019** |
 | `apps/canonical-market-service` | Канонический реестр площадок / инструментов / маршрутов: `POST /market/resolve-instrument`, `POST /market/resolve-route` |
 | `apps/market-intake-service` | Ingest snapshots: `POST /snapshots/ingest`, `GET /snapshots`, freshness, outbox `SnapshotUpdated` |
-| `apps/paper-trading-service` | Paper trading engine: paper trades, promotion candidates, drift samples; single-writer HTTP API; миграции `016`, `017`, `018` |
-| `apps/web` | Operator UI (Next.js App Router), маршруты оператора под `app/(operator)/`, **RBAC в `middleware.ts`** (cookie `arbibot_role` / `ARBIBOT_DEV_ROLE`); UI `/paper`, `/tokens`, **`/settings`** (policy config); конвенции: [`apps/web/STACK-CONVENTIONS.md`](apps/web/STACK-CONVENTIONS.md) |
+| `apps/paper-trading-service` | Paper trading: trades, promotion, drift, discovery candidates; виртуальный capital (`021`); effective config **`paper.discovery`**; single-writer HTTP API; миграции **`016`–`018`**, **`021`–`023`** |
+| `apps/openclaw-gateway` | Phase 5: шлюз Operator/OpenClaw API (`/openclaw/v1/*`), мутации с audit и rate limit; порт **3020**; см. [`apps/openclaw-gateway/README.md`](apps/openclaw-gateway/README.md) |
+| `apps/web` | Operator UI (Next.js): **`/dashboard`**, **`/paper`**, **`/tokens`**, **`/settings`**, **`/openclaw`**, BFF под `app/api/operator/`; **RBAC** — `middleware.ts` (`arbibot_role` / `ARBIBOT_DEV_ROLE`); конвенции: [`apps/web/STACK-CONVENTIONS.md`](apps/web/STACK-CONVENTIONS.md) |
 | `packages/persistence` | Сущности TypeORM, outbox/inbox, TTL-хелперы, paper и policy configuration |
 | `packages/contracts` | HTTP-константы маршрутов, имена событий, типы payload и event envelopes, paper schemas |
 | `packages/messaging` | `tryClaimInboxMessage`, `fetchLockedOutboxBatch(..., eventTypes)` |
 | `packages/outbox-kafka-bridge` | Публикация `SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, `PlanCompleted` в Kafka/Redpanda и smoke-consumer с inbox claim |
 | `packages/nest-database` / `nest-platform` | БД, Redis helper, correlation id, логи, **Prometheus `/metrics`**, `getArbibotMetricsRegistry()`, audit HTTP client |
-| `infra/postgres/migrations` | SQL-миграции `001` … `020` (ядро, риск, canonical/intake, execution legs, portfolio, reconciliation, fill/idempotency, token/route profiles, paper + outbox dedup, **policy configurations** — см. каталог) |
-| `docs/` | Спеки и runbooks: [`docs/outbox-inbox.md`](docs/outbox-inbox.md), [`docs/settlement-post-commit.md`](docs/settlement-post-commit.md), [`docs/observability-tracing.md`](docs/observability-tracing.md), [`docs/reconciliation-p0-procedures.md`](docs/reconciliation-p0-procedures.md), [`docs/phase2-risk-policy-roadmap.md`](docs/phase2-risk-policy-roadmap.md), [`docs/cfg-3-staged-rollout.md`](docs/cfg-3-staged-rollout.md), [`docs/openclaw-reference.md`](docs/openclaw-reference.md), [`docs/TODO.md`](docs/TODO.md) |
+| `infra/postgres/migrations` | SQL **`001` … `031`**: ядро, риск, canonical/intake, execution/portfolio/reconciliation, paper + outbox, policy config/scopes, playbooks, watchlist/scoring history, intake seed, paper quality, portfolio close idempotency — см. каталог |
+| `docs/` | Runbooks и ADR: [`docs/outbox-inbox.md`](docs/outbox-inbox.md), [`docs/observability-tracing.md`](docs/observability-tracing.md), [`docs/phase2-risk-policy-roadmap.md`](docs/phase2-risk-policy-roadmap.md), [`docs/phase4-prep-bridge.md`](docs/phase4-prep-bridge.md), [`docs/route-scoring-replay.md`](docs/route-scoring-replay.md), [`docs/adr-phase4-clickhouse-gate.md`](docs/adr-phase4-clickhouse-gate.md), [`docs/openclaw-gateway-runbook.md`](docs/openclaw-gateway-runbook.md), [`docs/ci-verification-checklist.md`](docs/ci-verification-checklist.md), [`docs/TODO.md`](docs/TODO.md) |
 | `.cursor/plans/DEVELOPMENT_PLAN.md` | Пошаговый план разработки и статусы |
 | [`AGENTS.md`](AGENTS.md) | Кратко для агентов/разработчиков: workspaces, graphify, e2e, CI |
 
@@ -100,11 +101,20 @@ npm ci
 | `npm run db:migrate` | Применить SQL-миграции (`DATABASE_URL` обязателен) |
 | `npm run e2e:phase1-foundation` | HTTP-smoke цепочки Phase 1 (нужны миграции и запущенные intake, opportunity, risk, capital, execution); опционально `E2E_INCLUDE_EXECUTION_LEG=true` — шаги до `apply-fill` |
 | `npm run e2e:phase2-controlled-execution` | Полный контур ног до `plan.completed` (см. `tools/e2e-phase2-controlled-execution.mjs`; `EXECUTION_BEGIN_LEG_COUNT`, venue mock или HTTP) |
-| `npm run e2e:phase3-paper-promotion` | Smoke: create opportunity → `paper-enqueue` (dedup) → poll paper `/promotion-candidates` until relay delivers (см. `tools/e2e-phase3-paper-promotion.mjs`) |
-| `npm run ci:e2e-phase2` | Тот же сценарий в окружении CI: Postgres + lab HTTP venue + собранные Nest-приложения (`tools/ci-e2e-phase2.sh`) |
-| `npm run ci:e2e-phase3` | CI: Postgres + `paper-trading-service` + `opportunity-service` (`PAPER_TRADING_SERVICE_URL`, быстрый `OUTBOX_RELAY_POLL_MS`) + `e2e:phase3-paper-promotion` (`tools/ci-e2e-phase3-paper-promotion.sh`) |
+| `npm run e2e:phase3-paper-promotion` | Smoke: enqueue → relay → кандидат в paper → **approve** кандидата → paper trades (approve / reject / cancel, virtual capital); см. `tools/e2e-phase3-paper-promotion.mjs` |
+| `npm run ci:e2e-phase2` | CI: Postgres + lab HTTP venue + собранные Nest apps (`tools/ci-e2e-phase2.sh`); job **`e2e-phase2`** |
+| `npm run ci:e2e-phase3` | CI: Postgres + paper + opportunity + `e2e:phase3-paper-promotion` (`tools/ci-e2e-phase3-paper-promotion.sh`); job **`e2e-phase3-paper-promotion`** |
+| `npm run ci:e2e-phase3-paper-discovery` | CI: Postgres + paper + market-intake + `e2e-p3-paper-discovery.mjs`; job **`e2e-phase3-paper-discovery`** |
+| `npm run e2e:phase2-watchlist-route-scoring` | Сиды + `POST /policy/jobs/*` на risk-service (writers); см. `tools/e2e-phase2-watchlist-route-scoring.mjs` |
+| `npm run ci:e2e-phase2-watchlist-route-scoring` | CI-обёртка; job **`e2e-phase2-watchlist-route-scoring`** |
+| `npm run e2e:phase4-tier-routing` | Intake tier routing + throttle (нужны risk, config, market-intake); см. `tools/e2e-phase4-tier-routing.mjs` |
+| `npm run ci:e2e-phase4-tier-routing` | CI; job **`e2e-phase4-tier-routing`** |
+| `npm run ci:bus-smoke` | Сборка bridge + опционально Docker `bus`; job **`bus-smoke`** |
+| `npm run export:route-scoring-history` | Экспорт `route_scoring_history` (JSONL/CSV) для replay |
+| `npm run replay:route-scoring-export` | Сводка / сравнение JSONL экспортов; см. [`docs/route-scoring-replay.md`](docs/route-scoring-replay.md) |
+| `npm run db:verify-migrations` / `db:verify-migrations:all` | Проверка `schema_migrations` (дефолт **030/031** или все `*.sql`) |
 
-**Критерии зелёного `e2e:phase3-paper-promotion`:** оба сервиса отвечают на `GET /metrics`; `POST /opportunities` создаёт запись; первый `POST .../paper-enqueue` не помечен `deduplicated`, второй с тем же ключом — `deduplicated: true`; в течение ~20 с после enqueue в ответе `GET {PAPER_URL}/paper/promotion-candidates` появляется элемент с тем же `opportunityId`. Локально: миграции (включая `018`), `PAPER_TRADING_SERVICE_URL` у opportunity указывает на paper.
+**Критерии зелёного `e2e:phase3-paper-promotion`:** оба сервиса отвечают на `GET /metrics`; dedup `paper-enqueue`; кандидат появляется в paper после relay; затем в скрипте — approve кандидата, цикл paper trades. Локально: миграции через **`018+`**, `PAPER_TRADING_SERVICE_URL` у opportunity → paper.
 
 | Команда | Описание |
 |---------|----------|
@@ -119,6 +129,7 @@ npm ci
 | `npm run dev:reconciliation` | Reconciliation service |
 | `npm run dev:paper` | Paper trading service |
 | `npm run dev:config` | Config service (policy configurations) |
+| `npm run dev:openclaw` | OpenClaw gateway (порт **3020**) |
 | `npm run dev:web` | Next.js dev server |
 | `npm run bus:publish` | Собрать и запустить publisher outbox → Kafka/Redpanda (`SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, `PlanCompleted`) |
 | `npm run bus:consume` | Собрать и запустить smoke-consumer с inbox claim |
@@ -140,6 +151,7 @@ npm ci
 | Reconciliation | 3017 |
 | Paper trading | 3018 |
 | Config | 3019 |
+| OpenClaw gateway | 3020 (`OPENCLAW_GATEWAY_PORT`) |
 | Web (Next dev) | 3000* |
 | Redpanda / Kafka API (dev, `bus` profile) | 19092 |
 
@@ -183,8 +195,8 @@ Cookie **`arbibot_role`**: `viewer` | `operator` | `admin`. В production без
 
 ## CI
 
-На push/PR в `main` / `master` GitHub Actions выполняет `npm ci` на **Node 22**, затем **`npm run lint`**, `npm run build`, `npm run test` (см. [`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
+На push/PR в `main` / `master` — [`.github/workflows/ci.yml`](.github/workflows/ci.yml), **Node 22**. После **`npm ci`**: job **`build`** (`lint`, `build`, `test`); затем параллельно E2E: **`e2e-phase2`**, **`e2e-phase2-watchlist-route-scoring`**, **`e2e-phase3-paper-promotion`**, **`e2e-phase3-paper-discovery`**, **`e2e-phase4-tier-routing`**; **`bus-smoke`** (без полного `build`, по workflow); чеклист — [`docs/ci-verification-checklist.md`](docs/ci-verification-checklist.md).
 
 ## Архитектура и правила
 
-Инварианты (single-writer, reservation-first, outbox/inbox и др.) зафиксированы в Cursor rules и в документах в `docs/`. Перед крупными изменениями сверяйтесь с [`.cursor/plans/DEVELOPMENT_PLAN.md`](.cursor/plans/DEVELOPMENT_PLAN.md) (по полю `status` у шагов: на **2026-04** ~**85%** в `done`; оставшийся scope — Phase 4–5, CFG-3, матрица PRIO-P2). Для локального knowledge graph (graphify) см. раздел graphify в [`AGENTS.md`](AGENTS.md): после существенных правок в backend — code-only refresh в корне репозитория (`python` или на Windows **`py -3`** — см. там же).
+Инварианты (single-writer, reservation-first, outbox/inbox и др.) — в Cursor rules и в `docs/`. Канонический план: [`.cursor/plans/DEVELOPMENT_PLAN.md`](.cursor/plans/DEVELOPMENT_PLAN.md) — у **всех** формальных шагов (`step_id`) поле **`status: done`**; продуктовый и UX-хвост (например §50.5 paper vs спека §5.6) и операционные задачи — в тексте плана и в [`docs/TODO.md`](docs/TODO.md). Graphify: см. [`AGENTS.md`](AGENTS.md).
