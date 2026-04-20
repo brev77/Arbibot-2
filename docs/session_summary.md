@@ -88,3 +88,9 @@ Based on this session's completion, suggested next steps:
 **Note:** The canonical handoff for **2026-04-20** (compact, decisions, open questions, next steps) is in the repository root **[`session_summary.md`](../session_summary.md)** (new section at top). This file is **append-only** history.
 
 **Summary:** `P5-5-GW` — read API on `openclaw-gateway`, web BFF `/api/operator/openclaw/v1/*`, read-only `/openclaw`; bus-smoke on Windows: use PowerShell or Docker WSL integration if bash lacks `docker.sock`. Next: `P5-5-OAPI`, `P5-5-OCUI`, CI monitoring on PR.
+
+---
+
+## 2026-04-21 — Production sprint handoff (see root `session_summary.md`)
+
+**Note:** Canonical compact and key decisions for **2026-04-21** (production sprint close: CI parity, migrations verify, intake effective UI, bus seed all, venue 4xx taxonomy, `PRIO-P2-PROMO` / `PRIO-P2-RECAL` → `done`) are in the repository root **[`session_summary.md`](../session_summary.md)** (section **«2026-04-21 — Production sprint: handoff»**). Details: [`docs/progress.md`](progress.md) — block **«2026-04-21 — Закрытие сессии»**.

@@ -79,6 +79,75 @@ export function classifyVenueHttpClientError(
   return 'client_other';
 }
 
+const VENUE_CATEGORY_VALUES: readonly VenueHttpClientErrorCategory[] = [
+  'validation',
+  'unauthorized',
+  'forbidden',
+  'not_found',
+  'conflict',
+  'semantic',
+  'rate_limited',
+  'client_other',
+];
+
+function isVenueCategory(v: string): v is VenueHttpClientErrorCategory {
+  return (VENUE_CATEGORY_VALUES as readonly string[]).includes(v);
+}
+
+let venueCategoryMapCache: Map<string, VenueHttpClientErrorCategory> | null = null;
+let venueCategoryMapEnvSnapshot: string | undefined;
+
+/** Clears cache for tests or after `VENUE_HTTP_ERROR_CATEGORY_MAP` changes at runtime. */
+export function resetVenueHttpClientCategoryMapCache(): void {
+  venueCategoryMapCache = null;
+  venueCategoryMapEnvSnapshot = undefined;
+}
+
+/**
+ * Optional per-venue `venueErrorCode` → category mapping via env
+ * `VENUE_HTTP_ERROR_CATEGORY_MAP` (JSON object). Keys: `venueErrorCode` or `STATUS:venueErrorCode`
+ * for disambiguation (e.g. `"404:UNKNOWN_LEG":"not_found"`).
+ */
+export function resolveVenueHttpClientCategory(
+  status: number,
+  body: unknown,
+): VenueHttpClientErrorCategory {
+  const code = readVenueErrorCode(body);
+  const raw = process.env.VENUE_HTTP_ERROR_CATEGORY_MAP?.trim();
+  if (raw !== venueCategoryMapEnvSnapshot) {
+    venueCategoryMapCache = null;
+    venueCategoryMapEnvSnapshot = raw;
+  }
+  if (venueCategoryMapCache === null) {
+    venueCategoryMapCache = new Map();
+    if (raw !== undefined && raw.length > 0) {
+      try {
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        for (const [key, val] of Object.entries(parsed)) {
+          if (typeof key !== 'string' || typeof val !== 'string') {
+            continue;
+          }
+          const k = key.trim();
+          if (k.length === 0 || !isVenueCategory(val)) {
+            continue;
+          }
+          venueCategoryMapCache.set(k, val);
+        }
+      } catch {
+        /* invalid JSON — fallback to status-only classification */
+      }
+    }
+  }
+  if (code !== undefined && venueCategoryMapCache.size > 0) {
+    const scoped = `${status}:${code}`;
+    const hit = venueCategoryMapCache.get(scoped) ?? venueCategoryMapCache.get(code);
+    if (hit !== undefined) {
+      return hit;
+    }
+  }
+  return classifyVenueHttpClientError(status, body);
+}
+
 function resolveCorrelationHeader(plan: ExecutionPlanEntity): string | undefined {
   const fromAls = getCorrelationId()?.trim();
   if (fromAls !== undefined && fromAls.length > 0) {
@@ -200,12 +269,13 @@ export class HttpVenueAdapter implements VenueAdapter {
           terminal,
         );
       }
+      const vcode = readVenueErrorCode(body);
       throw new VenueSubmitClientError(
         `HttpVenueAdapter: 409 conflict without terminalState from ${url}: ${text.slice(0, 200)}`,
         {
           httpStatus: 409,
-          category: 'conflict',
-          venueErrorCode: readVenueErrorCode(body),
+          category: resolveVenueHttpClientCategory(409, body),
+          venueErrorCode: vcode,
         },
       );
     }
@@ -219,7 +289,7 @@ export class HttpVenueAdapter implements VenueAdapter {
     if (res.status >= 400 && res.status < 500) {
       // Taxonomy: 400 validation, 401/403 authz, 404 unknown leg, 408 timeout (also handled above),
       // 409 conflict+terminalState (handled above), 422 semantic / venue-specific business rule.
-      const category = classifyVenueHttpClientError(res.status, body);
+      const category = resolveVenueHttpClientCategory(res.status, body);
       throw new VenueSubmitClientError(
         `HttpVenueAdapter: client HTTP ${res.status} from ${url}: ${text.slice(0, 200)}`,
         {

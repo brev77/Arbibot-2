@@ -25,4 +25,10 @@ Use when running **more than one** `openclaw-gateway` replica (Kubernetes, ECS, 
 2. **Unset memory-only** — ensure `OPENCLAW_SAFE_MODE_USE_MEMORY_ONLY` is absent or `false` so all replicas read/write the same key `arbibot:openclaw:safe-mode:v1`.
 3. **Smoke two replicas** — enable safe mode via `POST .../safe-mode/enable` against pod A; call `GET .../safe-mode/status` on pod B and confirm `enabled: true`.
 4. **Optional TTL** — set `OPENCLAW_SAFE_MODE_REDIS_TTL_SECONDS` if you want keys to expire when operators forget to disable (document escalation if used).
-5. **Redis outage** — gateway falls back to in-memory only when Redis is unreachable **after** startup behavior is defined in code (`SafeModeService`); treat Redis as **Tier 1** dependency for correct multi-instance signaling.
+5. **Redis outage** — `getState()` logs and returns empty/disabled state on Redis read errors; `enable`/`disable` **throw** on Redis write errors (caller should surface 503/operator retry). See **Metrics and alerts** below for counters.
+
+## Metrics and alerts (SRE)
+
+- **Counter:** `arb_openclaw_safe_mode_redis_errors_total{operation="connection|get|set"}` — scrape with other gateway metrics (`METRICS_ENABLED` not `false`).
+- **Suggested alert (example):** sustained Redis errors or **memory-only fallback** for multi-replica — pair with Redis uptime monitors; if you expose a “degraded” flag for safe-mode store later, alert when error rate is non-zero for **5 minutes** on `operation="set"` during incidents.
+- **Operational note:** if operators rely on safe mode visibility and Redis is down, treat gateway as **degraded** until Redis is restored; use runbooks in [`docs/observability-tracing.md`](observability-tracing.md).

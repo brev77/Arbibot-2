@@ -53,3 +53,7 @@ Both job endpoints require:
 ## Read API
 
 - `GET /policy/route-scoring-history/:routeKey` — unchanged; returns recent rows for that route.
+
+## Replay (P4-4-SCORE)
+
+Offline export, staging job re-run, and compare/summary tooling are documented in [`docs/route-scoring-replay.md`](route-scoring-replay.md).

@@ -445,6 +445,7 @@ describe('LegsService', () => {
       capitalReservationId: null,
       riskDecisionId: null,
       routeKey: null,
+      playbookConfig: null,
       legs: [],
       createdAt: new Date(),
       updatedAt: new Date(),

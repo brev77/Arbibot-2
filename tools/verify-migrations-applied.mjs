@@ -1,9 +1,16 @@
 #!/usr/bin/env node
 /**
  * Verifies schema_migrations contains expected filenames (default: 030 + 031).
- * Usage: DATABASE_URL=... node tools/verify-migrations-applied.mjs [file.sql ...]
+ * Usage:
+ *   DATABASE_URL=... node tools/verify-migrations-applied.mjs [file.sql ...]
+ *   DATABASE_URL=... node tools/verify-migrations-applied.mjs --all
  */
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import pg from 'pg';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const url = process.env.DATABASE_URL;
 if (!url) {
@@ -11,12 +18,32 @@ if (!url) {
   process.exit(1);
 }
 
+const argv = process.argv.slice(2);
+const allFlag = argv.includes('--all');
+const fileArgs = argv.filter((a) => a !== '--all');
+
+const migrationsDir = path.join(__dirname, '../infra/postgres/migrations');
+
 const defaultRequired = [
   '030_paper_promotion_quality_fields.sql',
   '031_portfolio_position_close_idempotency.sql',
 ];
-const required =
-  process.argv.length > 2 ? process.argv.slice(2) : defaultRequired;
+
+let required;
+if (allFlag) {
+  required = fs
+    .readdirSync(migrationsDir)
+    .filter((f) => f.endsWith('.sql'))
+    .sort();
+  if (required.length === 0) {
+    console.error('No .sql files in', migrationsDir);
+    process.exit(1);
+  }
+} else if (fileArgs.length > 0) {
+  required = fileArgs;
+} else {
+  required = defaultRequired;
+}
 
 const client = new pg.Client({ connectionString: url });
 await client.connect();
@@ -43,7 +70,10 @@ try {
     console.error('Run: npm run db:migrate');
     process.exit(1);
   }
-  console.log('OK: all required migrations applied:', required.join(', '));
+  console.log(
+    'OK: all required migrations applied:',
+    allFlag ? `${required.length} files (full repo set)` : required.join(', '),
+  );
 } finally {
   await client.end();
 }

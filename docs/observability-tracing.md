@@ -120,3 +120,15 @@ Starter dashboard JSON: [`infra/grafana/dashboards/arbibot-http-overview.json`](
   - p95: `histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, service))`
   - p50: `histogram_quantile(0.5, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, service))`
 - **Migration status:** Phase 2 — histogram collection active; alerts migrated to quantiles; `arb_http_requests_total` deprecated for latency monitoring
+
+## Analytics path latency (P4-4-CH)
+
+**Scope:** Batch and operator tooling that does **not** sit on the Tier 1 evaluate / reserve / arm path — for example `npm run export:route-scoring-history`, future ClickHouse or DWH ETL, and replay workflows ([`docs/route-scoring-replay.md`](route-scoring-replay.md)).
+
+These targets are **operational** (capacity / UX for analysts). They do **not** replace the **SLO and on-call (v1)** table above for critical sync APIs.
+
+| Workload | Default target (staging; tune per deploy) | Notes |
+|----------|-------------------------------------------|--------|
+| JSONL export (`export-route-scoring-history.mjs`) | Wall-clock under **5 minutes** for **at most 50k** rows per run (default `LIMIT`) | Increase `LIMIT` only with owner/DBA agreement; for full-history analytics off OLTP see [`docs/adr-phase4-clickhouse-gate.md`](adr-phase4-clickhouse-gate.md). |
+| `GET /policy/route-scoring-history/:routeKey` | Stay within **Read-only** Tier latency in the v1 table | If p99 degrades, reduce page size, add a read model, or open the CH gate. |
+| Future CH / DWH load | ETL lag under **15 minutes** behind OLTP appends (initial default) | Read-only consumers only; no second writer to `route_scoring_history` on primary. |

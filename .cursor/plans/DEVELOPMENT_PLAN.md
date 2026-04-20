@@ -802,7 +802,7 @@ flowchart LR
 
 **Цель (§50.5):** paper как механизм расширения universe, изоляция от live capital; на **первичном запуске** проекта paper — **обязательный** этап сквозной проверки всей системы и сбора статистики **до** включения live с минимальным капиталом (см. раздел «Операционная последовательность первичного запуска» выше).
 
-**Текущий slice в репозитории (2026-04-17):** сервис **`paper-trading-service`** (порт по умолчанию **3018**), миграции **`016_paper_trading.sql`**, **`017_paper_promotion_enqueue_idempotency.sql`**, **`018_outbox_paper_enqueue_dedup.sql`** (дедуп необработанного `paper-enqueue` в `outbox_events`); сущности paper в **`@arbibot/persistence`**, HTTP **`/paper/*`**; очередь promotion через **`outbox_events`** (**PaperPromotionCandidateRequested**) и доставку **`OutboxRelayService`** → HTTP в paper (HTTP **вне** длинной DB-транзакции + сериализация тиков relay); operator UI **`/paper`** и **`/tokens`** — **read-only** (BFF **`PAPER_API_BASE`**); идемпотентность promotion в paper по **`enqueueIdempotencyKey`**; счётчик **`arb_paper_drift_samples_recorded_total`** при записи drift-сэмпла. **Полный DoD §50.5** (сквозной virtual-capital path как у live, paper-only discovery, алерты по bps в проде) — ниже и в бэклоге до отдельных шагов / **`planned`**.
+**Текущий slice в репозитории (актуализация 2026-04-20):** сервис **`paper-trading-service`** (порт по умолчанию **3018**), миграции **`016`–`018`**, **`021_paper_capital_reservations.sql`**, **`022`–`023`** (discovery candidates), очередь promotion через **`outbox_events`** (**PaperPromotionCandidateRequested**) и **`OutboxRelayService`** → HTTP в paper; operator UI **`/paper`** и **`/tokens`** — чтение + **мутации** paper trades / promotion candidates через BFF (**`PAPER_API_BASE`**), см. `POST` в `apps/web/app/api/operator/paper/*`; виртуальный capital / reservation на approve trade; paper discovery (worker + effective config **`paper.discovery`**); drift — gauges **`arb_paper_drift_bps_current`** / **`arb_paper_drift_bps_stale`**, recording rules и алерты в **`docs/observability-tracing.md`**. **Сверка с каноном §50.5** (что уже в коде vs UX/операционный хвост) — в таблице сразу после Definition of Done этого раздела.
 
 #### `P3-3-PAPER` — Paper Trading Service
 
@@ -830,6 +830,7 @@ flowchart LR
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
 - **status:** `done`
+- **Примечание (2026-04-20, без смены статуса):** после закрытия ревью добавлены **мутации** paper trades и promotion через BFF (`apps/web/app/api/operator/paper/*`); одношаговые кнопки в UI. Полный UX §5.6 (preview, two-step) — см. таблицу актуализации §50.5 ниже.
 - **Ревью (2026-04-17):** frontend review пройдён — React Query и state management корректны, секционные состояния ошибок (без общего баннера), TanStack Table используется, BFF proxy интегрирован, error handling с PaperBffSectionFault/PaperFeedErrorHint, read-only compliance соблюдён, RBAC через middleware. `review_passed` → `done`.
 
 #### `P3-3-TOKENS` — UI `/tokens`
@@ -876,7 +877,17 @@ flowchart LR
 
 **Definition of Done (§50.5):** discovery → paper-only → candidate-live; paper изолирован от live capital; решения по promotion на истории; для первичного запуска зафиксирована процедура paper-first → live с минимальным капиталом (см. раздел «Операционная последовательность первичного запуска»).
 
-**Оставшийся scope до полного §50.5 (backlog, `planned` до явных шагов):** e2e **`enqueue → relay → paper`** (скрипт `npm run e2e:phase3-paper-promotion` — зелёный прогон на стенде); виртуальный capital / reservation-first в paper-контуре согласованно с live; paper-only discovery; gauge **`drift_bps`** / recording rules для алертов по отклонению; мутации promotion в UI с preview и two-step approval.
+**Актуализация «оставшегося scope» §50.5 (сверка с репо, 2026-04-20):** ниже — не статусы `step_id`, а сверка **продуктового** чеклиста из старого абзаца с текущим кодом.
+
+| Тема (старый буллет) | Статус в репозитории | Комментарий |
+|----------------------|----------------------|-------------|
+| E2E **`enqueue → relay → paper`** | **Сделано** | [`tools/e2e-phase3-paper-promotion.mjs`](../../tools/e2e-phase3-paper-promotion.mjs): dedup enqueue, ожидание кандидата в paper, затем **approve** кандидата и сценарий **paper trades** (approve / reject / cancel). CI: job **`e2e-phase3-paper-promotion`**, обёртка `npm run ci:e2e-phase3`. |
+| Виртуальный capital / **reservation-first** в paper vs live | **Сделано (paper-контур)** | Таблица / сервис резерваций paper, интеграция в approve/cancel trades; **изоляция** от live `capital-service` сохранена — это намеренное расхождение с live, а не общая БД капитала. |
+| **Paper-only discovery** | **Сделано** | Worker + API в `paper-trading-service`, конфиг через config-service (`paper.discovery`); E2E [`tools/e2e-p3-paper-discovery.mjs`](../../tools/e2e-p3-paper-discovery.mjs), CI **`e2e-phase3-paper-discovery`**. |
+| Gauge **`drift_bps`** / recording rules / алерты | **Сделано** (уточнение имён) | В Prometheus: **`arb_paper_drift_bps_current`**, **`arb_paper_drift_bps_stale`**, counter samples; recording rules — [`infra/grafana/recording-rules/paper-drift-recording.yml`](../../infra/grafana/recording-rules/paper-drift-recording.yml); алерты — [`docs/observability-tracing.md`](../../docs/observability-tracing.md). Поле **`drift_bps`** — в сущностях/БД, не имя gauge. |
+| Мутации **promotion** в UI: **preview + two-step approval** | **Частично** | Мутации есть: BFF + [`apps/web/components/paper-promotion-table.tsx`](../../apps/web/components/paper-promotion-table.tsx) (`Approve`/`Reject` → `fetch` без модалки). **Нет** обязательного impact preview и **нет** двухшагового потока уровня [`DestructiveOperatorAction`](../../apps/web/components/destructive-operator-action.tsx) — это осознанный **UX-хвост** до полного совпадения с фронт-спекой §5.6. |
+
+**Что остаётся продуктово вне закрытых шагов:** усиление operator UX для promotion (preview, two-step / risk level по спеке); приёмка **paper-first → live** на конкретном стенде по операционному runbook владельца; новые требования — оформлять отдельными пунктами плана, а не полагаться на этот абзац как на `planned`-статусы.
 
 ---
 
@@ -917,9 +928,11 @@ flowchart LR
 - **goal:** История скоринга маршрутов, replay layer (Stage 3 / §28.3).
 - **acceptance_criteria:**
   - Хранение истории; воспроизведение сценария в offline/staging.
-- **changed_areas:** analytics pipeline, storage
+- **changed_areas:** `docs/route-scoring-replay.md`, `docs/phase4-prep-bridge.md`, `docs/route-scoring-logic.md`, `tools/replay-route-scoring-export.mjs`, `package.json`
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `done`
+- **Зафиксировано (2026-04-20):** runbook [`docs/route-scoring-replay.md`](../../docs/route-scoring-replay.md) (offline export + staging `POST /policy/jobs/route-scoring`); `npm run replay:route-scoring-export` — `summary` / `compare` для JSONL из `export:route-scoring-history`; single-writer **risk-service** без изменений.
+- **Ревью (2026-04-20):** артефакты соответствуют acceptance; `review_passed` → `done`.
 
 #### `P4-4-CH` — ClickHouse и latency tuning
 
@@ -929,9 +942,11 @@ flowchart LR
 - **goal:** ClickHouse при росте аналитики; настройка latency контура.
 - **acceptance_criteria:**
   - Критерии включения CH выполнены; SLO latency задокументированы.
-- **changed_areas:** `infra/`, ETL
+- **changed_areas:** `docs/adr-phase4-clickhouse-gate.md`, `docs/observability-tracing.md`, `docs/phase4-prep-bridge.md`
 - **review_required:** `architecture`
-- **status:** `planned`
+- **status:** `done`
+- **Зафиксировано (2026-04-20):** ADR [`docs/adr-phase4-clickhouse-gate.md`](../../docs/adr-phase4-clickhouse-gate.md) — пороги включения CH, read-only analytics, отсутствие второго writer в `route_scoring_history`; раздел **Analytics path latency** в [`docs/observability-tracing.md`](../../docs/observability-tracing.md); ClickHouse **не** развёрнут в репозитории (gate зафиксирован; опциональный compose-профиль не добавлен — см. ADR).
+- **Ревью (2026-04-20):** критерии и cross-ref к SLO зафиксированы; `review_passed` → `done`.
 
 #### `P4-4-UI` — UI degraded zones
 

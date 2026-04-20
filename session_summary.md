@@ -1,5 +1,88 @@
 # Session Summary
 
+## 2026-04-20 — Phase 4: `P4-4-SCORE` + `P4-4-CH` (100% шагов Phase 4)
+
+**Дата:** 2026-04-20
+
+**Фокус:** Runbook replay route scoring (`docs/route-scoring-replay.md`), `tools/replay-route-scoring-export.mjs` + `npm run replay:route-scoring-export`, ADR gate ClickHouse (`docs/adr-phase4-clickhouse-gate.md`), раздел analytics path latency в `docs/observability-tracing.md`; `DEVELOPMENT_PLAN.md` — оба шага → `done`; правки `AGENTS.md`, `phase4-prep-bridge.md`, `route-scoring-logic.md`, `package.json`, handoff в `docs/progress.md`.
+
+**Открыто:** внедрение ClickHouse/DWH после срабатывания порогов ADR; опциональный compose-профиль analytics не добавлялся намеренно.
+
+---
+
+## 2026-04-21 — Закрытие сессии: `/compact` (после плана CI stability)
+
+**Дата:** 2026-04-21
+
+### /compact — Focus: изменённые файлы, принятые решения, открытые вопросы
+
+**Изменённые файлы (область):**
+
+| Область | Файлы |
+|--------|--------|
+| **Миграции** | `tools/verify-migrations-applied.mjs` (`--all`), корневой `package.json` (`db:verify-migrations:all`) |
+| **Документация CI / ops** | `docs/operations/staging-migrations.md`, `docs/ci-verification-checklist.md`, `docs/grafana-dashboard-verification.md` (новый), `infra/grafana/README.md` |
+| **HTTP venue** | `apps/execution-orchestrator/src/venue/http-venue.adapter.ts`, `http-venue.adapter.spec.ts`, `.env.example` |
+| **OpenClaw** | `apps/openclaw-gateway/src/openclaw/safe-mode-metrics.ts`, `safe-mode.service.ts`, `docs/openclaw-safe-mode-runbook.md` |
+| **Phase 4 prep** | `docs/phase4-prep-bridge.md` (SQL replay), `tools/lab-venue-stand.mjs` (ссылка на `venue-load-test`) |
+| **Тесты / Jest** | `apps/config-service/tsconfig.spec.json`, `apps/config-service/package.json` (ts-jest → spec tsconfig), `apps/execution-orchestrator/src/legs/legs.service.spec.ts` (`playbookConfig`) |
+| **Индекс** | `AGENTS.md`, `docs/TODO.md`, `docs/progress.md`, `session_summary.md` |
+
+**Принятые решения:**
+
+1. **Полная проверка миграций:** `verify-migrations-applied.mjs --all` сверяет все `*.sql` из репо с `schema_migrations`; дефолтный `db:verify-migrations` по-прежнему про **030/031**.
+2. **CI checklist:** в `ci-verification-checklist.md` зафиксированы **7** параллельных jobs из `ci.yml` (не 8 — в workflow семь именованных job).
+3. **Venue 4xx:** опциональный JSON в `VENUE_HTTP_ERROR_CATEGORY_MAP`; ключи `venueErrorCode` или `STATUS:venueErrorCode`; разрешение через `resolveVenueHttpClientCategory`, кэш сбрасывается `resetVenueHttpClientCategoryMapCache`.
+4. **Safe mode Redis:** счётчик `arb_openclaw_safe_mode_redis_errors_total` (`connection` / `get` / `set`); ошибки записи enable/disable пробрасываются наверх после инкремента.
+5. **config-service Jest:** `tsconfig.spec.json` extends `@arbibot/tsconfig/nest.json`, чтобы параметрные декораторы компилировались так же, как в `nest build`.
+
+**Открытые вопросы:**
+
+- Зелёный прогон всех jobs GitHub Actions на `main`/PR после пуша (локально `npm run lint` / `build` / `test` — успех после фиксов).
+- На каждом окружении: `npm run db:migrate`, при необходимости `npm run db:verify-migrations:all`.
+- Полный bus (`bus:publish` / `bus:consume` с seed) и `ci:bus-smoke` — при наличии Docker и корректного `DATABASE_URL` в том же shell (Windows: см. `docs/TODO.md`).
+- Multi-replica OpenClaw: общий Redis по runbook; симуляция downtime Redis для алертов — вне автоматизированного прогона в этой сессии.
+
+**Детали реализации:** см. append в [`docs/progress.md`](docs/progress.md) (блок 2026-04-21 — закрытие сессии).
+
+---
+
+## 2026-04-20 — CI stability plan (repo implementation)
+
+**Фокус:** Закрытие пунктов плана «стабилизация CI и верификации (1 месяц)» в коде и документации: полная проверка миграций (`db:verify-migrations:all`), чеклисты CI/Grafana, `VENUE_HTTP_ERROR_CATEGORY_MAP`, метрики Redis safe mode OpenClaw, SQL replay в phase4-prep-bridge, исправление Jest config-service (decorators) и стаба `playbookConfig` в legs tests.
+
+**Ключевые артефакты:** `tools/verify-migrations-applied.mjs --all`, `docs/ci-verification-checklist.md`, `docs/grafana-dashboard-verification.md`, `docs/phase4-prep-bridge.md` (SQL), `apps/openclaw-gateway` safe-mode metrics, `http-venue.adapter.ts` resolve mapping.
+
+**Оператору:** применить миграции и `db:verify-migrations:all` на стендах; проверить GitHub Actions; bus-smoke / полный bus — по [`docs/outbox-inbox.md`](docs/outbox-inbox.md).
+
+---
+
+## 2026-04-21 — Production sprint: handoff (compact)
+
+**Дата:** 2026-04-21
+
+**Фокус:** Краткосрочный план производства — CI-паритет, миграции (verify), OpenClaw multi-instance (доки), bus seed (`seed:outbox-smoke-events:all`), smoke-consumer, HTTP venue 4xx, intake effective в `/settings`, формальный handoff review (`PRIO-P2-PROMO` / `PRIO-P2-RECAL` → `done`).
+
+### Ключевые решения
+
+1. **Локальная верификация = `lint` + `build` + `test`** из корня; правки под ESLint (`partial-fill-playbook`, удаление stray emit в `config-service/src`).
+2. **Стенды:** после `db:migrate` — **`npm run db:verify-migrations`** (ожидаются **030** и **031** в `schema_migrations`); инструкции в `docs/operations/staging-migrations.md`.
+3. **Multi-instance safe mode:** общий Redis (`REDIS_URL` / `OPENCLAW_SAFE_MODE_REDIS_URL`); чеклист в `docs/openclaw-safe-mode-runbook.md`.
+4. **Bus:** `seed:outbox-smoke-events:all` вставляет все типы из allowlist bridge; consumer расширен логами `entityId` и `planId`/`legId` для leg/plan событий.
+5. **HTTP venue:** ошибки 4xx несут **`meta`** (`category`, `venueErrorCode` из JSON) для наблюдаемости; тесты на 404 + `venueErrorCode`.
+6. **Settings:** BFF **`GET /api/operator/settings/configurations/:configKey/effective`**; UI — только отображение effective JSON для `intake.throttling` и `intake.routing.tiers`.
+7. **План:** `docs/review-handoff-2026-04-20.md` + перевод **`PRIO-P2-PROMO`** / **`PRIO-P2-RECAL`** в **`done`** в `DEVELOPMENT_PLAN.md`.
+
+### Открыто на потом
+
+- Зелёный CI на `main`/PR после пуша (все jobs из `ci.yml`).
+- Реальное применение миграций и verify на каждом окружении.
+- Полный ручной bus E2E на стенде с Docker/Redpanda при необходимости.
+
+**Детали и перечень файлов:** см. блок «2026-04-21 — Закрытие сессии» в [`docs/progress.md`](docs/progress.md).
+
+---
+
 ## 2026-04-21 — Закрытие сессии: compact + ключевые решения
 
 **Дата:** 2026-04-21

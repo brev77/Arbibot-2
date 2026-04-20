@@ -33,6 +33,16 @@ Optional: require specific files:
 node tools/verify-migrations-applied.mjs 030_paper_promotion_quality_fields.sql 031_portfolio_position_close_idempotency.sql
 ```
 
+### Full set (001–031)
+
+To assert **every** migration file under `infra/postgres/migrations/` is recorded (e.g. after a fresh staging bootstrap):
+
+```bash
+npm run db:verify-migrations:all
+```
+
+Equivalent: `node tools/verify-migrations-applied.mjs --all`
+
 ## Rollback
 
 Down migrations are not shipped in-repo. For production issues, restore from backup or prepare a forward-fix migration (preferred).

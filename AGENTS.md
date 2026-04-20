@@ -63,7 +63,7 @@ There is **no** `core-backend/` or `operator-frontend/` directory; older docs or
 - **Paper Trading Complete (P3-1, P3-2, P3-3, P3-5, P3-6):** completed (paper trades mutations, promotion candidates mutations, virtual capital, drift gauges, E2E tests)
 - **Paper Discovery Pipeline (P3-4):** implemented (discovery worker, candidate entity, E2E tests, **config-service integration**, bug fixes for entity ID handling)
 - **Migrations:** 001–031 (в т.ч. **`024_fix_rollback_configuration_function.sql`**, **`025_execution_plan_playbook.sql`**, **`026_watchlist_tier_snapshots.sql`**, **`027_route_scoring_history.sql`**, **`028_paper_drift_route_key.sql`**, **`029_intake_policy_seed.sql`** — defaults `intake.throttling` / `intake.routing.tiers`; **`030_paper_promotion_quality_fields.sql`**, **`031_portfolio_position_close_idempotency.sql`**); policy scope **`020_policy_configuration_scopes.sql`** (исправленный rollback / совместимость)
-- **DEVELOPMENT_PLAN:** ~**94%** of steps in `done` (as of **2026-04-20**); **`PRIO-P2-PAPERDISC`**, **`PRIO-P2-TIER`**, **`PRIO-P2-SCORE`** → **`done`**; Phase 4 prep completed; **`P5-5-GW`**, **`P5-5-OAPI`**, **`P5-5-OCUI`**, **`P5-5-BRIEF`** → **`done`**; remaining: Phase 4 analytics / further OpenClaw scope — see [.cursor/plans/DEVELOPMENT_PLAN.md](.cursor/plans/DEVELOPMENT_PLAN.md)
+- **DEVELOPMENT_PLAN:** Phase 4 **`P4-4-*`** steps **`done`** (as of **2026-04-20**), including **`P4-4-SCORE`** ([`docs/route-scoring-replay.md`](docs/route-scoring-replay.md), `npm run replay:route-scoring-export`) and **`P4-4-CH`** ([`docs/adr-phase4-clickhouse-gate.md`](docs/adr-phase4-clickhouse-gate.md), analytics path latency in [`docs/observability-tracing.md`](docs/observability-tracing.md)); **`PRIO-P2-PAPERDISC`**, **`PRIO-P2-TIER`**, **`PRIO-P2-SCORE`** → **`done`**; **`P5-5-GW`**, **`P5-5-OAPI`**, **`P5-5-OCUI`**, **`P5-5-BRIEF`** → **`done`** — see [.cursor/plans/DEVELOPMENT_PLAN.md](.cursor/plans/DEVELOPMENT_PLAN.md) for any new backlog items
 
 **Known issues:**
 - (none tracked here — migration **020** rollback path repaired via **`024`**; применяйте миграции по порядку на чистых БД)
@@ -198,8 +198,10 @@ From the repo root:
 - `npm run seed:outbox-smoke-events` — insert one `SnapshotUpdated` row into `outbox_events` for manual bus publish tests
 - `npm run seed:outbox-smoke-events:all` — insert one row per Kafka bridge `event_type` (`SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, `PlanCompleted`) for full bus smoke
 - `npm run db:verify-migrations` — verify `schema_migrations` contains **030** and **031** (override list: `node tools/verify-migrations-applied.mjs <file.sql> ...`)
+- `npm run db:verify-migrations:all` — verify **all** `infra/postgres/migrations/*.sql` rows exist (same as `node tools/verify-migrations-applied.mjs --all`)
 - `npm run venue:load-test` — concurrent HTTP venue submits (`VENUE_HTTP_BASE_URL`, optional `VENUE_LOAD_CONCURRENCY`, `VENUE_LOAD_REQUESTS`)
 - `npm run export:route-scoring-history` — JSONL/CSV export from `route_scoring_history` for offline replay prep (`DATABASE_URL`, optional `ROUTE_KEY`, `LOOKBACK_HOURS`, `FORMAT`)
+- `npm run replay:route-scoring-export` — summarize or compare JSONL exports (`summary [file]` reads stdin if omitted; `compare <before> <after>`); see [`docs/route-scoring-replay.md`](docs/route-scoring-replay.md)
 - `npm run bus:publish` — build and publish outbox rows to Kafka/Redpanda for `SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, and `PlanCompleted` (see `@arbibot/outbox-kafka-bridge`); checklist in [`docs/outbox-inbox.md`](docs/outbox-inbox.md) (profile `bus`, `DATABASE_URL`, `KAFKA_BROKERS`).
 - `npm run bus:consume` — build and run smoke consumer with inbox claim (logs `eventName` and `entityType` on successful claim)
 
@@ -374,6 +376,8 @@ Operator session in dev: see `apps/web` middleware / `getOperatorSession` — `A
 - **`apps/web/components/degraded-status-banner.tsx`** — Phase 4 degraded signals banner (polling 30s, dismissible, operator layout integration)
 - **`docs/review-gate-cfg3-paper-discovery.md`** — review gate checklist for CFG-3 UI and paper discovery integration (backend/frontend/architecture, metrics, bus-smoke optional)
 - **`docs/phase4-prep-bridge.md`** — Phase 4 prep plan: CI, observability, offline export for watchlist/route analytics
+- **`docs/route-scoring-replay.md`** — P4-4-SCORE: offline/staging replay for `route_scoring_history` (single-writer risk-service)
+- **`docs/adr-phase4-clickhouse-gate.md`** — P4-4-CH: when to introduce ClickHouse / DWH for route-scoring analytics (no second writer)
 - **`docs/adr-phase4-intake-throttling.md`** — ADR for Phase 4 intake throttling architecture (policy cache, fallback, single-writer)
 - **`docs/phase4-ui-degraded-signals.md`** — Phase 4 degraded UI signals design (market-intake health, operator dashboard, banner)
 - **`docs/intake-policy-config-keys.md`** — config JSON keys `intake.throttling` / `intake.routing.tiers` (Phase 4)

@@ -905,3 +905,86 @@ pm run start:consume ??????? ? ??????????? ? Kafka:
 
 ---
 
+## 2026-04-21 — Закрытие сессии (compact, handoff)
+
+**Дата:** 2026-04-21
+
+**Задача:** Зафиксировать итоги сессии после реализации краткосрочного плана производства: `/compact`, append в этом файле, обновление [`session_summary.md`](../session_summary.md).
+
+**Статус:** done
+
+**Следующие шаги:** проверить зелёный прогон всех jobs GitHub Actions на `main`/PR после пуша; на каждом стенде выполнить `npm run db:migrate` и `npm run db:verify-migrations`; для multi-instance **openclaw-gateway** задать **`REDIS_URL`** или **`OPENCLAW_SAFE_MODE_REDIS_URL`** (см. runbook); при сбоях CI — локально `npm run ci:e2e-phase4-tier-routing` / `npm run ci:bus-smoke` с Docker в том же shell (Windows: см. [`docs/TODO.md`](TODO.md)).
+
+### /compact — Focus: изменённые файлы, принятые решения, открытые вопросы
+
+**Изменённые файлы (область):** `apps/execution-orchestrator` (`legs/partial-fill-playbook.service.ts`, `venue/venue-adapter.ts`, `venue/http-venue.adapter.ts`, `venue/http-venue.adapter.spec.ts`); `apps/config-service` (`.gitignore`, `package.json` lint args; удаление случайных `src/**/*.js` / `*.d.ts` / `*.js.map`); `packages/outbox-kafka-bridge` (`src/bin/consume.ts`); `apps/web` (`components/settings-workspace.tsx`, `app/api/operator/settings/configurations/[configKey]/effective/route.ts`); `tools/verify-migrations-applied.mjs`, `tools/seed-outbox-events.mjs`; корневой `package.json` (`db:verify-migrations`, `seed:outbox-smoke-events:all`); документы: `docs/operations/staging-migrations.md`, `docs/ci-verification-checklist.md`, `docs/review-handoff-2026-04-20.md`, `docs/openclaw-safe-mode-runbook.md`, `docs/TODO.md`, `AGENTS.md`, `.cursor/plans/DEVELOPMENT_PLAN.md` (`PRIO-P2-PROMO`, `PRIO-P2-RECAL` → `done`).
+
+**Принятые решения:**
+
+1. **CI-паритет:** локальный прогон `npm run lint` / `build` / `test` из корня — каноническая проверка перед handoff; исправления под ESLint без ослабления инвариантов домена.
+2. **config-service:** артефакты компиляции в `src/` не коммитить; `.d.ts` исключены из eslint glob; при повторной генерации — чистка + `.gitignore`.
+3. **Миграции 030/031:** на стендах — `db:migrate`; проверка записей — `db:verify-migrations` / `verify-migrations-applied.mjs`; откат вне репозитория (backup / forward-fix).
+4. **OpenClaw multi-instance:** чеклист в runbook; общий Redis для safe mode; без `OPENCLAW_SAFE_MODE_USE_MEMORY_ONLY` в prod multi-replica.
+5. **Bus:** полный набор строк outbox для smoke — `seed:outbox-smoke-events:all`; consumer логирует `entityId` и для `LegFilled`/`PlanCompleted` — `planId`/`legId` из payload.
+6. **HTTP venue:** 4xx классифицируются (`VenueHttpClientErrorCategory`); `VenueSubmitClientError.meta` — `httpStatus`, `category`, опционально `venueErrorCode` из JSON тела.
+7. **Intake в UI:** только read-through effective через BFF `GET .../configurations/:key/effective` + блок на `/settings`; редактирование — как и раньше через список конфигураций.
+8. **План:** `PRIO-P2-PROMO` / `PRIO-P2-RECAL` закрыты с записью в `review-handoff-2026-04-20.md` после локальных проверок.
+
+**Открытые вопросы:** подтверждение зелёного CI на GitHub post-merge; применение миграций на всех БД прод/стейджинг; нагрузочное поведение gateway при деградации Redis; полный ручной bus publish/consume на стенде с Redpanda (вне минимального `ci-bus-smoke`).
+
+---
+
+## 2026-04-20 — План стабилизации CI и верификации (1 мес.): реализация в репозитории
+
+**Статус:** done (код + доки; ручные шаги на стендах / GitHub — по окружению)
+
+**Сделано:**
+
+- **Миграции:** `tools/verify-migrations-applied.mjs` — флаг `--all` (все `*.sql` из `infra/postgres/migrations/`); скрипт `npm run db:verify-migrations:all`; правки [`docs/operations/staging-migrations.md`](operations/staging-migrations.md).
+- **CI / чеклисты:** [`docs/ci-verification-checklist.md`](ci-verification-checklist.md) — полный перечень **7** jobs из [`.github/workflows/ci.yml`](../.github/workflows/ci.yml); новый [`docs/grafana-dashboard-verification.md`](grafana-dashboard-verification.md); метрика `arb_openclaw_safe_mode_redis_errors_total` в [`infra/grafana/README.md`](../infra/grafana/README.md).
+- **HTTP venue:** `VENUE_HTTP_ERROR_CATEGORY_MAP` (JSON), `resolveVenueHttpClientCategory`, тест; [`.env.example`](../.env.example).
+- **OpenClaw safe mode:** [`apps/openclaw-gateway/src/openclaw/safe-mode-metrics.ts`](../apps/openclaw-gateway/src/openclaw/safe-mode-metrics.ts), счётчик Redis-ошибок в [`safe-mode.service.ts`](../apps/openclaw-gateway/src/openclaw/safe-mode.service.ts); раздел metrics/alerts в [`docs/openclaw-safe-mode-runbook.md`](openclaw-safe-mode-runbook.md).
+- **Phase 4 prep:** SQL-примеры replay в [`docs/phase4-prep-bridge.md`](phase4-prep-bridge.md); перекрёстная ссылка lab venue ↔ [`tools/venue-load-test.mjs`](../tools/venue-load-test.mjs) в [`tools/lab-venue-stand.mjs`](../tools/lab-venue-stand.mjs).
+- **config-service Jest:** [`apps/config-service/tsconfig.spec.json`](../apps/config-service/tsconfig.spec.json) (extends `nest.json`), `ts-jest` указывает на него — исправлен TS1206 decorators в тестах.
+- **execution-orchestrator:** в [`legs.service.spec.ts`](../apps/execution-orchestrator/src/legs/legs.service.spec.ts) в стаб плана добавлен `playbookConfig: null` (строгость `ExecutionPlanEntity`).
+- **AGENTS.md:** `db:verify-migrations:all`.
+
+**Локально:** `npm run test -w @arbibot/config-service`, `npm run test -w @arbibot/execution-orchestrator` — успех после правок.
+
+**Следующие шаги (оператор):** на каждом окружении `npm run db:migrate` + при необходимости `npm run db:verify-migrations:all`; в GitHub — зелёный прогон всех jobs; `npm run ci:bus-smoke` / полный bus — при наличии Docker и `DATABASE_URL`.
+
+---
+
+## 2026-04-21 — Закрытие сессии: `/compact` и handoff
+
+**Задача:** Зафиксировать итоги сессии после реализации плана стабилизации CI: `/compact` (изменённые файлы, решения, открытые вопросы), обновить [`session_summary.md`](../session_summary.md), append в этом файле.
+
+**Статус:** done
+
+**Следующие шаги:** пуш и проверка GitHub Actions; на стендах `db:migrate` + `db:verify-migrations:all`; при необходимости `npm run ci:bus-smoke` / полный bus по [`outbox-inbox.md`](outbox-inbox.md); обновление `DEVELOPMENT_PLAN.md` — по процессу review, если появятся новые шаги.
+
+### /compact — Focus: изменённые файлы, принятые решения, открытые вопросы
+
+**Изменённые файлы:** см. таблицу в верхнем блоке [`session_summary.md`](../session_summary.md) («2026-04-21 — Закрытие сессии: `/compact`»); дублирование: `tools/verify-migrations-applied.mjs`, `package.json`, `docs/operations/staging-migrations.md`, `docs/ci-verification-checklist.md`, `docs/grafana-dashboard-verification.md`, `infra/grafana/README.md`, `apps/execution-orchestrator/src/venue/http-venue.adapter.ts`, `http-venue.adapter.spec.ts`, `.env.example`, `apps/openclaw-gateway/src/openclaw/safe-mode-metrics.ts`, `safe-mode.service.ts`, `docs/openclaw-safe-mode-runbook.md`, `docs/phase4-prep-bridge.md`, `tools/lab-venue-stand.mjs`, `apps/config-service/tsconfig.spec.json`, `apps/config-service/package.json`, `apps/execution-orchestrator/src/legs/legs.service.spec.ts`, `AGENTS.md`, `docs/TODO.md`.
+
+**Принятые решения:** (1) `--all` для полной сверки миграций с репозиторием; (2) в чеклисте CI — **7** jobs, соответствие `ci.yml`; (3) `VENUE_HTTP_ERROR_CATEGORY_MAP` + `resolveVenueHttpClientCategory`; (4) метрики Redis safe mode + документированные alerts; (5) Jest для config-service через `tsconfig.spec.json` с `nest.json`; (6) `playbookConfig: null` в стабе `ExecutionPlanEntity` в legs tests.
+
+**Открытые вопросы:** CI на GitHub post-push; миграции на всех БД; полный bus вне локального smoke; поведение при недоступности Redis в prod (метрики + runbook, без обязательного E2E в репо).
+
+---
+
+## 2026-04-20 — Phase 4 closure: `P4-4-SCORE` + `P4-4-CH`
+
+**Задача:** Довести до `done` последние запланированные шаги Phase 4 в `DEVELOPMENT_PLAN.md`: replay для route scoring и документированный gate для ClickHouse / analytics latency.
+
+**Статус:** done
+
+**Реализовано:**
+
+- **`P4-4-SCORE`:** runbook [`docs/route-scoring-replay.md`](route-scoring-replay.md) (offline export, staging `POST /policy/jobs/route-scoring`, инвариант single-writer); скрипт [`tools/replay-route-scoring-export.mjs`](../tools/replay-route-scoring-export.mjs), корневой скрипт `npm run replay:route-scoring-export` (`summary` / `compare`); ссылки из [`docs/route-scoring-logic.md`](route-scoring-logic.md), обновления [`docs/phase4-prep-bridge.md`](phase4-prep-bridge.md).
+- **`P4-4-CH`:** ADR [`docs/adr-phase4-clickhouse-gate.md`](adr-phase4-clickhouse-gate.md) (триггеры включения CH/DWH, запрет второго writer, без compose-профиля в репо в этой итерации); раздел **Analytics path latency** в [`docs/observability-tracing.md`](observability-tracing.md).
+- **План:** `.cursor/plans/DEVELOPMENT_PLAN.md` — `P4-4-SCORE` и `P4-4-CH` → `done` с записями review; [`AGENTS.md`](../AGENTS.md) — Phase 4 `P4-4-*`, новый npm script и документы.
+
+**Следующие шаги:** при срабатывании gate из ADR — отдельный проект ETL/CH; полный bus / CI — по [`docs/TODO.md`](TODO.md).
+
+---

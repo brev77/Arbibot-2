@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Minimal HTTP "venue lab" for {@link HttpVenueAdapter}: no real exchange, real TCP + JSON.
- * Used by `tools/ci-e2e-phase2.sh` and local experiments.
+ * Used by `tools/ci-e2e-phase2.sh` and local experiments. For concurrent load, use [`venue-load-test.mjs`](venue-load-test.mjs) (same `/v1/submit-leg` contract; no duplicate lab server needed).
  * Max request body 64 KiB (413 if exceeded); dedupe by `submitIdempotencyKey` in POST JSON.
  *
  * Env: `LAB_VENUE_PORT` (default 3099), bind `127.0.0.1`.

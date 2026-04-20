@@ -5,6 +5,7 @@ import {
   buildLegSubmitIdempotencyKey,
   classifyVenueHttpClientError,
   HttpVenueAdapter,
+  resetVenueHttpClientCategoryMapCache,
 } from './http-venue.adapter';
 import {
   VenueSubmitClientError,
@@ -26,6 +27,8 @@ describe('HttpVenueAdapter', () => {
   afterEach(() => {
     global.fetch = originalFetch;
     delete process.env.VENUE_HTTP_TIMEOUT_MS;
+    delete process.env.VENUE_HTTP_ERROR_CATEGORY_MAP;
+    resetVenueHttpClientCategoryMapCache();
   });
 
   it('returns externalOrderId on 200', async () => {
@@ -109,6 +112,28 @@ describe('HttpVenueAdapter', () => {
 
   it('classifies 404 as not_found', () => {
     expect(classifyVenueHttpClientError(404, {})).toBe('not_found');
+  });
+
+  it('maps venueErrorCode via VENUE_HTTP_ERROR_CATEGORY_MAP (status:code key)', async () => {
+    process.env.VENUE_HTTP_ERROR_CATEGORY_MAP = JSON.stringify({
+      '404:UNKNOWN_LEG': 'semantic',
+    });
+    resetVenueHttpClientCategoryMapCache();
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      text: () => Promise.resolve(JSON.stringify({ venueErrorCode: 'UNKNOWN_LEG' })),
+    });
+
+    const adapter = new HttpVenueAdapter('http://venue.example');
+    try {
+      await adapter.submitLeg(planStub('p'), legStub('l', 0));
+      throw new Error('expected throw');
+    } catch (e) {
+      expect(e).toBeInstanceOf(VenueSubmitClientError);
+      expect((e as VenueSubmitClientError).meta?.category).toBe('semantic');
+      expect((e as VenueSubmitClientError).meta?.venueErrorCode).toBe('UNKNOWN_LEG');
+    }
   });
 
   it('maps 404 to client error with category not_found', async () => {

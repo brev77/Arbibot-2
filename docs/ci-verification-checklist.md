@@ -5,11 +5,19 @@ Use after merging OpenClaw / intake / bus changes to `main`.
 ## GitHub Actions
 
 1. Open the latest workflow run on `main` for [`.github/workflows/ci.yml`](../.github/workflows/ci.yml).
-2. Confirm jobs are green:
-   - `build` (lint, test, turbo build)
-   - `e2e-phase4-tier-routing`
-   - `bus-smoke`
-   - Other E2E jobs as applicable to your change
+2. Confirm **all** jobs are green (seven parallel jobs after `build`):
+
+| Job | Purpose |
+|-----|---------|
+| `build` | `npm run lint`, `build`, `test` (Turbo) |
+| `e2e-phase2` | Phase 2 controlled execution (HTTP chain + Postgres) |
+| `e2e-phase2-watchlist-route-scoring` | Risk policy writers smoke |
+| `e2e-phase3-paper-promotion` | Paper promotion relay |
+| `e2e-phase3-paper-discovery` | Paper discovery worker |
+| `e2e-phase4-tier-routing` | Intake tier routing + throttle |
+| `bus-smoke` | Outbox-kafka-bridge build + optional Redpanda compose |
+
+Re-run failed jobs; capture logs under the job’s “Phase …” step.
 
 ## Local parity with the `build` job
 

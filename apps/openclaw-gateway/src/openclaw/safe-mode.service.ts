@@ -1,6 +1,8 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import Redis from 'ioredis';
 
+import { getSafeModeRedisErrorsCounter } from './safe-mode-metrics';
+
 export type SafeModeState = {
   readonly enabled: boolean;
   readonly updatedAt: string;
@@ -44,6 +46,11 @@ export class SafeModeService implements OnModuleDestroy {
       });
       this.redis.on('error', (err: Error) => {
         this.log.warn(`Redis safe-mode: ${err.message}`);
+        try {
+          getSafeModeRedisErrorsCounter().inc({ operation: 'connection' });
+        } catch {
+          /* metrics optional */
+        }
       });
     } else {
       this.redis = null;
@@ -105,6 +112,11 @@ export class SafeModeService implements OnModuleDestroy {
       this.log.warn(
         `getState redis read failed: ${err instanceof Error ? err.message : String(err)}`,
       );
+      try {
+        getSafeModeRedisErrorsCounter().inc({ operation: 'get' });
+      } catch {
+        /* metrics optional */
+      }
       return emptyState();
     }
   }
@@ -125,10 +137,22 @@ export class SafeModeService implements OnModuleDestroy {
     }
     const ttl = this.ttlSeconds();
     const payload = JSON.stringify(state);
-    if (ttl > 0) {
-      await this.redis.set(REDIS_KEY, payload, 'EX', ttl);
-    } else {
-      await this.redis.set(REDIS_KEY, payload);
+    try {
+      if (ttl > 0) {
+        await this.redis.set(REDIS_KEY, payload, 'EX', ttl);
+      } else {
+        await this.redis.set(REDIS_KEY, payload);
+      }
+    } catch (err: unknown) {
+      this.log.warn(
+        `enable redis write failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      try {
+        getSafeModeRedisErrorsCounter().inc({ operation: 'set' });
+      } catch {
+        /* metrics optional */
+      }
+      throw err;
     }
     return state;
   }
@@ -149,10 +173,22 @@ export class SafeModeService implements OnModuleDestroy {
     }
     const ttl = this.ttlSeconds();
     const payload = JSON.stringify(state);
-    if (ttl > 0) {
-      await this.redis.set(REDIS_KEY, payload, 'EX', ttl);
-    } else {
-      await this.redis.set(REDIS_KEY, payload);
+    try {
+      if (ttl > 0) {
+        await this.redis.set(REDIS_KEY, payload, 'EX', ttl);
+      } else {
+        await this.redis.set(REDIS_KEY, payload);
+      }
+    } catch (err: unknown) {
+      this.log.warn(
+        `disable redis write failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      try {
+        getSafeModeRedisErrorsCounter().inc({ operation: 'set' });
+      } catch {
+        /* metrics optional */
+      }
+      throw err;
     }
     return state;
   }
