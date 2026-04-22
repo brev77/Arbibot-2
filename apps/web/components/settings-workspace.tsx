@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { Button } from './ui/button';
 
@@ -15,13 +15,34 @@ import {
   PromoteConfigurationDto,
   UpdateConfigurationStatusDto,
 } from '@/lib/settings-types';
+import {
+  POLICY_CONFIG_REGISTRY,
+  getRegistryEntry,
+  isKnownRegistryKey,
+  validateConfigJson,
+} from '@/lib/policy-config-registry';
+import { cn } from '@/lib/cn';
 import { settingsQueryKeys } from '@/lib/settings-query-keys';
+import {
+  IntakeRoutingTiersPanel,
+  IntakeThrottlingPanel,
+  PaperDiscoveryPanel,
+  type PolicyUpsertFn,
+} from '@/components/settings-policy-editor-panels';
 import { DestructiveOperatorAction } from './destructive-operator-action';
 
 interface SettingsWorkspaceProps {
   environment?: string;
   tenantId?: string;
 }
+
+type SettingsTab =
+  | 'overview'
+  | 'policies'
+  | 'intake'
+  | 'paper'
+  | 'extensions'
+  | 'diagnostics';
 
 type WatchlistTierRow = {
   instrumentKey: string;
@@ -82,6 +103,7 @@ export function SettingsWorkspace({
   tenantId,
 }: SettingsWorkspaceProps) {
   const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState<SettingsTab>('overview');
   const [pageError, setPageError] = useState<string | null>(null);
   const [selectedConfig, setSelectedConfig] = useState<ConfigurationDto | null>(
     null,
@@ -142,6 +164,7 @@ export function SettingsWorkspace({
   const [intakePolicyError, setIntakePolicyError] = useState<string | null>(null);
   const [intakeThrottlingJson, setIntakeThrottlingJson] = useState<string | null>(null);
   const [intakeTiersJson, setIntakeTiersJson] = useState<string | null>(null);
+  const [paperDiscoveryJson, setPaperDiscoveryJson] = useState<string | null>(null);
 
   const loadWatchlistTiers = useCallback(async () => {
     setWatchlistTiersLoading(true);
@@ -178,7 +201,7 @@ export function SettingsWorkspace({
     }
   }, []);
 
-  const loadIntakePolicyEffective = useCallback(async () => {
+  const loadEffectivePolicyBundle = useCallback(async () => {
     setIntakePolicyLoading(true);
     setIntakePolicyError(null);
     try {
@@ -187,12 +210,15 @@ export function SettingsWorkspace({
       if (tenantId) params.append('tenantId', tenantId);
       const qs = params.toString() ? `?${params.toString()}` : '';
 
-      const fetchEffective = async (key: string): Promise<string> => {
+      const fetchEffective = async (key: string): Promise<string | null> => {
         const res = await fetch(
           `/api/operator/settings/configurations/${encodeURIComponent(key)}/effective${qs}`,
           { credentials: 'include' },
         );
         const body = (await res.json().catch(() => ({}))) as unknown;
+        if (res.status === 404) {
+          return null;
+        }
         if (!res.ok) {
           const err = body as { error?: string; message?: string };
           throw new Error(
@@ -211,17 +237,20 @@ export function SettingsWorkspace({
         return JSON.stringify(cv ?? body, null, 2);
       };
 
-      const [th, ti] = await Promise.all([
+      const [th, ti, paper] = await Promise.all([
         fetchEffective('intake.throttling'),
         fetchEffective('intake.routing.tiers'),
+        fetchEffective('paper.discovery'),
       ]);
       setIntakeThrottlingJson(th);
       setIntakeTiersJson(ti);
+      setPaperDiscoveryJson(paper);
     } catch (e) {
       setIntakeThrottlingJson(null);
       setIntakeTiersJson(null);
+      setPaperDiscoveryJson(null);
       setIntakePolicyError(
-        e instanceof Error ? e.message : 'Failed to load intake policy',
+        e instanceof Error ? e.message : 'Failed to load effective policies',
       );
     } finally {
       setIntakePolicyLoading(false);
@@ -542,11 +571,16 @@ export function SettingsWorkspace({
   };
 
   const submitCreate = async (): Promise<void> => {
+    const trimmedKey = createKey.trim();
+    const validated = validateConfigJson(trimmedKey, createValue);
+    if (!validated.ok) {
+      throw new Error(validated.error);
+    }
     const needsApproval =
-      createSensitive || SENSITIVE_KEY.test(createKey.trim());
+      createSensitive || SENSITIVE_KEY.test(trimmedKey);
     const dto: CreateConfigurationDto = {
-      configKey: createKey.trim(),
-      configValue: createValue,
+      configKey: trimmedKey,
+      configValue: validated.normalized,
       isSensitive: needsApproval,
       scopeType: ConfigScopeType.GLOBAL,
       status: createAsDraft ? ConfigurationStatus.DRAFT : ConfigurationStatus.ACTIVE,
@@ -564,10 +598,14 @@ export function SettingsWorkspace({
 
   const submitEdit = async (): Promise<void> => {
     if (!editTarget) return;
+    const validated = validateConfigJson(editTarget.configKey, editValue);
+    if (!validated.ok) {
+      throw new Error(validated.error);
+    }
     const sensitive =
       editSensitive || SENSITIVE_KEY.test(editTarget.configKey);
     const dto: Partial<CreateConfigurationDto> = {
-      configValue: editValue,
+      configValue: validated.normalized,
       isSensitive: sensitive,
       approveReason:
         sensitive && editApproveReason.trim().length > 0
@@ -688,198 +726,456 @@ export function SettingsWorkspace({
     historyTip !== undefined &&
     !historyTip.isActive;
 
+  const createKeyMeta =
+    createKey.trim().length > 0 ? getRegistryEntry(createKey.trim()) : undefined;
+
+  const upsertPolicy: PolicyUpsertFn = useCallback(
+    async ({ configKey, jsonString, asDraft }) => {
+      if (SENSITIVE_KEY.test(configKey)) {
+        throw new Error(
+          'Sensitive keys (risk.*, execution.*, capital.*) must be updated from All policies with an explicit approval reason.',
+        );
+      }
+      const validated = validateConfigJson(configKey, jsonString);
+      if (!validated.ok) {
+        throw new Error(validated.error);
+      }
+      const normalized = validated.normalized;
+      const sensitive = SENSITIVE_KEY.test(configKey);
+      const existing = configurations.find((c) => c.configKey === configKey);
+
+      if (existing) {
+        const body: Partial<CreateConfigurationDto> = {
+          configValue: normalized,
+          isSensitive: sensitive || existing.isSensitive,
+        };
+        if (asDraft) {
+          body.status = ConfigurationStatus.DRAFT;
+        }
+        await updateMutation.mutateAsync({ configKey, body });
+      } else {
+        await createMutation.mutateAsync({
+          configKey,
+          configValue: normalized,
+          isSensitive: sensitive,
+          scopeType: ConfigScopeType.GLOBAL,
+          status: asDraft ? ConfigurationStatus.DRAFT : ConfigurationStatus.ACTIVE,
+        });
+      }
+      await loadEffectivePolicyBundle();
+    },
+    [
+      configurations,
+      createMutation,
+      updateMutation,
+      loadEffectivePolicyBundle,
+    ],
+  );
+
+  useEffect(() => {
+    if (
+      activeTab === 'overview' ||
+      activeTab === 'intake' ||
+      activeTab === 'paper'
+    ) {
+      void loadEffectivePolicyBundle();
+    }
+  }, [activeTab, environment, tenantId, loadEffectivePolicyBundle]);
+
+  const tabBtn = (id: SettingsTab, label: string) => (
+    <button
+      type="button"
+      key={id}
+      onClick={() => setActiveTab(id)}
+      className={cn(
+        'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+        activeTab === id
+          ? 'bg-slate-700 text-white html.theme-light:bg-slate-900 html.theme-light:text-white'
+          : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-100 html.theme-light:text-slate-600 html.theme-light:hover:bg-slate-100 html.theme-light:hover:text-slate-900',
+      )}
+    >
+      {label}
+    </button>
+  );
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold mb-4">Policy Configurations</h2>
+      <nav
+        aria-label="Settings sections"
+        className="flex flex-wrap gap-2 border-b border-slate-700/50 pb-3 html.theme-light:border-slate-200"
+      >
+        {tabBtn('overview', 'Overview')}
+        {tabBtn('policies', 'All policies')}
+        {tabBtn('intake', 'Intake')}
+        {tabBtn('paper', 'Paper discovery')}
+        {tabBtn('extensions', 'Extensions catalog')}
+        {tabBtn('diagnostics', 'Diagnostics')}
+      </nav>
 
-        {error && (
-          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-800">{error}</p>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setPageError(null)}
-              className="mt-2"
-            >
-              Dismiss
-            </Button>
-          </div>
-        )}
+      {error && (
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-red-800">{error}</p>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setPageError(null)}
+            className="mt-2"
+          >
+            Dismiss
+          </Button>
+        </div>
+      )}
 
-        {loading ? (
-          <div className="text-center py-8 text-slate-500">Loading…</div>
-        ) : (
-          <>
-            <div className="mb-4 flex gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  setCreateKey('');
-                  setCreateValue('');
-                  setCreateSensitive(false);
-                  setCreateApproveReason('');
-                  setCreateAsDraft(false);
-                  setCreateOpen(true);
-                }}
-              >
-                Create configuration
-              </Button>
+      {activeTab === 'overview' && (
+        <section className="space-y-4">
+          <h2 className="text-xl font-semibold">Effective policies (preview)</h2>
+          <p className="text-sm text-slate-500 html.theme-light:text-slate-600">
+            Resolved via config-service{' '}
+            <code className="text-xs bg-slate-800/50 px-1 py-0.5 rounded html.theme-light:bg-slate-100">
+              GET …/effective
+            </code>{' '}
+            for the URL context (environment / tenant) shown above.
+          </p>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => void loadEffectivePolicyBundle()}
+            disabled={intakePolicyLoading}
+          >
+            {intakePolicyLoading ? 'Loading…' : 'Refresh effective'}
+          </Button>
+          {intakePolicyError && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded text-sm text-amber-900">
+              {intakePolicyError}
             </div>
+          )}
+          <div className="grid gap-4">
+            <div>
+              <h3 className="text-sm font-medium text-slate-300 mb-2 html.theme-light:text-slate-800">
+                intake.throttling
+              </h3>
+              <pre className="text-xs bg-slate-900/50 border border-slate-700 rounded p-3 overflow-x-auto max-h-64 overflow-y-auto whitespace-pre-wrap break-all html.theme-light:bg-slate-50 html.theme-light:border-slate-200">
+                {intakeThrottlingJson ?? '— not set for this scope —'}
+              </pre>
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-slate-300 mb-2 html.theme-light:text-slate-800">
+                intake.routing.tiers
+              </h3>
+              <pre className="text-xs bg-slate-900/50 border border-slate-700 rounded p-3 overflow-x-auto max-h-64 overflow-y-auto whitespace-pre-wrap break-all html.theme-light:bg-slate-50 html.theme-light:border-slate-200">
+                {intakeTiersJson ?? '— not set for this scope —'}
+              </pre>
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-slate-300 mb-2 html.theme-light:text-slate-800">
+                paper.discovery
+              </h3>
+              <pre className="text-xs bg-slate-900/50 border border-slate-700 rounded p-3 overflow-x-auto max-h-64 overflow-y-auto whitespace-pre-wrap break-all html.theme-light:bg-slate-50 html.theme-light:border-slate-200">
+                {paperDiscoveryJson ?? '— not set for this scope —'}
+              </pre>
+            </div>
+          </div>
+        </section>
+      )}
 
-            <div className="border rounded-lg overflow-hidden">
-              <table className="w-full">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">
-                      Key
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">
-                      Value
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">
-                      Scope
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">
-                      Version
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">
-                      Sensitive
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">
-                      Updated
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {configurations.length === 0 ? (
+      {activeTab === 'policies' && (
+        <div>
+          <h2 className="text-xl font-semibold mb-4">Policy configurations</h2>
+
+          {loading ? (
+            <div className="text-center py-8 text-slate-500">Loading…</div>
+          ) : (
+            <>
+              <div className="mb-4 flex gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setCreateKey('');
+                    setCreateValue('');
+                    setCreateSensitive(false);
+                    setCreateApproveReason('');
+                    setCreateAsDraft(false);
+                    setCreateOpen(true);
+                  }}
+                >
+                  Create configuration
+                </Button>
+              </div>
+
+              <div className="border rounded-lg overflow-hidden border-slate-700 html.theme-light:border-slate-200">
+                <table className="w-full">
+                  <thead className="bg-slate-800/40 html.theme-light:bg-slate-50">
                     <tr>
-                      <td
-                        colSpan={7}
-                        className="px-4 py-8 text-center text-slate-500"
-                      >
-                        No configurations found
-                      </td>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase html.theme-light:text-slate-500">
+                        Key
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase html.theme-light:text-slate-500">
+                        Value
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase html.theme-light:text-slate-500">
+                        Scope
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase html.theme-light:text-slate-500">
+                        Version
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase html.theme-light:text-slate-500">
+                        Sensitive
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase html.theme-light:text-slate-500">
+                        Updated
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase html.theme-light:text-slate-500">
+                        Actions
+                      </th>
                     </tr>
-                  ) : (
-                    configurations.map((config) => (
-                      <tr
-                        key={config.id}
-                        className="hover:bg-slate-50 cursor-pointer"
-                        onClick={() => setSelectedConfig(config)}
-                      >
-                        <td className="px-4 py-3 text-sm font-medium text-slate-900">
-                          {config.configKey}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-slate-600 max-w-xs truncate">
-                          {config.configValue}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-slate-600">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium">
-                            {config.scopeType === ConfigScopeType.GLOBAL && (
-                              <span className="bg-blue-100 text-blue-800">
-                                Global
-                              </span>
-                            )}
-                            {config.scopeType ===
-                              ConfigScopeType.ENVIRONMENT && (
-                              <span className="bg-green-100 text-green-800">
-                                {config.scopeValue || 'Environment'}
-                              </span>
-                            )}
-                            {config.scopeType === ConfigScopeType.TENANT && (
-                              <span className="bg-purple-100 text-purple-800">
-                                {config.scopeValue || 'Tenant'}
-                              </span>
-                            )}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-slate-600">
-                          v{config.entityVersion}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-slate-600">
-                          {config.isSensitive ? (
-                            <span className="text-red-600 font-medium">Yes</span>
-                          ) : (
-                            <span className="text-slate-400">No</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-slate-600">
-                          {new Date(config.updatedAt).toLocaleString()}
-                        </td>
-                        <td className="px-4 py-3 text-sm space-x-2">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openHistory(config);
-                            }}
-                          >
-                            History
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditTarget(config);
-                              setEditValue(config.configValue);
-                              setEditSensitive(config.isSensitive);
-                              setEditApproveReason('');
-                              setEditSaveAsDraft(false);
-                              setEditOpen(true);
-                            }}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openPromote(config);
-                            }}
-                          >
-                            Promote
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setRollbackTarget(config);
-                              setRollbackVersion(
-                                String(Math.max(1, config.entityVersion - 1)),
-                              );
-                              setRollbackApproveReason('');
-                              setRollbackOpen(true);
-                            }}
-                          >
-                            Rollback
-                          </Button>
+                  </thead>
+                  <tbody className="divide-y divide-slate-700 html.theme-light:divide-slate-200">
+                    {configurations.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={7}
+                          className="px-4 py-8 text-center text-slate-500"
+                        >
+                          No configurations found
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-      </div>
+                    ) : (
+                      configurations.map((config) => (
+                        <tr
+                          key={config.id}
+                          className="hover:bg-slate-800/30 cursor-pointer html.theme-light:hover:bg-slate-50"
+                          onClick={() => setSelectedConfig(config)}
+                        >
+                          <td className="px-4 py-3 text-sm font-medium text-slate-100 html.theme-light:text-slate-900">
+                            {config.configKey}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-slate-400 max-w-xs truncate html.theme-light:text-slate-600">
+                            {config.configValue}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-slate-400 html.theme-light:text-slate-600">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium">
+                              {config.scopeType === ConfigScopeType.GLOBAL && (
+                                <span className="bg-blue-900/50 text-blue-200 html.theme-light:bg-blue-100 html.theme-light:text-blue-800">
+                                  Global
+                                </span>
+                              )}
+                              {config.scopeType ===
+                                ConfigScopeType.ENVIRONMENT && (
+                                <span className="bg-emerald-900/40 text-emerald-200 html.theme-light:bg-green-100 html.theme-light:text-green-800">
+                                  {config.scopeValue || 'Environment'}
+                                </span>
+                              )}
+                              {config.scopeType === ConfigScopeType.TENANT && (
+                                <span className="bg-violet-900/40 text-violet-200 html.theme-light:bg-purple-100 html.theme-light:text-purple-800">
+                                  {config.scopeValue || 'Tenant'}
+                                </span>
+                              )}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-slate-400 html.theme-light:text-slate-600">
+                            v{config.entityVersion}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-slate-400 html.theme-light:text-slate-600">
+                            {config.isSensitive ? (
+                              <span className="text-red-400 font-medium html.theme-light:text-red-600">
+                                Yes
+                              </span>
+                            ) : (
+                              <span className="text-slate-500">No</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-slate-400 html.theme-light:text-slate-600">
+                            {new Date(config.updatedAt).toLocaleString()}
+                          </td>
+                          <td className="px-4 py-3 text-sm space-x-2">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openHistory(config);
+                              }}
+                            >
+                              History
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditTarget(config);
+                                setEditValue(config.configValue);
+                                setEditSensitive(config.isSensitive);
+                                setEditApproveReason('');
+                                setEditSaveAsDraft(false);
+                                setEditOpen(true);
+                              }}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openPromote(config);
+                              }}
+                            >
+                              Promote
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setRollbackTarget(config);
+                                setRollbackVersion(
+                                  String(Math.max(1, config.entityVersion - 1)),
+                                );
+                                setRollbackApproveReason('');
+                                setRollbackOpen(true);
+                              }}
+                            >
+                              Rollback
+                            </Button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
-      <div className="border-t border-slate-200 pt-6 html.theme-light:border-slate-200">
+      {activeTab === 'intake' && (
+        <section className="space-y-6">
+          <h2 className="text-xl font-semibold">Intake policy editors</h2>
+          <p className="text-sm text-slate-500 html.theme-light:text-slate-600">
+            Structured forms for{' '}
+            <code className="text-xs">intake.throttling</code> and{' '}
+            <code className="text-xs">intake.routing.tiers</code>. Values are validated before save.
+          </p>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => void loadEffectivePolicyBundle()}
+            disabled={intakePolicyLoading}
+          >
+            {intakePolicyLoading ? 'Loading…' : 'Reload effective (refresh forms)'}
+          </Button>
+          {intakePolicyError && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded text-sm text-amber-900">
+              {intakePolicyError}
+            </div>
+          )}
+          <IntakeThrottlingPanel
+            effectiveJson={intakeThrottlingJson}
+            onUpsert={upsertPolicy}
+          />
+          <IntakeRoutingTiersPanel
+            effectiveJson={intakeTiersJson}
+            onUpsert={upsertPolicy}
+          />
+        </section>
+      )}
+
+      {activeTab === 'paper' && (
+        <section className="space-y-4">
+          <h2 className="text-xl font-semibold">Paper discovery</h2>
+          <p className="text-sm text-slate-500 html.theme-light:text-slate-600">
+            Structured editor for <code className="text-xs">paper.discovery</code>. See{' '}
+            <code className="text-xs">docs/paper-discovery-config-keys.md</code>.
+          </p>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => void loadEffectivePolicyBundle()}
+            disabled={intakePolicyLoading}
+          >
+            {intakePolicyLoading ? 'Loading…' : 'Reload effective (refresh form)'}
+          </Button>
+          {intakePolicyError && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded text-sm text-amber-900">
+              {intakePolicyError}
+            </div>
+          )}
+          <PaperDiscoveryPanel
+            effectiveJson={paperDiscoveryJson}
+            onUpsert={upsertPolicy}
+          />
+        </section>
+      )}
+
+      {activeTab === 'extensions' && (
+        <section className="space-y-4">
+          <h2 className="text-xl font-semibold">Extensions catalog</h2>
+          <p className="text-sm text-slate-500 html.theme-light:text-slate-600">
+            Registered policy keys for the operator UI and docs. Keys without live consumers are reserved for
+            future services — add readers before relying on them in production.
+          </p>
+          <div className="border border-slate-700 rounded-lg overflow-x-auto html.theme-light:border-slate-200">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-800/40 html.theme-light:bg-slate-50">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium text-slate-400 html.theme-light:text-slate-600">
+                    Key
+                  </th>
+                  <th className="px-3 py-2 text-left font-medium text-slate-400 html.theme-light:text-slate-600">
+                    Title
+                  </th>
+                  <th className="px-3 py-2 text-left font-medium text-slate-400 html.theme-light:text-slate-600">
+                    Consumers
+                  </th>
+                  <th className="px-3 py-2 text-left font-medium text-slate-400 html.theme-light:text-slate-600">
+                    Doc
+                  </th>
+                  <th className="px-3 py-2 text-left font-medium text-slate-400 html.theme-light:text-slate-600">
+                    Form
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-700 html.theme-light:divide-slate-200">
+                {POLICY_CONFIG_REGISTRY.map((row) => (
+                  <tr key={row.configKey}>
+                    <td className="px-3 py-2 font-mono text-xs text-slate-200 html.theme-light:text-slate-900">
+                      {row.configKey}
+                    </td>
+                    <td className="px-3 py-2 text-slate-300 html.theme-light:text-slate-700">
+                      {row.title}
+                    </td>
+                    <td className="px-3 py-2 text-slate-400 html.theme-light:text-slate-600">
+                      {row.consumers.length > 0 ? row.consumers.join(', ') : '—'}
+                    </td>
+                    <td className="px-3 py-2 font-mono text-xs text-slate-400 html.theme-light:text-slate-600">
+                      {row.docPath}
+                    </td>
+                    <td className="px-3 py-2 text-slate-400 html.theme-light:text-slate-600">
+                      {row.structuredEditor ? 'Yes' : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {activeTab === 'diagnostics' && (
+        <>
+      <div className="border-t border-slate-700 pt-6 html.theme-light:border-slate-200">
         <h2 className="text-xl font-semibold mb-2">Watchlist tiers (latest per instrument)</h2>
         <p className="text-sm text-slate-500 mb-4">
           Read-only: risk-service{' '}
@@ -951,52 +1247,6 @@ export function SettingsWorkspace({
       </div>
 
       <div className="border-t border-slate-200 pt-6 html.theme-light:border-slate-200">
-        <h2 className="text-xl font-semibold mb-2">Intake policy (effective)</h2>
-        <p className="text-sm text-slate-500 mb-4">
-          Read-only: config-service{' '}
-          <code className="text-xs bg-slate-100 px-1 py-0.5 rounded">
-            GET /policy/configurations/.../effective
-          </code>{' '}
-          for keys{' '}
-          <code className="text-xs bg-slate-100 px-1 py-0.5 rounded">intake.throttling</code> and{' '}
-          <code className="text-xs bg-slate-100 px-1 py-0.5 rounded">intake.routing.tiers</code>. Keys
-          are documented in repo file <code className="text-xs">docs/intake-policy-config-keys.md</code>.
-        </p>
-        <div className="flex flex-wrap gap-2 items-end mb-4">
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() => void loadIntakePolicyEffective()}
-            disabled={intakePolicyLoading}
-          >
-            {intakePolicyLoading ? 'Loading…' : 'Load intake policy'}
-          </Button>
-        </div>
-        {intakePolicyError && (
-          <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded text-sm text-amber-900">
-            {intakePolicyError}
-          </div>
-        )}
-        {intakeThrottlingJson !== null && (
-          <div className="mb-6">
-            <h3 className="text-sm font-medium text-slate-700 mb-2">intake.throttling</h3>
-            <pre className="text-xs bg-slate-50 border rounded p-3 overflow-x-auto max-h-64 overflow-y-auto whitespace-pre-wrap break-all">
-              {intakeThrottlingJson}
-            </pre>
-          </div>
-        )}
-        {intakeTiersJson !== null && (
-          <div className="mb-2">
-            <h3 className="text-sm font-medium text-slate-700 mb-2">intake.routing.tiers</h3>
-            <pre className="text-xs bg-slate-50 border rounded p-3 overflow-x-auto max-h-64 overflow-y-auto whitespace-pre-wrap break-all">
-              {intakeTiersJson}
-            </pre>
-          </div>
-        )}
-      </div>
-
-      <div className="border-t border-slate-200 pt-6 html.theme-light:border-slate-200">
         <h2 className="text-xl font-semibold mb-2">Route scoring history</h2>
         <p className="text-sm text-slate-500 mb-4">
           Read-only: risk-service{' '}
@@ -1059,6 +1309,8 @@ export function SettingsWorkspace({
           </div>
         )}
       </div>
+        </>
+      )}
 
       {createOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -1075,6 +1327,19 @@ export function SettingsWorkspace({
                   onChange={(e) => setCreateKey(e.target.value)}
                 />
               </label>
+              {createKey.trim().length > 0 && !isKnownRegistryKey(createKey.trim()) && (
+                <p className="text-sm text-amber-600 html.theme-light:text-amber-800">
+                  Unknown key: JSON is not validated against a schema. Prefer keys from the Extensions catalog.
+                </p>
+              )}
+              {createKeyMeta !== undefined && (
+                <p className="text-xs text-slate-500 html.theme-light:text-slate-600">
+                  Doc: <span className="font-mono">{createKeyMeta.docPath}</span>
+                  {createKeyMeta.consumers.length > 0
+                    ? ` · Consumers: ${createKeyMeta.consumers.join(', ')}`
+                    : ''}
+                </p>
+              )}
               <label className="block text-sm text-slate-300 html.theme-light:text-slate-700">
                 Value
                 <textarea

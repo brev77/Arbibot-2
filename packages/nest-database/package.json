@@ -23,9 +23,7 @@
   "devDependencies": {
     "@arbibot/tsconfig": "*",
     "@nestjs/common": "^11.1.18",
-    "@nestjs/typeorm": "^11.0.0",
     "reflect-metadata": "^0.2.2",
-    "typeorm": "^0.3.27",
     "typescript": "~5.9.3"
   }
 }

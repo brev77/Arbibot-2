@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 
-import { RiskEntitiesModule } from '../database/risk-entities.module';
+import { DatabaseModule } from '../database/database.module';
 
 import { AdaptiveRiskService } from './adaptive-risk.service';
 import { PolicyController } from './policy.controller';
@@ -14,7 +14,7 @@ import { WatchlistTierService } from './watchlist-tier.service';
 import { WatchlistTieringWriterService } from './watchlist-tiering-writer.service';
 
 @Module({
-  imports: [RiskEntitiesModule],
+  imports: [DatabaseModule],
   controllers: [PolicyController, PolicyJobsController],
   providers: [
     TokenProfileService,

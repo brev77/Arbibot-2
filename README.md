@@ -4,6 +4,8 @@
 
 **Первичный запуск (канон):** перед выставлением реальных средств система **сначала** выводится в режим **paper trading** — сквозной операционный тест всей связки и сбор статистики; затем **live с минимальным капиталом**. Подробнее: [.cursor/plans/DEVELOPMENT_PLAN.md](.cursor/plans/DEVELOPMENT_PLAN.md) («Операционная последовательность первичного запуска»), `!Arbibot_2_Architecture_v1_final_docs_settings.md` (разделы 13 и 50.5).
 
+**Путеводитель по репозиторию:** для разработчиков и операторов — [docs/PROJECT_HANDBOOK.md](docs/PROJECT_HANDBOOK.md) (оглавление, секреты и env, слои настройки системы, мониторинг, ссылки на runbooks и главы `docs/handbook/`).
+
 ## Требования
 
 - **Node.js** ≥ 22 ([`package.json`](package.json))
