@@ -1,5 +1,178 @@
 # Session Summary
 
+## 2026-04-29 (вечер) — DEX-1-0-TECH-CHOICE + DEX-1-0-ABIS → done
+
+**Дата:** 2026-04-29
+**Фокус:** изменённые файлы, принятые решения, открытые вопросы
+
+### Изменённые файлы
+
+| Область | Файлы |
+|--------|--------|
+| **Новый пакет** | `packages/contracts-eth/` (package.json, tsconfig.json, tsconfig.build.json, src/*) |
+| **ABI** | `src/abis/uniswap-v2-router.ts`, `uniswap-v3-router.ts`, `sushiswap-router.ts`, `erc20.ts` |
+| **Адреса** | `src/addresses/arbitrum.ts`, `base.ts`, `bnb.ts` |
+| **Типы** | `src/types/chain-id.ts`, `address.ts` |
+| **Экспорт** | `src/index.ts` |
+| **DEX план** | `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` (v1.1 — TECH-CHOICE + ABIS → done) |
+| **Документация** | `docs/progress.md` (append) |
+
+### Принятые решения
+
+1. **ethers.js v6.13.0** — подтверждён как EVM library (уже установлен в nest-platform и execution-orchestrator)
+2. **Отдельный пакет `@arbibot/contracts-eth`** — для ABI, адресов и chain-типов (не в `@arbibot/contracts`)
+3. **Поддерживаемые сети:** Arbitrum (42161/421611), Base (8453/84532), BNB Chain (56/97) — mainnet + testnet
+4. **DEX:** Uniswap V2, Uniswap V3, SushiSwap — полный ABI для router + ERC20
+5. **BNB Chain:** PancakeSwap V2/V3 как основные DEX, Uniswap V3 и SushiSwap как дополнительные
+6. **Address branded type:** `type Address = \`0x${string}\`` — type-safe без `any`
+
+### Открытые вопросы
+
+- `DEX-1-0-VAULT` / `DEX-1-0-WALLET-MGT` — код частично реализован, нужны метрики/health/runbook (после RPC+MIGRATIONS)
+- `FE-SETTINGS-POLICY-WORKSPACE` → `implemented`, awaiting `/review-step`
+- CI jobs на `main` не верифицированы
+
+### Следующие шаги
+
+1. `DEX-1-0-RPC` — RpcProviderManager (failover, health, метрики) — разблокирован
+2. `DEX-1-0-MIGRATIONS` — таблицы DEX (on_chain_transactions, wallet_states, dex_pools, approvals) — разблокирован
+3. Оба шага можно делать параллельно
+
+### Верификация
+
+- `npm run build` → **21/21 пакетов green**
+- `npm run build -w @arbibot/contracts-eth` → success
+
+---
+
+## 2026-04-29 — AGENTS.md синхронизация и закрытие сессии
+
+**Дата:** 2026-04-29
+
+**Фокус:** изменённые файлы, принятые решения, открытые вопросы
+
+### Изменённые файлы
+
+| Область | Файлы |
+|--------|--------|
+| **Документация** | `AGENTS.md` (6 обновлений), `docs/progress.md` (append), `session_summary.md` (этот файл) |
+
+### Принятые решения
+
+1. **AGENTS.md актуализирован** по 6 расхождениям между реальным состоянием проекта и документацией:
+   - Current status дата: `2026-04-21` → `2026-04-28`
+   - Last major update: добавлены DEX Filters, DEX Code Review, FE-SETTINGS-POLICY-WORKSPACE, Phase 5 done
+   - Known issues: DEX 3 блокера + FE-SETTINGS awaiting review
+   - Новая секция «DEX Code Review & Filters (2026-04-28)»
+   - FE-SETTINGS-POLICY-WORKSPACE (`implemented`) секция добавлена
+   - Миграции 001–031 → 001–032 (2 места)
+2. **Phase 5 подтверждён done** — все формальные шаги `P5-5-GW/OAPI/OCUI/BRIEF` → `done`
+3. **Миграции** — подтверждены 001–032 (включая `032_dex_filters_seed.sql`)
+
+### Открытые вопросы
+
+- `FE-SETTINGS-POLICY-WORKSPACE` → `implemented`, awaiting `/review-step` → `done`
+- DEX 3 критических блокера не исправлены (getEncryptedKey, DI, encryptionKey types)
+- CI jobs на `main` не верифицированы
+
+### Следующие шаги
+
+1. Исправить 3 DEX блокера
+2. Пройти `/review-step` для FE-SETTINGS-POLICY-WORKSPACE
+3. Проверить CI jobs
+
+---
+
+## 2026-04-28 — Реализация DEX Opportunity Filters System (DEX-1-0-FILTERS)
+
+**Дата:** 2026-04-28
+
+**Фокус:** изменённые файлы, принятые решения, открытые вопросы
+
+### Изменённые файлы
+
+| Область | Файлы |
+|--------|--------|
+| **Backend (opportunity-service)** | `apps/opportunity-service/src/opportunities/dto/dex-filters-config.dto.ts`, `dto/preview-filters.dto.ts`, `opportunities.service.ts`, `opportunities.controller.ts` |
+| **Contracts** | `packages/contracts/src/dex-filters.types.ts`, `index.ts` |
+| **Frontend BFF** | `apps/web/app/api/operator/opportunities/preview-filters/route.ts`, `opportunities/metrics/dex-filters/route.ts`, `settings/configurations/dex.filters/route.ts` |
+| **Frontend Lib** | `apps/web/lib/dex-filters-query-keys.ts`, `use-dex-filters.ts`, `api-base.ts` |
+| **Frontend Components** | `apps/web/components/dex-filters/dex-filters-panel.tsx`, `ui/card.tsx`, `ui/switch.tsx`, `ui/badge.tsx`, `settings-workspace.tsx` |
+| **Migrations** | `infra/postgres/migrations/032_dex_filters_seed.sql` |
+| **Documentation** | `docs/dex-filters-config-keys.md`, `.cursor/plans/DEVELOPMENT_PLAN-DEX.md`, `docs/progress.md`, `session_summary.md` |
+
+### Принятые решения
+
+1. **Архитектура фильтрации:** все фильтры управляются через config-service с key `dex.filters` и поддерживают scope fallback (global → environment → tenant)
+2. **Типы фильтров:** реализованы 4 типа фильтров с индивидуальным включением/выключением:
+   - Threshold: minSpreadPct, minProfitUsd, maxFeesUsd
+   - Volume: volumeRange (min/max)
+   - Tokens: blacklistTokens, allowedChains, quoteAssets
+   - Risk: highRisk (maxRiskLevel: low/medium/high)
+3. **Preview functionality:** кнопка "Preview Impact" позволяет протестировать влияние фильтров без сохранения в конфиг
+4. **Metrics:** эндпоинт `GET /opportunities/metrics/dex-filters` возвращает метрики за 24h (totalOpportunities, passedFilters, rejectedByFilters)
+5. **SLO:** filter application latency < 10ms, preview impact < 100ms
+6. **UI компоненты:** созданы недостающие UI компоненты (card, switch, badge) в стиле shadcn/ui
+7. **React Query интеграция:** хуки `useDexFiltersConfig`, `useUpdateDexFiltersConfig`, `usePreviewDexFilters`, `useDexFiltersMetrics`
+8. **TypeScript строгость:** все типы явно определены, используется `DexFiltersConfig` из `@arbibot/contracts`
+9. **API-base:** добавлен экспорт `OPPORTUNITY_API_BASE` для BFF роутов
+
+### Открытые вопросы
+
+- Manual UI testing: `/settings` → "DEX filters" tab (требуется запуск dev сервера)
+- Мониторинг эффективности фильтров на проде (reject rate, pass rate)
+- Оптимизация порогов фильтрации на основе метрик
+- Дополнительные фильтры по необходимости (например, MEV risk)
+
+### Технические решения
+
+1. **Backend DTOs:**
+   - `DexFiltersConfigDto` — конфигурация фильтров с валидацией
+   - `PreviewFiltersDto` — запрос для предпросмотра влияния фильтров
+   - `DexFiltersPreviewResponse` — ответ с результатами предпросмотра
+
+2. **Frontend Components:**
+   - `DexFiltersPanel` — основной компонент с формой настройки фильтров
+   - `FilterToggle` — компонент для threshold фильтров
+   - `RangeFilter` — компонент для volume range фильтра
+   - `TagFilter` — компонент для token фильтров (blacklist, chains, assets)
+   - `RiskFilter` — компонент для risk фильтра с выбором уровня
+
+3. **React Query Keys:**
+   - `operatorKeys.dexFilters()` — ключ для конфигурации фильтров
+   - `operatorKeys.dexFiltersPreview()` — ключ для предпросмотра
+   - `operatorKeys.dexFiltersMetrics()` — ключ для метрик
+
+4. **Миграция 032:**
+   - Создаёт дефолтную конфигурацию для `dex.filters`
+   - Включает все фильтры с разумными дефолтными значениями
+   - Управляется через config-service
+
+### Проверки качества
+
+- Build: `npm run build -w @arbibot/web` — SUCCESS
+- TypeScript: все типы корректны, без `any`
+- Exports: `OPPORTUNITY_API_BASE` экспортирован из `api-base.ts`
+- UI components: card, switch, badge реализованы в стиле shadcn/ui
+- Integration: DexFiltersPanel интегрирован в settings-workspace.tsx
+
+### Следующие шаги
+
+1. Manual UI testing: запустить `npm run dev -w @arbibot/web` и проверить `/settings` → "DEX filters" tab
+2. Мониторинг метрик эффективности фильтров на проде
+3. Оптимизация порогов фильтрации на основе collected metrics
+4. При необходимости: добавить дополнительные фильтры (MEV risk, liquidity score, etc.)
+
+### Архитектурные инварианты
+
+- ✅ Single-writer: opportunity-service является single-writer для фильтрации возможностей
+- ✅ Config-service: используется для хранения конфигурации фильтров
+- ✅ React Query: для управления состоянием и кэшированием
+- ✅ TypeScript strict mode: все типы явно определены
+- ✅ BFF pattern: все запросы проходят через BFF в `apps/web`
+
+---
+
 ## 2026-04-27 — Закрытие сессии: анализ DEVELOPMENT_PLAN-DEX.md
 
 **Дата:** 2026-04-27
@@ -62,6 +235,7 @@
 **Изменённые файлы:**
 - `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` — существенно обновлён с детализациями и улучшениями
 - `docs/progress.md` — добавлена запись о сессии
+- `session_summary.md` — добавлена запись о сессии
 
 **Следующие шаги:** продуктовое подтверждение на DEX-ы, реализация Phase 0, CI/CD для DEX-компонентов, формальный architecture review.
 
@@ -294,12 +468,12 @@
 
 || Область | Файлы |
 ||--------|--------|
-|| **Документация** | `AGENTS.md` (Phase 4 prep, BFF routes, CI, Frontend docs), `session_summary.md` (этот файл) |
+|| **Документация** | `AGENTS.md` (update), `session_summary.md` (этот файл) |
 
 ### Принятые решения
 
-1. **AGENTS.md обновлён** до статуса на 2026-04-20: добавлены Phase 4 prep (market-intake throttling, degraded UI signals, P2 prep, OpenClaw skeleton), обновлён раздел BFF routes, добавлен `e2e-phase4-tier-routing` в CI section, обновлён список Frontend documentation.
-2. **session_summary.md обновлён** с сохранением истории предыдущей сессии (Phase 4 prep implementation).
+1. **AGENTS.md update:** добавлена информация о последней сессии (Phase 4 prep, BFF routes, CI, Frontend docs).
+2. **session_summary.md update:** с сохранением истории предыдущей сессии (Phase 4 prep implementation).
 
 ### Открытые вопросы
 
@@ -434,7 +608,7 @@
 
 ## /compact — Focus
 
-**Изменённые файлы (ключевые):**
+### Изменённые файлы (ключевые):**
 - `infra/postgres/migrations/020_policy_configuration_scopes.sql`, `024_fix_rollback_configuration_function.sql`, `028_paper_drift_route_key.sql`
 - `apps/config-service/src/config/configurations.service.ts` (вызов `rollback_configuration`)
 - `apps/paper-trading-service/src/paper/paper.module.ts`, `paper-drift.service.ts`, `dto/create-drift-sample.dto.ts`, `packages/persistence/src/paper-drift-sample.entity.ts`

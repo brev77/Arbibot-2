@@ -9,6 +9,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
   UnauthorizedException,
 } from '@nestjs/common';
 
@@ -17,6 +18,10 @@ import { CreateOpportunityDto } from './dto/create-opportunity.dto';
 import { EnrichOpportunityDto } from './dto/enrich-opportunity.dto';
 import { PaperEnqueueDto } from './dto/paper-enqueue.dto';
 import { RequestRiskEvaluationDto } from './dto/request-risk-evaluation.dto';
+import type {
+  PreviewFiltersDto,
+  FiltersMetricsDto,
+} from './dto/preview-filters.dto';
 import { OpportunitiesService } from './opportunities.service';
 
 @Controller('opportunities')
@@ -135,5 +140,19 @@ export class OpportunitiesController {
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
+  }
+
+  /** Preview DEX filters impact on existing opportunities */
+  @Post('preview-filters')
+  @HttpCode(HttpStatus.OK)
+  async previewFilters(@Body() body: PreviewFiltersDto) {
+    return this.service.previewFilters(body);
+  }
+
+  /** Get DEX filters metrics (last 1h, 24h, 7d) */
+  @Get('metrics/dex-filters')
+  @HttpCode(HttpStatus.OK)
+  async getDexFiltersMetrics(): Promise<FiltersMetricsDto> {
+    return this.service.getMetrics();
   }
 }

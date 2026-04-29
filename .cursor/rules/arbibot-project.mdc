@@ -1,152 +1,228 @@
 ---
-description: Arbibot 2 — фаза 0, стек, архитектура, домен исполнения, фронтенд и правила кода
+description: Arbibot 2 — актуальное состояние (Phase 0-4 complete, Phase 5 active), стек, архитектура, домен исполнения, фронтенд и правила кода
 alwaysApply: true
 ---
 
 You are working in the Arbibot 2 monorepo.
 
-Context:
-- Arbibot 2 is a high-throughput crypto arbitrage system with:
-  - Market Intake → Canonical Market → Opportunity → Risk → Capital → Execution Orchestrator → Portfolio → Reconciliation → Control Plane.
-  - Operator dashboard (Next.js) for /dashboard, /portfolio, /opportunities, /execution, /tokens, /paper, /incidents, /runbooks, /openclaw, /settings.
-- Current focus: Phase 0 foundation only.
-  - Canonical Market Model
-  - Market Intake Service
-  - Opportunity Service
-  - Risk Service
-  - Capital Service
-  - Execution Orchestrator skeleton
-  - Outbox/inbox messaging
-  - Observability baseline
-  - Frontend dashboard
-- Later phases (do NOT implement unless explicitly requested). **Phase numbers match the canonical** [.cursor/plans/DEVELOPMENT_PLAN.md](.cursor/plans/DEVELOPMENT_PLAN.md) **and** `!Arbibot_2_Architecture_v1_final_docs_settings.md` (§50.x).
-  - Phase 1: foundation platform (snapshot → risk → reserve → arm path, dashboards, messaging baseline; plan §50.3).
-  - Phase 2: controlled execution (venue adapters, commit/release, reconciliation, incident views, runbooks UI, alerting/tracing; plan §50.4).
-  - Phase 3: paper trading engine and token lifecycle console (paper-only discovery, `/paper`, Paper Trading Service; plan §50.5). **Primary launch:** paper mode is the mandatory **end-to-end operational shakedown** of the full stack and statistics collection **before** live trading; live then starts with **minimal capital** (see `DEVELOPMENT_PLAN.md` section «Операционная последовательность первичного запуска»).
-  - Phase 4: wide-universe scaling, replay, advanced analytics (plan §50.6).
-  - Phase 5: OpenClaw-assisted operations and full automation.
+## Current Status (as of 2026-04-28)
 
-Architecture principles (must always respect):
-- Single-writer principle for core entities (ArbitrageOpportunity, RiskDecision, ExecutionPlan, CapitalReservation, PortfolioPosition, PaperTrade).
-- Reservation-first protocol: risk and capital are reserved before any execution.
-- Versioned state transitions with optimistic concurrency (compare-and-set).
-- Idempotent commit for fill events and operator actions.
-- Outbox/inbox pattern for event delivery.
-- Reconciliation loop between on-chain/venue state and system state.
-- Bulkhead: execution, analytics, and paper trading must be isolated.
+### Completed Phases
+- **Phase 0–2:** foundation + controlled execution (snapshot → risk → reserve → arm → execution, dashboards, messaging baseline, reconciliation)
+- **Phase 3:** paper trading engine (paper trades, promotion candidates, virtual capital, drift gauges, discovery pipeline, `/paper` UI)
+- **Phase 4:** wide-universe scaling with intake throttling (tier routing, degraded mode signals, route-scoring analytics, replay tools)
+- **Phase 5 (in progress):** OpenClaw-assisted operations (read-only API, incident management, approvals queue, safe-mode)
 
-Tech stack (do not deviate):
-- Runtime: Node 24 LTS-class for orchestration and APIs; Python for analytics, simulations, recalibration jobs.
-- Backend:
-  - TypeScript only.
-  - NestJS with Fastify as HTTP server.
-  - Temporal or BullMQ for workers (background jobs).
-- Data layer:
-  - PostgreSQL as primary OLTP store.
-  - Redis for cache and ephemeral coordination.
-  - Kafka or Redpanda for event streaming.
-  - ClickHouse for analytics.
-  - S3-compatible storage for replay/snapshots.
-- Frontend:
-  - Next.js (App Router) with React + TypeScript.
-  - shadcn/ui as component system.
-  - TanStack Table for all tables.
-  - ECharts or Recharts for charts.
-  - React Query (TanStack Query) for server state.
-  - Zustand for client state.
-  - RBAC-aware session model.
-- Observability:
-  - Prometheus, Grafana, Loki, OpenTelemetry (Tempo/Jaeger).
+### Current Focus
+- Phase 5 OpenClaw — operator automation gateway
+- P2 prep — watchlist tiering, route scoring, partial fill playbooks, recalibration tools
 
-Messaging and contracts:
-- Synchronous APIs: REST with OpenAPI contracts.
-- Async events: Kafka/Redpanda topics with JSON Schema + AsyncAPI.
-- Event names: SnapshotUpdated, OpportunityDetected, RiskDecisionIssued, CapitalReserved, PlanArmed, LegFilled, ReconciliationMismatchDetected, PlanCompleted, PositionClosed.
-- Event envelope fields:
-  - messageId
-  - correlationId
-  - causationId
-  - entityType
-  - entityId
-  - version
-  - sourceModule
-  - eventTs
+### Phase Reference
+Phase numbers match the canonical [.cursor/plans/DEVELOPMENT_PLAN.md](.cursor/plans/DEVELOPMENT_PLAN.md) and `!Arbibot_2_Architecture_v1_final_docs_settings.md` (§50.x):
 
-Execution domain constraints:
-- ExecutionPlan state machine:
-  - planned → reserved → armed → executing → completed / hedged / unwound / failed / canceled.
-- ExecutionLeg states:
-  - created → sent → acknowledged → partiallyFilled / filled / rejected / canceled / timedOut / failed.
-- Never bypass reservation-first:
-  - EvaluateOpportunity → EvaluateRisk → ReserveCapital/ReserveRiskWindow → ArmPlan → ExecutePlan.
-- Force hedge / Force unwind must:
-  - Go through impact preview.
-  - Require explicit operator approval.
-  - Produce a full audit trail.
+- **Phase 1:** foundation platform — **done**
+- **Phase 2:** controlled execution — **done**
+- **Phase 3:** paper trading engine — **done**
+- **Phase 4:** wide-universe scaling — **done** (P4-4-TIER, P4-4-SCORE, P4-4-CH, P4-4-UI)
+- **Phase 5:** OpenClaw-assisted operations — **in progress** (P5-5-GW, P5-5-OAPI, P5-5-OCUI, P5-5-BRIEF **done**)
 
-Frontend constraints:
-- Routes:
-  - /dashboard
-  - /portfolio
-  - /opportunities
-  - /execution
-  - /tokens
-  - /paper
-  - /incidents
-  - /runbooks
-  - /openclaw
-  - /settings
-- Use:
-  - shadcn/ui components.
-  - TanStack Table for tables.
-  - React Query for server data.
-  - Zustand for local client state.
-- Operator actions:
-  - Any destructive action (force hedge, force unwind, token suspend/block, runbook start, promotions) must have:
-    - Impact preview (what will change, which plans/positions/tokens).
-    - Two-step approval flow with audit log entry.
+## Architecture Principles (must always respect)
 
-Coding rules:
-- TypeScript:
-  - Strict mode always enabled.
-  - No any. Use proper types or generics.
-  - Use DTOs and domain models explicitly.
-  - No hidden cross-service shared state; respect service boundaries.
-- NestJS:
-  - Modular structure with DI.
-  - Controllers for HTTP, services for domain logic, repositories for persistence.
-  - Do not mix controller DTOs and domain entities.
-- Next.js:
-  - Use App Router.
-  - Prefer Server Components where possible.
-  - Keep client components focused on interaction/visuals.
-- Events:
-  - Always include envelope fields and a properly versioned payload.
-  - Implement idempotency for handling fill events and external callbacks.
+### Core Principles
+1. **Single-writer principle** for core entities (ArbitrageOpportunity, RiskDecision, ExecutionPlan, CapitalReservation, PortfolioPosition, PaperTrade)
+2. **Reservation-first protocol:** risk and capital are reserved before any execution
+3. **Versioned state transitions** with optimistic concurrency (compare-and-set)
+4. **Idempotent commit** for fill events and operator actions
+5. **Outbox/inbox pattern** for event delivery
+6. **Reconciliation loop** between on-chain/venue state and system state
+7. **Bulkhead isolation:** execution, analytics, and paper trading must be isolated
 
-How to interpret user requests:
-- Always identify:
-  - Which service (e.g., opportunity-service, risk-service, capital-service, execution-orchestrator, operator-web).
-  - Which phase (Phase 0, Phase 1, Phase 2, etc.).
-  - Which pattern applies (single-writer, reservation-first, outbox/inbox, idempotent commit, reconciliation loop).
-  - Which contracts are in scope (OpenAPI endpoints, AsyncAPI events, DB schema).
-- If the request conflicts with:
-  - Single-writer principle.
-  - Reservation-first protocol.
-  - Phase 0 scope.
-  → Clearly state the conflict and propose a corrected, compliant design.
+## Tech Stack (do not deviate)
 
+### Runtime
+- **Node 24 LTS-class** for orchestration and APIs
+- **Python** for analytics, simulations, recalibration jobs
 
-Before generating code:
-- Ask yourself:
-  - Which bounded context?
-  - What entity is the single writer?
-  - Which state machine(s) are affected?
-  - Which contracts (HTTP, events, DB) have to be updated?
-- If context is missing or ambiguous:
-  - Ask for clarification and enumerate what is needed (service, phase, contract).
+### Backend
+- **TypeScript only** (strict mode always enabled)
+- **NestJS with Fastify** as HTTP server
+- **Temporal or BullMQ** for workers (background jobs)
 
-Output expectations:
-- Provide production-grade code, configs or schemas within the Arbibot 2 stack.
-- Prefer small, composable modules over monoliths.
-- Do not generate placeholder implementations for critical logic; stub with clear TODOs and types.
+### Data Layer
+- **PostgreSQL** as primary OLTP store
+- **Redis** for cache and ephemeral coordination
+- **Kafka or Redpanda** for event streaming
+- **ClickHouse** for analytics
+- **S3-compatible storage** for replay/snapshots
+
+### Frontend
+- **Next.js (App Router)** with React + TypeScript
+- **shadcn/ui** as component system
+- **TanStack Table** for all tables
+- **ECharts or Recharts** for charts
+- **React Query (TanStack Query)** for server state
+- **Zustand** for client state
+- **RBAC-aware** session model
+
+### Observability
+- **Prometheus, Grafana, Loki, OpenTelemetry** (Tempo/Jaeger)
+
+## Messaging and Contracts
+
+### Synchronous APIs
+- **REST with OpenAPI contracts**
+
+### Async Events
+- **Kafka/Redpanda topics** with JSON Schema + AsyncAPI
+
+### Event Names
+- SnapshotUpdated, OpportunityDetected, RiskDecisionIssued, CapitalReserved, PlanArmed, LegFilled, ReconciliationMismatchDetected, PlanCompleted, PositionClosed
+
+### Event Envelope Fields
+- messageId, correlationId, causationId, entityType, entityId, version, sourceModule, eventTs
+
+## Execution Domain Constraints
+
+### ExecutionPlan State Machine
+- planned → reserved → armed → executing → completed / hedged / unwound / failed / canceled
+
+### ExecutionLeg States
+- created → sent → acknowledged → partiallyFilled / filled / rejected / canceled / timedOut / failed
+
+### Reservation-First Protocol
+Never bypass: EvaluateOpportunity → EvaluateRisk → ReserveCapital/ReserveRiskWindow → ArmPlan → ExecutePlan
+
+### Force Hedge / Force Unwind
+Must:
+- Go through impact preview
+- Require explicit operator approval
+- Produce a full audit trail
+
+## Frontend Constraints
+
+### Routes
+- /dashboard, /portfolio, /opportunities, /execution, /tokens, /paper, /incidents, /runbooks, /openclaw, /settings
+
+### Required Technologies
+- shadcn/ui components
+- TanStack Table for tables
+- React Query for server data
+- Zustand for local client state
+
+### Operator Actions
+Any destructive action (force hedge, force unwind, token suspend/block, runbook start, promotions) must have:
+- Impact preview (what will change, which plans/positions/tokens)
+- Two-step approval flow with audit log entry
+
+## Coding Rules
+
+### TypeScript
+- Strict mode always enabled
+- No any. Use proper types or generics
+- Use DTOs and domain models explicitly
+- No hidden cross-service shared state; respect service boundaries
+
+### NestJS
+- Modular structure with DI
+- Controllers for HTTP, services for domain logic, repositories for persistence
+- Do not mix controller DTOs and domain entities
+
+### Next.js
+- Use App Router
+- Prefer Server Components where possible
+- Keep client components focused on interaction/visuals
+
+### Events
+- Always include envelope fields and a properly versioned payload
+- Implement idempotency for handling fill events and external callbacks
+
+## Service Structure (apps/*)
+
+| App | Default PORT | Purpose |
+|-----|--------------|---------|
+| risk-service | 3000 | Risk evaluation and policies |
+| opportunity-service | 3010 | Opportunity detection and enrichment |
+| capital-service | 3011 | Capital reservation |
+| execution-orchestrator | 3012 | Execution plan orchestration |
+| audit-service | 3013 | Audit trail |
+| canonical-market-service | 3014 | Canonical market model |
+| market-intake-service | 3015 | Market data collection and normalization |
+| openclaw-gateway | 3020 | OpenClaw operator automation |
+| portfolio-service | 3016 | Portfolio management |
+| reconciliation-service | 3017 | Reconciliation loop |
+| paper-trading-service | 3018 | Paper trading simulation |
+| config-service | 3019 | Policy configuration management |
+| web | 3000 | Operator dashboard |
+
+## Shared Packages (packages/*)
+
+- `@arbibot/contracts` — OpenAPI/AsyncAPI contracts
+- `@arbibot/persistence` — Database entities and repositories
+- `@arbibot/messaging` — Event schemas and utilities
+- `@arbibot/nest-database` — NestJS database integration
+- `@arbibot/nest-platform` — Shared NestJS platform code
+- `@arbibot/outbox-kafka-bridge` — Outbox → Kafka bridge
+
+## How to Interpret User Requests
+
+Always identify:
+1. **Which service** (e.g., opportunity-service, risk-service, capital-service, execution-orchestrator, operator-web)
+2. **Which phase** (Phase 0, Phase 1, Phase 2, etc.)
+3. **Which pattern** applies (single-writer, reservation-first, outbox/inbox, idempotent commit, reconciliation loop)
+4. **Which contracts** are in scope (OpenAPI endpoints, AsyncAPI events, DB schema)
+
+If the request conflicts with:
+- Single-writer principle
+- Reservation-first protocol
+- Phase scope
+→ Clearly state the conflict and propose a corrected, compliant design.
+
+## Before Generating Code
+
+Ask yourself:
+1. Which bounded context?
+2. What entity is the single writer?
+3. Which state machine(s) are affected?
+4. Which contracts (HTTP, events, DB) have to be updated?
+
+If context is missing or ambiguous:
+Ask for clarification and enumerate what is needed (service, phase, contract).
+
+## Output Expectations
+
+- Provide production-grade code, configs or schemas within the Arbibot 2 stack
+- Prefer small, composable modules over monoliths
+- Do not generate placeholder implementations for critical logic; stub with clear TODOs and types
+
+## Verification Methodology
+
+### Before Answering
+1. **Check DEVELOPMENT_PLAN.md** for current phase status and step details
+2. **Check AGENTS.md** for latest service statuses and known issues
+3. **Verify against architecture principles** (single-writer, reservation-first, etc.)
+4. **Cross-reference with existing code** using search_files or read_file
+5. **Consider graphify knowledge graph** at graphify-out/GRAPH_REPORT.md for service boundaries
+
+### Self-Verification Checklist
+- [ ] Is the solution within the current phase scope?
+- [ ] Does it respect single-writer principle for affected entities?
+- [ ] Does it follow reservation-first protocol if execution is involved?
+- [ ] Are state machine transitions valid and properly versioned?
+- [ ] Is the contract (HTTP/event/DB) properly defined and consistent?
+- [ ] Does it use the correct tech stack without deviations?
+- [ ] Are there clear TODOs for any stub implementations?
+- [ ] Is the audit trail considered for operator actions?
+- [ ] Is idempotency handled for mutations?
+- [ ] Does it respect service boundaries and avoid hidden shared state?
+
+### After Providing Answer
+1. Explain the verification approach used
+2. Highlight any trade-offs or decisions made
+3. Reference relevant documentation sections
+4. Suggest next steps or validation tests
+5. Note any areas that may need review by architecture-guard-agent
+
+### Known Limitations and Backlog
+- Phase 6+ features are not defined and should NOT be implemented unless explicitly requested
+- Additional OpenClaw features beyond current scope should NOT be implemented
+- Some operator UI mutations (force hedge/unwind) require full impact preview — still backlog

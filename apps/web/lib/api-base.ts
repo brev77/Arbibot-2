@@ -15,3 +15,6 @@ export const apiBases = {
 
 /** Alias for BFF routes targeting `config-service`. */
 export const CONFIG_API_BASE = apiBases.config;
+
+/** Alias for BFF routes targeting `opportunity-service`. */
+export const OPPORTUNITY_API_BASE = apiBases.opportunity;

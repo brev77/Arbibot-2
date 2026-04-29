@@ -77,9 +77,55 @@ Based on this session's completion, suggested next steps:
 
 ---
 
-**Session Duration:** ~3 hours
-**Total Files Changed:** 20+
-**Total Lines Added:** ~800+
+## 2026-04-28 — DEX Code Review & Task Management Policy
+
+**Focus:** DEX code review completion and task management policy establishment
+
+**Key Decisions:**
+
+1. **Task Management Policy:**
+   - All DEX plan execution tasks → `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` (sections: `review_notes` / `review_action_items` / `review_blocks`)
+   - Non-DEX plan tasks → `docs/TODO.md`
+   - Clear separation prevents task duplication and confusion
+
+2. **Documentation Strategy:**
+   - Code review information stored in DEVELOPMENT_PLAN-DEX.md
+   - No separate `dex-code-review-summary.md` files created
+   - Progress.md maintains brief records of completed tasks only
+   - Session summaries in session_summary.md
+
+**Critical Blockers Found:**
+
+1. 🔴 **Blocker 1:** `getEncryptedKey` not implemented in WalletManager (throws error)
+2. 🔴 **Blocker 2:** Services not registered in DI container (missing execution.module.ts)
+3. 🔴 **Blocker 3:** Type mismatch for encryptionKey in Vault (string vs Buffer)
+
+**Files Changed:**
+- `docs/TODO.md` — added critical blockers and task management policy
+- `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` — added review notes for implemented steps
+- `docs/progress.md` — added session record (2026-04-28)
+
+**Recommendation:** Halt new DEX feature development, fix 3 critical blockers, create basic unit tests.
+
+**Next Steps:**
+1. Fix 3 critical blockers
+2. Create basic unit tests for DEX components
+3. Continue development per DEX-1 plan
+
+**Session Duration:** ~2 hours
+**Focus:** DEX code review, task management policy
+**Status:** Review completed, blockers identified
+
+---
+
+## 2026-04-20 — Phase 5 OpenClaw gateway + handoff (see root `session_summary.md`)
+  +++++++ REPLACE
+<task_progress>
+- [x] Создать фокусированное резюме сессии (condense)
+- [x] Добавить запись в docs/progress.md (append only)
+- [x] Обновить session_summary.md с ключевыми решениями
+- [x] Завершить сессию
+</task_progress>
 
 ---
 

@@ -30,6 +30,7 @@ import {
   type PolicyUpsertFn,
 } from '@/components/settings-policy-editor-panels';
 import { DestructiveOperatorAction } from './destructive-operator-action';
+import { DexFiltersPanel } from './dex-filters/dex-filters-panel';
 
 interface SettingsWorkspaceProps {
   environment?: string;
@@ -41,6 +42,7 @@ type SettingsTab =
   | 'policies'
   | 'intake'
   | 'paper'
+  | 'dex'
   | 'extensions'
   | 'diagnostics';
 
@@ -808,6 +810,7 @@ export function SettingsWorkspace({
         {tabBtn('policies', 'All policies')}
         {tabBtn('intake', 'Intake')}
         {tabBtn('paper', 'Paper discovery')}
+        {tabBtn('dex', 'DEX filters')}
         {tabBtn('extensions', 'Extensions catalog')}
         {tabBtn('diagnostics', 'Diagnostics')}
       </nav>
@@ -1116,6 +1119,17 @@ export function SettingsWorkspace({
             effectiveJson={paperDiscoveryJson}
             onUpsert={upsertPolicy}
           />
+        </section>
+      )}
+
+      {activeTab === 'dex' && (
+        <section className="space-y-4">
+          <h2 className="text-xl font-semibold">DEX filters</h2>
+          <p className="text-sm text-slate-500 html.theme-light:text-slate-600">
+            Configure DEX opportunity filters to control which arbitrage opportunities are processed.
+            See <code className="text-xs">docs/dex-filters-config-keys.md</code>.
+          </p>
+          <DexFiltersPanel environment={environment} tenantId={tenantId} />
         </section>
       )}
 

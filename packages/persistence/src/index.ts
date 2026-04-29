@@ -36,6 +36,10 @@ export { materializeRiskWindowReservationExpiryIfNeeded } from './risk-window-re
 export { TokenProfileEntity } from './token-profile.entity';
 export { VenueRefEntity } from './venue-ref.entity';
 export { WatchlistTierSnapshotEntity } from './watchlist-tier-snapshot.entity';
+export { OnChainTransaction } from './on-chain-transaction.entity';
+export { WalletState } from './wallet-state.entity';
+export { DexPool } from './dex-pool.entity';
+export { Approval } from './approval.entity';
 
 import { ArbitrageOpportunityEntity } from './arbitrage-opportunity.entity';
 import { AuditLogEntity } from './audit-log.entity';
@@ -66,6 +70,10 @@ import { RiskWindowReservationEntity } from './risk-window-reservation.entity';
 import { TokenProfileEntity } from './token-profile.entity';
 import { VenueRefEntity } from './venue-ref.entity';
 import { WatchlistTierSnapshotEntity } from './watchlist-tier-snapshot.entity';
+import { OnChainTransaction } from './on-chain-transaction.entity';
+import { WalletState } from './wallet-state.entity';
+import { DexPool } from './dex-pool.entity';
+import { Approval } from './approval.entity';
 
 /** All entities for TypeORM `entities` array. */
 export const ARBIBOT_TYPEORM_ENTITIES = [
@@ -98,4 +106,8 @@ export const ARBIBOT_TYPEORM_ENTITIES = [
   PaperDriftSampleEntity,
   PaperCapitalReservationEntity,
   PaperDiscoveryCandidateEntity,
+  OnChainTransaction,
+  WalletState,
+  DexPool,
+  Approval,
 ] as const;

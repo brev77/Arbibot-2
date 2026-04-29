@@ -62,4 +62,15 @@
 | 2026-04-20 | **План стабилизации CI (1 мес.) — репо:** `npm run db:verify-migrations:all`, чеклисты [`docs/ci-verification-checklist.md`](ci-verification-checklist.md) + [`docs/grafana-dashboard-verification.md`](grafana-dashboard-verification.md), `VENUE_HTTP_ERROR_CATEGORY_MAP`, метрики `arb_openclaw_safe_mode_redis_errors_total`, SQL replay в [`docs/phase4-prep-bridge.md`](phase4-prep-bridge.md), Jest `tsconfig.spec.json` в config-service, `playbookConfig` в `legs.service.spec.ts`. |
 | 2026-04-20 | **Phase 4 closure:** [`docs/route-scoring-replay.md`](route-scoring-replay.md), `npm run replay:route-scoring-export`, [`docs/adr-phase4-clickhouse-gate.md`](adr-phase4-clickhouse-gate.md), раздел analytics path в [`docs/observability-tracing.md`](observability-tracing.md); `P4-4-SCORE` / `P4-4-CH` → `done` в `DEVELOPMENT_PLAN.md`. |
 
-*Последняя актуализация файла: 2026-04-20 (Phase 4 P4-4-SCORE / P4-4-CH closure).*
+| 2026-04-28 | **DEX Code Review:** Проведена ревизия реализованных DEX компонентов. Найдены 3 критических блокера:
+  - 🔴 Blocker 1: `getEncryptedKey` не реализован в WalletManager (выбрасывает ошибку)
+  - 🔴 Blocker 2: Сервисы не зарегистрированы в DI контуре (нет execution.module.ts)
+  - 🔴 Blocker 3: Несоответствие типов encryptionKey в Vault (string vs Buffer)
+  - ⚠️ Дополнительно: отсутствуют unit-тесты, метрики названы неправильно, нет automatic recovery в RpcProviderManager
+  - Рекомендация: Приостановить разработку новых фич, исправить 3 блокера, создать базовые unit tests |
+| 2026-04-28 | **DEX план:** Обновлен DEVELOPMENT_PLAN-DEX.md с review notes для реализованных шагов. Информация о ревизии теперь хранится в плане, отдельный файл dex-code-review-summary.md удален |
+| 2026-04-28 | **Policy:** Все задачи по выполнению плана DEX вносить в `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` в соответствующие разделы `review_notes` / `review_action_items` / `review_blocks` |
+| 2026-04-28 | **Policy:** Задачи не из DEX плана вносить в `docs/TODO.md` (этот файл) |
+
+*Последняя актуализация файла: 2026-04-28 (DEX code review, блокеры, policy updates).*
+  +++++++ REPLACE

@@ -23,3 +23,9 @@ export {
 } from './http-security';
 export { withCorrelation } from './structured-logger';
 export { startOpenTelemetryNodeSdkIfConfigured } from './otel';
+export {
+  KeyVaultModule,
+  KeyVaultService,
+  EncryptedKey,
+  WalletKey,
+} from './vault';

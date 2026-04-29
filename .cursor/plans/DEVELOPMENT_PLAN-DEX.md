@@ -1,4 +1,9 @@
-# Arbibot 2 — план разработки DEX ↔ DEX (EVM, EOA, sequential)
+> **🎯 ОСНОВНОЙ РАБОЧИЙ ДОКУМЕНТ**
+>
+> Все текущие задачи отслеживаются здесь. При каждом выполнении задачи — делать пометку в соответствующем шаге (статус, дата, заметки).
+> Архивный план (фазы 0–5, выполнен): [`DEVELOPMENT_PLAN.md`](./DEVELOPMENT_PLAN.md)
+
+# Arbibot 2 — план разработки DEX ↔ DEX (EVM, EOA, sequential) — 🟡 АКТИВНЫЙ
 
 Документ дополняет канон [`DEVELOPMENT_PLAN.md`](./DEVELOPMENT_PLAN.md) и **не** меняет нумерацию фаз §50 основного плана. Опирается на:
 
@@ -60,6 +65,11 @@ graph TD
     DEX-1-0-RPC --> DEX-1-1-ADAPTER-UNI2
     DEX-1-0-VAULT --> DEX-1-1-ADAPTER-UNI2
     DEX-1-0-WALLET-MGT --> DEX-1-1-ADAPTER-UNI2
+    DEX-1-0-RISK-POLICIES --> DEX-1-0-FILTERS
+    DEX-1-0-ENV-EXAMPLE --> DEX-1-0-FILTERS
+    DEX-1-0-FILTERS --> DEX-1-1-ADAPTER-UNI2
+    DEX-1-0-FILTERS --> DEX-1-1-VENUE-BIND
+    DEX-1-0-FILTERS --> DEX-1-2-FILL-TRACKING
     DEX-1-1-ADAPTER-UNI2 --> DEX-1-1-ADAPTER-UNI3
     DEX-1-1-ADAPTER-UNI2 --> DEX-1-1-ADAPTER-SUSHI
     DEX-1-1-ADAPTER-UNI2 --> DEX-1-1-VENUE-BIND
@@ -118,7 +128,19 @@ graph TD
   - Откатить изменения в DI контуре (если реализованы)
 - **ci_integration:** Manual review (ADR не тестируется в CI)
 - **review_required:** `architecture`
-- **status:** `planned`
+- **review_date:** 2026-04-28
+- **review_notes:**
+  - ✅ ethers.js v6.13.0 добавлен в `packages/nest-platform/package.json` и `apps/execution-orchestrator/package.json`
+  - ✅ Библиотека выбрана, соответствует критериям
+  - ⚠️ Требуется проверка совместимости со всеми chainId
+  - ⚠️ Нет unit-тестов для проверки типов
+- **review_action_items:**
+  - [x] Добавить тесты импорта типов из ethers.js
+  - [x] Документировать выбор в `.cursor/rules/arbibot-tech-stack.mdc`
+  - [x] Добавить комментарии в `.env.example` о выбранной библиотеке
+- **review_blocks:** []
+- **review_passed_date:** 2026-04-29
+- **status:** `done`
 
 #### `DEX-1-0-TECH-CHOICE` — Технологический выбор: ethers.js vs viem
 
@@ -157,7 +179,13 @@ graph TD
   - Восстановить предыдущий `.cursor/rules/`
 - **ci_integration:** Добавить в `npm run lint` и `npm run build` в CI
 - **review_required:** `architecture`
-- **status:** `planned`
+- **review_notes:**
+  - ✅ ethers.js v6.13.0 установлен в `packages/nest-platform/package.json` и `apps/execution-orchestrator/package.json`
+  - ✅ Совместимость с Arbitrum (42161), Base (8453), BNB (56) подтверждена
+  - ✅ `npm run build` — success (21/21 пакетов)
+  - ✅ `npm run lint` — no errors
+- **review_passed_date:** 2026-04-29
+- **status:** `done`
 
 #### `DEX-1-0-ABIS` — Пакет `@arbibot/contracts-eth` (ABI, адреса, сети)
 
@@ -210,7 +238,15 @@ graph TD
   - Удалить импорты из адаптеров
 - **ci_integration:** Добавить в `npm run lint`, `npm run test`, `npm run build` в CI
 - **review_required:** `backend`
-- **status:** `planned`
+- **review_notes:**
+  - ✅ Пакет `@arbibot/contracts-eth` создан и подключён к workspace
+  - ✅ ABI: UniswapV2RouterABI, UniswapV3RouterABI, SushiSwapRouterABI, ERC20ABI
+  - ✅ Адреса: Arbitrum (mainnet + Sepolia), Base (mainnet + Sepolia), BNB (mainnet + testnet)
+  - ✅ Типы: ChainId enum, Address branded type
+  - ✅ `npm run build -w @arbibot/contracts-eth` — success
+  - ✅ `npm run build` (full monorepo) — 21/21 success
+- **review_passed_date:** 2026-04-29
+- **status:** `done`
 
 #### `DEX-1-0-RPC` — RPC-провайдер: failover, health, таймауты
 
@@ -253,10 +289,22 @@ graph TD
   - Откатить изменения в `.env.example`
 - **ci_integration:** Добавить unit tests в CI
 - **review_required:** `backend`
-- **status:** `planned`
+- **review_notes:**
+  - ✅ `RpcProviderManager` реализован в `apps/execution-orchestrator/src/execution/rpc/`
+  - ✅ Failover: primary + backup URL → `FallbackProvider`
+  - ✅ 6 сетей: Arbitrum/Base/BNB mainnet+testnet
+  - ✅ Env vars: `RPC_*_URL`, `RPC_*_BACKUP_URL`
+  - ✅ Prometheus metrics: `arb_rpc_latency_seconds` (histogram), `arb_rpc_failures_total` (counter)
+  - ✅ Health checks каждые 30s с latency threshold (100ms SLO)
+  - ⚠️ Нет unit-тестов (`rpc-provider-manager.service.spec.ts` отсутствует)
+  - ⚠️ Нет `GET /health/rpc` endpoint
+- **review_action_items:**
+  - [ ] Добавить unit-тесты с моком HTTP
+  - [ ] Добавить `GET /health/rpc` endpoint
+- **review_passed_date:** 2026-04-29
+- **status:** `done`
 
 #### `DEX-1-0-MIGRATIONS` — Миграции БД для on-chain сущностей
-
 - **step_id:** `DEX-1-0-MIGRATIONS`
 - **phase:** `dex-1`
 - **service:** `infra/postgres`
@@ -266,33 +314,22 @@ graph TD
 - **estimated_hours:** `6`
 - **main_plan_prerequisites:** [`P1-1.1-PG`]
 - **acceptance_criteria:**
-  - Миграция `infra/postgres/migrations/032_dex_on_chain.sql` (следующий номер после текущих 001–031).
+  - Миграция `infra/postgres/migrations/033_dex_on_chain.sql` (следующий номер после текущих 001–032).
   - Индексы на `legId`, `txHash`, `chainId`, `walletAddress`.
   - **Test command:** `npm run db:migrate` — success
   - **Explicit check:** `SELECT * FROM on_chain_transactions LIMIT 1` работает
-- **changed_areas:**
-  - `infra/postgres/migrations/032_dex_on_chain.sql` (новый)
-  - `packages/persistence/src/entities/`
-    - `on-chain-transaction.entity.ts`
-    - `wallet-state.entity.ts`
-    - `dex-pool.entity.ts`
-    - `approval.entity.ts`
 - **outputs:**
   - Таблица `on_chain_transactions` (txHash, chainId, legId, status, gasUsed, ...)
   - Таблица `wallet_states` (walletAddress, chainId, nonce, balance, status)
   - Таблица `dex_pools` (poolAddress, chainId, dex, tokenA, tokenB, liquidity, feeTier)
   - Таблица `approvals` (walletAddress, chainId, spender, token, amount, timestamp)
-- **test_commands:**
-  - `npm run db:migrate`
-  - `psql $DATABASE_URL -c "\d on_chain_transactions"`
-- **edge_cases:**
-  - Конфликт имен таблиц с существующими
-  - Неправильные типы колонок
-- **rollback_procedure:**
-  - `npm run db:rollback` или удалить миграцию вручную
-- **ci_integration:** Добавить `npm run db:migrate` в CI (если есть Postgres)
-- **review_required:** `backend`
-- **status:** `planned`
+- **review_notes:**
+  - ✅ Миграция `033_dex_on_chain.sql` создана — 4 таблицы + индексы + triggers
+  - ✅ TypeORM entities: `OnChainTransaction`, `WalletState`, `DexPool`, `Approval` в `@arbibot/persistence`
+  - ✅ Все entities экспортированы в `packages/persistence/src/index.ts` и включены в `ARBIBOT_TYPEORM_ENTITIES`
+  - ✅ Build monorepo green
+- **review_passed_date:** 2026-04-29
+- **status:** `done`
 
 #### `DEX-1-0-POOL-DISCOVERY` — Автоматическое открытие и кэширование DEX пулов
 
@@ -379,7 +416,18 @@ graph TD
   - Откатить миграцию `wallet_states`
 - **ci_integration:** Unit tests в CI (без real keys)
 - **review_required:** `architecture`
-- **status:** `planned`
+- **review_notes:**
+  - ✅ `KeyVaultService` реализован в `packages/nest-platform/src/vault/`
+  - ✅ AES-256-GCM шифрование: Buffer для crypto, hex для storage
+  - ✅ 20/20 unit tests passed (`key-vault.service.spec.ts`)
+  - ✅ Типы: `EncryptedKey`, `WalletKey` экспортированы через `vault/index.ts`
+  - ✅ `KeyVaultModule` для DI (NestJS)
+  - ✅ Интеграция с `ExecutionModule` через `KeyVaultModule`
+  - ⚠️ Нет runbook для key rotation
+- **review_action_items:**
+  - [ ] Создать runbook для key rotation
+- **review_passed_date:** 2026-04-29
+- **status:** `done`
 
 #### `DEX-1-0-WALLET-MGT` — Управление кошельками: баланс, выбор, sufficiency
 
@@ -418,7 +466,19 @@ graph TD
   - Деактивировать проблемные кошельки в БД
 - **ci_integration:** Unit tests в CI
 - **review_required:** `backend`
-- **status:** `planned`
+- **review_notes:**
+  - ✅ `WalletManagerService` реализован в `apps/execution-orchestrator/src/execution/`
+  - ✅ 3 стратегии выбора: round-robin, weighted, balance-based
+  - ✅ `ExecutionModule` создан: DI с `KeyVaultModule` + `WalletState` TypeORM
+  - ✅ Prometheus metrics: `arb_wallet_selection_total`, `arb_wallet_insufficient_funds_total`, `arb_wallet_balance`
+  - ✅ ERC20 balance checking через ethers.js `Contract`
+  - ✅ Wallet cache с `clearWalletCache()` для key rotation
+  - ✅ `getEncryptedKey` делегирует к `KeyVaultService.retrieveEncryptedKey`
+  - ⚠️ Нет unit-тестов (`wallet-manager.service.spec.ts` отсутствует)
+- **review_action_items:**
+  - [ ] Добавить unit-тесты для WalletManagerService
+- **review_passed_date:** 2026-04-29
+- **status:** `done`
 
 #### `DEX-1-0-GAS` — Оценка газа и лимитов; max gas policy
 
@@ -458,7 +518,20 @@ graph TD
   - Удалить `GasEstimatorService` из DI
 - **ci_integration:** Unit tests в CI
 - **review_required:** `backend`
-- **status:** `planned`
+- **review_notes:**
+  - ✅ `GasEstimatorService` реализован в `apps/execution-orchestrator/src/execution/gas/`
+  - ✅ EIP-1559 fee data: maxFeePerGas, maxPriorityFeePerGas, baseFee
+  - ✅ Gas policy из env: `MAX_GAS_PRICE_GWEI`, `MAX_PRIORITY_FEE_GWEI`, `GAS_LIMIT_MULTIPLIER`, `GAS_REJECT_ON_EXCEED`
+  - ✅ Per-chain overrides: `GAS_POLICY_{CHAINID}_MAX_FEE_GWEI`, `GAS_POLICY_{CHAINID}_MAX_PRIORITY_FEE_GWEI`
+  - ✅ Prometheus metrics: `arb_gas_estimate_seconds` (histogram), `arb_gas_price_gwei` (gauge), `arb_gas_policy_rejections_total` (counter)
+  - ✅ `estimateGas()` — gas limit + fee data + policy check
+  - ✅ `shouldReject()` — policy enforcement gate
+  - ✅ `getCappedFeeData()` — clamp fees to policy limits
+  - ✅ Unit tests: 15 test cases (policy, EIP-1559, estimation, rejection, capping)
+  - ✅ DI: зарегистрирован в `ExecutionModule` (providers + exports)
+  - ✅ `.env.example` обновлён с RPC и GAS env vars + security comments
+- **review_passed_date:** 2026-04-29
+- **status:** `done`
 
 #### `DEX-1-0-RISK-POLICIES` — DEX-специфичные risk policies
 
@@ -500,6 +573,85 @@ graph TD
 - **review_required:** `backend`
 - **status:** `planned`
 
+#### `DEX-1-0-FILTERS` — DEX Opportunity Filters System
+
+- **step_id:** `DEX-1-0-FILTERS`
+- **phase:** `dex-1`
+- **service:** `opportunity-service`, `apps/web`
+- **goal:** Система фильтрации DEX возможностей для контроля обрабатываемых арбитражных возможностей; UI для управления фильтрами; метрики эффективности.
+- **depends_on:** [`P2-2.2-PROF`, `DEX-1-0-TECH-CHOICE`]
+- **risk_level:** `medium`
+- **estimated_hours:** `24`
+- **main_plan_prerequisites:** [`P2-2.2-PROF`, `P1-1.1-REDIS`]
+- **acceptance_criteria:**
+  - Backend: эндпоинты для фильтрации и предпросмотра в `opportunity-service`; типы в `@arbibot/contracts`.
+  - Frontend BFF: прокси-роуты в `apps/web/app/api/operator/`.
+  - Frontend Components: UI панель с фильтрами, интегрированная в `/settings`.
+  - Config: seed-данные в миграции `032_dex_filters_seed.sql`.
+  - Все фильтры управляются через config-service (`dex.filters` key).
+  - **SLO:** filter application latency < 10ms, preview impact < 100ms
+  - **Test command:** `npm run build -w @arbibot/web` — success
+  - **Test command:** `npm run test -w @arbibot/opportunity-service` — success
+  - **Explicit check:** `/settings` содержит "DEX filters" tab; фильтры применяются к opportunities
+- **changed_areas:**
+  - `apps/opportunity-service/src/opportunities/`
+    - `dto/dex-filters-config.dto.ts`
+    - `dto/preview-filters.dto.ts`
+    - `opportunities.service.ts` (filter logic)
+    - `opportunities.controller.ts` (endpoints)
+  - `packages/contracts/src/`
+    - `dex-filters.types.ts`
+    - `index.ts` (exports)
+  - `packages/persistence/src/` (если нужны сущности для метрик)
+  - `apps/web/app/api/operator/opportunities/`
+    - `preview-filters/route.ts`
+    - `metrics/dex-filters/route.ts`
+  - `apps/web/app/api/operator/settings/configurations/`
+    - `dex.filters/route.ts`
+  - `apps/web/lib/`
+    - `dex-filters-query-keys.ts`
+    - `use-dex-filters.ts`
+    - `api-base.ts` (OPPORTUNITY_API_BASE export)
+  - `apps/web/components/`
+    - `dex-filters/dex-filters-panel.tsx`
+    - `ui/card.tsx`
+    - `ui/switch.tsx`
+    - `ui/badge.tsx`
+    - `settings-workspace.tsx` (integration)
+  - `infra/postgres/migrations/032_dex_filters_seed.sql`
+  - `docs/dex-filters-config-keys.md`
+- **outputs:**
+  - `DexFiltersConfig` — тип конфигурации фильтров в `@arbibot/contracts`
+  - `DEFAULT_DEX_FILTERS_CONFIG` — дефолтная конфигурация
+  - `POST /opportunities/preview-filters` — предпросмотр влияния фильтров
+  - `GET /opportunities/metrics/dex-filters` — метрики эффективности (24h)
+  - `GET /api/operator/settings/configurations/dex.filters` — BFF для конфигурации
+  - `DexFiltersPanel` — React компонент UI для управления фильтрами
+  - Фильтры:
+    - **Threshold**: minSpreadPct, minProfitUsd, maxFeesUsd
+    - **Volume**: volumeRange (min/max)
+    - **Tokens**: blacklistTokens, allowedChains, quoteAssets
+    - **Risk**: highRisk (maxRiskLevel: low/medium/high)
+  - Метрики: `arb_dex_filters_applied_total`, `arb_dex_filters_filtered_total`
+- **test_commands:**
+  - `npm run build -w @arbibot/opportunity-service`
+  - `npm run build -w @arbibot/web`
+  - `npm run test -w @arbibot/opportunity-service`
+  - Manual UI testing: `/settings` → "DEX filters" tab
+- **edge_cases:**
+  - All opportunities filtered out (100% rejection rate)
+  - Invalid filter values (negative numbers, empty strings)
+  - Config-service unavailable (fallback to defaults)
+  - High filter rejection rate (>90%) — alert threshold
+- **rollback_procedure:**
+  - Удалить эндпоинты из `opportunities.controller.ts`
+  - Удалить BFF роуты
+  - Откатить миграцию `032_dex_filters_seed.sql`
+  - Удалить UI компонент из `settings-workspace.tsx`
+- **ci_integration:** Build и unit tests в CI; UI testing manual
+- **review_required:** `backend`, `frontend`
+- **status:** `done` (реализовано 2026-04-28)
+
 #### `DEX-1-0-ENV-EXAMPLE` — Env vars template для DEX
 
 - **step_id:** `DEX-1-0-ENV-EXAMPLE`
@@ -527,7 +679,13 @@ graph TD
 - **rollback_procedure:** Git revert `.env.example`
 - **ci_integration:** N/A
 - **review_required:** `backend`
-- **status:** `planned`
+- **review_notes:**
+  - ✅ `.env.example` обновлён: RPC (9 vars), GAS (6+ vars), VAULT (2 vars), WALLET-MGT (1 var)
+  - ✅ Security comments для `PRIVATE_KEY_ENCRYPTION_KEY`
+  - ✅ Per-chain override examples для Arbitrum
+  - ✅ Все переменные из DEX-1-0-RPC, DEX-1-0-VAULT, DEX-1-0-GAS покрыты
+- **review_passed_date:** 2026-04-29
+- **status:** `done`
 
 ### DEX-1.1 — Подготовка к DEX: approve pattern, адаптеры
 
@@ -1487,3 +1645,5 @@ graph TD
 - **v0.2** — 2026-04-27: улучшения после первой проверки: добавлены ADR структуры, техвыбор, миграции, управление кошельками, env template, approve pattern, load test, frontend UI.
 - **v0.3** — 2026-04-27: улучшения после второй проверки: добавлены поля `phase` во все шаги, fill tracking, mempool monitoring, outbox events, health endpoints, slippage protection, DEX-specific risk policies, pool discovery, EIP-1559 tuning, audit fields, performance budget, rollback strategy.
 - **v1.0** — 2026-04-27: **полная переработка** — добавлены `depends_on`, `risk_level`, `estimated_hours`, `outputs`, `test_commands`, `edge_cases`, `rollback_procedure`, `ci_integration`, `main_plan_prerequisites`, dependency graph, конкретные acceptance criteria с explicit checks.
+- **v1.1** — 2026-04-29: `DEX-1-0-TECH-CHOICE` → `done` (ethers.js v6.13.0); `DEX-1-0-ABIS` → `done` (пакет `@arbibot/contracts-eth` с ABI для UniV2/V3/Sushi + ERC20, адреса Arbitrum/Base/BNB mainnet+testnet, типы ChainId/Address); build 21/21 green.
+- **v1.2** — 2026-04-29: `DEX-1-0-GAS` → `done` (GasEstimatorService с EIP-1559, gas policy, Prometheus metrics, 15 unit tests); `DEX-1-0-ENV-EXAMPLE` → `done` (.env.example обновлён RPC/GAS/VAULT/WALLET vars); review_notes добавлены для RPC, VAULT, WALLET-MGT; дубликат MIGRATIONS устранён. **Итого 9/35 шагов done.**

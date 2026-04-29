@@ -1,4 +1,5 @@
 export * from './events';
+export * from './dex-filters.types';
 
 /** Service identifiers for gateways and docs (no runtime coupling). */
 export const SERVICE_IDS = {
