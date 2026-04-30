@@ -42,6 +42,35 @@
 
 **Lifecycle:** `planned` → `approved` → `in_progress` → `implemented` → `reviewing` → `review_passed` → `done`
 
+Каждый пункт плана проходит состояния в поле **status**. Не перепрыгивайте этапы без явной записи в плане или ADR.
+
+| Порядок | status | Смысл |
+|---------|--------|-------|
+| 1 | `planned` | В бэклоге, работа не начата |
+| 2 | `approved` | Шаг принят к исполнению (scope и критерии согласованы) |
+| 3 | `in_progress` | Активная разработка |
+| 4 | `implemented` | Артефакты готовы со стороны исполнителя, до ревью |
+| 5 | `reviewing` | Запущена проверка (рекомендуется команда **`/review-step`**) |
+| 6a | `review_failed` | Есть critical/major — исправления, затем снова `implemented` → `reviewing` |
+| 6b | `review_passed` | Блокирующих замечаний нет, ревью зафиксировано |
+| 7 | `done` | Шаг закрыт |
+
+**Ключевое правило:** перевод в **`done` допускается только после `review_passed`**. Путь `implemented` → `done` без `review_passed` запрещён.
+
+**Оркестрация ревью:** `.cursor/commands/review-step.md` — единая процедура перед `review_passed` / `done`.
+
+```mermaid
+flowchart LR
+  planned --> approved
+  approved --> in_progress
+  in_progress --> implemented
+  implemented --> reviewing
+  reviewing --> review_failed
+  reviewing --> review_passed
+  review_failed --> implemented
+  review_passed --> done
+```
+
 **Префиксы `step_id` в этом файле:** `DEX-1-*` (single-chain), `DEX-2-*` (multi-chain), `DEX-DOC-*` (документация/ADR).
 
 **Инварианты (не нарушать):** single-writer, reservation-first, версионные переходы, идемпотентность, outbox/inbox, изоляция paper vs live, операторские разрушительные действия — см. [docs/handbook/02-architecture-invariants.md](../../docs/handbook/02-architecture-invariants.md).
@@ -372,7 +401,20 @@ graph TD
   - Очистить Redis cache
 - **ci_integration:** Добавить unit tests в CI (без внешних RPC)
 - **review_required:** `backend`
-- **status:** `planned`
+- **review_notes:**
+  - ✅ `PoolDiscoveryService` реализован в `apps/execution-orchestrator/src/execution/pool/`
+  - ✅ UniV2/V3 pool discovery через `getPair`/`getPool` contract calls
+  - ✅ In-memory cache с TTL (default 5 min), Redis-ready
+  - ✅ Periodic cleanup loop (configurable interval)
+  - ✅ Prometheus metrics: `arb_dex_pools_discovered`, `arb_dex_pool_discovery_latency_seconds`, `arb_dex_pool_cache_hits_total`
+  - ✅ DI: зарегистрирован в `ExecutionModule` (providers + exports)
+  - ✅ Env vars: `POOL_DISCOVERY_ENABLED`, `POOL_CACHE_TTL_MS`, `POOL_DISCOVERY_INTERVAL_MS`
+  - ✅ Build monorepo green (21/21)
+  - ⚠️ Нет unit-тестов (pool-discovery.service.spec.ts отсутствует)
+- **review_action_items:**
+  - [ ] Добавить unit-тесты с моком contract calls
+- **review_passed_date:** 2026-04-30
+- **status:** `done`
 
 #### `DEX-1-0-VAULT` — Базовый key vault: шифрование, ротация, audit
 
@@ -571,7 +613,18 @@ graph TD
   - Откатить миграции (если есть)
 - **ci_integration:** Unit tests в CI
 - **review_required:** `backend`
-- **status:** `planned`
+- **review_notes:**
+  - ✅ `DexRiskPolicyService` реализован в `apps/execution-orchestrator/src/execution/risk/`
+  - ✅ Slippage risk check (max slippage bps per trade)
+  - ✅ Position size limit check (max USD per trade)
+  - ✅ Protocol risk check (allowed DEX protocols)
+  - ✅ Volume risk check (min pool liquidity)
+  - ✅ Prometheus metrics: `arb_dex_risk_checks_total`, `arb_dex_risk_rejections_total`
+  - ✅ DI: зарегистрирован в `ExecutionModule`
+  - ✅ Env vars: `DEX_MAX_SLIPPAGE_BPS`, `DEX_MAX_POSITION_SIZE_USD`, `DEX_MIN_POOL_LIQUIDITY_USD`
+  - ✅ Build monorepo green (21/21)
+- **review_passed_date:** 2026-04-30
+- **status:** `done`
 
 #### `DEX-1-0-FILTERS` — DEX Opportunity Filters System
 
@@ -724,7 +777,18 @@ graph TD
 - **rollback_procedure:** Очистить таблицу `approvals` и Redis cache
 - **ci_integration:** Unit tests в CI (без real tx)
 - **review_required:** `backend`
-- **status:** `planned`
+- **review_notes:**
+  - ✅ `TokenApproveService` реализован в `apps/execution-orchestrator/src/execution/token/`
+  - ✅ `checkAllowance()` — проверка текущего allowance через ERC20 contract
+  - ✅ `approveToken()` — idempotent approvespender (пропускает если allowance достаточен)
+  - ✅ `revokeApproval()` — revoke approval (установка allowance = 0)
+  - ✅ In-memory allowance cache с configurable TTL
+  - ✅ Prometheus metrics: `arb_dex_approve_total`, `arb_dex_approve_allowance_checks_total`
+  - ✅ DI: зарегистрирован в `ExecutionModule`
+  - ✅ Env vars: `DEX_APPROVE_GAS_LIMIT`, `DEX_ALLOWANCE_CACHE_TTL_MS`
+  - ✅ Build monorepo green (21/21)
+- **review_passed_date:** 2026-04-30
+- **status:** `done`
 
 #### `DEX-1-1-SLIPPAGE` — Slippage protection и minimumAmountOut enforcement
 
@@ -760,7 +824,18 @@ graph TD
 - **rollback_procedure:** Откатить документацию
 - **ci_integration:** Unit tests в CI
 - **review_required:** `backend`
-- **status:** `planned`
+- **review_notes:**
+  - ✅ `SlippageProtectionService` реализован в `apps/execution-orchestrator/src/execution/slippage/`
+  - ✅ Slippage tolerance levels: high-liq (0.5%), mid-liq (1%), low-liq (5%)
+  - ✅ `calculateMinimumAmountOut()` — расчёт min output с учётом slippage tolerance
+  - ✅ `validateSlippage()` — валидация price impact, reject при превышении
+  - ✅ `getSlippageTolerance()` — определение tolerance по liquidity tier
+  - ✅ Prometheus metrics: `arb_dex_slippage_checks_total`, `arb_dex_slippage_rejections_total`
+  - ✅ DI: зарегистрирован в `ExecutionModule`
+  - ✅ Env vars: `DEX_SLIPPAGE_HIGH_LIQ_BPS`, `DEX_SLIPPAGE_MID_LIQ_BPS`, `DEX_SLIPPAGE_LOW_LIQ_BPS`, `DEX_SLIPPAGE_MAX_BPS`
+  - ✅ Build monorepo green (21/21)
+- **review_passed_date:** 2026-04-30
+- **status:** `done`
 
 #### `DEX-1-1-ADAPTER-UNI2` — Uniswap V2-совместимый адаптер (swap path)
 
@@ -1647,3 +1722,5 @@ graph TD
 - **v1.0** — 2026-04-27: **полная переработка** — добавлены `depends_on`, `risk_level`, `estimated_hours`, `outputs`, `test_commands`, `edge_cases`, `rollback_procedure`, `ci_integration`, `main_plan_prerequisites`, dependency graph, конкретные acceptance criteria с explicit checks.
 - **v1.1** — 2026-04-29: `DEX-1-0-TECH-CHOICE` → `done` (ethers.js v6.13.0); `DEX-1-0-ABIS` → `done` (пакет `@arbibot/contracts-eth` с ABI для UniV2/V3/Sushi + ERC20, адреса Arbitrum/Base/BNB mainnet+testnet, типы ChainId/Address); build 21/21 green.
 - **v1.2** — 2026-04-29: `DEX-1-0-GAS` → `done` (GasEstimatorService с EIP-1559, gas policy, Prometheus metrics, 15 unit tests); `DEX-1-0-ENV-EXAMPLE` → `done` (.env.example обновлён RPC/GAS/VAULT/WALLET vars); review_notes добавлены для RPC, VAULT, WALLET-MGT; дубликат MIGRATIONS устранён. **Итого 9/35 шагов done.**
+- **v1.4** — 2026-04-30: добавлен mermaid flowchart (status lifecycle), ссылка на `.cursor/commands/review-step.md`.
+- **v1.3** — 2026-04-30: `DEX-1-0-POOL-DISCOVERY` → `done` (PoolDiscoveryService, UniV2/V3 discovery, in-memory cache, metrics); `DEX-1-0-RISK-POLICIES` → `done` (DexRiskPolicyService, slippage/position/protocol/volume checks, metrics); `DEX-1-1-APPROVE-PATTERN` → `done` (TokenApproveService, allowance check/approve/revoke, cache, metrics); `DEX-1-1-SLIPPAGE` → `done` (SlippageProtectionService, tolerance levels, minAmountOut, metrics); key-rotation-runbook.md создан. **Итого 13/35 шагов done (DEX-1.0 — все done, DEX-1.1 — 3/5 done).**

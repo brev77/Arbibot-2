@@ -1,5 +1,47 @@
 # Session Summary
 
+## 2026-04-30 — DEX-1.0 Execution Services Sprint → done
+
+**Дата:** 2026-04-30
+**Фокус:** Реализация всех DEX execution сервисов в `execution-orchestrator`
+
+### Реализованные шаги DEX плана
+- DEX-1-0-RPC: `RpcProviderManager` + `RpcHealthController` (failover, health, circuit breaker)
+- DEX-1-0-VAULT: `KeyVaultService` (aes-256-gcm, 20 unit tests)
+- DEX-1-0-WALLET-MGT: `WalletManagerService` (round-robin, balance checks)
+- DEX-1-0-GAS: `GasEstimatorService` (EIP-1559, multi-strategy fallback)
+- DEX-1-0-POOL-DISCOVERY: `PoolDiscoveryService` (UniV2/V3, cache с TTL)
+- DEX-1-0-RISK-POLICIES: `DexRiskPolicyService` (slippage, position, protocol, volume)
+- DEX-1-1-APPROVE-PATTERN: `TokenApproveService` (safe approve/revoke pattern)
+- DEX-1-1-SLIPPAGE: `SlippageProtectionService` (constant product formula, max trade calc)
+
+### Ключевые решения
+1. **Safe approve pattern:** revoke→0 before set new allowance (USDT compatibility)
+2. **Circuit breaker** для RPC провайдеров (5 ошибок за 60с, half-open через 30с)
+3. **In-memory pool cache** с TTL (Redis-ready)
+4. **Constant product formula** для slippage estimation
+5. **`ExecutionModule`** — DI registration всех сервисов
+
+### Новые метрики Prometheus
+`arb_rpc_*`, `arb_gas_*`, `arb_wallet_*`, `arb_dex_pools_*`, `arb_dex_risk_*`, `arb_dex_token_*`, `arb_dex_slippage_*`
+
+### Новые env vars
+`POOL_DISCOVERY_ENABLED`, `POOL_CACHE_TTL_MS`, `DEX_MAX_SLIPPAGE_BPS`, `DEX_MAX_POSITION_SIZE_USD`, `DEX_MIN_POOL_LIQUIDITY_USD`
+
+### Runbook
+`docs/key-rotation-runbook.md` — процедура ротации wallet ключей
+
+### Верификация
+- `npm run build` → **21/21 green**
+- Unit tests: rpc-provider-manager, wallet-manager, key-vault (20/20)
+
+### Следующие шаги
+1. Обновить миграции DEX-1-0-MIGRATIONS
+2. Интеграция DexRiskPolicyService с config-service
+3. E2E тест DEX execution flow
+
+---
+
 ## 2026-04-29 (вечер) — DEX-1-0-TECH-CHOICE + DEX-1-0-ABIS → done
 
 **Дата:** 2026-04-29

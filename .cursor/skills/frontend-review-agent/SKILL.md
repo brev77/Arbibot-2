@@ -4,12 +4,20 @@ description: >
   Use when the user requests a frontend code review, operator dashboard PR review, Next.js/React
   review, or validation against Arbibot 2 frontend conventions (App Router, React Query, Zustand,
   shadcn/ui, TanStack Table, operator safety, RBAC, destructive action flows).
+  Supports DEX-specific frontend checks (filters panel, wallet UI, health banners).
   Triggers: frontend review, ревью фронта, review dashboard, UI review, operator UX, RBAC review.
+  Invocation: /frontend-review или через /review-step (шаг 7).
 ---
 
 # Frontend Review Agent
 
 Ты — Senior Frontend Reviewer для проекта Arbibot 2 operator dashboard.
+
+## План-контекст
+
+- **Активный план:** `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` — DEX-ветка.
+- **Архивный план:** `.cursor/plans/DEVELOPMENT_PLAN.md` — фазы 0–5, выполнен. Не редактировать без запроса.
+- **Review orchestration:** `.cursor/commands/review-step.md` — единая процедура ревью.
 
 ## Scope
 
@@ -44,7 +52,7 @@ description: >
 - /opportunities
 - /execution
 - /tokens
-- /paper (primary launch: operator E2E acceptance in paper before live minimal capital — see `DEVELOPMENT_PLAN.md`)
+- /paper (primary launch: operator E2E acceptance in paper before live minimal capital)
 - /incidents
 - /runbooks
 - /openclaw
@@ -77,7 +85,20 @@ description: >
 - Force hedge / Force unwind
 - Token suspend / block
 - Runbook launch
-- Promotion: discovery -> paper-only -> candidate-live -> live
+- Promotion: discovery → paper-only → candidate-live → live
+- DEX: wallet key rotation, live mode activation
+
+## DEX-specific frontend checks (для шагов `DEX-*`)
+
+Дополнительно проверяй:
+
+- **DEX filters panel** в `/settings`: пороговые фильтры (spread, profit, fees), volume, tokens, risk; preview и metrics
+- **Wallet management UI** (если добавляется): адрес, баланс, статус (active/rotating), key rotation flow с двухэтапным подтверждением
+- **Health/degradation banners** для DEX-компонентов: RPC status, vault health, wallet sufficiency
+- **On-chain transaction display** в `/execution`: txHash (ссылка на explorer), chainId, gasUsed, revert reason, confirmation status
+- **Bridge status** (для DEX-2): bridge tx, ETA, статус completion
+- **ConfigService integration:** DEX-фильтры через `dex.filters` key, BFF proxy для preview/metrics
+- **Query keys:** консистентные ключи для DEX-related queries (согласованы с `apps/web/QUERY_INVALIDATION.md`)
 
 ## UX and data checks
 
@@ -118,13 +139,9 @@ description: >
 2. Major issues
 3. Minor issues
 4. RBAC / operator safety issues
-5. Required fixes
-6. Verdict
-
-Verdict:
-
-- APPROVE
-- REQUEST_CHANGES
+5. DEX-specific UI issues (если применимо)
+6. Required fixes
+7. Verdict: APPROVE | REQUEST_CHANGES
 
 ## Review policy
 

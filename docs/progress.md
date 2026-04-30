@@ -1,6 +1,59 @@
 # Progress Arbibot 2
 
-**Обновлено:** 2026-04-29 (DEX TECH-CHOICE + ABIS done, @arbibot/contracts-eth создан)
+**Обновлено:** 2026-04-30 (DEX-1.0 RPC/WALLET/GAS/POOL/RISK/APPROVE/SLIPPAGE — все сервисы реализованы)
+
+---
+
+### 2026-04-30 — DEX-1.0 Execution Services Sprint → done
+**Статус:** done
+
+**Задача:** Реализовать все DEX execution сервисы в `execution-orchestrator`.
+
+**Выполнено:**
+1. ✅ `RpcProviderManager` — multi-chain RPC с failover, health-check, circuit breaker, метрики
+2. ✅ `GasEstimatorService` — EIP-1559 gas estimation с multi-strategy fallback
+3. ✅ `WalletManagerService` — round-robin wallet selection, balance checks, key rotation support
+4. ✅ `KeyVaultService` — aes-256-gcm encryption, key lifecycle management (20/20 unit tests)
+5. ✅ `PoolDiscoveryService` — on-chain DEX pool discovery (UniV2/V3), cache с TTL, Prometheus metrics
+6. ✅ `DexRiskPolicyService` — DEX-specific risk checks (slippage, position size, protocol allowlist, daily volume)
+7. ✅ `TokenApproveService` — ERC20 approve/revoke с safe pattern (revoke-then-approve)
+8. ✅ `SlippageProtectionService` — constant product slippage estimation, max trade amount calculation
+9. ✅ `RpcHealthController` — `GET /health/rpc` для мониторинга RPC провайдеров
+10. ✅ Unit tests: `rpc-provider-manager.service.spec.ts`, `wallet-manager.service.spec.ts`
+11. ✅ Runbook: `docs/key-rotation-runbook.md`
+12. ✅ `ExecutionModule` — DI registration всех сервисов
+
+**Созданные файлы:**
+- `apps/execution-orchestrator/src/execution/rpc/rpc-provider-manager.service.ts`
+- `apps/execution-orchestrator/src/execution/rpc/rpc-provider-manager.service.spec.ts`
+- `apps/execution-orchestrator/src/execution/rpc/rpc-health.controller.ts`
+- `apps/execution-orchestrator/src/execution/gas/gas-estimator.service.ts`
+- `apps/execution-orchestrator/src/execution/gas/gas-estimator.service.spec.ts`
+- `apps/execution-orchestrator/src/execution/wallet-manager.service.ts`
+- `apps/execution-orchestrator/src/execution/wallet-manager.service.spec.ts`
+- `apps/execution-orchestrator/src/execution/pool/pool-discovery.service.ts`
+- `apps/execution-orchestrator/src/execution/risk/dex-risk-policy.service.ts`
+- `apps/execution-orchestrator/src/execution/token/token-approve.service.ts`
+- `apps/execution-orchestrator/src/execution/slippage/slippage-protection.service.ts`
+- `apps/execution-orchestrator/src/execution/execution.module.ts` (updated)
+- `docs/key-rotation-runbook.md`
+
+**Prometheus metrics (новые):**
+- `arb_rpc_failures_total`, `arb_rpc_latency_seconds`, `arb_rpc_circuit_breaker_state`
+- `arb_gas_estimations_total`, `arb_gas_estimation_latency_seconds`
+- `arb_wallet_selection_total`, `arb_wallet_insufficient_funds_total`
+- `arb_dex_pools_discovered`, `arb_dex_pool_discovery_latency_seconds`, `arb_dex_pool_cache_hits_total`
+- `arb_dex_risk_checks_total`, `arb_dex_risk_blocks_total`
+- `arb_dex_token_approve_total`, `arb_dex_token_revoke_total`, `arb_dex_token_allowance`
+- `arb_dex_slippage_estimates_total`, `arb_dex_slippage_blocked_total`, `arb_dex_slippage_bps`
+
+**Новые env vars:**
+- `RPC_*`, `WALLET_SELECTION_STRATEGY`, `POOL_DISCOVERY_ENABLED`, `POOL_CACHE_TTL_MS`, `DEX_MAX_SLIPPAGE_BPS`, `DEX_MAX_POSITION_SIZE_USD`, `DEX_MIN_POOL_LIQUIDITY_USD`
+
+**Следующие шаги:**
+1. `DEX-1-0-MIGRATIONS` — обновить миграции (on_chain_transactions, wallet_states, dex_pools, approvals)
+2. Интеграция с config-service для динамической конфигурации DEX risk policies
+3. E2E тест для DEX execution flow
 
 ---
 

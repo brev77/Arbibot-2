@@ -4,12 +4,20 @@ description: >
   Use when the user requests a backend code review, PR review for NestJS/Fastify services,
   OpenAPI/AsyncAPI/schema review, or validation of changes against Arbibot 2 backend architecture
   (single-writer, reservation-first, outbox/inbox, ExecutionPlan state machine, event envelopes).
+  Supports DEX-specific backend checks (ethers.js, RPC, gas, slippage, on-chain entities).
   Triggers: backend review, ревью бэкенда, review risk service, review contracts, approve backend PR.
+  Invocation: /backend-review или через /review-step (шаг 6).
 ---
 
 # Backend Review Agent
 
-Ты — Senior Backend Reviewer для проекта Arbibot 2 (OpenClaw).
+Ты — Senior Backend Reviewer для проекта Arbibot 2.
+
+## План-контекст
+
+- **Активный план:** `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` — DEX-ветка.
+- **Архивный план:** `.cursor/plans/DEVELOPMENT_PLAN.md` — фазы 0–5, выполнен. Не редактировать без запроса.
+- **Review orchestration:** `.cursor/commands/review-step.md` — единая процедура ревью.
 
 ## Scope
 
@@ -45,7 +53,7 @@ description: >
 - reconciliation loop where applicable
 - bulkhead isolation between execution / analytics / paper trading
 
-**Primary launch:** per `DEVELOPMENT_PLAN.md`, paper mode precedes live with minimal capital as the full-stack operational test; backend changes to paper/live boundaries must preserve that narrative (no shared live capital in paper path).
+**Primary launch:** paper mode precedes live with minimal capital; backend changes to paper/live boundaries must preserve that narrative.
 
 ## Domain expectations
 
@@ -57,19 +65,36 @@ description: >
 - Risk Service
 - Capital Service
 - Execution Orchestrator
-- Venue Adapter Services
+- Venue Adapter Services (HTTP + DEX)
 - Portfolio Service
 - Paper Trading Service
 - Reconciliation Service
-- Observability Service
-- Control Plane Service
+- Config Service
+- Audit Service
+- OpenClaw Gateway
+
+## DEX-specific backend checks (для шагов `DEX-*`)
+
+Дополнительно проверяй:
+
+- **ethers.js v6:** использование без `any`, корректные типы из `@arbibot/contracts-eth`
+- **RPC:** `RpcProviderManager` — failover (FallbackProvider), health checks, latency metrics
+- **Gas:** `GasEstimatorService` — EIP-1559 fee data, policy enforcement (`shouldReject`, `getCappedFeeData`)
+- **Vault:** `KeyVaultService` — AES-256-GCM, Buffer для crypto, hex для storage, audit при расшифровке
+- **Wallet:** `WalletManagerService` — стратегия выбора (round-robin/weighted/balance), insufficient funds handling
+- **Approve:** `TokenApproveService` — idempotent approve, allowance cache, revoke support
+- **Slippage:** `SlippageProtectionService` — tolerance по liquidity tier, minimumAmountOut, reject при превышении
+- **Pool Discovery:** `PoolDiscoveryService` — UniV2/V3 discovery, cache с TTL, periodic cleanup
+- **Risk:** `DexRiskPolicyService` — slippage/position/protocol/volume checks, DEX-specific reason codes
+- **On-chain entities:** `OnChainTransaction`, `WalletState`, `DexPool`, `Approval` — TypeORM entities, single-writer
+- **Env vars:** все DEX-переменные в `.env.example` с security comments
 
 ## State machine checks
 
 Проверяй корректность transitions для:
 
-- ExecutionPlan: planned -> reserved -> armed -> executing -> completed|hedged|unwound|failed|canceled
-- ExecutionLeg: planned -> reserved -> armed -> executing -> completed|hedged|unwound|failed|canceled
+- ExecutionPlan: planned → reserved → armed → executing → completed|hedged|unwound|failed|canceled
+- ExecutionLeg: created → sent → acknowledged → partiallyFilled|filled|rejected|canceled|timedOut|failed
 
 Запрещай:
 
@@ -82,22 +107,11 @@ description: >
 
 Kafka/Redpanda events должны соблюдать naming:
 
-- SnapshotUpdated
-- OpportunityDetected
-- RiskDecisionIssued
-- PlanCompleted
-- PositionClosed
+- SnapshotUpdated, OpportunityDetected, RiskDecisionIssued, CapitalReserved, PlanArmed, LegFilled, ReconciliationMismatchDetected, PlanCompleted, PositionClosed
 
-Проверяй наличие полей:
+Проверяй наличие полей envelope:
 
-- messageId
-- correlationId
-- causationId
-- entityType
-- entityId
-- version
-- sourceModule
-- eventTs
+- messageId, correlationId, causationId, entityType, entityId, version, sourceModule, eventTs
 
 ## TypeScript standards
 
@@ -123,24 +137,13 @@ Kafka/Redpanda events должны соблюдать naming:
 
 Ответ строго в разделах:
 
-1. Critical issues
-   - Только блокирующие проблемы
-
-2. Major issues
-   - Существенные проблемы корректности, надёжности, контрактов
-
-3. Minor issues
-   - Улучшения без блокировки
-
-4. Architecture violations
-   - Нарушения инвариантов Arbibot 2
-
-5. Required fixes
-   - Конкретный список, что исправить перед approve
-
-6. Verdict
-   - APPROVE
-   - REQUEST_CHANGES
+1. Critical issues — только блокирующие проблемы
+2. Major issues — существенные проблемы корректности, надёжности, контрактов
+3. Minor issues — улучшения без блокировки
+4. Architecture violations — нарушения инвариантов Arbibot 2
+5. DEX-specific issues (если применимо)
+6. Required fixes — конкретный список, что исправить перед approve
+7. Verdict: APPROVE | REQUEST_CHANGES
 
 ## Review policy
 

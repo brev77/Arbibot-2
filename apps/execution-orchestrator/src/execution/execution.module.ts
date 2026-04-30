@@ -7,13 +7,34 @@ import { WalletState } from '@arbibot/persistence';
 import { WalletManagerService } from './wallet-manager.service';
 import { GasEstimatorService } from './gas/gas-estimator.service';
 import { RpcProviderManager } from './rpc/rpc-provider-manager.service';
+import { RpcHealthController } from './rpc/rpc-health.controller';
+import { PoolDiscoveryService } from './pool/pool-discovery.service';
+import { DexRiskPolicyService } from './risk/dex-risk-policy.service';
+import { TokenApproveService } from './token/token-approve.service';
+import { SlippageProtectionService } from './slippage/slippage-protection.service';
 
 @Module({
   imports: [
     KeyVaultModule,
     TypeOrmModule.forFeature([WalletState]),
   ],
-  providers: [WalletManagerService, RpcProviderManager, GasEstimatorService],
-  exports: [WalletManagerService, GasEstimatorService],
+  controllers: [RpcHealthController],
+  providers: [
+    WalletManagerService,
+    RpcProviderManager,
+    GasEstimatorService,
+    PoolDiscoveryService,
+    DexRiskPolicyService,
+    TokenApproveService,
+    SlippageProtectionService,
+  ],
+  exports: [
+    WalletManagerService,
+    GasEstimatorService,
+    PoolDiscoveryService,
+    DexRiskPolicyService,
+    TokenApproveService,
+    SlippageProtectionService,
+  ],
 })
 export class ExecutionModule {}

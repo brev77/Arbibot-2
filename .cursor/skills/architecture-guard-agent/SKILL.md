@@ -3,8 +3,9 @@ name: architecture-guard-agent
 description: >
   Use when validating changes against Arbibot 2 system architecture: service boundaries,
   single-writer, reservation-first, outbox/inbox, reconciliation, paper/live isolation,
-  operator approval for destructive actions, OpenAPI/AsyncAPI consistency.
+  operator approval for destructive actions, OpenAPI/AsyncAPI consistency, DEX-specific invariants.
   Triggers: architecture review, guard check, boundary review, invariant check, ADR review.
+  Invocation: /architecture-guard или через /review-step (шаг 5).
 ---
 
 # Architecture Guard Agent
@@ -15,6 +16,12 @@ description: >
 
 Проверяй изменения на соответствие системной архитектуре проекта.
 Твоя задача — блокировать изменения, которые нарушают базовые инварианты системы, даже если код компилируется и тесты проходят.
+
+## План-контекст
+
+- **Активный план:** `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` — DEX-ветка (шаги `DEX-1-*`, `DEX-2-*`, `DEX-DOC-*`).
+- **Архивный план:** `.cursor/plans/DEVELOPMENT_PLAN.md` — фазы 0–5, выполнен. Не редактировать без запроса.
+- **Review orchestration:** `.cursor/commands/review-step.md` — единая процедура ревью.
 
 ## Non-negotiable principles
 
@@ -27,8 +34,25 @@ description: >
 - outbox/inbox pattern
 - reconciliation loop
 - isolation between execution / analytics / paper trading
-- **primary launch:** paper trading is the mandatory **operational E2E shakedown** before live minimal capital (see `DEVELOPMENT_PLAN.md` — «Операционная последовательность первичного запуска»); designs must not make live depend on paper or vice versa, but paper must be first-class for go-live readiness
+- **primary launch:** paper trading — обязательный operational E2E shakedown перед live minimal capital
 - explicit operator approval for destructive actions
+
+## DEX-specific invariants (для шагов `DEX-*`)
+
+Дополнительно проверяй:
+
+- **Кошелёк:** EOA-only, без AA/relayer в v1
+- **Ключи:** шифрование at rest (AES-256-GCM), audit при каждом использовании, поддержка ротации
+- **Gas policy:** maxFeePerGas enforcement, отказ в submit при превышении лимита
+- **On-chain entities:** single-writer boundaries для `on_chain_transactions`, `wallet_states`, `dex_pools`, `approvals`
+- **VenueAdapter:** контракт согласован с существующим `VenueAdapter` интерфейсом в `execution-orchestrator`
+- **ethers.js v6:** использование без `any`, типы `ChainId`, `Address`, `TxHash` из `@arbibot/contracts-eth`
+- **RPC:** failover (primary + backup), health checks, latency SLO < 100ms p95
+- **Slippage:** minimumAmountOut enforcement, tolerance по liquidity tier
+- **Approve:** idempotent approve pattern, allowance cache с TTL
+- **Paper/live изоляция:** DEX paper trading не использует live capital, separate `PaperCapitalReservation`
+- **Sequential execution:** DEX-1 (single-chain) завершён до старта DEX-2 (multi-chain)
+- **Сети:** первая волна — Arbitrum, Base, BNB; DEX — Uniswap V2/V3, SushiSwap
 
 ## Service-boundary checks
 
@@ -44,7 +68,7 @@ description: >
 
 Проверяй:
 
-- корректность пути market -> opportunity -> risk -> capital -> execution -> portfolio/reconciliation
+- корректность пути market → opportunity → risk → capital → execution → portfolio/reconciliation
 - отсутствие исполнения до risk and capital reservation
 - согласованность event-driven contracts and state transitions
 - наличие compensating flow / unwind logic там, где оно обязательно
@@ -78,6 +102,7 @@ description: >
 - destructive operator action without approval flow
 - смешение paper/live domains
 - критичный contract drift без versioning strategy
+- для DEX: использование `any` с ethers.js типами, отсутствие gas policy check, plaintext private keys
 
 ## Output format
 
@@ -85,8 +110,9 @@ description: >
 2. Boundary violations
 3. Workflow/state-machine risks
 4. Contract/versioning risks
-5. Required architectural fixes
-6. Verdict
+5. DEX-specific risks (если применимо)
+6. Required architectural fixes
+7. Verdict
 
 Verdict:
 
