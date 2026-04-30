@@ -1,5 +1,46 @@
 # Session Summary
 
+## 2026-04-30 (поздно вечером) — CI Fixes: 5 ошибок → green → done
+
+**Дата:** 2026-04-30
+**Фокус:** Исправление всех CI ошибок после пуша в main
+
+### Исправленные ошибки (5 шт)
+
+1. ✅ **ESLint: `publish-snapshot-updated.spec.ts`** — `jest.mocked()` вместо `as jest.MockedFunction`
+2. ✅ **Build TS2307: `wallet-state.entity.ts`** → добавлен dep `@arbibot/contracts-eth` в persistence
+3. ✅ **Docker `--health-cmd`** — кавычки в CI YAML (3 job'а)
+4. ✅ **Bus-smoke** — добавлен `npm run build` перед скриптом
+5. ✅ **ESLint: `capital.service.spec.ts`** — `no-redundant-type-constituents` → `Record<string, unknown>`
+
+### Изменённые файлы
+
+| Область | Файлы |
+|--------|--------|
+| **ESLint fix** | `packages/outbox-kafka-bridge/src/publish-snapshot-updated.spec.ts` |
+| **Build fix** | `packages/persistence/package.json` |
+| **CI YAML** | `.github/workflows/ci.yml` |
+| **Lint fix** | `apps/capital-service/src/capital/capital.service.spec.ts` |
+| **Документация** | `docs/progress.md` (append), `session_summary.md` (этот файл) |
+
+### Git
+
+- `6d80aa6` → fix 1-4
+- `893032e` → fix 5
+- Оба → `origin/main`
+
+### Верификация
+
+- `npm run lint` — 21/21 ✅
+- `npm run build` — 21/21 ✅
+
+### Следующие шаги
+
+1. Проверить CI зелёный на GitHub Actions
+2. Продолжить `DEX-1-1-ADAPTER-UNI2`
+
+---
+
 ## 2026-04-30 (вечер) — Review-step orchestration + DEX skills update → done
 
 **Дата:** 2026-04-30

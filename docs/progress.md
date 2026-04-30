@@ -1,6 +1,43 @@
 # Progress Arbibot 2
 
-**Обновлено:** 2026-04-30 (Review-step orchestration + DEX skills update)
+**Обновлено:** 2026-04-30 (CI fixes — ESLint, build, Docker health-cmd, bus-smoke, capital lint)
+
+---
+
+### 2026-04-30 ( поздно вечером) — CI Fix: 5 ошибок → green → done
+**Статус:** done
+
+**Задача:** Исправить все ошибки CI, выявленные после пуша в `main`.
+
+**Исправленные ошибки (5 шт):**
+
+1. ✅ **ESLint: `publish-snapshot-updated.spec.ts`** (строки 13, 20)
+   - Заменил `as jest.MockedFunction<typeof ...>` на `jest.mocked()`
+   - Убран неиспользованный импорт `LockedOutboxRow`
+2. ✅ **Build TS2307: `wallet-state.entity.ts` → `@arbibot/contracts-eth`**
+   - Добавлен `"@arbibot/contracts-eth": "*"` в `packages/persistence/package.json`
+3. ✅ **Docker `--health-cmd`** в CI YAML (3 job'а)
+   - `--health-cmd "pg_isready -U arbibot -d arbibot"` — кавычки
+4. ✅ **Bus-smoke: отсутствовал `npm run build`**
+   - Добавлен шаг build перед `ci-bus-smoke.sh`
+5. ✅ **ESLint: `capital.service.spec.ts`** (no-redundant-type-constituents)
+   - Тип параметра `entity: CapitalReservationEntity | OutboxEventEntity` → `Record<string, unknown>`
+
+**Изменённые файлы:**
+- `packages/outbox-kafka-bridge/src/publish-snapshot-updated.spec.ts`
+- `packages/persistence/package.json`
+- `.github/workflows/ci.yml`
+- `apps/capital-service/src/capital/capital.service.spec.ts`
+
+**Git:** `6d80aa6` (fix 1-4) → `893032e` (fix 5) → `origin/main`
+
+**Верификация:**
+- `npm run lint` — 21/21 ✅ (0 errors)
+- `npm run build` — 21/21 ✅
+
+**Следующие шаги:**
+1. Проверить CI зелёный на GitHub Actions
+2. Продолжить DEX-1-1-ADAPTER-UNI2
 
 ---
 
