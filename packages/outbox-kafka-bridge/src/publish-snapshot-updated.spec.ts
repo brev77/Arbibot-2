@@ -1,5 +1,4 @@
 import { EVENT_NAMES } from '@arbibot/contracts';
-import type { LockedOutboxRow } from '@arbibot/messaging';
 import { fetchLockedOutboxBatch } from '@arbibot/messaging';
 import { OutboxEventEntity } from '@arbibot/persistence';
 import type { DataSource } from 'typeorm';
@@ -10,14 +9,12 @@ jest.mock('@arbibot/messaging', () => ({
   fetchLockedOutboxBatch: jest.fn(),
 }));
 
-const mockFetch = fetchLockedOutboxBatch as jest.MockedFunction<
-  typeof fetchLockedOutboxBatch
->;
+const mockFetch = jest.mocked(fetchLockedOutboxBatch);
 
 function makeRow(
   eventType: string,
   messageId: string,
-): LockedOutboxRow & { id: string } {
+) {
   return {
     id: '10',
     messageId,

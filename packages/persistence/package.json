@@ -16,6 +16,9 @@
     "reflect-metadata": "^0.2.0",
     "typeorm": "^0.3.0"
   },
+  "dependencies": {
+    "@arbibot/contracts-eth": "*"
+  },
   "devDependencies": {
     "@arbibot/tsconfig": "*",
     "@nestjs/common": "^11.1.18",
