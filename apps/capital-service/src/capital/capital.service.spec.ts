@@ -27,7 +27,7 @@ describe('CapitalService', () => {
       save: jest.fn(
         (
           _Entity: unknown,
-          entity: CapitalReservationEntity | OutboxEventEntity,
+          entity: Record<string, unknown>,
         ) => {
           const e = entity as unknown as Record<string, unknown>;
           if ('eventType' in e) {
