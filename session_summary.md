@@ -1,5 +1,49 @@
 # Session Summary
 
+## 2026-04-30 (вечер) — Review-step orchestration + DEX skills update → done
+
+**Дата:** 2026-04-30
+**Фокус:** Реорганизация review-step команды и обновление Cursor-скиллов под DEX план
+
+### Изменённые файлы
+
+| Область | Файлы |
+|--------|--------|
+| **Review orchestration** | `.cursor/commands/review-step.md` (переписан) |
+| **Architecture Guard** | `.cursor/skills/architecture-guard-agent/SKILL.md` (переписан) |
+| **Backend Review** | `.cursor/skills/backend-review-agent/SKILL.md` (переписан) |
+| **Frontend Review** | `.cursor/skills/frontend-review-agent/SKILL.md` (переписан) |
+| **Документация** | `docs/progress.md` (append), `session_summary.md` (этот файл) |
+
+### Принятые решения
+
+1. **Приоритет планов в review-step:** `DEVELOPMENT_PLAN-DEX.md` (активный, по умолчанию) → `DEVELOPMENT_PLAN.md` (архивный, не редактировать без запроса)
+2. **Архивный план защищён:** policy «не редактировать без явного запроса пользователя»
+3. **Architecture Guard — всегда обязателен:** для любого шага без исключений (ранее — только для architecture review)
+4. **DEX-specific checks:** добавлены в каждый скилл:
+   - Architecture Guard: 12 инвариантов (EOA, AES-256-GCM, gas, on-chain entities, ethers.js, RPC, slippage, approve, paper/live)
+   - Backend Review: 11 проверок (RpcProviderManager, GasEstimatorService, KeyVaultService, WalletManagerService, TokenApproveService, SlippageProtectionService, PoolDiscoveryService, DexRiskPolicyService, on-chain entities, env vars)
+   - Frontend Review: 7 проверок (DEX filters panel, wallet UI, health banners, on-chain tx display, bridge status, ConfigService integration, query keys)
+5. **Проверка `depends_on`:** перед ревью проверяются все зависимости
+
+### Открытые вопросы
+
+- Валидация нового review-step процесса на реальном DEX-шаге (например DEX-1-0-RPC)
+- Недостающие unit-тесты: PoolDiscoveryService, RpcProviderManager (частично)
+- `DEX-1-1-ADAPTER-UNI2` — следующий критический шаг
+
+### Git
+
+- `aae6d04` → `origin/main` (18 files, +1844/-103)
+
+### Следующие шаги
+
+1. Пройти `/review-step` для валидации нового процесса
+2. Реализовать `DEX-1-1-ADAPTER-UNI2` (Uniswap V2 adapter)
+3. Добавить недостающие unit-тесты
+
+---
+
 ## 2026-04-30 — DEX-1.0 Execution Services Sprint → done
 
 **Дата:** 2026-04-30

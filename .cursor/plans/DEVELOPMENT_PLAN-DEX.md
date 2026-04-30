@@ -1,9 +1,13 @@
 > **🎯 ОСНОВНОЙ РАБОЧИЙ ДОКУМЕНТ**
 >
 > Все текущие задачи отслеживаются здесь. При каждом выполнении задачи — делать пометку в соответствующем шаге (статус, дата, заметки).
-> Архивный план (фазы 0–5, выполнен): [`DEVELOPMENT_PLAN.md`](./DEVELOPMENT_PLAN.md)
+> Архивный план (фазы 0–5, выполнен): [`DEVELOPMENT_PLAN.md`](./DEVELOPMENT_PLAN.md) — **не редактировать без явного запроса**.
+> Review orchestration: [`.cursor/commands/review-step.md`](../../.cursor/commands/review-step.md)
 
 # Arbibot 2 — план разработки DEX ↔ DEX (EVM, EOA, sequential) — 🟡 АКТИВНЫЙ
+
+> **Прогресс:** 14/35 шагов → `done` (DEX-1.0 фундамент + DEX-1.1 approve/slippage). Следующий критический шаг: `DEX-1-1-ADAPTER-UNI2`.
+> **Обновлено:** 2026-04-30
 
 Документ дополняет канон [`DEVELOPMENT_PLAN.md`](./DEVELOPMENT_PLAN.md) и **не** меняет нумерацию фаз §50 основного плана. Опирается на:
 

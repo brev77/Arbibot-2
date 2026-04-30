@@ -1,6 +1,44 @@
 # Progress Arbibot 2
 
-**Обновлено:** 2026-04-30 (DEX-1.0 RPC/WALLET/GAS/POOL/RISK/APPROVE/SLIPPAGE — все сервисы реализованы)
+**Обновлено:** 2026-04-30 (Review-step orchestration + DEX skills update)
+
+---
+
+### 2026-04-30 (вечер) — Review-step orchestration + Skills update → done
+**Статус:** done
+
+**Задача:** Реорганизовать `/review-step` команду и обновить все три Cursor-скилла под DEX план.
+
+**Выполнено:**
+1. ✅ `.cursor/commands/review-step.md` — реорганизован:
+   - Приоритет планов: `DEVELOPMENT_PLAN-DEX.md` (активный) → `DEVELOPMENT_PLAN.md` (архивный, не редактировать без запроса)
+   - Таблица обязательных скиллов с путями и условиями запуска
+   - DEX-специфичные проверки для каждого скилла
+   - Policy: не редактировать архивный план без запроса
+2. ✅ `.cursor/skills/architecture-guard-agent/SKILL.md` — DEX invariants (12 проверок):
+   - EOA-only, AES-256-GCM ключи, gas policy, on-chain entities, VenueAdapter
+   - ethers.js v6 без `any`, RPC failover, slippage, approve idempotency
+   - Paper/live изоляция, sequential DEX-1→DEX-2
+3. ✅ `.cursor/skills/backend-review-agent/SKILL.md` — DEX backend checks (11 проверок):
+   - RpcProviderManager, GasEstimatorService, KeyVaultService, WalletManagerService
+   - TokenApproveService, SlippageProtectionService, PoolDiscoveryService
+   - DexRiskPolicyService, on-chain entities, env vars
+4. ✅ `.cursor/skills/frontend-review-agent/SKILL.md` — DEX frontend checks (7 проверок):
+   - DEX filters panel, wallet management UI, health banners
+   - On-chain tx display, bridge status, ConfigService integration, query keys
+
+**Изменённые файлы:**
+- `.cursor/commands/review-step.md` (переписан)
+- `.cursor/skills/architecture-guard-agent/SKILL.md` (переписан)
+- `.cursor/skills/backend-review-agent/SKILL.md` (переписан)
+- `.cursor/skills/frontend-review-agent/SKILL.md` (переписан)
+
+**Git:** `aae6d04` → `origin/main` (18 files, +1844/-103)
+
+**Следующие шаги:**
+1. Пройти `/review-step` для одного из DEX-шагов (например DEX-1-0-RPC) для валидации нового процесса
+2. Продолжить DEX-1.1: `DEX-1-1-ADAPTER-UNI2` (критический путь)
+3. Добавить недостающие unit-тесты для PoolDiscoveryService, RpcProviderManager
 
 ---
 
