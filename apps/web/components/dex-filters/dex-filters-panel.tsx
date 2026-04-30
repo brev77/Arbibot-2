@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
-import { Badge, type BadgeProps } from '@/components/ui/badge';
+import { Badge } from '@/components/ui/badge';
 import { useDexFiltersConfig, useUpdateDexFiltersConfig, usePreviewDexFilters, useDexFiltersMetrics } from '@/lib/use-dex-filters';
-import { DEFAULT_DEX_FILTERS_CONFIG, type DexFiltersConfig } from '@arbibot/contracts';
+import { DEFAULT_DEX_FILTERS_CONFIG } from '@arbibot/contracts';
 import { Loader2, Play, TrendingUp, AlertTriangle } from 'lucide-react';
 
 interface DexFiltersPanelProps {
@@ -110,7 +110,7 @@ export function DexFiltersPanel({ environment, tenantId }: DexFiltersPanelProps)
         <div className="flex gap-2">
           <Button
             variant="secondary"
-            onClick={handlePreview}
+            onClick={() => void handlePreview()}
             disabled={isPreviewing || updateConfig.isPending}
           >
             {isPreviewing ? (
@@ -121,7 +121,7 @@ export function DexFiltersPanel({ environment, tenantId }: DexFiltersPanelProps)
             Preview Impact
           </Button>
           <Button
-            onClick={handleSave}
+            onClick={() => void handleSave()}
             disabled={updateConfig.isPending}
           >
             {updateConfig.isPending ? (
@@ -339,7 +339,7 @@ export function DexFiltersPanel({ environment, tenantId }: DexFiltersPanelProps)
 }
 
 // Sub-components (simplified for brevity)
-function FilterToggle({ label, description, enabled, value, onToggle, onValueChange, prefix = '', suffix = '' }: any) {
+function FilterToggle({ label, description, enabled, value, onToggle, onValueChange, suffix = '' }: any) {
   return (
     <div className="flex items-center justify-between p-3 rounded-lg border">
       <div className="flex-1">
@@ -367,7 +367,7 @@ function FilterToggle({ label, description, enabled, value, onToggle, onValueCha
   );
 }
 
-function RangeFilter({ label, description, enabled, min, max, onToggle, onMinChange, onMaxChange, prefix = '' }: any) {
+function RangeFilter({ label, description, enabled, min, max, onToggle, onMinChange, onMaxChange }: any) {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">

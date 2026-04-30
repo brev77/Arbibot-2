@@ -27,13 +27,13 @@ export class RpcProviderManager implements OnModuleInit, OnModuleDestroy {
     this.initializeMetrics();
   }
 
-  async onModuleInit() {
+  onModuleInit() {
     this.logger.log('Initializing RPC Provider Manager');
-    await this.initializeProviders();
+    this.initializeProviders();
     this.startHealthChecks();
   }
 
-  async onModuleDestroy() {
+  onModuleDestroy() {
     if (this.healthCheckTimer) {
       clearInterval(this.healthCheckTimer);
     }
@@ -56,7 +56,7 @@ export class RpcProviderManager implements OnModuleInit, OnModuleDestroy {
    * - RPC_BNB_TESTNET_URL
    * - RPC_BNB_TESTNET_BACKUP_URL (optional)
    */
-  private async initializeProviders() {
+  private initializeProviders() {
     const configs = [
       { chainId: 42161, primary: process.env.RPC_ARBITRUM_MAINNET_URL, backup: process.env.RPC_ARBITRUM_MAINNET_BACKUP_URL },
       { chainId: 421611, primary: process.env.RPC_ARBITRUM_TESTNET_URL, backup: process.env.RPC_ARBITRUM_TESTNET_BACKUP_URL },
@@ -134,12 +134,12 @@ export class RpcProviderManager implements OnModuleInit, OnModuleDestroy {
    * Start periodic health checks
    */
   private startHealthChecks() {
-    this.healthCheckTimer = setInterval(async () => {
-      await this.runHealthChecks();
+    this.healthCheckTimer = setInterval(() => {
+      void this.runHealthChecks();
     }, this.HEALTH_CHECK_INTERVAL_MS);
 
     // Run initial health check
-    this.runHealthChecks();
+    void this.runHealthChecks();
   }
 
   /**

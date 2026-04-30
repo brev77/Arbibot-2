@@ -66,7 +66,7 @@ export class KeyVaultService implements OnModuleInit {
     this.logger.log('Key Vault Service initialized');
   }
 
-  async onModuleInit() {
+  onModuleInit() {
     this.logger.log('Key Vault Service ready');
   }
 
@@ -336,7 +336,7 @@ export class KeyVaultService implements OnModuleInit {
    * Update last used timestamp for a key
    * @param keyId - Key identifier
    */
-  async updateKeyLastUsed(keyId: string): Promise<void> {
+  updateKeyLastUsed(keyId: string): void {
     const key = this.keys.get(keyId);
     if (key) {
       key.lastUsedAt = new Date();

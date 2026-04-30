@@ -41,51 +41,51 @@ describe('RpcProviderManager', () => {
   });
 
   describe('onModuleInit', () => {
-    it('should initialize providers from env vars', async () => {
-      await service.onModuleInit();
+    it('should initialize providers from env vars', () => {
+      service.onModuleInit();
 
       // Should have providers for configured chains
       const status = service.getAllHealthStatus();
       expect(status.size).toBeGreaterThanOrEqual(3); // arb, base, bnb
     });
 
-    it('should skip chains without RPC URL', async () => {
+    it('should skip chains without RPC URL', () => {
       // Remove all env vars except one
       delete process.env.RPC_BASE_MAINNET_URL;
       delete process.env.RPC_BNB_TESTNET_URL;
 
-      await service.onModuleInit();
+      service.onModuleInit();
 
       const status = service.getAllHealthStatus();
       // Only Arbitrum mainnet should be configured (with backup)
       expect(status.has(42161)).toBe(true);
     });
 
-    it('should start health checks', async () => {
-      await service.onModuleInit();
+    it('should start health checks', () => {
+      service.onModuleInit();
       // Health checks run in background - just verify service is initialized
       expect(service.getAllHealthStatus().size).toBeGreaterThan(0);
     });
   });
 
   describe('getProvider', () => {
-    it('should return provider for configured chain', async () => {
-      await service.onModuleInit();
+    it('should return provider for configured chain', () => {
+      service.onModuleInit();
 
       const provider = service.getProvider(42161);
       expect(provider).toBeDefined();
     });
 
-    it('should throw for unconfigured chain', async () => {
-      await service.onModuleInit();
+    it('should throw for unconfigured chain', () => {
+      service.onModuleInit();
 
       expect(() => service.getProvider(99999)).toThrow(
         'No RPC provider configured for chain 99999',
       );
     });
 
-    it('should return combined provider when backup is configured', async () => {
-      await service.onModuleInit();
+    it('should return combined provider when backup is configured', () => {
+      service.onModuleInit();
 
       // Chain 42161 has backup configured
       const provider = service.getProvider(42161);
@@ -94,8 +94,8 @@ describe('RpcProviderManager', () => {
   });
 
   describe('getHealthStatus', () => {
-    it('should return health status for a chain', async () => {
-      await service.onModuleInit();
+    it('should return health status for a chain', () => {
+      service.onModuleInit();
 
       const status = service.getHealthStatus(42161);
       expect(status).toBeDefined();
@@ -103,8 +103,8 @@ describe('RpcProviderManager', () => {
       expect(status).toHaveProperty('latency');
     });
 
-    it('should return undefined for unconfigured chain', async () => {
-      await service.onModuleInit();
+    it('should return undefined for unconfigured chain', () => {
+      service.onModuleInit();
 
       const status = service.getHealthStatus(99999);
       expect(status).toBeUndefined();
@@ -112,8 +112,8 @@ describe('RpcProviderManager', () => {
   });
 
   describe('getAllHealthStatus', () => {
-    it('should return all health statuses', async () => {
-      await service.onModuleInit();
+    it('should return all health statuses', () => {
+      service.onModuleInit();
 
       const allStatus = service.getAllHealthStatus();
       expect(allStatus).toBeInstanceOf(Map);
@@ -122,9 +122,9 @@ describe('RpcProviderManager', () => {
   });
 
   describe('onModuleDestroy', () => {
-    it('should clean up providers', async () => {
-      await service.onModuleInit();
-      await service.onModuleDestroy();
+    it('should clean up providers', () => {
+      service.onModuleInit();
+      service.onModuleDestroy();
 
       // After destroy, no providers should remain
       // The health status map should be cleared

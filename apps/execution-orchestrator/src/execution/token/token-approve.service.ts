@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { JsonRpcProvider, Contract, Wallet, TransactionReceipt, parseUnits } from 'ethers';
+import { JsonRpcProvider, Contract, Wallet, TransactionReceipt } from 'ethers';
 import { Counter, Gauge } from 'prom-client';
 import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
 import { ChainId, Address } from '@arbibot/contracts-eth';
@@ -77,7 +77,6 @@ export class TokenApproveService {
     walletKeyId?: string;
   }): Promise<ApproveResult> {
     const { chainId, tokenAddress, spender, amount } = params;
-    const startTime = Date.now();
 
     try {
       const provider = this.rpcProviderManager.getProvider(chainId) as JsonRpcProvider;

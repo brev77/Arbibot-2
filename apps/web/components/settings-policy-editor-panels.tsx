@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import { DestructiveOperatorAction } from '@/components/destructive-operator-action';
 import { Button } from '@/components/ui/button';
@@ -66,32 +66,35 @@ export function IntakeThrottlingPanel({
   const [asDraft, setAsDraft] = useState(false);
   const [localErr, setLocalErr] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (effectiveJson === null) return;
-    setAdvancedJson(effectiveJson);
-    try {
-      const o: unknown = JSON.parse(effectiveJson);
-      const p = intakeThrottlingSchema.safeParse(o);
-      if (p.success) {
-        setRequireAudit(p.data.requireAuditOnThrottle ?? false);
-        setWarmMs(
-          p.data.warmSampleIntervalMs !== undefined
-            ? String(p.data.warmSampleIntervalMs)
-            : '',
-        );
-        setColdMs(
-          p.data.coldSampleIntervalMs !== undefined
-            ? String(p.data.coldSampleIntervalMs)
-            : '',
-        );
-        setMinRoute(
-          p.data.minRouteScore !== undefined ? String(p.data.minRouteScore) : '',
-        );
+  const [prevThrottleJson, setPrevThrottleJson] = useState<string | null>(effectiveJson);
+  if (effectiveJson !== prevThrottleJson) {
+    setPrevThrottleJson(effectiveJson);
+    if (effectiveJson !== null) {
+      setAdvancedJson(effectiveJson);
+      try {
+        const o: unknown = JSON.parse(effectiveJson);
+        const p = intakeThrottlingSchema.safeParse(o);
+        if (p.success) {
+          setRequireAudit(p.data.requireAuditOnThrottle ?? false);
+          setWarmMs(
+            p.data.warmSampleIntervalMs !== undefined
+              ? String(p.data.warmSampleIntervalMs)
+              : '',
+          );
+          setColdMs(
+            p.data.coldSampleIntervalMs !== undefined
+              ? String(p.data.coldSampleIntervalMs)
+              : '',
+          );
+          setMinRoute(
+            p.data.minRouteScore !== undefined ? String(p.data.minRouteScore) : '',
+          );
+        }
+      } catch {
+        /* keep fields */
       }
-    } catch {
-      /* keep fields */
     }
-  }, [effectiveJson]);
+  }
 
   const buildJsonFromFields = (): string => {
     const warmSampleIntervalMs = warmMs.trim()
@@ -243,34 +246,37 @@ export function IntakeRoutingTiersPanel({
   const [asDraft, setAsDraft] = useState(false);
   const [localErr, setLocalErr] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (effectiveJson === null) return;
-    setAdvancedJson(effectiveJson);
-    try {
-      const o: unknown = JSON.parse(effectiveJson);
-      const p = intakeRoutingTiersSchema.safeParse(o);
-      if (p.success) {
-        const apply = (
-          t: typeof p.data.hot,
-          set: (v: TierBucketForm) => void,
-        ): void => {
-          if (!t) {
-            set(emptyTier());
-            return;
-          }
-          set({
-            enabled: t.enabled ?? false,
-            keysText: (t.instrumentKeys ?? []).join(', '),
-          });
-        };
-        apply(p.data.hot, setHot);
-        apply(p.data.warm, setWarm);
-        apply(p.data.cold, setCold);
+  const [prevTiersJson, setPrevTiersJson] = useState<string | null>(effectiveJson);
+  if (effectiveJson !== prevTiersJson) {
+    setPrevTiersJson(effectiveJson);
+    if (effectiveJson !== null) {
+      setAdvancedJson(effectiveJson);
+      try {
+        const o: unknown = JSON.parse(effectiveJson);
+        const p = intakeRoutingTiersSchema.safeParse(o);
+        if (p.success) {
+          const apply = (
+            t: typeof p.data.hot,
+            set: (v: TierBucketForm) => void,
+          ): void => {
+            if (!t) {
+              set(emptyTier());
+              return;
+            }
+            set({
+              enabled: t.enabled ?? false,
+              keysText: (t.instrumentKeys ?? []).join(', '),
+            });
+          };
+          apply(p.data.hot, setHot);
+          apply(p.data.warm, setWarm);
+          apply(p.data.cold, setCold);
+        }
+      } catch {
+        /* noop */
       }
-    } catch {
-      /* noop */
     }
-  }, [effectiveJson]);
+  }
 
   const buildJson = (): string => {
     const hotB = tierFromForm(hot);
@@ -399,37 +405,40 @@ export function PaperDiscoveryPanel({
   const [asDraft, setAsDraft] = useState(false);
   const [localErr, setLocalErr] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (effectiveJson === null) return;
-    setAdvancedJson(effectiveJson);
-    try {
-      const o: unknown = JSON.parse(effectiveJson);
-      const p = paperDiscoverySchema.safeParse(o);
-      if (p.success) {
-        setEnabled(p.data.enabled ?? false);
-        setIntervalMs(
-          p.data.intervalMs !== undefined ? String(p.data.intervalMs) : '',
-        );
-        setMinProfitUsd(
-          p.data.minProfitUsd !== undefined ? String(p.data.minProfitUsd) : '',
-        );
-        setMinLiq(
-          p.data.minLiquidityScore !== undefined
-            ? String(p.data.minLiquidityScore)
-            : '',
-        );
-        setMaxCand(
-          p.data.maxCandidatesPerRun !== undefined
-            ? String(p.data.maxCandidatesPerRun)
-            : '',
-        );
-        setTokensText((p.data.paperOnlyTokens ?? []).join(', '));
-        setRoutesText((p.data.paperOnlyRoutes ?? []).join(', '));
+  const [prevDiscoveryJson, setPrevDiscoveryJson] = useState<string | null>(effectiveJson);
+  if (effectiveJson !== prevDiscoveryJson) {
+    setPrevDiscoveryJson(effectiveJson);
+    if (effectiveJson !== null) {
+      setAdvancedJson(effectiveJson);
+      try {
+        const o: unknown = JSON.parse(effectiveJson);
+        const p = paperDiscoverySchema.safeParse(o);
+        if (p.success) {
+          setEnabled(p.data.enabled ?? false);
+          setIntervalMs(
+            p.data.intervalMs !== undefined ? String(p.data.intervalMs) : '',
+          );
+          setMinProfitUsd(
+            p.data.minProfitUsd !== undefined ? String(p.data.minProfitUsd) : '',
+          );
+          setMinLiq(
+            p.data.minLiquidityScore !== undefined
+              ? String(p.data.minLiquidityScore)
+              : '',
+          );
+          setMaxCand(
+            p.data.maxCandidatesPerRun !== undefined
+              ? String(p.data.maxCandidatesPerRun)
+              : '',
+          );
+          setTokensText((p.data.paperOnlyTokens ?? []).join(', '));
+          setRoutesText((p.data.paperOnlyRoutes ?? []).join(', '));
+        }
+      } catch {
+        /* noop */
       }
-    } catch {
-      /* noop */
     }
-  }, [effectiveJson]);
+  }
 
   const buildJson = (): string => {
     const interval = intervalMs.trim() ? Number(intervalMs) : undefined;

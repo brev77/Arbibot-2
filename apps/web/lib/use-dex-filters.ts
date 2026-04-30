@@ -78,7 +78,7 @@ export function useUpdateDexFiltersConfig() {
     },
     onSuccess: () => {
       // Invalidate config queries
-      queryClient.invalidateQueries({ queryKey: dexFiltersKeys.config() });
+      void queryClient.invalidateQueries({ queryKey: dexFiltersKeys.config() });
     },
   });
 }

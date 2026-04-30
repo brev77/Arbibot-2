@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { JsonRpcProvider, Contract, formatUnits } from 'ethers';
+import { JsonRpcProvider, Contract } from 'ethers';
 import { Counter, Gauge, Histogram } from 'prom-client';
 import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
 import { RpcProviderManager } from '../rpc/rpc-provider-manager.service';
@@ -55,7 +55,7 @@ export class PoolDiscoveryService implements OnModuleInit, OnModuleDestroy {
 
   constructor(private readonly rpcProviderManager: RpcProviderManager) {}
 
-  async onModuleInit() {
+  onModuleInit() {
     this.initializeMetrics();
     this.logger.log('Pool Discovery Service initialized');
 
@@ -243,8 +243,8 @@ export class PoolDiscoveryService implements OnModuleInit, OnModuleDestroy {
   private startDiscoveryLoop(): void {
     const intervalMs = parseInt(process.env.POOL_DISCOVERY_INTERVAL_MS || String(this.DISCOVERY_INTERVAL_MS), 10);
 
-    this.discoveryTimer = setInterval(async () => {
-      await this.cleanupExpiredEntries();
+    this.discoveryTimer = setInterval(() => {
+      this.cleanupExpiredEntries();
     }, intervalMs);
 
     this.discoveryTimer.unref?.();
@@ -254,7 +254,7 @@ export class PoolDiscoveryService implements OnModuleInit, OnModuleDestroy {
   /**
    * Cleanup expired cache entries
    */
-  private async cleanupExpiredEntries(): Promise<void> {
+  private cleanupExpiredEntries(): void {
     const now = Date.now();
     let expired = 0;
 

@@ -1,8 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { formatUnits } from 'ethers';
 import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
 
-import { GasEstimatorService, GasPolicy, Eip1559FeeData, GasEstimationResult } from './gas-estimator.service';
+import { GasEstimatorService, Eip1559FeeData } from './gas-estimator.service';
 import { RpcProviderManager } from '../rpc/rpc-provider-manager.service';
 
 // Clear metrics registry between tests

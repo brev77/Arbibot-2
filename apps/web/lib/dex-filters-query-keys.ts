@@ -1,4 +1,4 @@
-import type { DexFiltersConfig, FiltersPreview, FiltersMetrics } from '@arbibot/contracts';
+// Query key factory for DEX filters
 
 export const dexFiltersKeys = {
   config: (environment?: string, tenantId?: string) => 

@@ -9,7 +9,6 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
-  Query,
   UnauthorizedException,
 } from '@nestjs/common';
 

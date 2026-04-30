@@ -6,7 +6,7 @@
   import { randomUUID } from 'node:crypto';
 
   import { InjectRepository } from '@nestjs/typeorm';
-  import { DataSource, IsNull, LessThan, MoreThanOrEqual, QueryFailedError, Repository } from 'typeorm';
+  import { DataSource, IsNull, MoreThanOrEqual, QueryFailedError, Repository } from 'typeorm';
 
   import {
     EVENT_NAMES,
@@ -411,7 +411,7 @@ export class OpportunitiesService {
         // Risk filters
         if (filters.filters.highRisk.enabled) {
           const riskOrder: Record<string, number> = { low: 1, medium: 2, high: 3 };
-          const currentRiskLevel = riskLevel as keyof typeof riskOrder;
+          const currentRiskLevel = riskLevel;
           const maxRiskLevel = filters.filters.highRisk.maxRiskLevel as keyof typeof riskOrder;
           const currentLevel = riskOrder[currentRiskLevel] ?? 1;
           const maxLevel = riskOrder[maxRiskLevel] ?? 3;

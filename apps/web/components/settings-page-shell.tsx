@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import { SettingsWorkspace } from '@/components/settings-workspace';
 import { Button } from '@/components/ui/button';
@@ -9,13 +9,8 @@ import { Button } from '@/components/ui/button';
 export function SettingsPageShell(): ReactNode {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [envInput, setEnvInput] = useState('');
-  const [tenantInput, setTenantInput] = useState('');
-
-  useEffect(() => {
-    setEnvInput(searchParams.get('environment') ?? '');
-    setTenantInput(searchParams.get('tenantId') ?? '');
-  }, [searchParams]);
+  const [envInput, setEnvInput] = useState(() => searchParams.get('environment') ?? '');
+  const [tenantInput, setTenantInput] = useState(() => searchParams.get('tenantId') ?? '');
 
   const environment = searchParams.get('environment')?.trim() || undefined;
   const tenantId = searchParams.get('tenantId')?.trim() || undefined;

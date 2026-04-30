@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
-import { WalletManagerService, WalletSelectionStrategy } from './wallet-manager.service';
+import { WalletManagerService } from './wallet-manager.service';
 import { KeyVaultService } from '@arbibot/nest-platform';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { WalletState } from '@arbibot/persistence';
@@ -131,7 +131,9 @@ describe('WalletManagerService', () => {
 
       await service.selectWallet(42161, mockProvider);
 
+      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(keyVaultService.retrieveEncryptedKey).toHaveBeenCalled();
+      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(keyVaultService.decryptPrivateKey).toHaveBeenCalled();
     });
 
@@ -140,6 +142,7 @@ describe('WalletManagerService', () => {
 
       await service.selectWallet(42161, mockProvider);
 
+      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(keyVaultService.updateKeyLastUsed).toHaveBeenCalled();
     });
   });
@@ -199,6 +202,7 @@ describe('WalletManagerService', () => {
 
     it('should return false when balance check fails', async () => {
       // Force balanceOf to throw
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { Contract } = require('ethers');
       Contract.mockImplementationOnce(() => ({
         balanceOf: jest.fn().mockRejectedValue(new Error('RPC error')),

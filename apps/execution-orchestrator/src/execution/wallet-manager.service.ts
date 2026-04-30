@@ -1,11 +1,10 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { Provider, Wallet, formatUnits, parseUnits, Contract } from 'ethers';
+import { Provider, Wallet, formatUnits, Contract } from 'ethers';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { WalletState } from '@arbibot/persistence';
-import { KeyVaultService, WalletKey, EncryptedKey } from '@arbibot/nest-platform';
+import { KeyVaultService, WalletKey, EncryptedKey, getArbibotMetricsRegistry } from '@arbibot/nest-platform';
 import { Counter, Gauge } from 'prom-client';
-import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
 import { Address, ChainId } from '@arbibot/contracts-eth';
 
 /**
@@ -117,17 +116,17 @@ export class WalletManagerService implements OnModuleInit {
     // Get or create wallet instance
     let wallet = this.walletCache.get(selectedKey.keyId);
     if (!wallet) {
-      const encryptedKey = await this.getEncryptedKey(selectedKey.keyId);
+      const encryptedKey = this.getEncryptedKey(selectedKey.keyId);
       const privateKey = await this.keyVaultService.decryptPrivateKey(encryptedKey);
       wallet = new Wallet(privateKey, provider);
       this.walletCache.set(selectedKey.keyId, wallet);
     }
 
     // Update last used timestamp
-    await this.keyVaultService.updateKeyLastUsed(selectedKey.keyId);
+    this.keyVaultService.updateKeyLastUsed(selectedKey.keyId);
 
     // Update wallet state in database
-    await this.updateWalletState(selectedKey.keyId, wallet);
+    void this.updateWalletState(selectedKey.keyId, wallet);
 
     // Record metrics
     this.selectionCounter.inc({ chain_id: String(chainId), strategy: this.strategy });
@@ -199,7 +198,7 @@ export class WalletManagerService implements OnModuleInit {
     minBalance: bigint | undefined,
     tokenAddress: Address | undefined,
     provider: Provider,
-    tokenDecimals: number
+    _tokenDecimals: number
   ): Promise<WalletKey> {
     if (!minBalance || !tokenAddress) {
       // If no balance requirements, use weighted selection
@@ -209,7 +208,7 @@ export class WalletManagerService implements OnModuleInit {
     // Check balances for all wallets
     for (const walletKey of walletKeys) {
       try {
-        const encryptedKey = await this.getEncryptedKey(walletKey.keyId);
+        const encryptedKey = this.getEncryptedKey(walletKey.keyId);
         const privateKey = await this.keyVaultService.decryptPrivateKey(encryptedKey);
         const wallet = new Wallet(privateKey, provider);
 
@@ -341,7 +340,7 @@ export class WalletManagerService implements OnModuleInit {
   /**
    * Get encrypted key data from vault
    */
-  private async getEncryptedKey(keyId: string): Promise<EncryptedKey> {
+  private getEncryptedKey(keyId: string): EncryptedKey {
     const encryptedKey = this.keyVaultService.retrieveEncryptedKey(keyId);
     if (!encryptedKey) {
       throw new Error(`Encrypted key not found for keyId: ${keyId} — ensure key was stored via encryptPrivateKey or storeEncryptedKey`);

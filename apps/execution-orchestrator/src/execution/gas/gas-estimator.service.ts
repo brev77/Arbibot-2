@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Provider, TransactionRequest, formatUnits } from 'ethers';
+import { TransactionRequest, formatUnits } from 'ethers';
 import { Histogram, Gauge, Counter } from 'prom-client';
 import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
 import { ChainId } from '@arbibot/contracts-eth';

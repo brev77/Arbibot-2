@@ -28,7 +28,7 @@ describe('fetchOpportunityFiltersEffective', () => {
     globalThis.fetch = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
-      json: async () => ({
+      json: () => ({
         configValue: JSON.stringify({ minSpreadBps: 12 }),
       }),
     });

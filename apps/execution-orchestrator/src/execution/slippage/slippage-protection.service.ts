@@ -58,7 +58,7 @@ export class SlippageProtectionService {
     // Determine which reserve is input
     const isToken0In = tokenIn.toLowerCase() === pool.token0.toLowerCase();
     const reserveIn = isToken0In ? pool.reserve0 : pool.reserve1;
-    const reserveOut = isToken0In ? pool.reserve1 : pool.reserve0;
+    const _reserveOut = isToken0In ? pool.reserve1 : pool.reserve0;
 
     // Calculate price impact using constant product formula
     // impact = (amountIn / (reserveIn + amountIn)) * 10000

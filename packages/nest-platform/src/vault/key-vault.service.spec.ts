@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { KeyVaultService, WalletKey, EncryptedKey } from './key-vault.service';
+import { KeyVaultService, EncryptedKey } from './key-vault.service';
 import { AuditClientService } from '../audit-client.service';
 
 describe('KeyVaultService', () => {
@@ -168,16 +168,16 @@ describe('KeyVaultService', () => {
       // Wait a bit to ensure time difference
       await new Promise(resolve => setTimeout(resolve, 10));
 
-      await service.updateKeyLastUsed('test-key-1');
+      service.updateKeyLastUsed('test-key-1');
 
       const updatedKey = service.getWalletKey('test-key-1');
       expect(updatedKey?.lastUsedAt).toBeDefined();
       expect(updatedKey?.lastUsedAt).toBeInstanceOf(Date);
     });
 
-    it('should not throw for non-existent key', async () => {
+    it('should not throw for non-existent key', () => {
       // updateKeyLastUsed silently ignores missing keys
-      await expect(service.updateKeyLastUsed('non-existent-key')).resolves.toBeUndefined();
+      expect(() => service.updateKeyLastUsed('non-existent-key')).not.toThrow();
     });
   });
 
