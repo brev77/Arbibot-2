@@ -57,6 +57,7 @@ start_svc intake 3015 node "$ROOT/apps/market-intake-service/dist/main.js"
 PORT=3012 DATABASE_URL="$DATABASE_URL" RISK_SERVICE_URL="$RISK_SERVICE_URL" \
   NODE_ENV="${NODE_ENV:-production}" \
   VENUE_HTTP_BASE_URL="http://127.0.0.1:${LAB_PORT}" \
+  PRIVATE_KEY_ENCRYPTION_KEY="${PRIVATE_KEY_ENCRYPTION_KEY:-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}" \
   node "$ROOT/apps/execution-orchestrator/dist/main.js" >>"/tmp/arbibot-e2e-execution.log" 2>&1 &
 PIDS+=($!)
 
