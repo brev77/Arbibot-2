@@ -24,7 +24,13 @@ The repo uses custom Cursor skills in `.cursor/skills/` for architecture validat
    - Triggers: frontend review, dashboard review, UI review, operator UX, RBAC review
    - Usage: Run via `/frontend-review` or when requested for frontend code review
 
-**Workflow:** When making changes that cross service boundaries or involve critical flows, use architecture-guard-agent before committing. For PR reviews, use backend-review-agent or frontend-review-agent based on the code area.
+4. **git-workflow-agent** — manages Git operations in the Arbibot 2 monorepo
+   - Path: `.cursor/skills/git-workflow-agent/SKILL.md`
+   - Checks: structured commits linked to plan step_ids, pre-commit validation (build/lint/test), branch naming conventions, conflict resolution, error recovery, Windows path safety, forbidden operations
+   - Triggers: git commit, git branch, git merge, git rebase, conflict resolution, git fix, git error, prepare PR, sync branch
+   - Usage: Run via `/git-workflow` or automatically on Git operations
+
+**Workflow:** When making changes that cross service boundaries or involve critical flows, use architecture-guard-agent before committing. For PR reviews, use backend-review-agent or frontend-review-agent based on the code area. **For all Git operations (committing, branching, merging, conflict resolution, PR preparation), use git-workflow-agent** to ensure structured commits, pre-commit validation, and correct branch management.
 
 ### graphify (knowledge graph)
 

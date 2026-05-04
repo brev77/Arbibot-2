@@ -187,4 +187,4 @@ Before providing an answer, ensure:
 - **Architecture Rules:** `.cursor/rules/arbibot-project.mdc` — detailed architecture principles
 - **Verification Methodology:** `.cursor/rules/verification-methodology.mdc` — complete verification guide
 - **Graph Knowledge:** `graphify-out/GRAPH_REPORT.md` — service boundaries and dependencies
-- **Skills:** `.cursor/skills/` — architecture-guard-agent, backend-review-agent, frontend-review-agent
+- **Skills:** `.cursor/skills/` — architecture-guard-agent, backend-review-agent, frontend-review-agent, git-workflow-agent
