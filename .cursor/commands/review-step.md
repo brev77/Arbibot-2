@@ -131,6 +131,7 @@ $ARGUMENTS
 | **Architecture Guard Agent** | Всегда, для любого шага | `.cursor/skills/architecture-guard-agent/SKILL.md` |
 | **Backend Review Agent** | Если `review_required` содержит `backend` или diff затрагивает `apps/*`, `packages/*` | `.cursor/skills/backend-review-agent/SKILL.md` |
 | **Frontend Review Agent** | Если `review_required` содержит `frontend` или diff затрагивает `apps/web` | `.cursor/skills/frontend-review-agent/SKILL.md` |
+| **Git Workflow Agent** | Перед коммитом изменений, при подготовке PR, при разрешении конфликтов | `.cursor/skills/git-workflow-agent/SKILL.md` |
 
 ## Политика
 
