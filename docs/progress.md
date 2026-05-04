@@ -452,3 +452,69 @@
 **Следующие шаги:**
 1. Проверить CI зелёный на GitHub Actions (lint + build)
 2. Продолжить `DEX-1-1-ADAPTER-UNI2` (критический путь)
+
+---
+
+### 2026-05-04 — git-workflow-agent skill + 4 CI fixes → done
+**Статус:** done
+
+**Задача:**
+1. Создать Cursor skill для работы с Git (автоматические коммиты, исправление ошибок, корректное ведение Git)
+2. Исправить 4 CI failure: `e2e-phase4-tier-routing`, `e2e-phase3-paper-discovery`, `e2e-phase2`, `build`
+
+**Выполнено:**
+
+#### 1. git-workflow-agent skill
+- ✅ Создан `.cursor/skills/git-workflow-agent/SKILL.md` — 12 разделов:
+  - Область действия, триггеры, форма коммита
+  - Pre-commit проверки (lint → build → test)
+  - Правила именования веток (`feat/`, `fix/`, `docs/`)
+  - Разрешение конфликтов (abort/resolve протокол)
+  - Recovery после неудачных операций
+  - Windows path safety
+  - Запрещённые операции (`push --force`, `reset --hard` на main)
+- ✅ Зарегистрирован в `AGENTS.md` (пункт 4 в списке скиллов)
+- ✅ Добавлен в `.cursor/commands/review-step.md` (таблица «Скиллы»)
+- ✅ Добавлен в `.cursorrules` (Additional Resources → Skills)
+
+#### 2. CI Fix: `032_dex_filters_seed.sql` (2 job'а)
+- **Ошибка:** `column "scope" of relation "policy_configurations" does not exist`
+- **Причина:** Миграция использовала неверные имена колонок (`scope` → `scope_type`, `environment` → нет, `tenant_id` → нет, `status` → `is_active`, `operator_id` → `updated_by`, `version` → `entity_version`)
+- **Фикс:** Переписан INSERT по образцу `029_intake_policy_seed.sql` с idempotent `INSERT...SELECT...WHERE NOT EXISTS`
+- **Затронутые CI job'ы:** `e2e-phase4-tier-routing`, `e2e-phase3-paper-discovery`
+
+#### 3. CI Fix: `e2e-phase2` (PRIVATE_KEY_ENCRYPTION_KEY)
+- **Ошибка:** `Error: PRIVATE_KEY_ENCRYPTION_KEY environment variable is required`
+- **Причина:** `ExecutionModule` в `execution-orchestrator` импортирует `KeyVaultModule` (DEX), который требует env var
+- **Фикс:** Добавлен dummy 64-hex default в `tools/ci-e2e-phase2.sh`: `PRIVATE_KEY_ENCRYPTION_KEY="${PRIVATE_KEY_ENCRYPTION_KEY:-aaaa...aaaa}"`
+- Ключ валидный для `scryptSync`, не используется в Phase 2 тестах
+
+#### 4. CI Fix: `build` (@arbibot/contracts-eth test)
+- **Ошибка:** `@arbibot/contracts-eth#test exited (1)` — jest падает без spec-файлов
+- **Причина:** Пакет имел `"test": "jest"` в package.json, но не имел `.spec.ts` файлов
+- **Фикс:** Создан `packages/contracts-eth/src/index.spec.ts` — smoke test (ChainId enum, isMainnet/isTestnet, ABI exports) — 3/3 passed
+
+**Изменённые файлы:**
+- `.cursor/skills/git-workflow-agent/SKILL.md` (новый — 554 строки)
+- `AGENTS.md` (пункт 4 в skills + workflow paragraph)
+- `.cursor/commands/review-step.md` (таблица скиллов)
+- `.cursorrules` (Additional Resources)
+- `infra/postgres/migrations/032_dex_filters_seed.sql` (исправлены колонки)
+- `tools/ci-e2e-phase2.sh` (добавлен PRIVATE_KEY_ENCRYPTION_KEY)
+- `packages/contracts-eth/src/index.spec.ts` (новый smoke test)
+
+**Git:**
+- `2feb825` — feat(skills): add git-workflow-agent
+- `3d2d68e` — fix(migrations): correct column names in 032
+- `f6487eb` — fix(ci): add PRIVATE_KEY_ENCRYPTION_KEY for e2e-phase2
+- `8e71880` — fix(contracts-eth): add smoke test for CI build
+- Merge: `c7d9827`, `fbbc8fb` → `origin/main`
+
+**Верификация:**
+- `findstr` на `032_dex_filters_seed.sql` — только правильные колонки
+- `npm run test -w @arbibot/contracts-eth` — 3 passed, 3 total ✅
+- `git status` — clean, `main`, pushed to `origin`
+
+**Следующие шаги:**
+1. Проверить CI зелёный на GitHub Actions (все job'ы)
+2. Продолжить `DEX-1-1-ADAPTER-UNI2` (критический путь)

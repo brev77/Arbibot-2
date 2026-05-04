@@ -1,5 +1,54 @@
 # Session Summary
 
+## 2026-05-04 — git-workflow-agent skill + 4 CI fixes → done
+
+**Дата:** 2026-05-04
+**Фокус:** изменённые файлы, принятые решения, открытые вопросы
+
+### Изменённые файлы
+
+| Область | Файлы |
+|--------|--------|
+| **Новый скилл** | `.cursor/skills/git-workflow-agent/SKILL.md` (554 строки — 12 разделов) |
+| **Регистрация скилла** | `AGENTS.md`, `.cursor/commands/review-step.md`, `.cursorrules` |
+| **CI fix (миграция)** | `infra/postgres/migrations/032_dex_filters_seed.sql` (переписан INSERT) |
+| **CI fix (env var)** | `tools/ci-e2e-phase2.sh` (PRIVATE_KEY_ENCRYPTION_KEY) |
+| **CI fix (test)** | `packages/contracts-eth/src/index.spec.ts` (новый smoke test) |
+| **Документация** | `docs/progress.md` (append), `session_summary.md` (этот файл) |
+
+### Принятые решения
+
+1. **git-workflow-agent:** четвёртый Cursor skill — управляет всеми Git операциями (коммиты, ветки, конфликты, recovery). Триггеры: `git commit`, `git branch`, `conflict resolution`, `prepare PR`. Pre-commit: lint → build → test
+2. **032_dex_filters_seed.sql:** переписан по образцу `029_intake_policy_seed.sql` — неверные колонки (`scope`, `environment`, `tenant_id`, `status`, `operator_id`, `version`) заменены на правильные из схемы 019+020
+3. **PRIVATE_KEY_ENCRYPTION_KEY:** dummy 64-hex default в CI скрипте для execution-orchestrator — KeyVaultModule требует env var, но DEX-функционал не нужен в Phase 2 тестах
+4. **@arbibot/contracts-eth test:** пакет имел `"test": "jest"` без spec-файлов → jest exit(1). Создан минимальный smoke test
+
+### Git
+
+- `2feb825` — feat(skills): add git-workflow-agent
+- `3d2d68e` — fix(migrations): correct column names in 032
+- `f6487eb` — fix(ci): add PRIVATE_KEY_ENCRYPTION_KEY for e2e-phase2
+- `8e71880` — fix(contracts-eth): add smoke test for CI build
+- Merge commits: `c7d9827`, `fbbc8fb` → `origin/main`
+
+### Верификация
+
+- `findstr` на `032_dex_filters_seed.sql` — только правильные колонки
+- `npm run test -w @arbibot/contracts-eth` — 3/3 passed ✅
+- `git status` — clean, `main`, pushed to `origin`
+
+### Открытые вопросы
+
+- CI зелёный на GitHub Actions не верифицирован (все 4 фиксa запушены)
+- Недостающие unit-тесты: `PoolDiscoveryService`, `RpcProviderManager` (частично)
+
+### Следующие шаги
+
+1. Проверить CI зелёный на GitHub Actions (все job'ы)
+2. Продолжить `DEX-1-1-ADAPTER-UNI2` (критический путь)
+
+---
+
 ## 2026-05-04 — AGENTS.md актуализация + CI lint fix (turbo.json) → done
 
 **Дата:** 2026-05-04
