@@ -1,5 +1,47 @@
 # Session Summary
 
+## 2026-05-04 — AGENTS.md актуализация + CI lint fix (turbo.json) → done
+
+**Дата:** 2026-05-04
+**Фокус:** изменённые файлы, принятые решения, открытые вопросы
+
+### Изменённые файлы
+
+| Область | Файлы |
+|--------|--------|
+| **Документация** | `AGENTS.md` (3 обновления), `docs/progress.md` (append), `session_summary.md` (этот файл) |
+| **CI fix** | `turbo.json` (добавлен `"dependsOn": ["^build"]` для `lint`) |
+
+### Принятые решения
+
+1. **AGENTS.md актуализирован** по 3 расхождениям:
+   - «10 шагов → done» → «14/35 шагов → done»
+   - Добавлены CI fixes + review-step/skills update
+   - Добавлены открытые вопросы (CI GitHub, недостающие тесты)
+2. **CI lint fix — корневая причина найдена:** `turbo.json` задача `lint` не имела `"dependsOn": ["^build"]` → пакеты не собирались до lint → типы `any`/`error` → `no-redundant-type-constituents` ошибки
+3. **Фикс:** добавлено `"dependsOn": ["^build"]` для задачи `lint` (как уже было для `build` и `test`)
+
+### Верификация
+
+- `npm run lint` — 28/28 ✅ (0 errors, warnings only)
+
+### Git
+
+- `5666649` — docs: update AGENTS.md
+- `d26937e` — fix(ci): add ^build dependency to lint task in turbo.json
+
+### Открытые вопросы
+
+- CI зелёный на GitHub Actions не верифицирован
+- Недостающие unit-тесты: `PoolDiscoveryService`, `RpcProviderManager` (частично)
+
+### Следующие шаги
+
+1. Проверить CI зелёный на GitHub Actions (lint + build)
+2. Продолжить `DEX-1-1-ADAPTER-UNI2` (критический путь)
+
+---
+
 ## 2026-04-30 (поздно вечером) — CI Fixes: 5 ошибок → green → done
 
 **Дата:** 2026-04-30

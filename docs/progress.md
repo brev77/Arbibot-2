@@ -414,5 +414,41 @@
 - AGENTS.md updates with Cursor skills
 - Session compaction methodology
 
-**Total migrations:** 001–032
+**Total migrations:** 001–033
 **CI jobs:** build, lint, test, e2e-phase2, e2e-phase2-watchlist-route-scoring, e2e-phase3-paper-promotion, e2e-phase3-paper-discovery, e2e-phase4-tier-routing, bus-smoke
+
+---
+
+### 2026-05-04 — AGENTS.md актуализация + CI lint fix (turbo.json) → done
+**Статус:** done
+
+**Задача:**
+1. Проверить актуальность AGENTS.md, обновить расхождения
+2. Исправить CI lint failure (canonical-market-service `no-redundant-type-constituents`)
+
+**Выполнено:**
+1. ✅ AGENTS.md обновлён (3 расхождения):
+   - «10 шагов → done» → **«14/35 шагов → done»** (POOL-DISCOVERY, RISK-POLICIES, APPROVE-PATTERN, SLIPPAGE)
+   - Добавлены CI fixes + review-step/skills update
+   - Добавлены открытые вопросы (CI GitHub, недостающие тесты)
+2. ✅ CI lint fix — корневая причина:
+   - `turbo.json`: задача `lint` не имела `"dependsOn": ["^build"]`
+   - Пакеты (`@arbibot/persistence`, `@arbibot/nest-database`) не собирались до lint
+   - Типы резолвились как `any`/`error` → 4 ошибки `no-redundant-type-constituents`
+   - **Фикс:** добавлено `"dependsOn": ["^build"]` для задачи `lint`
+
+**Изменённые файлы:**
+- `AGENTS.md` — 3 обновления (статус DEX, CI fixes, открытые вопросы)
+- `turbo.json` — добавлена зависимость `"dependsOn": ["^build"]` для `lint`
+
+**Верификация:**
+- `npm run lint` — 28/28 ✅ (0 errors, warnings only)
+- Git: clean, `main`, pushed to `origin`
+
+**Git:**
+- `5666649` — docs: update AGENTS.md
+- `d26937e` — fix(ci): add ^build dependency to lint task in turbo.json
+
+**Следующие шаги:**
+1. Проверить CI зелёный на GitHub Actions (lint + build)
+2. Продолжить `DEX-1-1-ADAPTER-UNI2` (критический путь)

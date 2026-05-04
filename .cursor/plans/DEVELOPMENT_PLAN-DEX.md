@@ -7,7 +7,7 @@
 # Arbibot 2 — план разработки DEX ↔ DEX (EVM, EOA, sequential) — 🟡 АКТИВНЫЙ
 
 > **Прогресс:** 14/35 шагов → `done` (DEX-1.0 фундамент + DEX-1.1 approve/slippage). Следующий критический шаг: `DEX-1-1-ADAPTER-UNI2`.
-> **Обновлено:** 2026-04-30
+> **Обновлено:** 2026-05-04
 
 Документ дополняет канон [`DEVELOPMENT_PLAN.md`](./DEVELOPMENT_PLAN.md) и **не** меняет нумерацию фаз §50 основного плана. Опирается на:
 
@@ -1727,4 +1727,5 @@ graph TD
 - **v1.1** — 2026-04-29: `DEX-1-0-TECH-CHOICE` → `done` (ethers.js v6.13.0); `DEX-1-0-ABIS` → `done` (пакет `@arbibot/contracts-eth` с ABI для UniV2/V3/Sushi + ERC20, адреса Arbitrum/Base/BNB mainnet+testnet, типы ChainId/Address); build 21/21 green.
 - **v1.2** — 2026-04-29: `DEX-1-0-GAS` → `done` (GasEstimatorService с EIP-1559, gas policy, Prometheus metrics, 15 unit tests); `DEX-1-0-ENV-EXAMPLE` → `done` (.env.example обновлён RPC/GAS/VAULT/WALLET vars); review_notes добавлены для RPC, VAULT, WALLET-MGT; дубликат MIGRATIONS устранён. **Итого 9/35 шагов done.**
 - **v1.4** — 2026-04-30: добавлен mermaid flowchart (status lifecycle), ссылка на `.cursor/commands/review-step.md`.
-- **v1.3** — 2026-04-30: `DEX-1-0-POOL-DISCOVERY` → `done` (PoolDiscoveryService, UniV2/V3 discovery, in-memory cache, metrics); `DEX-1-0-RISK-POLICIES` → `done` (DexRiskPolicyService, slippage/position/protocol/volume checks, metrics); `DEX-1-1-APPROVE-PATTERN` → `done` (TokenApproveService, allowance check/approve/revoke, cache, metrics); `DEX-1-1-SLIPPAGE` → `done` (SlippageProtectionService, tolerance levels, minAmountOut, metrics); key-rotation-runbook.md создан. **Итого 13/35 шагов done (DEX-1.0 — все done, DEX-1.1 — 3/5 done).**
+- **v1.3** — 2026-04-30: `DEX-1-0-POOL-DISCOVERY` → `done` (PoolDiscoveryService, UniV2/V3 discovery, in-memory cache, metrics); `DEX-1-0-RISK-POLICIES` → `done` (DexRiskPolicyService, slippage/position/protocol/volume checks, metrics); `DEX-1-1-APPROVE-PATTERN` → `done` (TokenApproveService, allowance check/approve/revoke, cache, metrics); `DEX-1-1-SLIPPAGE` → `done` (SlippageProtectionService, tolerance levels, minAmountOut, metrics); key-rotation-runbook.md создан. **Итого 14/35 шагов done (DEX-1.0 — все done, DEX-1.1 — 2/5 done).**
+- **v1.5** — 2026-05-04: актуализация даты; подтверждено 14/35 done. CI lint fix (turbo.json `^build` dependency). Следующий шаг: `DEX-1-1-ADAPTER-UNI2`.
