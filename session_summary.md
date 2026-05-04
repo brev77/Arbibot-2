@@ -1,5 +1,95 @@
 # Session Summary
 
+## 2026-05-04 — DEX-1-1-ADAPTER-UNI2: UniswapV2Adapter → implemented
+
+**Дата:** 2026-05-04
+**Фокус:** изменённые файлы, принятые решения, открытые вопросы
+
+### Изменённые файлы
+
+| Область | Файлы |
+|--------|--------|
+| **Новый адаптер** | `apps/execution-orchestrator/src/execution/adapters/uniswap-v2.adapter.ts` |
+| **Unit-тесты** | `apps/execution-orchestrator/src/execution/adapters/uniswap-v2.adapter.spec.ts` |
+| **DI** | `apps/execution-orchestrator/src/execution/execution.module.ts` |
+| **DEX план** | `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` (v1.6, 15/35) |
+| **Документация** | `docs/progress.md` (append), `session_summary.md` (этот файл) |
+
+### Принятые решения
+
+1. **UniswapV2Adapter** реализует `VenueAdapter.submitLeg(plan, leg)` → `{ externalOrderId: txHash }`
+2. **Calldata construction:** `ethers.js Interface.encodeFunctionData` для `swapExactTokensForTokens`
+3. **ERC20 approve:** `ensureApproval()` — allowance check + approve при необходимости (через `TokenApproveService`)
+4. **On-chain quote:** `calculateAmountOutMin()` через router `getAmountsOut` + slippage protection
+5. **Gas policy:** reject при `withinPolicy: false` из `GasEstimatorService`
+6. **Error hierarchy:** `VenueSubmitClientError` (validation), `VenueSubmitTransientError` (retryable), `VenueTerminalSubmitError` (reverted)
+7. **Slippage:** `applySlippage()` — BigInt arithmetic; `getSlippageBps()` — per-swap override → env → default 50bps
+8. **Router addresses:** из `@arbibot/contracts-eth` — Arbitrum SushiSwapV2, Base SushiSwapV2, BNB PancakeV2
+
+### Верификация
+
+- Unit tests: **21/21 passed** ✅
+- Build: **21/21 green** ✅
+- Lint: **0 errors** ✅ (warnings only)
+
+### Открытые вопросы
+
+- Нет testnet fork интеграционного теста (требует RPC endpoint)
+- Нет runbook для failed/stuck DEX transactions
+- `/review-step` не пройден → статус `implemented`, не `done`
+- CI зелёный на GitHub Actions не верифицирован
+
+### Следующие шаги
+
+1. Пройти `/review-step` для DEX-1-1-ADAPTER-UNI2 → `done`
+2. `DEX-1-1-ADAPTER-UNI3` — Uniswap V3 exactInput single pool
+3. `DEX-1-1-ADAPTER-SUSHI` — SushiSwap (shared utils с UniV2)
+4. `DEX-1-1-VENUE-BIND` — VenueFactory по venue_key
+
+---
+
+## 2026-05-04 — CI lint fix: contracts-eth tsconfig exclude → done
+
+**Дата:** 2026-05-04
+**Фокус:** изменённые файлы, принятые решения, открытые вопросы
+
+### Изменённые файлы
+
+| Область | Файлы |
+|--------|--------|
+| **CI fix (tsconfig)** | `packages/contracts-eth/tsconfig.json` (убран `"**/*.spec.ts"` из exclude) |
+| **Документация** | `AGENTS.md` (упрощена секция Windows path), `docs/progress.md` (append), `session_summary.md` (этот файл) |
+
+### Принятые решения
+
+1. **Корневая причина CI failure:** `packages/contracts-eth/tsconfig.json` исключал `**/*.spec.ts` → ESLint glob `src/**/*.ts` находил `index.spec.ts`, но TypeScript Project Service не мог его обработать → `Parsing error: was not found by the project service`
+2. **Фикс:** убран `"**/*.spec.ts"` из `exclude` — spec-файлы теперь включены в TS project, ESLint корректно их обрабатывает
+3. **AGENTS.md:** упрощена секция Windows path — после переименования папки `Arbibot 2` → `Arbibot-2` советы про `subst`/junction больше не нужны
+
+### Git
+
+- Branch: `fix/ci-contracts-eth-lint`
+- Commit: `dfb0cdb` — `contracts(CI): fix lint error by removing spec.ts exclusion from tsconfig`
+- Pushed to `origin`, PR: https://github.com/brev77/Arbibot-2/pull/new/fix/ci-contracts-eth-lint
+
+### Верификация
+
+- `npm run lint` — 28/28 ✅ (0 errors)
+- `npm run build` — 21/21 ✅
+- `npm run test -w @arbibot/contracts-eth` — 3/3 ✅
+
+### Открытые вопросы
+
+- CI зелёный на GitHub Actions не верифицирован (фикс запушен в PR)
+- Merge PR → main — pending
+
+### Следующие шаги
+
+1. Merge PR → main, проверить CI зелёный
+2. Продолжить `DEX-1-1-ADAPTER-UNI2` (критический путь)
+
+---
+
 ## 2026-05-04 — git-workflow-agent skill + 4 CI fixes → done
 
 **Дата:** 2026-05-04

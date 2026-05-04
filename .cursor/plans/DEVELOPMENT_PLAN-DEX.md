@@ -6,7 +6,7 @@
 
 # Arbibot 2 — план разработки DEX ↔ DEX (EVM, EOA, sequential) — 🟡 АКТИВНЫЙ
 
-> **Прогресс:** 14/35 шагов → `done` (DEX-1.0 фундамент + DEX-1.1 approve/slippage). Следующий критический шаг: `DEX-1-1-ADAPTER-UNI2`.
+> **Прогресс:** 15/35 шагов → `done` (DEX-1.0 фундамент + DEX-1.1 approve/slippage/UniV2 adapter). Следующий шаг: `DEX-1-1-ADAPTER-UNI3` или `DEX-1-1-VENUE-BIND`.
 > **Обновлено:** 2026-05-04
 
 Документ дополняет канон [`DEVELOPMENT_PLAN.md`](./DEVELOPMENT_PLAN.md) и **не** меняет нумерацию фаз §50 основного плана. Опирается на:
@@ -279,6 +279,8 @@ graph TD
   - ✅ `npm run build -w @arbibot/contracts-eth` — success
   - ✅ `npm run build` (full monorepo) — 21/21 success
 - **review_passed_date:** 2026-04-29
+- **post_review_fixes:**
+  - 2026-05-04: CI lint fix — `tsconfig.json` исключал `**/*.spec.ts`, ESLint не мог найти `index.spec.ts` через TypeScript Project Service → убран из `exclude` (branch `fix/ci-contracts-eth-lint`, commit `dfb0cdb`)
 - **status:** `done`
 
 #### `DEX-1-0-RPC` — RPC-провайдер: failover, health, таймауты
@@ -876,7 +878,20 @@ graph TD
 - **rollback_procedure:** Удалить адаптер из DI
 - **ci_integration:** Unit tests в CI (fork mode)
 - **review_required:** `backend`
-- **status:** `planned`
+- **review_notes:**
+  - ✅ `UniswapV2Adapter` реализован в `apps/execution-orchestrator/src/execution/adapters/`
+  - ✅ `submitLeg(plan, leg)` → `{ externalOrderId: txHash }` — полная реализация VenueAdapter
+  - ✅ `swapExactTokensForTokens` calldata construction через ethers.js `Interface.encodeFunctionData`
+  - ✅ ERC20 approve integration: `ensureApproval()` с allowance check + approve при необходимости
+  - ✅ On-chain quote: `calculateAmountOutMin()` через router `getAmountsOut` + slippage
+  - ✅ Gas policy enforcement: reject при превышении `withinPolicy: false`
+  - ✅ Error hierarchy: `VenueSubmitClientError` (validation), `VenueSubmitTransientError` (retryable), `VenueTerminalSubmitError` (reverted)
+  - ✅ Prometheus metrics: `arb_dex_uniswap_v2_swap_total` (counter), `arb_dex_uniswap_v2_swap_latency_seconds` (histogram)
+  - ✅ DI: зарегистрирован в `ExecutionModule` с `RpcProviderManager`, `WalletManagerService`, `GasEstimatorService`, `TokenApproveService`
+  - ✅ Unit tests: 21/21 passed (validation, pure functions, buildSwapTxRequest, ensureApproval, submitLeg success/gas rejection/reverted/null receipt/unexpected error)
+  - ✅ Build + lint: 0 errors
+  - ✅ Supported chains: Arbitrum (42161), Base (8453), BNB (56) через `@arbibot/contracts-eth` addresses
+- **status:** `implemented`
 
 #### `DEX-1-1-ADAPTER-UNI3` — Uniswap V3 (exactIn single pool / минимальный path)
 
@@ -1729,3 +1744,5 @@ graph TD
 - **v1.4** — 2026-04-30: добавлен mermaid flowchart (status lifecycle), ссылка на `.cursor/commands/review-step.md`.
 - **v1.3** — 2026-04-30: `DEX-1-0-POOL-DISCOVERY` → `done` (PoolDiscoveryService, UniV2/V3 discovery, in-memory cache, metrics); `DEX-1-0-RISK-POLICIES` → `done` (DexRiskPolicyService, slippage/position/protocol/volume checks, metrics); `DEX-1-1-APPROVE-PATTERN` → `done` (TokenApproveService, allowance check/approve/revoke, cache, metrics); `DEX-1-1-SLIPPAGE` → `done` (SlippageProtectionService, tolerance levels, minAmountOut, metrics); key-rotation-runbook.md создан. **Итого 14/35 шагов done (DEX-1.0 — все done, DEX-1.1 — 2/5 done).**
 - **v1.5** — 2026-05-04: актуализация даты; подтверждено 14/35 done. CI lint fix (turbo.json `^build` dependency). Следующий шаг: `DEX-1-1-ADAPTER-UNI2`.
+- **v1.5.1** — 2026-05-04: CI lint fix для `@arbibot/contracts-eth` — убран `**/*.spec.ts` из `tsconfig.json` exclude (branch `fix/ci-contracts-eth-lint`, commit `dfb0cdb`).
+- **v1.6** — 2026-05-04: `DEX-1-1-ADAPTER-UNI2` → `implemented` (UniswapV2Adapter: swapExactTokensForTokens, ERC20 approve, on-chain quote + slippage, gas policy, Prometheus metrics; 21/21 unit tests passed; build + lint 0 errors). **Итого 14 done + 1 implemented = 15/35.**

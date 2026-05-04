@@ -419,6 +419,83 @@
 
 ---
 
+### 2026-05-04 — CI lint fix: contracts-eth tsconfig exclude → done
+**Статус:** done
+
+**Задача:** Исправить CI build failure — ESLint падал на `packages/contracts-eth/src/index.spec.ts` с ошибкой `was not found by the project service`.
+
+**Корневая причина:** `packages/contracts-eth/tsconfig.json` содержал `"exclude": ["**/*.spec.ts"]` — ESLint glob `src/**/*.ts` находил spec-файл, но TypeScript Project Service не мог его обработать.
+
+**Фикс:** Убран `"**/*.spec.ts"` из `exclude` в tsconfig.
+
+**Изменённые файлы:**
+- `packages/contracts-eth/tsconfig.json` (убран `"**/*.spec.ts"` из exclude)
+- `AGENTS.md` (упрощена секция Windows path после переименования папки)
+
+**Git:**
+- Branch: `fix/ci-contracts-eth-lint`
+- Commit: `dfb0cdb`
+- Pushed to `origin`, PR: https://github.com/brev77/Arbibot-2/pull/new/fix/ci-contracts-eth-lint
+
+**Верификация:**
+- `npm run lint` — 28/28 ✅ (0 errors)
+- `npm run build` — 21/21 ✅
+- `npm run test -w @arbibot/contracts-eth` — 3/3 ✅
+
+**Следующие шаги:**
+1. Merge PR → main
+2. Проверить CI зелёный на GitHub Actions
+3. Продолжить `DEX-1-1-ADAPTER-UNI2` (критический путь)
+
+---
+
+### 2026-05-04 — DEX-1-1-ADAPTER-UNI2: UniswapV2Adapter → implemented
+**Статус:** implemented (awaiting `/review-step` → `done`)
+
+**Задача:** Реализовать UniswapV2-совместимый DEX-адаптер для `execution-orchestrator`.
+
+**Выполнено:**
+1. ✅ `UniswapV2Adapter` — реализация `VenueAdapter.submitLeg(plan, leg)` → `{ externalOrderId: txHash }`
+2. ✅ `swapExactTokensForTokens` calldata через `ethers.js Interface.encodeFunctionData`
+3. ✅ ERC20 approve: `ensureApproval()` — allowance check + approve при необходимости
+4. ✅ On-chain quote: `calculateAmountOutMin()` через router `getAmountsOut` + slippage
+5. ✅ Gas policy enforcement: reject при `withinPolicy: false`
+6. ✅ Error hierarchy: `VenueSubmitClientError`, `VenueSubmitTransientError`, `VenueTerminalSubmitError`
+7. ✅ Prometheus metrics: `arb_dex_uniswap_v2_swap_total`, `arb_dex_uniswap_v2_swap_latency_seconds`
+8. ✅ DI: зарегистрирован в `ExecutionModule`
+9. ✅ Unit tests: **21/21 passed** (validation, pure functions, calldata, approve, submitLeg flows)
+10. ✅ Build + lint: **0 errors**
+
+**Созданные файлы:**
+- `apps/execution-orchestrator/src/execution/adapters/uniswap-v2.adapter.ts`
+- `apps/execution-orchestrator/src/execution/adapters/uniswap-v2.adapter.spec.ts`
+
+**Изменённые файлы:**
+- `apps/execution-orchestrator/src/execution/execution.module.ts` (DI registration)
+- `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` (v1.6, 15/35)
+
+**Поддерживаемые chains:** Arbitrum (42161), Base (8453), BNB (56)
+
+**Принятые решения:**
+1. `DexSwapParams` извлекается из `plan.playbookConfig.dexSwaps[legIndex]`
+2. Slippage: `applySlippage()` — BigInt arithmetic `(expected * (10000 - bps)) / 10000`
+3. `getSlippageBps()` — chain of: per-swap override → env `DEX_DEFAULT_SLIPPAGE_BPS` → default 50
+4. `calculateAmountOutMin()` — public method, mockable in tests via `jest.spyOn`
+5. Router addresses from `@arbibot/contracts-eth`: Arbitrum SushiSwapV2, Base SushiSwapV2, BNB PancakeV2
+
+**Открытые вопросы:**
+- Нет testnet fork интеграционного теста (требует RPC endpoint)
+- Нет runbook для failed/stuck DEX transactions
+- `/review-step` не пройден
+
+**Следующие шаги:**
+1. Пройти `/review-step` для DEX-1-1-ADAPTER-UNI2 → `done`
+2. `DEX-1-1-ADAPTER-UNI3` — Uniswap V3 exactInput
+3. `DEX-1-1-ADAPTER-SUSHI` — SushiSwap (shared utils с UniV2)
+4. `DEX-1-1-VENUE-BIND` — VenueFactory по venue_key
+
+---
+
 ### 2026-05-04 — AGENTS.md актуализация + CI lint fix (turbo.json) → done
 **Статус:** done
 
