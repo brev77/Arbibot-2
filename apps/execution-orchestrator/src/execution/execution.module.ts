@@ -13,6 +13,7 @@ import { DexRiskPolicyService } from './risk/dex-risk-policy.service';
 import { TokenApproveService } from './token/token-approve.service';
 import { SlippageProtectionService } from './slippage/slippage-protection.service';
 import { UniswapV2Adapter } from './adapters/uniswap-v2.adapter';
+import { UniswapV3Adapter } from './adapters/uniswap-v3.adapter';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { UniswapV2Adapter } from './adapters/uniswap-v2.adapter';
     TokenApproveService,
     SlippageProtectionService,
     UniswapV2Adapter,
+    UniswapV3Adapter,
   ],
   exports: [
     WalletManagerService,
@@ -38,6 +40,7 @@ import { UniswapV2Adapter } from './adapters/uniswap-v2.adapter';
     TokenApproveService,
     SlippageProtectionService,
     UniswapV2Adapter,
+    UniswapV3Adapter,
   ],
 })
 export class ExecutionModule {}
