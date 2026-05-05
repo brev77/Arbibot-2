@@ -595,3 +595,40 @@
 **Следующие шаги:**
 1. Проверить CI зелёный на GitHub Actions (все job'ы)
 2. Продолжить `DEX-1-1-ADAPTER-UNI2` (критический путь)
+
+---
+
+### 2026-05-05 — Восстановление репозитория из OneDrive → done
+**Статус:** done
+
+**Задача:** Репозиторий перемещён из `C:\Users\kazak\Documents\Cursor\Arbibot 2` (OneDrive) в `C:\Coding\Arbibot-2`. OneDrive повредил `.git` каталог и создал дубликаты файлов с суффиксами `(2)`, `(3)` и т.д.
+
+**Выполнено:**
+1. ✅ `.git` пересоздан — `git init` + `fetch` + `checkout -f -b main origin/main` (чистый клон без истории OneDrive)
+2. ✅ Удалено 28 файлов-дубликатов OneDrive: `AGENTS (2..4).md`, `session_summary (2..12).md`, `docs/progress (2..6).md`, `.cursor/plans/DEVELOPMENT_PLAN-DEX (2..10).md`, `packages/contracts-eth/tsconfig (2..10).json`
+3. ✅ Fast-forward merge из `origin/fix/ci-contracts-eth-lint` — 2 коммита:
+   - `dfb0cdb` — contracts(CI): fix lint error (tsconfig exclude)
+   - `a7c6ef4` — feat(dex): DEX-1-1-ADAPTER-UNI2 UniswapV2Adapter
+4. ✅ `npm ci` — 1271 пакетов
+5. ✅ `npm run lint` — 28/28 ✅ (0 errors)
+6. ✅ `npm run build` — 21/21 ✅
+7. ✅ `git push origin main` — `509d391..a7c6ef4`
+
+**Изменённые файлы:**
+- `.git/` — полный пересоздание
+- Удалено 28 файлов-дубликатов
+- Merge принёс: `uniswap-v2.adapter.ts`, `uniswap-v2.adapter.spec.ts`, `execution.module.ts`, `contracts-eth/tsconfig.json`, `DEVELOPMENT_PLAN-DEX.md`, `AGENTS.md`, `progress.md`, `session_summary.md`
+
+**Git:**
+- HEAD: `a7c6ef4` — `main`, up to date с `origin/main`
+- `git status` — clean
+
+**Открытые вопросы:**
+- CI зелёный на GitHub Actions не верифицирован
+- `DEX-1-1-ADAPTER-UNI2` → `implemented`, awaiting `/review-step` → `done`
+- Недостающие unit-тесты: `PoolDiscoveryService`, `RpcProviderManager`
+
+**Следующие шаги:**
+1. Проверить CI зелёный на GitHub Actions
+2. Пройти `/review-step` для DEX-1-1-ADAPTER-UNI2 → `done`
+3. `DEX-1-1-ADAPTER-UNI3` — Uniswap V3 exactInput

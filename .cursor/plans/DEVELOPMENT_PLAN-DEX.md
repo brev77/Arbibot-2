@@ -6,8 +6,8 @@
 
 # Arbibot 2 — план разработки DEX ↔ DEX (EVM, EOA, sequential) — 🟡 АКТИВНЫЙ
 
-> **Прогресс:** 15/35 шагов → `done` (DEX-1.0 фундамент + DEX-1.1 approve/slippage/UniV2 adapter). Следующий шаг: `DEX-1-1-ADAPTER-UNI3` или `DEX-1-1-VENUE-BIND`.
-> **Обновлено:** 2026-05-04
+> **Прогресс:** 14/35 шагов → `done`; 1 → `implemented` (DEX-1-1-ADAPTER-UNI2 awaiting review). Следующий шаг: `/review-step` для UNI2, затем `DEX-1-1-ADAPTER-UNI3` или `DEX-1-1-VENUE-BIND`.
+> **Обновлено:** 2026-05-05
 
 Документ дополняет канон [`DEVELOPMENT_PLAN.md`](./DEVELOPMENT_PLAN.md) и **не** меняет нумерацию фаз §50 основного плана. Опирается на:
 

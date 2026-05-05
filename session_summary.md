@@ -1,5 +1,54 @@
 # Session Summary
 
+## 2026-05-05 — Восстановление репозитория из OneDrive → done
+
+**Дата:** 2026-05-05
+**Фокус:** изменённые файлы, принятые решения, открытые вопросы
+
+### Изменённые файлы
+
+| Область | Файлы |
+|--------|--------|
+| **`.git` каталог** | Полное пересоздание (OneDrive повредил оригинальный) |
+| **Удалены дубликаты** | 28 файлов: `AGENTS (2..4).md`, `session_summary (2..12).md`, `docs/progress (2..6).md`, `DEVELOPMENT_PLAN-DEX (2..10).md`, `contracts-eth/tsconfig (2..10).json` |
+| **Merge (2 коммита)** | `uniswap-v2.adapter.ts`, `uniswap-v2.adapter.spec.ts`, `execution.module.ts`, `contracts-eth/tsconfig.json` |
+| **Документация** | `docs/progress.md` (append), `session_summary.md` (этот файл) |
+
+### Принятые решения
+
+1. **`.git` пересоздан, а не скопирован** — OneDrive создал дубликаты внутри `.git` (`config (2)`, `refs/heads/main (2)` и т.д.), что делало невозможным нормальную работу. Чистый `git init` + `fetch` решает проблему радикально.
+2. **Fast-forward merge из `origin/fix/ci-contracts-eth-lint`** — вместо cherry-pick, т.к. ветка содержала ровно 2 нужных коммита без конфликтов.
+3. **Удаление дубликатов через PowerShell** — `Remove-Item` с wildcard для `*(2)*`, `*(3)*` и т.д.
+
+### Git
+
+- HEAD: `a7c6ef4` — `feat(dex): implement DEX-1-1-ADAPTER-UNI2 UniswapV2Adapter + docs update`
+- `git push origin main` — `509d391..a7c6ef4` ✅
+- `git status` — clean
+
+### Верификация
+
+- `npm ci` — 1271 пакетов ✅
+- `npm run lint` — 28/28 ✅ (0 errors)
+- `npm run build` — 21/21 ✅
+
+### Открытые вопросы
+
+- CI зелёный на GitHub Actions не верифицирован
+- `DEX-1-1-ADAPTER-UNI2` → `implemented`, awaiting `/review-step` → `done`
+- Недостающие unit-тесты: `PoolDiscoveryService`, `RpcProviderManager`
+- Нет testnet fork интеграционного теста для UniV2 adapter
+- Нет runbook для failed/stuck DEX transactions
+
+### Следующие шаги
+
+1. Проверить CI зелёный на GitHub Actions
+2. Пройти `/review-step` для DEX-1-1-ADAPTER-UNI2 → `done`
+3. `DEX-1-1-ADAPTER-UNI3` — Uniswap V3 exactInput
+4. `DEX-1-1-ADAPTER-SUSHI` — SushiSwap (shared utils с UniV2)
+
+---
+
 ## 2026-05-04 — DEX-1-1-ADAPTER-UNI2: UniswapV2Adapter → implemented
 
 **Дата:** 2026-05-04
