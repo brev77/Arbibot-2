@@ -14,6 +14,8 @@ import { TokenApproveService } from './token/token-approve.service';
 import { SlippageProtectionService } from './slippage/slippage-protection.service';
 import { UniswapV2Adapter } from './adapters/uniswap-v2.adapter';
 import { UniswapV3Adapter } from './adapters/uniswap-v3.adapter';
+import { SushiSwapV2Adapter } from './adapters/sushiswap-v2.adapter';
+
 @Module({
   imports: [
     KeyVaultModule,
@@ -30,6 +32,7 @@ import { UniswapV3Adapter } from './adapters/uniswap-v3.adapter';
     SlippageProtectionService,
     UniswapV2Adapter,
     UniswapV3Adapter,
+    SushiSwapV2Adapter,
   ],
   exports: [
     WalletManagerService,
@@ -40,6 +43,7 @@ import { UniswapV3Adapter } from './adapters/uniswap-v3.adapter';
     SlippageProtectionService,
     UniswapV2Adapter,
     UniswapV3Adapter,
+    SushiSwapV2Adapter,
   ],
 })
 export class ExecutionModule {}

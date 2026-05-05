@@ -6,8 +6,8 @@
 
 # Arbibot 2 — план разработки DEX ↔ DEX (EVM, EOA, sequential) — 🟡 АКТИВНЫЙ
 
-> **Прогресс:** 17/35 шагов → `done`. Следующий шаг: `DEX-1-1-ADAPTER-SUSHI`.
-> **Обновлено:** 2026-05-05 (session 4)
+> **Прогресс:** 17/35 шагов → `done` + `DEX-1-1-ADAPTER-SUSHI` → `implemented`. Следующий шаг: `/review-step` для SUSHI.
+> **Обновлено:** 2026-05-05 (session 5)
 
 Документ дополняет канон [`DEVELOPMENT_PLAN.md`](./DEVELOPMENT_PLAN.md) и **не** меняет нумерацию фаз §50 основного плана. Опирается на:
 
@@ -954,21 +954,43 @@ graph TD
   - **Explicit check:** Success swap на SushiSwap testnet
 - **changed_areas:**
   - `apps/execution-orchestrator/src/execution/adapters/`
-    - `sushiswap.adapter.ts`
-    - `sushiswap.adapter.spec.ts`
+    - `sushiswap-v2.adapter.ts`
+    - `sushiswap-v2.adapter.spec.ts`
+  - `apps/execution-orchestrator/src/execution/adapters/`
+    - `uniswap-v2.adapter.ts` (export `extractSwapParams`)
+  - `apps/execution-orchestrator/src/execution/`
+    - `execution.module.ts` (DI: SushiSwapV2Adapter)
+    - `venue-factory.service.ts` (venueKey `sushiswap`)
+    - `venue-factory.service.spec.ts` (SushiSwap tests)
+  - `apps/execution-orchestrator/src/legs/`
+    - `legs.module.ts` (DI: SushiSwapV2Adapter)
 - **outputs:**
-  - `SushiSwapAdapter` — реализация `VenueAdapter` для SushiSwap
-  - Shared utils с `UniswapV2Adapter`
-  - Метрика `arb_dex_sushiswap_swap_total` (counter)
+  - `SushiSwapV2Adapter` — реализация `VenueAdapter` для SushiSwap (V2-стиль)
+  - Shared utils с `UniswapV2Adapter`: `extractSwapParams`, `applySlippage`, `getSlippageBps`, `ensureApproval`
+  - Метрики: `arb_dex_sushiswap_v2_swap_total`, `arb_dex_sushiswap_v2_swap_latency_seconds`
+  - Router addresses: Arbitrum SushiSwap `0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506`, BNB PancakeSwap `0x10ED43C718714eb63d5aA57B78B54704E256024E`
+  - Base chain → `VenueSubmitClientError` (no SushiSwap deployment)
 - **test_commands:**
-  - `npm run test sushiswap.adapter.spec.ts`
+  - `npm run test sushiswap-v2.adapter.spec.ts`
 - **edge_cases:**
   - Router address differs from Uniswap
+  - Base chain — no SushiSwap deployment
   - Different ABI (если есть)
 - **rollback_procedure:** Удалить адаптер из DI
 - **ci_integration:** Unit tests в CI (fork mode)
 - **review_required:** `backend`
-- **status:** `planned`
+- **review_notes:**
+  - ✅ `SushiSwapV2Adapter` реализован в `apps/execution-orchestrator/src/execution/adapters/`
+  - ✅ `submitLeg(plan, leg)` → `{ externalOrderId: txHash }` — полная реализация VenueAdapter
+  - ✅ `swapExactTokensForTokens` calldata construction через ethers.js
+  - ✅ Shared utils с UniV2: `extractSwapParams` экспортирован из `uniswap-v2.adapter.ts`
+  - ✅ Router addresses: Arbitrum SushiSwap, BNB PancakeSwap
+  - ✅ Base chain → `VenueSubmitClientError` (no SushiSwap deployment)
+  - ✅ DI: `VenueFactoryService` обновлён (venueKey `sushiswap`)
+  - ✅ Unit tests: 19/19 passed
+  - ✅ Build: 21/21 ✅, Lint: 0 errors
+  - ✅ Prometheus metrics: `arb_dex_sushiswap_v2_swap_total`, `arb_dex_sushiswap_v2_swap_latency_seconds`
+- **status:** `implemented`
 
 #### `DEX-1-1-VENUE-BIND` — Связка с `VenueAdapter` / расширение DI
 
@@ -1771,3 +1793,4 @@ graph TD
 - **v1.7** — 2026-05-05: `DEX-1-1-ADAPTER-UNI2` → `done`; `DEX-1-1-ADAPTER-UNI3` → `implemented` (UniswapV3Adapter: exactInputSingle, DexSwapParamsV3, shared slippage utils, Prometheus metrics; 21 unit tests; ExecutionModule DI). **Итого 15 done + 1 implemented = 16/35.**
 - **v1.8** — 2026-05-05: `DEX-1-1-ADAPTER-UNI3` → `done` (review passed: build 0 errors, 21/21 tests, commit `a48c644`). **Итого 16/35 done. Следующий: DEX-1-1-VENUE-BIND.**
 - **v1.9** — 2026-05-05: `DEX-1-1-VENUE-BIND` → `done` ✅ (VenueFactoryService: extractVenueKey, resolveAdapter, submitLeg; feature flag DEX_VENUE_ENABLED; LegsModule + ExecutionModule DI; 21/21 unit tests; build 21/21). **Итого 17/35 done. Следующий: `DEX-1-1-ADAPTER-SUSHI`.**
+- **v1.10** — 2026-05-05: `DEX-1-1-ADAPTER-SUSHI` → `implemented` (SushiSwapV2Adapter: swapExactTokensForTokens, shared utils с UniV2, Arbitrum SushiSwap + BNB PancakeSwap, Base → VenueSubmitClientError; 19/19 tests; build 21/21). **Итого 17 done + 1 implemented = 18/35. Следующий: `/review-step` для SUSHI.**

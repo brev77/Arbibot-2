@@ -1,6 +1,28 @@
 # Session Summary — Arbibot 2
 
-**Обновлено:** 2026-05-05 (session 4)
+**Обновлено:** 2026-05-05 (session 5)
+
+---
+
+## Session 5 (2026-05-05) — SUSHI adapter → implemented + cleanup
+
+### Ключевые решения
+1. **DEX-1-1-ADAPTER-SUSHI → `implemented`** — SushiSwapV2Adapter, 19/19 тестов
+2. Shared utils с UniV2: `extractSwapParams` экспортирован из `uniswap-v2.adapter.ts`
+3. Router addresses: Arbitrum `0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506`, BNB PancakeSwap `0x10ED43C718714eb63d5aA57B78B54704E256024E`
+4. Base chain → `VenueSubmitClientError` (no SushiSwap deployment)
+5. `docs/progress.md` очищен от устаревшей информации (rewrite в session 4, сейчас append-only)
+
+### Изменённые файлы
+- **Новые:** `sushiswap-v2.adapter.ts`, `sushiswap-v2.adapter.spec.ts`
+- **Изменённые:** `uniswap-v2.adapter.ts`, `execution.module.ts`, `venue-factory.service.ts`, `venue-factory.service.spec.ts`, `legs.module.ts`, `AGENTS.md`, `docs/progress.md`
+
+### Результаты проверки
+- Build: 21/21 ✅ | Tests: 19/19 ✅ | Lint: 0 errors
+
+### Следующий шаг
+- `/review-step` для DEX-1-1-ADAPTER-SUSHI → `done`
+- Затем `DEX-1-2-FILL-TRACKING`
 
 ---
 

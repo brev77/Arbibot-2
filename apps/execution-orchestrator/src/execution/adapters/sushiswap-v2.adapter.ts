@@ -5,7 +5,7 @@ import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
 import {
   Address,
   ChainId,
-  UniswapV2RouterABI,
+  SushiSwapRouterABI,
   getArbitrumAddresses,
   getBaseAddresses,
   getBnbAddresses,
@@ -22,45 +22,21 @@ import { RpcProviderManager } from '../rpc/rpc-provider-manager.service';
 import { WalletManagerService, type SelectedWallet } from '../wallet-manager.service';
 import { GasEstimatorService } from '../gas/gas-estimator.service';
 import { TokenApproveService } from '../token/token-approve.service';
+import {
+  applySlippage,
+  getSlippageBps,
+  DexSwapParams,
+  extractSwapParams,
+} from './uniswap-v2.adapter';
 
 // ───────────────────────────────────────────────────────────────────────
 // Types
 // ───────────────────────────────────────────────────────────────────────
 
 /**
- * DEX swap parameters extracted from plan/leg metadata.
- *
- * Stored in `plan.playbookConfig.dexSwaps[legIndex]` or provided directly
- * for programmatic use. The adapter reads from this structure and does NOT
- * invent default values for missing fields.
+ * Result of a successful SushiSwap V2 swap submission.
  */
-export interface DexSwapParams {
-  /** Target chain ID */
-  readonly chainId: ChainId;
-  /** Token address to sell */
-  readonly tokenIn: Address;
-  /** Token address to buy */
-  readonly tokenOut: Address;
-  /** Exact input amount in smallest token units (bigint string) */
-  readonly amountIn: string;
-  /**
-   * Swap path. Defaults to [tokenIn, tokenOut] when omitted.
-   * Use longer paths for multi-hop (e.g. tokenIn → WETH → tokenOut).
-   */
-  readonly path?: readonly Address[];
-  /** Slippage tolerance in basis points (overrides env default) */
-  readonly slippageBps?: number;
-  /** Recipient address (defaults to selected wallet) */
-  readonly recipient?: Address;
-  /** Deadline in seconds from now (default: 600 = 10 min) */
-  readonly deadlineSeconds?: number;
-}
-
-/**
- * Result of a successful Uniswap V2 swap submission.
- * Extends VenueLegSubmitResult with on-chain details.
- */
-export interface UniswapV2SwapResult extends VenueLegSubmitResult {
+export interface SushiSwapV2SwapResult extends VenueLegSubmitResult {
   readonly txHash: string;
   readonly chainId: ChainId;
   readonly amountIn: string;
@@ -75,21 +51,20 @@ export interface UniswapV2SwapResult extends VenueLegSubmitResult {
 /** Default deadline in seconds from now (10 minutes). */
 const DEFAULT_DEADLINE_SECONDS = 600;
 
-/** Default slippage tolerance: 50 bps (0.5%). Overridden by DEX_DEFAULT_SLIPPAGE_BPS env. */
-const DEFAULT_SLIPPAGE_BPS = 50;
-
 /**
- * Resolve router address for a given chainId.
+ * Resolve SushiSwap router address for a given chainId.
+ *
  * Supports Arbitrum, Base, BNB Chain (mainnet + testnet).
+ * Throws if no SushiSwap deployment exists for the chain.
  */
-function resolveRouterAddress(chainId: ChainId): Address {
+function resolveSushiRouterAddress(chainId: ChainId): Address {
   // Arbitrum
   if (
     chainId === (42161 as ChainId) ||
     chainId === (421611 as ChainId) ||
     chainId === (421614 as ChainId)
   ) {
-    return getArbitrumAddresses(chainId).uniswapV2Router;
+    return getArbitrumAddresses(chainId).sushiSwapRouter;
   }
   // Base
   if (
@@ -97,100 +72,30 @@ function resolveRouterAddress(chainId: ChainId): Address {
     chainId === (84531 as ChainId) ||
     chainId === (84532 as ChainId)
   ) {
-    return getBaseAddresses(chainId).uniswapV2Router;
+    const addr = getBaseAddresses(chainId).sushiSwapRouter;
+    if (addr === '0x0000000000000000000000000000000000000000') {
+      throw new VenueSubmitClientError(
+        `SushiSwapAdapter: no SushiSwap deployment on Base chain ${chainId}`,
+        { category: 'validation' },
+      );
+    }
+    return addr;
   }
-  // BNB Chain — PancakeSwap V2 compatible (same ABI as UniswapV2Router)
+  // BNB Chain
   if (chainId === (56 as ChainId) || chainId === (97 as ChainId)) {
-    return getBnbAddresses(chainId).pancakeV2Router;
+    const addr = getBnbAddresses(chainId).sushiSwapRouter;
+    if (addr === '0x0000000000000000000000000000000000000000') {
+      throw new VenueSubmitClientError(
+        `SushiSwapAdapter: no SushiSwap deployment on BNB chain ${chainId}`,
+        { category: 'validation' },
+      );
+    }
+    return addr;
   }
   throw new VenueSubmitClientError(
-    `UniswapV2Adapter: unsupported chainId ${chainId}`,
+    `SushiSwapAdapter: unsupported chainId ${chainId}`,
     { category: 'validation' },
   );
-}
-
-/**
- * Extract DexSwapParams from plan playbookConfig.
- *
- * Layout: `plan.playbookConfig.dexSwaps[leg.legIndex]`
- */
-export function extractSwapParams(plan: ExecutionPlanEntity, leg: ExecutionLegEntity): DexSwapParams {
-  const config = plan.playbookConfig;
-  if (!config || typeof config !== 'object') {
-    throw new VenueSubmitClientError(
-      `UniswapV2Adapter: plan ${plan.id} missing playbookConfig for DEX swap`,
-      { category: 'validation' },
-    );
-  }
-
-  const dexSwaps = config.dexSwaps;
-  if (!Array.isArray(dexSwaps)) {
-    throw new VenueSubmitClientError(
-      `UniswapV2Adapter: plan ${plan.id} playbookConfig.dexSwaps is not an array`,
-      { category: 'validation' },
-    );
-  }
-
-  const params = dexSwaps[leg.legIndex] as Record<string, unknown> | undefined;
-  if (!params || typeof params !== 'object') {
-    throw new VenueSubmitClientError(
-      `UniswapV2Adapter: no swap params at dexSwaps[${leg.legIndex}] for plan ${plan.id}`,
-      { category: 'validation' },
-    );
-  }
-
-  // Validate required fields
-  const chainId = params.chainId;
-  const tokenIn = params.tokenIn;
-  const tokenOut = params.tokenOut;
-  const amountIn = params.amountIn;
-
-  if (
-    typeof chainId !== 'number' ||
-    typeof tokenIn !== 'string' ||
-    typeof tokenOut !== 'string' ||
-    typeof amountIn !== 'string'
-  ) {
-    throw new VenueSubmitClientError(
-      `UniswapV2Adapter: invalid swap params at dexSwaps[${leg.legIndex}] — ` +
-      `required: chainId (number), tokenIn (string), tokenOut (string), amountIn (string)`,
-      { category: 'validation' },
-    );
-  }
-
-  return {
-    chainId: chainId as ChainId,
-    tokenIn: tokenIn as Address,
-    tokenOut: tokenOut as Address,
-    amountIn,
-    path: Array.isArray(params.path) ? (params.path as readonly Address[]) : undefined,
-    slippageBps: typeof params.slippageBps === 'number' ? params.slippageBps : undefined,
-    recipient: typeof params.recipient === 'string' ? (params.recipient as Address) : undefined,
-    deadlineSeconds: typeof params.deadlineSeconds === 'number' ? params.deadlineSeconds : undefined,
-  };
-}
-
-/**
- * Apply slippage tolerance to expected output amount.
- *
- * Formula: `amountOutMin = expectedOut * (10000 - slippageBps) / 10000`
- * All arithmetic in BigInt to avoid precision loss.
- */
-export function applySlippage(expectedOut: string, slippageBps: number): string {
-  const expected = BigInt(expectedOut);
-  const result = (expected * BigInt(10000 - slippageBps)) / 10000n;
-  return result.toString();
-}
-
-/**
- * Get slippage tolerance from env or default.
- */
-export function getSlippageBps(override?: number): number {
-  if (override !== undefined) {
-    return override;
-  }
-  const envValue = process.env.DEX_DEFAULT_SLIPPAGE_BPS;
-  return envValue ? Number(envValue) : DEFAULT_SLIPPAGE_BPS;
 }
 
 // ───────────────────────────────────────────────────────────────────────
@@ -198,24 +103,21 @@ export function getSlippageBps(override?: number): number {
 // ───────────────────────────────────────────────────────────────────────
 
 /**
- * Uniswap V2-compatible DEX venue adapter.
+ * SushiSwap V2-compatible DEX venue adapter.
  *
- * Implements `VenueAdapter.submitLeg()` by:
- * 1. Extracting `DexSwapParams` from `plan.playbookConfig.dexSwaps[legIndex]`
- * 2. Ensuring ERC20 approval for the router
- * 3. Calculating `amountOutMin` via on-chain quote + slippage
- * 4. Estimating gas and checking policy
- * 5. Constructing and sending `swapExactTokensForTokens` on-chain
- * 6. Returning tx hash as `externalOrderId`
+ * SushiSwap is a Uniswap V2 fork — same `swapExactTokensForTokens` interface,
+ * different router addresses per chain. Reuses shared utilities from
+ * `uniswap-v2.adapter` (`applySlippage`, `getSlippageBps`, `DexSwapParams`,
+ * `extractSwapParams`).
  *
- * **Step:** DEX-1-1-ADAPTER-UNI2
+ * **Step:** DEX-1-1-ADAPTER-SUSHI
  */
 @Injectable()
-export class UniswapV2Adapter implements VenueAdapter {
-  private readonly logger = new Logger(UniswapV2Adapter.name);
+export class SushiSwapV2Adapter implements VenueAdapter {
+  private readonly logger = new Logger(SushiSwapV2Adapter.name);
 
   /** Cached interface for encoding swap calldata */
-  private readonly routerInterface = new Interface(UniswapV2RouterABI);
+  private readonly routerInterface = new Interface(SushiSwapRouterABI);
 
   // Metrics
   private swapCounter!: Counter<string>;
@@ -231,13 +133,9 @@ export class UniswapV2Adapter implements VenueAdapter {
   }
 
   /**
-   * Submit a DEX swap leg on-chain via Uniswap V2 `swapExactTokensForTokens`.
+   * Submit a DEX swap leg on-chain via SushiSwap V2 `swapExactTokensForTokens`.
    *
    * Returns `{ externalOrderId: txHash }` on success.
-   * Throws:
-   * - `VenueSubmitClientError` on validation / approval / simulation revert
-   * - `VenueSubmitTransientError` on RPC / network issues (retryable)
-   * - `VenueTerminalSubmitError` when the swap definitively failed on-chain
    */
   async submitLeg(
     plan: ExecutionPlanEntity,
@@ -246,7 +144,7 @@ export class UniswapV2Adapter implements VenueAdapter {
     const timer = this.swapLatency.startTimer({ chain_id: 'unknown' });
 
     try {
-      // 1. Extract swap parameters
+      // 1. Extract swap parameters (shared with UniV2)
       const params = extractSwapParams(plan, leg);
       const chainLabel = String(params.chainId);
 
@@ -255,9 +153,9 @@ export class UniswapV2Adapter implements VenueAdapter {
         `tokenIn=${params.tokenIn} tokenOut=${params.tokenOut} amountIn=${params.amountIn}`,
       );
 
-      // 2. Resolve provider and router address
+      // 2. Resolve provider and SushiSwap router address
       const provider = this.rpcProviderManager.getProvider(params.chainId) as JsonRpcProvider;
-      const routerAddress = resolveRouterAddress(params.chainId);
+      const routerAddress = resolveSushiRouterAddress(params.chainId);
 
       // 3. Select wallet
       const selectedWallet = await this.walletManager.selectWallet(
@@ -299,7 +197,7 @@ export class UniswapV2Adapter implements VenueAdapter {
 
       if (!gasEstimation.withinPolicy) {
         throw new VenueSubmitClientError(
-          `UniswapV2Adapter: gas price exceeds policy for chain ${params.chainId}: ` +
+          `SushiSwapAdapter: gas price exceeds policy for chain ${params.chainId}: ` +
           `${gasEstimation.policyWarning}`,
           { category: 'semantic' },
         );
@@ -324,14 +222,14 @@ export class UniswapV2Adapter implements VenueAdapter {
 
       if (!receipt) {
         throw new VenueSubmitTransientError(
-          `UniswapV2Adapter: tx ${tx.hash} returned null receipt (possible RPC issue)`,
+          `SushiSwapAdapter: tx ${tx.hash} returned null receipt (possible RPC issue)`,
         );
       }
 
       if (receipt.status === 0) {
         this.swapCounter.inc({ chain_id: chainLabel, status: 'reverted' });
         throw new VenueTerminalSubmitError(
-          `UniswapV2Adapter: tx ${tx.hash} reverted on-chain (status=0)`,
+          `SushiSwapAdapter: tx ${tx.hash} reverted on-chain (status=0)`,
           'failed',
         );
       }
@@ -357,11 +255,10 @@ export class UniswapV2Adapter implements VenueAdapter {
         throw error;
       }
 
-      // Wrap unexpected errors as transient (retryable)
       const message = error instanceof Error ? error.message : String(error);
       this.swapCounter.inc({ chain_id: 'unknown', status: 'error' });
       throw new VenueSubmitTransientError(
-        `UniswapV2Adapter: unexpected error during submitLeg: ${message}`,
+        `SushiSwapAdapter: unexpected error during submitLeg: ${message}`,
       );
     } finally {
       timer();
@@ -382,7 +279,6 @@ export class UniswapV2Adapter implements VenueAdapter {
   ): Promise<void> {
     const amountIn = BigInt(params.amountIn);
 
-    // Check current allowance
     const currentAllowance = await this.tokenApprove.getAllowance({
       chainId: params.chainId,
       tokenAddress: params.tokenIn,
@@ -410,7 +306,7 @@ export class UniswapV2Adapter implements VenueAdapter {
 
     if (result.status === 'failed') {
       throw new VenueSubmitClientError(
-        `UniswapV2Adapter: ERC20 approve failed for ${params.tokenIn} → ${routerAddress}: tx=${result.txHash}`,
+        `SushiSwapAdapter: ERC20 approve failed for ${params.tokenIn} → ${routerAddress}: tx=${result.txHash}`,
         { category: 'semantic' },
       );
     }
@@ -420,10 +316,6 @@ export class UniswapV2Adapter implements VenueAdapter {
 
   /**
    * Calculate amountOutMin: on-chain quote via `getAmountsOut` + slippage.
-   *
-   * Steps:
-   * 1. Call router `getAmountsOut(amountIn, path)` for expected output
-   * 2. Apply slippage tolerance: `minOut = expectedOut * (10000 - bps) / 10000`
    */
   async calculateAmountOutMin(
     params: DexSwapParams,
@@ -433,11 +325,10 @@ export class UniswapV2Adapter implements VenueAdapter {
   ): Promise<string> {
     const routerContract = new Contract(
       routerAddress,
-      UniswapV2RouterABI,
+      SushiSwapRouterABI,
       provider,
     ) as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
-    // Get on-chain quote
     const amounts: bigint[] = await routerContract.getAmountsOut(
       params.amountIn,
       swapPath,
@@ -446,7 +337,6 @@ export class UniswapV2Adapter implements VenueAdapter {
     const expectedAmountOut = amounts[amounts.length - 1]!;
     const expectedAmountOutStr = expectedAmountOut.toString();
 
-    // Apply slippage tolerance
     const slippageBps = getSlippageBps(params.slippageBps);
     const amountOutMin = applySlippage(expectedAmountOutStr, slippageBps);
 
@@ -498,15 +388,15 @@ export class UniswapV2Adapter implements VenueAdapter {
     const registry = getArbibotMetricsRegistry();
 
     this.swapCounter = new Counter({
-      name: 'arb_dex_uniswap_v2_swap_total',
-      help: 'Total Uniswap V2 swap operations',
+      name: 'arb_dex_sushiswap_v2_swap_total',
+      help: 'Total SushiSwap V2 swap operations',
       labelNames: ['chain_id', 'status'],
       registers: [registry],
     });
 
     this.swapLatency = new Histogram({
-      name: 'arb_dex_uniswap_v2_swap_latency_seconds',
-      help: 'Uniswap V2 swap latency in seconds',
+      name: 'arb_dex_sushiswap_v2_swap_latency_seconds',
+      help: 'SushiSwap V2 swap latency in seconds',
       labelNames: ['chain_id'],
       buckets: [0.5, 1, 2, 5, 10, 30, 60],
       registers: [registry],

@@ -9,6 +9,7 @@ import { HttpVenueAdapter } from '../venue/http-venue.adapter';
 import { MockVenueAdapter } from '../venue/mock-venue.adapter';
 import { UniswapV2Adapter } from './adapters/uniswap-v2.adapter';
 import { UniswapV3Adapter } from './adapters/uniswap-v3.adapter';
+import { SushiSwapV2Adapter } from './adapters/sushiswap-v2.adapter';
 
 // ───────────────────────────────────────────────────────────────────────
 // Types
@@ -21,7 +22,7 @@ import { UniswapV3Adapter } from './adapters/uniswap-v3.adapter';
  * - Legacy keys: `http`, `mock` — always available
  * - `auto` / unset — legacy fallback (Mock or HTTP based on env)
  */
-export type DexVenueKey = 'uniswap-v2' | 'uniswap-v3';
+export type DexVenueKey = 'uniswap-v2' | 'uniswap-v3' | 'sushiswap';
 export type LegacyVenueKey = 'http' | 'mock';
 export type VenueKey = DexVenueKey | LegacyVenueKey | 'auto';
 
@@ -29,6 +30,7 @@ export type VenueKey = DexVenueKey | LegacyVenueKey | 'auto';
 const DEX_VENUE_KEYS: ReadonlySet<string> = new Set<string>([
   'uniswap-v2',
   'uniswap-v3',
+  'sushiswap',
 ]);
 
 // ───────────────────────────────────────────────────────────────────────
@@ -104,6 +106,7 @@ export class VenueFactoryService implements VenueAdapter {
     private readonly mockAdapter: MockVenueAdapter,
     private readonly uniV2Adapter: UniswapV2Adapter,
     private readonly uniV3Adapter: UniswapV3Adapter,
+    private readonly sushiAdapter: SushiSwapV2Adapter,
   ) {
     this.initializeMetrics();
   }
@@ -184,6 +187,8 @@ export class VenueFactoryService implements VenueAdapter {
         return this.uniV2Adapter;
       case 'uniswap-v3':
         return this.uniV3Adapter;
+      case 'sushiswap':
+        return this.sushiAdapter;
       default:
         throw new VenueSubmitClientError(
           `VenueFactory: DEX venue "${key}" is recognised but has no adapter registered`,

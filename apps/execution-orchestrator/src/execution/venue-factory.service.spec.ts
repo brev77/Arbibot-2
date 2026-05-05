@@ -58,6 +58,7 @@ describe('VenueFactoryService', () => {
   let mockMock: ReturnType<typeof mockAdapter>;
   let mockUniV2: ReturnType<typeof mockAdapter>;
   let mockUniV3: ReturnType<typeof mockAdapter>;
+  let mockSushi: ReturnType<typeof mockAdapter>;
 
   const originalEnv = process.env;
 
@@ -73,11 +74,13 @@ describe('VenueFactoryService', () => {
     mockMock = mockAdapter('MockVenueAdapter');
     mockUniV2 = mockAdapter('UniswapV2Adapter');
     mockUniV3 = mockAdapter('UniswapV3Adapter');
+    mockSushi = mockAdapter('SushiSwapV2Adapter');
 
     service = new VenueFactoryService(
       mockMock,
       mockUniV2 as any, // eslint-disable-line @typescript-eslint/no-explicit-any
       mockUniV3 as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      mockSushi as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     );
   });
 
@@ -249,6 +252,17 @@ describe('VenueFactoryService', () => {
       const leg = legStub(0);
 
       await expect(service.submitLeg(plan, leg)).rejects.toThrow(VenueSubmitClientError);
+    });
+
+    it('delegates to SushiSwapV2Adapter for venueKey="sushiswap"', async () => {
+      process.env.DEX_VENUE_ENABLED = 'true';
+      const plan = planStub({ venueKey: 'sushiswap' });
+      const leg = legStub(0);
+
+      const result = await service.submitLeg(plan, leg);
+
+      expect(result).toEqual({ externalOrderId: 'SushiSwapV2Adapter-order-1' });
+      expect(mockSushi.submitLeg).toHaveBeenCalledWith(plan, leg);
     });
   });
 });
