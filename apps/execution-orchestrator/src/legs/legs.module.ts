@@ -8,10 +8,11 @@ import {
   ExecutionPlanEntity,
 } from '@arbibot/persistence';
 
+import { ExecutionModule } from '../execution/execution.module';
+import { VenueFactoryService } from '../execution/venue-factory.service';
 import { PlansModule } from '../plans/plans.module';
-import { HttpVenueAdapter } from '../venue/http-venue.adapter';
 import { MockVenueAdapter } from '../venue/mock-venue.adapter';
-import { VENUE_ADAPTER, type VenueAdapter } from '../venue/venue-adapter';
+import { VENUE_ADAPTER } from '../venue/venue-adapter';
 
 import { FillOutboundService } from './fill-outbound.service';
 import { LegsService } from './legs.service';
@@ -22,6 +23,7 @@ import { PlanLegActionsController } from './plan-leg-actions.controller';
 @Module({
   imports: [
     AuditClientModule,
+    ExecutionModule,
     PlansModule,
     TypeOrmModule.forFeature([
       ExecutionPlanEntity,
@@ -37,15 +39,9 @@ import { PlanLegActionsController } from './plan-leg-actions.controller';
     MockVenueAdapter,
     {
       provide: VENUE_ADAPTER,
-      useFactory: (mock: MockVenueAdapter): VenueAdapter => {
-        const base = process.env.VENUE_HTTP_BASE_URL?.trim() ?? '';
-        if (base.length > 0) {
-          return new HttpVenueAdapter(base);
-        }
-        return mock;
-      },
-      inject: [MockVenueAdapter],
+      useExisting: VenueFactoryService,
     },
+    VenueFactoryService,
   ],
 })
 export class LegsModule {}

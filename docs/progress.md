@@ -632,3 +632,125 @@
 1. Проверить CI зелёный на GitHub Actions
 2. Пройти `/review-step` для DEX-1-1-ADAPTER-UNI2 → `done`
 3. `DEX-1-1-ADAPTER-UNI3` — Uniswap V3 exactInput
+
+---
+
+### 2026-05-05 (session 2) — DEX-1-1-ADAPTER-UNI3: UniswapV3Adapter → implemented
+**Статус:** implemented (awaiting `/review-step` → `done`)
+
+**Задача:**
+1. Проанализировать состояние проекта, актуализировать AGENTS.md
+2. Реализовать `DEX-1-1-ADAPTER-UNI3` — UniswapV3Adapter для `execution-orchestrator`
+
+**Выполнено:**
+
+#### 1. Анализ состояния проекта
+- Прочитаны `docs/progress.md`, `session_summary.md`, `DEVELOPMENT_PLAN-DEX.md`
+- Выявлена текущая позиция: DEX план 14/35 шагов done, UNI2 → `done`, следующий — UNI3
+- AGENTS.md обновлён (3 расхождения):
+  - `DEX-1-1-ADAPTER-UNI2` → `done`
+  - Добавлен `DEX-1-1-ADAPTER-UNI3` → `implemented`
+  - Обновлён счётчик: 15/35 шагов done
+
+#### 2. UniswapV3Adapter (DEX-1-1-ADAPTER-UNI3)
+- ✅ `UniswapV3Adapter` — реализация `VenueAdapter.submitLeg(plan, leg)` → `{ externalOrderId: txHash }`
+- ✅ `exactInputSingle` calldata через `ethers.js Interface.encodeFunctionData` (function selector `04e45aaf`)
+- ✅ Synchronous `calculateAmountOutMin` (slippage через `applySlippage`)
+- ✅ `fee` default 3000, валидация uint24 range
+- ✅ `sqrtPriceLimitX96` optional parameter
+- ✅ Gas policy enforcement: reject при `withinPolicy: false`
+- ✅ ERC20 approve integration: `ensureApproval()`
+- ✅ Error hierarchy: `VenueSubmitClientError`, `VenueSubmitTransientError`, `VenueTerminalSubmitError`
+- ✅ Prometheus metrics: `arb_dex_uniswap_v3_swap_total`, `arb_dex_uniswap_v3_swap_latency_seconds`
+- ✅ DI: зарегистрирован в `ExecutionModule`
+- ✅ Unit tests: **21/21 passed**
+- ✅ Build: **0 errors**
+
+**Созданные файлы:**
+- `apps/execution-orchestrator/src/execution/adapters/uniswap-v3.adapter.ts`
+- `apps/execution-orchestrator/src/execution/adapters/uniswap-v3.adapter.spec.ts`
+
+**Изменённые файлы:**
+- `apps/execution-orchestrator/src/execution/execution.module.ts` (DI registration)
+- `AGENTS.md` (3 обновления)
+- `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` (UNI3 → implemented, review_notes)
+
+**Принятые решения:**
+1. `exactInputSingle` вместо `exactInput` (multi-hop) — single-pool MVP как в acceptance criteria
+2. Shared utils с V2: `applySlippage`, `getSlippageBps`, `ensureApproval` (DRY)
+3. `fee` parameter из `DexSwapParamsV3` (uint24 pool fee tier, default 3000 = 0.3%)
+4. `sqrtPriceLimitX96` optional — 0 = no limit (standard pattern)
+5. Function selector исправлен на корректный `04e45aaf` (`exactInputSingle(ExactInputSingleParams)`)
+
+**Открытые вопросы:**
+- Нет testnet fork интеграционного теста (требует RPC endpoint)
+- Нет runbook для failed/stuck DEX transactions
+- `/review-step` не пройдён
+
+**Верификация:**
+- Unit tests: 21/21 ✅
+- Build execution-orchestrator: ✅
+- Function selector: исправлен `414bf389` → `04e45aaf`
+
+**Следующие шаги:**
+1. Пройти `/review-step` для DEX-1-1-ADAPTER-UNI3 → `done`
+2. `DEX-1-1-ADAPTER-SUSHI` — SushiSwap (shared utils с UniV2)
+3. `DEX-1-1-VENUE-BIND` — VenueFactory по venue_key
+
+---
+
+### 2026-05-05 (session 3) — DEX-1-1-ADAPTER-UNI3 review + DEX-1-1-VENUE-BIND → implemented
+**Статус:** implemented (awaiting `/review-step` для VENUE-BIND → `done`)
+
+**Задача:**
+1. Пройти `/review-step` для DEX-1-1-ADAPTER-UNI3 → `done`
+2. Реализовать `DEX-1-1-VENUE-BIND` — VenueFactoryService
+
+**Выполнено:**
+
+#### 1. DEX-1-1-ADAPTER-UNI3 → `done` (review passed)
+- ✅ Build monorepo: 21/21 ✅
+- ✅ Unit tests: 21/21 ✅
+- ✅ Commit: `a48c644`
+- ✅ План обновлён: UNI3 → `done`, 16/35
+
+#### 2. VenueFactoryService (DEX-1-1-VENUE-BIND) → `implemented`
+- ✅ `VenueFactoryService` — фабрика адаптеров по venueKey
+  - `extractVenueKey(plan, leg?)` — извлечение из playbookConfig (leg > plan)
+  - `resolveAdapter(venueKey)` — роутинг: mock/http → legacy, uniswap-v2 → V2, uniswap-v3 → V3
+  - `submitLeg(plan, leg)` — convenience: resolve + delegate
+- ✅ Feature flag `DEX_VENUE_ENABLED` для DEX-адаптеров
+- ✅ LegsModule DI: VenueFactoryService + все адаптеры (Mock, HTTP, UniV2, UniV3)
+- ✅ ExecutionModule: экспортирует DEX-адаптеры для LegsModule
+- ✅ Unit tests: **21/21 passed**
+- ✅ Build: **21/21 ✅**
+
+**Созданные файлы:**
+- `apps/execution-orchestrator/src/execution/venue-factory.service.ts`
+- `apps/execution-orchestrator/src/execution/venue-factory.service.spec.ts`
+
+**Изменённые файлы:**
+- `apps/execution-orchestrator/src/legs/legs.module.ts` (DI: VenueFactoryService + адаптеры)
+- `apps/execution-orchestrator/src/execution/execution.module.ts` (exports DEX adapters)
+- `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` (VENUE-BIND → implemented, 16 done + 1 implemented)
+
+**Принятые решения:**
+1. `venueKey` извлекается из `plan.playbookConfig.venueKey` (plan-level) или `playbookConfig.legs[legIndex].venueKey` (leg-level override)
+2. Unknown venueKey → `VenueSubmitClientError`
+3. DEX adapters require `DEX_VENUE_ENABLED=true` env var
+4. MockVenueAdapter и HttpVenueAdapter — legacy fallback (без флага)
+
+**Открытые вопросы:**
+- `/review-step` для VENUE-BIND не пройдён
+- Нет `DEX-1-1-ADAPTER-SUSHI` (SushiSwap — следующий после review)
+- Нет E2E теста с DEX venue routing
+- CI зелёный на GitHub Actions не верифицирован
+
+**Верификация:**
+- Unit tests: 21/21 ✅ (extractVenueKey, resolveAdapter legacy/DEX/unknown, submitLeg)
+- Build monorepo: 21/21 ✅
+
+**Следующие шаги:**
+1. Пройти `/review-step` для DEX-1-1-VENUE-BIND → `done`
+2. `DEX-1-1-ADAPTER-SUSHI` — SushiSwap adapter
+3. `DEX-1-2-FILL-TRACKING` — on-chain receipt → fill events

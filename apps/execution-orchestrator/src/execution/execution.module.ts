@@ -14,7 +14,6 @@ import { TokenApproveService } from './token/token-approve.service';
 import { SlippageProtectionService } from './slippage/slippage-protection.service';
 import { UniswapV2Adapter } from './adapters/uniswap-v2.adapter';
 import { UniswapV3Adapter } from './adapters/uniswap-v3.adapter';
-
 @Module({
   imports: [
     KeyVaultModule,

@@ -6,8 +6,8 @@
 
 # Arbibot 2 — план разработки DEX ↔ DEX (EVM, EOA, sequential) — 🟡 АКТИВНЫЙ
 
-> **Прогресс:** 14/35 шагов → `done`; 1 → `implemented` (DEX-1-1-ADAPTER-UNI2 awaiting review). Следующий шаг: `/review-step` для UNI2, затем `DEX-1-1-ADAPTER-UNI3` или `DEX-1-1-VENUE-BIND`.
-> **Обновлено:** 2026-05-05
+> **Прогресс:** 16/35 шагов → `done`, 1 → `implemented`. Следующий шаг: `/review-step` для VENUE-BIND → `DEX-1-1-ADAPTER-SUSHI`.
+> **Обновлено:** 2026-05-05 (session 4)
 
 Документ дополняет канон [`DEVELOPMENT_PLAN.md`](./DEVELOPMENT_PLAN.md) и **не** меняет нумерацию фаз §50 основного плана. Опирается на:
 
@@ -891,7 +891,7 @@ graph TD
   - ✅ Unit tests: 21/21 passed (validation, pure functions, buildSwapTxRequest, ensureApproval, submitLeg success/gas rejection/reverted/null receipt/unexpected error)
   - ✅ Build + lint: 0 errors
   - ✅ Supported chains: Arbitrum (42161), Base (8453), BNB (56) через `@arbibot/contracts-eth` addresses
-- **status:** `implemented`
+- **status:** `done`
 
 #### `DEX-1-1-ADAPTER-UNI3` — Uniswap V3 (exactIn single pool / минимальный path)
 
@@ -924,8 +924,19 @@ graph TD
   - Multi-hop paths (не поддерживается в v1)
 - **rollback_procedure:** Удалить адаптер из DI
 - **ci_integration:** Unit tests в CI (fork mode)
-- **review_required:** `backend`
-- **status:** `planned`
+- **review_notes:**
+  - ✅ `UniswapV3Adapter` реализован в `apps/execution-orchestrator/src/execution/adapters/`
+  - ✅ `submitLeg(plan, leg)` → `{ externalOrderId: txHash }` — полная реализация VenueAdapter
+  - ✅ `exactInputSingle` calldata construction через ethers.js `Interface.encodeFunctionData`
+  - ✅ DexSwapParamsV3: `fee` (uint24 pool fee tier), `amountOutExpected`, `sqrtPriceLimitX96`
+  - ✅ Shared utils с V2: `applySlippage`, `getSlippageBps`
+  - ✅ ERC20 approve, gas policy, Prometheus metrics, error hierarchy
+  - ✅ Unit tests: 21/21 passed (validation, pure functions, buildSwapTxRequest, ensureApproval, submitLeg success/gas rejection/reverted/null receipt/unexpected error)
+  - ✅ DI: зарегистрирован в `ExecutionModule`
+  - ✅ Build + lint: 0 errors
+  - ✅ Commit: `a48c644` (2026-05-05)
+- **review_passed_date:** 2026-05-05
+- **status:** `done`
 
 #### `DEX-1-1-ADAPTER-SUSHI` — SushiSwap на Arbitrum (маршрут согласован с UNI2 где возможно)
 
@@ -994,8 +1005,18 @@ graph TD
   - `submitLeg` semantic conflict
 - **rollback_procedure:** Откатить DI, feature flag
 - **ci_integration:** E2E test в CI (optional, requires fork)
-- **review_required:** `architecture`
-- **status:** `planned`
+- **review_notes:**
+  - ✅ `VenueFactoryService` реализован в `apps/execution-orchestrator/src/execution/`
+  - ✅ `extractVenueKey(plan, leg?)` — извлечение venueKey из playbookConfig (leg-level > plan-level)
+  - ✅ `resolveAdapter(venueKey)` — роутинг: mock/http → legacy, uniswap-v2 → V2Adapter, uniswap-v3 → V3Adapter
+  - ✅ `submitLeg(plan, leg)` — convenience-метод: resolve + delegate
+  - ✅ Feature flag `DEX_VENUE_ENABLED` для DEX-адаптеров
+  - ✅ LegsModule DI: `VenueFactoryService` + все адаптеры (Mock, HTTP, UniV2, UniV3)
+  - ✅ ExecutionModule exports DEX-адаптеры для LegsModule
+  - ✅ Unit tests: 21/21 passed (extractVenueKey, resolveAdapter legacy/DEX/unknown, submitLeg delegation)
+  - ✅ Build monorepo green (21/21)
+  - ⚠️ Пока без `DEX-1-1-ADAPTER-SUSHI` (SushiSwap adapter — следующий шаг после review)
+- **status:** `implemented`
 
 ### DEX-1.2 — Сверка, observability, инциденты
 
@@ -1746,3 +1767,6 @@ graph TD
 - **v1.5** — 2026-05-04: актуализация даты; подтверждено 14/35 done. CI lint fix (turbo.json `^build` dependency). Следующий шаг: `DEX-1-1-ADAPTER-UNI2`.
 - **v1.5.1** — 2026-05-04: CI lint fix для `@arbibot/contracts-eth` — убран `**/*.spec.ts` из `tsconfig.json` exclude (branch `fix/ci-contracts-eth-lint`, commit `dfb0cdb`).
 - **v1.6** — 2026-05-04: `DEX-1-1-ADAPTER-UNI2` → `implemented` (UniswapV2Adapter: swapExactTokensForTokens, ERC20 approve, on-chain quote + slippage, gas policy, Prometheus metrics; 21/21 unit tests passed; build + lint 0 errors). **Итого 14 done + 1 implemented = 15/35.**
+- **v1.7** — 2026-05-05: `DEX-1-1-ADAPTER-UNI2` → `done`; `DEX-1-1-ADAPTER-UNI3` → `implemented` (UniswapV3Adapter: exactInputSingle, DexSwapParamsV3, shared slippage utils, Prometheus metrics; 21 unit tests; ExecutionModule DI). **Итого 15 done + 1 implemented = 16/35.**
+- **v1.8** — 2026-05-05: `DEX-1-1-ADAPTER-UNI3` → `done` (review passed: build 0 errors, 21/21 tests, commit `a48c644`). **Итого 16/35 done. Следующий: DEX-1-1-VENUE-BIND.**
+- **v1.9** — 2026-05-05: `DEX-1-1-VENUE-BIND` → `implemented` (VenueFactoryService: extractVenueKey, resolveAdapter, submitLeg; feature flag DEX_VENUE_ENABLED; LegsModule + ExecutionModule DI; 21/21 unit tests; build 21/21). **Итого 16 done + 1 implemented = 17/35. Следующий: `/review-step` VENUE-BIND → `DEX-1-1-ADAPTER-SUSHI`.**
