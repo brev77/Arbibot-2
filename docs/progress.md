@@ -754,3 +754,49 @@
 1. Пройти `/review-step` для DEX-1-1-VENUE-BIND → `done`
 2. `DEX-1-1-ADAPTER-SUSHI` — SushiSwap adapter
 3. `DEX-1-2-FILL-TRACKING` — on-chain receipt → fill events
+
+---
+
+### 2026-05-05 (session 4) — VENUE-BIND review → done + AGENTS.md актуализация → done
+**Статус:** done
+
+**Задача:**
+1. Новая сессия: анализ состояния проекта, актуализация документов
+2. Пройти `/review-step` для DEX-1-1-VENUE-BIND → `done`
+3. Обновить AGENTS.md, DEVELOPMENT_PLAN-DEX.md, progress.md, session_summary.md
+
+**Выполнено:**
+
+#### 1. Анализ состояния проекта
+- Прочитаны `docs/progress.md`, `session_summary.md`, `DEVELOPMENT_PLAN-DEX.md`
+- Подтверждено: 16/35 done + 1 implemented (VENUE-BIND)
+- AGENTS.md обновлён (3 расхождения):
+  - Добавлен `DEX-1-1-ADAPTER-UNI3` → `done`
+  - Добавлен `DEX-1-1-VENUE-BIND` → `done`
+  - Обновлён счётчик: 17/35 done, следующий — ADAPTER-SUSHI
+
+#### 2. DEX-1-1-VENUE-BIND → `done` (review passed)
+- ✅ Build monorepo: 21/21 ✅
+- ✅ Unit tests: 21/21 ✅ (extractVenueKey, resolveAdapter, submitLeg delegation)
+- ✅ План обновлён: VENUE-BIND → `done`, 17/35
+- ✅ Версия v1.9 добавлена в историю
+
+#### 3. Pre-existing issues задокументированы
+- `plans.service.spec.ts` — TS type error (playbookConfig optional)
+- `wallet-manager.service.spec.ts` — TS type error (ChainId)
+- `rpc-provider-manager.service.spec.ts` — Prometheus metric re-registration + cleanup
+
+**Изменённые файлы:**
+- `AGENTS.md` — обновлены DEX статусы (UNI3 done, VENUE-BIND done, 17/35)
+- `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` — VENUE-BIND → `done`, прогресс 17/35, v1.9
+
+**Открытые вопросы:**
+- CI зелёный на GitHub Actions не верифицирован
+- 3 pre-existing test issues в execution-orchestrator
+- `DEX-1-1-ADAPTER-SUSHI` — следующий шаг
+- Недостающие unit-тесты: `PoolDiscoveryService`, `RpcProviderManager`
+
+**Следующие шаги:**
+1. `DEX-1-1-ADAPTER-SUSHI` — SushiSwap V2-style адаптер
+2. После SUSHI → обновить VenueFactoryService (добавить `sushiswap` venue key)
+3. DEX-1.2: `DEX-1-2-RECON-ONCHAIN`, `DEX-1-2-FILL-TRACKING`, `DEX-1-2-OUTBOX-EVENTS`

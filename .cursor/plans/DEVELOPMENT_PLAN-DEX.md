@@ -6,7 +6,7 @@
 
 # Arbibot 2 — план разработки DEX ↔ DEX (EVM, EOA, sequential) — 🟡 АКТИВНЫЙ
 
-> **Прогресс:** 16/35 шагов → `done`, 1 → `implemented`. Следующий шаг: `/review-step` для VENUE-BIND → `DEX-1-1-ADAPTER-SUSHI`.
+> **Прогресс:** 17/35 шагов → `done`. Следующий шаг: `DEX-1-1-ADAPTER-SUSHI`.
 > **Обновлено:** 2026-05-05 (session 4)
 
 Документ дополняет канон [`DEVELOPMENT_PLAN.md`](./DEVELOPMENT_PLAN.md) и **не** меняет нумерацию фаз §50 основного плана. Опирается на:
@@ -1016,7 +1016,8 @@ graph TD
   - ✅ Unit tests: 21/21 passed (extractVenueKey, resolveAdapter legacy/DEX/unknown, submitLeg delegation)
   - ✅ Build monorepo green (21/21)
   - ⚠️ Пока без `DEX-1-1-ADAPTER-SUSHI` (SushiSwap adapter — следующий шаг после review)
-- **status:** `implemented`
+- **review_passed_date:** 2026-05-05
+- **status:** `done`
 
 ### DEX-1.2 — Сверка, observability, инциденты
 
@@ -1769,4 +1770,4 @@ graph TD
 - **v1.6** — 2026-05-04: `DEX-1-1-ADAPTER-UNI2` → `implemented` (UniswapV2Adapter: swapExactTokensForTokens, ERC20 approve, on-chain quote + slippage, gas policy, Prometheus metrics; 21/21 unit tests passed; build + lint 0 errors). **Итого 14 done + 1 implemented = 15/35.**
 - **v1.7** — 2026-05-05: `DEX-1-1-ADAPTER-UNI2` → `done`; `DEX-1-1-ADAPTER-UNI3` → `implemented` (UniswapV3Adapter: exactInputSingle, DexSwapParamsV3, shared slippage utils, Prometheus metrics; 21 unit tests; ExecutionModule DI). **Итого 15 done + 1 implemented = 16/35.**
 - **v1.8** — 2026-05-05: `DEX-1-1-ADAPTER-UNI3` → `done` (review passed: build 0 errors, 21/21 tests, commit `a48c644`). **Итого 16/35 done. Следующий: DEX-1-1-VENUE-BIND.**
-- **v1.9** — 2026-05-05: `DEX-1-1-VENUE-BIND` → `implemented` (VenueFactoryService: extractVenueKey, resolveAdapter, submitLeg; feature flag DEX_VENUE_ENABLED; LegsModule + ExecutionModule DI; 21/21 unit tests; build 21/21). **Итого 16 done + 1 implemented = 17/35. Следующий: `/review-step` VENUE-BIND → `DEX-1-1-ADAPTER-SUSHI`.**
+- **v1.9** — 2026-05-05: `DEX-1-1-VENUE-BIND` → `done` ✅ (VenueFactoryService: extractVenueKey, resolveAdapter, submitLeg; feature flag DEX_VENUE_ENABLED; LegsModule + ExecutionModule DI; 21/21 unit tests; build 21/21). **Итого 17/35 done. Следующий: `DEX-1-1-ADAPTER-SUSHI`.**
