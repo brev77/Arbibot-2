@@ -6,9 +6,9 @@
 
 ## Текущий статус
 
-**DEX план:** 19/35 шагов → `done` (FILL-TRACKING + UNI2, UNI3, SUSHI, VENUE-BIND + все DEX-1.0)
-**Текущий шаг:** `DEX-1-2-RECON-ONCHAIN` → `planned`
-**Следующие:** `DEX-1-2-RECON-ONCHAIN`, `DEX-1-2-MEMPOOL`, `DEX-1-2-OUTBOX-EVENTS`
+**DEX план:** 19/35 done + 1 implemented (RECON-ONCHAIN). FILL-TRACKING + UNI2, UNI3, SUSHI, VENUE-BIND + все DEX-1.0
+**Текущий шаг:** `DEX-1-2-RECON-ONCHAIN` → `implemented` (awaiting review)
+**Следующие:** review RECON-ONCHAIN → `DEX-1-2-MEMPOOL`, `DEX-1-2-OUTBOX-EVENTS`
 
 **Build:** 21/21 ✅ | **Lint:** 28/28 ✅ | **Fill tracker tests:** 9/9 ✅
 
@@ -17,7 +17,7 @@
 ## Незавершённые задачи
 
 ### Высокий приоритет
-1. **DEX-1-2-RECON-ONCHAIN** → `planned` — следующий шаг
+1. **DEX-1-2-RECON-ONCHAIN** → `implemented` — awaiting review
 2. **DEX-1-2:** `MEMPOOL`, `OUTBOX-EVENTS`, `HEALTH`, `OBS`
 3. **CI зелёный на GitHub Actions** — не верифицирован
 
@@ -195,6 +195,33 @@
 
 **Total migrations:** 001–034
 **CI jobs:** build, lint, test, e2e-phase2, e2e-phase2-watchlist-route-scoring, e2e-phase3-paper-promotion, e2e-phase3-paper-discovery, e2e-phase4-tier-routing, bus-smoke
+
+---
+
+## 2026-05-06 (session 10) — DEX-1-2-RECON-ONCHAIN → implemented
+
+**Дата:** 2026-05-06 20:25
+**Задача:** DEX-1-2-RECON-ONCHAIN — DEX reconciliation detectors
+**Статус:** `implemented` (awaiting review)
+**След. шаги:** `/review-step` → `DEX-1-2-MEMPOOL`
+
+### Принятые решения
+1. Три DEX-детектора в одном файле `dex-reconciliation.detectors.ts`
+2. Пороги конфигурируемые: `stalePendingHours`, `balanceDriftHours`
+3. Интеграция через `runDexDetectors()` в `MismatchesService`
+
+### Созданные файлы
+- `apps/reconciliation-service/src/mismatches/dex-reconciliation.detectors.ts`
+- `apps/reconciliation-service/src/mismatches/dex-reconciliation.detectors.spec.ts`
+
+### Изменённые файлы
+- `apps/reconciliation-service/src/mismatches/mismatches.service.ts`
+- `apps/reconciliation-service/src/mismatches/mismatches.service.spec.ts`
+- `.cursor/plans/DEVELOPMENT_PLAN-DEX.md`
+
+### Результаты проверки
+- Unit tests: 7/7 ✅ (4 detector + 3 integration)
+- Build reconciliation-service: ✅
 
 ---
 

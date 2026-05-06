@@ -1,6 +1,41 @@
 # Session Summary — Arbibot 2
 
-**Обновлено:** 2026-05-06 (session 9)
+**Обновлено:** 2026-05-06 (session 10)
+
+---
+
+## Session 10 (2026-05-06) — DEX-1-2-RECON-ONCHAIN → implemented
+
+### Ключевые решения
+1. **DEX-1-2-RECON-ONCHAIN → `implemented`** — три DEX-детектора в reconciliation-service
+2. `dex-reconciliation.detectors.ts`: `detectStalePendingTransactions`, `detectBalanceDrift`, `detectMissingOnChainRecords`
+3. Интеграция через `runDexDetectors()` в `MismatchesService` (чистое разделение CEX/DEX)
+4. Configurable thresholds: `stalePendingHours` (default 24), `balanceDriftHours` (default 1)
+5. DEX план: **19/35 done + 1 implemented**
+
+### Созданные файлы
+- `apps/reconciliation-service/src/mismatches/dex-reconciliation.detectors.ts`
+- `apps/reconciliation-service/src/mismatches/dex-reconciliation.detectors.spec.ts`
+
+### Изменённые файлы
+- `apps/reconciliation-service/src/mismatches/mismatches.service.ts` (+runDexDetectors)
+- `apps/reconciliation-service/src/mismatches/mismatches.service.spec.ts` (+3 integration tests)
+- `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` (RECON-ONCHAIN → implemented, v1.12)
+- `docs/progress.md` (session 10 entry)
+- `session_summary.md` (session 10)
+
+### Результаты проверки
+- Unit tests: 7/7 ✅ (4 detector + 3 integration)
+- Build reconciliation-service: ✅
+
+### Открытые вопросы
+- CI зелёный на GitHub Actions не верифицирован
+- 3 pre-existing test issues в execution-orchestrator
+- Недостающие unit-тесты: PoolDiscoveryService, RpcProviderManager
+
+### Следующий шаг
+- `/review-step` для DEX-1-2-RECON-ONCHAIN → `done`
+- → `DEX-1-2-MEMPOOL`
 
 ---
 
@@ -148,9 +183,9 @@
 
 ## Текущий статус DEX плана
 
-**Прогресс:** 19/35 done (54.3%)
+**Прогресс:** 19/35 done + 1 implemented (57.1%)
 **Текущий этап:** DEX-1.2 — сверка, observability, инциденты
-**Следующий шаг:** DEX-1-2-RECON-ONCHAIN
+**Следующий шаг:** `/review-step` RECON-ONCHAIN → `DEX-1-2-MEMPOOL`
 
 ### Done (19):
 DEX-1-0-ADR-STRUCTURE, DEX-1-0-TECH-CHOICE, DEX-1-0-ABIS, DEX-1-0-RPC,
@@ -160,8 +195,11 @@ DEX-1-1-APPROVE-PATTERN, DEX-1-1-SLIPPAGE, DEX-1-1-ADAPTER-UNI2,
 DEX-1-1-ADAPTER-UNI3, DEX-1-1-ADAPTER-SUSHI, DEX-1-1-VENUE-BIND,
 DEX-1-2-FILL-TRACKING
 
+### Implemented (1):
+DEX-1-2-RECON-ONCHAIN
+
 ### Следующие:
-1. DEX-1-2-RECON-ONCHAIN (reconciliation DEX detectors)
+1. `/review-step` RECON-ONCHAIN → `done`
 2. DEX-1-2-MEMPOOL (MEV detection)
 3. DEX-1-2-OUTBOX-EVENTS
 4. DEX-1-2-HEALTH

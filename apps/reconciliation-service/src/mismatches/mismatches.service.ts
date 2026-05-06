@@ -8,6 +8,7 @@ import { DataSource, Repository } from 'typeorm';
 
 import { ReconciliationMismatchEntity } from '@arbibot/persistence';
 
+import { runDexDetectors } from './dex-reconciliation.detectors';
 import type { UpdateMismatchStatusDto } from './dto/update-mismatch-status.dto';
 
 /** Completed execution plan with no portfolio row (settlement gap / detector seed). */
@@ -108,7 +109,13 @@ export class MismatchesService {
     );
     byKind[MISMATCH_KIND_EXECUTING_LEGS_FILLED_PLAN_NOT_COMPLETED] = b;
 
-    return { inserted: a + b, byKind };
+    // DEX-specific detectors (DEX-1-2-RECON-ONCHAIN)
+    const dexResult = await runDexDetectors(this.dataSource);
+    for (const [kind, count] of Object.entries(dexResult.byKind)) {
+      byKind[kind] = count;
+    }
+
+    return { inserted: a + b + dexResult.inserted, byKind };
   }
 
   private async insertDetectorRows(

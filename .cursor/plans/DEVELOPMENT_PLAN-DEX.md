@@ -6,8 +6,8 @@
 
 # Arbibot 2 — план разработки DEX ↔ DEX (EVM, EOA, sequential) — 🟡 АКТИВНЫЙ
 
-> **Прогресс:** 19/35 шагов → `done`. Следующий шаг: `DEX-1-2-RECON-ONCHAIN`.
-> **Обновлено:** 2026-05-06 (session 8)
+> **Прогресс:** 19/35 шагов → `done` + 1 `implemented`. Следующий шаг: `DEX-1-2-RECON-ONCHAIN` → review.
+> **Обновлено:** 2026-05-06 (session 10)
 
 Документ дополняет канон [`DEVELOPMENT_PLAN.md`](./DEVELOPMENT_PLAN.md) и **не** меняет нумерацию фаз §50 основного плана. Опирается на:
 
@@ -1077,7 +1077,12 @@ graph TD
 - **rollback_procedure:** Удалить детекторы из DI
 - **ci_integration:** Unit tests в CI (mock RPC)
 - **review_required:** `backend`
-- **status:** `planned`
+- **review_notes:**
+  - ✅ Три DEX-детектора в `dex-reconciliation.detectors.ts`: `dex_receipt_leg_mismatch`, `wallet_balance_drift`, `dex_stale_pending_tx`
+  - ✅ Интегрировано в `MismatchesService.runDetectors()` через `runDexDetectors()`
+  - ✅ Configurable thresholds: `stalePendingHours` (default 1), `balanceDriftHours` (default 24)
+  - ✅ Unit tests: 7/7 passed; Build reconciliation-service: success
+- **status:** `implemented`
 
 #### `DEX-1-2-FILL-TRACKING` — Связка on-chain receipt с fill-событиями
 
@@ -1802,4 +1807,5 @@ graph TD
 - **v1.9** — 2026-05-05: `DEX-1-1-VENUE-BIND` → `done` ✅ (VenueFactoryService: extractVenueKey, resolveAdapter, submitLeg; feature flag DEX_VENUE_ENABLED; LegsModule + ExecutionModule DI; 21/21 unit tests; build 21/21). **Итого 17/35 done. Следующий: `DEX-1-1-ADAPTER-SUSHI`.**
 - **v1.10** — 2026-05-05: `DEX-1-1-ADAPTER-SUSHI` → `implemented` (SushiSwapV2Adapter: swapExactTokensForTokens, shared utils с UniV2, Arbitrum SushiSwap + BNB PancakeSwap, Base → VenueSubmitClientError; 19/19 tests; build 21/21). **Итого 17 done + 1 implemented = 18/35. Следующий: `/review-step` для SUSHI.**
 - **v1.11** — 2026-05-06: `DEX-1-2-FILL-TRACKING` → `done` ✅ (DexFillTrackerService: receipt → fill, LegFilledPayloadV2 с optional dex metadata, OnChainTransaction.legId bigint→uuid, migration 034; 9/9 tests; build 21/21). **Итого 19/35 done. Следующий: `DEX-1-2-RECON-ONCHAIN`.**
+- **v1.12** — 2026-05-06: `DEX-1-2-RECON-ONCHAIN` → `implemented` (три DEX-детектора в reconciliation-service: stale pending tx, balance drift, missing on-chain record; 7/7 tests; build ✅). **Итого 19 done + 1 implemented = 20/35. Следующий: `/review-step` → `DEX-1-2-MEMPOOL`.**
 
