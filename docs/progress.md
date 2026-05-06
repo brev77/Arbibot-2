@@ -6,19 +6,19 @@
 
 ## Текущий статус
 
-**DEX план:** 20/35 done. RECON-ONCHAIN reviewed → done.
-**Текущий шаг:** `DEX-1-2-OUTBOX-EVENTS` (next to implement)
-**Следующие:** `DEX-1-2-OUTBOX-EVENTS`, `DEX-1-2-HEALTH`, `DEX-1-2-OBS`
+**DEX план:** 21/35 done. OUTBOX-EVENTS → done.
+**Текущий шаг:** `DEX-1-2-MEMPOOL` (next to implement)
+**Следующие:** `DEX-1-2-MEMPOOL`, `DEX-1-2-HEALTH`, `DEX-1-2-OBS`
 
-**Build:** 21/21 ✅ | **Lint:** 28/28 ✅ | **Fill tracker tests:** 9/9 ✅
+**Build:** 21/21 ✅ | **Lint:** 28/28 ✅ | **Outbox events tests:** 10/10 ✅
 
 ---
 
 ## Незавершённые задачи
 
 ### Высокий приоритет
-1. **DEX-1-2-OUTBOX-EVENTS** → `planned` — следующий к реализации
-2. **DEX-1-2:** `HEALTH`, `OBS`, `MEMPOOL`
+1. **DEX-1-2-MEMPOOL** → `planned` — следующий к реализации
+2. **DEX-1-2:** `HEALTH`, `OBS`
 3. **CI зелёный на GitHub Actions** — не верифицирован
 
 ### Средний приоритет
@@ -135,14 +135,7 @@
 ## Архив (краткое резюме)
 
 ### DEX-1.0 Execution Services (2026-04-30)
-Прежде чем ответить придумай как ты проверишь свой ответ.
-Сессия заканчивается. Сделай следующее:
-1. /compact "Focus: изменённые файлы, принятые решения, открытые вопросы"
-2. Добавь summary в docs/progress.md (формат: дата, задача, статус, след. шаги)
-3. Сохрани session_summary.md с ключевыми решениями этой сессии
-4. Актуализируй информацию plans/DEVELOPMENT_PLAN-DEX.md
-5. Сделай коммит и пуш на ГИТ
-Не удаляй и не перезаписывай предыдущие записи в progress.md — только append.- `RpcProviderManager`, `GasEstimatorService`, `WalletManagerService`, `KeyVaultService` (20 tests)
+- `RpcProviderManager`, `GasEstimatorService`, `WalletManagerService`, `KeyVaultService` (20 tests)
 - `PoolDiscoveryService`, `DexRiskPolicyService`, `TokenApproveService`, `SlippageProtectionService`
 - `ExecutionModule` — DI registration, `RpcHealthController`
 
@@ -288,3 +281,41 @@ Parsing error: packages/contracts-eth/src/index.spec.ts was not found by the pro
 - CI зелёный на GitHub Actions не верифицирован (должен пройти после push)
 - 23 pre-existing `no-explicit-any` warnings в execution-orchestrator (DEX код)
 - 3 unused eslint-disable directives в `wallet-manager.service.spec.ts` (ранее добавленные для unbound-method)
+
+---
+
+## 2026-05-06 (session 12) — DEX-1-2-OUTBOX-EVENTS → done ✅
+
+**Дата:** 2026-05-06 23:20
+**Задача:** DEX-1-2-OUTBOX-EVENTS — Outbox-события для DEX транзакций
+**Статус:** `done` ✅
+**След. шаги:** `DEX-1-2-MEMPOOL`
+
+### Принятые решения
+1. 3 новых event type: `DexTransactionSubmitted`, `DexTransactionConfirmed`, `DexTransactionFailed`
+2. Idempotent writes через COUNT check (не уникальный constraint, а запрос)
+3. `DexOutboxEventsService` — отдельный сервис с `EntityManager` для транзакционных записей
+4. Kafka bridge allowlist обновлён — 3 новых event_type добавлены
+5. Event payload включает: chainId, txHash, from, to, value, data, nonce, gasPrice, gasLimit, receipt data, error
+
+### Созданные файлы
+- `apps/execution-orchestrator/src/execution/dex-outbox-events.service.ts`
+- `apps/execution-orchestrator/src/execution/dex-outbox-events.service.spec.ts`
+
+### Изменённые файлы
+- `packages/contracts/src/events.ts` — DEX event payloads + emit types
+- `apps/execution-orchestrator/src/execution/execution.module.ts` — DI регистрация
+- `packages/outbox-kafka-bridge/src/publish-snapshot-updated.ts` — allowlist + 3 event_type
+- `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` — статус → done, v1.14 changelog
+- `AGENTS.md` — прогресс 21/35
+
+### Результаты проверки
+- Build: 21/21 ✅
+- Lint: 0 errors
+- Unit tests: 10/10 ✅
+- Commit: `5069b99` → pushed to `main`
+
+### Открытые вопросы
+- CI зелёный на GitHub Actions не верифицирован
+- 3 pre-existing test issues в execution-orchestrator
+- Следующий шаг `DEX-1-2-MEMPOOL` — mempool monitoring

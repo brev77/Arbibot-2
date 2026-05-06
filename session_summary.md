@@ -1,31 +1,42 @@
-# Session Summary — 2026-05-06 (session 11)
+# Session Summary — 2026-05-06 (session 12)
 
 ## Фокус
-Review DEX-1-2-RECON-ONCHAIN → done; обновление документации.
+Реализация DEX-1-2-OUTBOX-EVENTS → done; обновление документации конца сессии.
 
 ## Выполненные задачи
 
-### 1. `/review-step` DEX-1-2-RECON-ONCHAIN → **done** ✅
+### 1. DEX-1-2-OUTBOX-EVENTS → **done** ✅
 
 **Принятые решения:**
-- Три DEX-детектора в одном файле `dex-reconciliation.detectors.ts`: `dex_receipt_leg_mismatch`, `wallet_balance_drift`, `dex_stale_pending_tx`
-- Чистое разделение CEX/DEX: DEX detectors вызываются через `runDexDetectors()` отдельно от CEX
-- Idempotent inserts: `INSERT ... ON CONFLICT DO NOTHING` на `(detector_key, entity_id, detected_at::date)`
-- Configurable thresholds через env vars: `stalePendingHours` (default 1), `balanceDriftHours` (default 24)
-- Architecture guard: single-writer (reconciliation-service owns mismatches), no paper/live mixing
+- 3 новых event type: `DexTransactionSubmitted`, `DexTransactionConfirmed`, `DexTransactionFailed`
+- `DexOutboxEventsService` — отдельный сервис с `EntityManager` для транзакционных outbox записей
+- Idempotent writes через COUNT check (SELECT COUNT → INSERT если 0)
+- Event envelope: messageId (UUID), correlationId (planId), causationId (legId), entityType, entityId, version=1, sourceModule=`execution-orchestrator`
+- Kafka bridge allowlist обновлён — 3 новых event_type добавлены
+- Event payload: chainId, txHash, from, to, value, data, nonce, gasPrice, gasLimit, receipt (gasUsed, status, blockNumber, blockHash), error
+
+**Созданные файлы:**
+- `apps/execution-orchestrator/src/execution/dex-outbox-events.service.ts`
+- `apps/execution-orchestrator/src/execution/dex-outbox-events.service.spec.ts` (10/10 tests)
 
 **Изменённые файлы:**
-- `apps/reconciliation-service/src/mismatches/dex-reconciliation.detectors.ts` (новый)
-- `apps/reconciliation-service/src/mismatches/dex-reconciliation.detectors.spec.ts` (новый)
-- `apps/reconciliation-service/src/mismatches/mismatches.service.ts` (интеграция)
-- `apps/reconciliation-service/src/mismatches/mismatches.service.spec.ts` (тесты)
-- `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` (RECON-ONCHAIN → done)
-- `docs/progress.md` (статус)
+- `packages/contracts/src/events.ts` — DEX event payloads + emit types
+- `apps/execution-orchestrator/src/execution/execution.module.ts` — DI регистрация
+- `packages/outbox-kafka-bridge/src/publish-snapshot-updated.ts` — allowlist + 3 event_type
+- `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` — статус → done, v1.14 changelog
+- `AGENTS.md` — прогресс 21/35
 
 **Результаты:**
-- Unit tests: 7/7 ✅
-- Build reconciliation-service: ✅
-- DEX план: **20/35 done**
+- Build: 21/21 ✅
+- Lint: 0 errors
+- Unit tests: 10/10 ✅
+- Commit: `5069b99` → pushed to `main`
+- DEX план: **21/35 done**
+
+### 2. Документация конца сессии
+- `docs/progress.md` — добавлена session 12, исправлен мусорный текст в архиве
+- `session_summary.md` — обновлён
+- `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` — уже обновлён ранее (v1.14)
 
 ## Открытые вопросы
 
@@ -38,12 +49,11 @@ Review DEX-1-2-RECON-ONCHAIN → done; обновление документац
 
 ## Следующие шаги
 
-1. **DEX-1-2-OUTBOX-EVENTS** — Outbox-события для DEX транзакций (TransactionSubmitted/Confirmed/Failed)
+1. **DEX-1-2-MEMPOOL** — mempool monitoring (следующий шаг по DEX плану)
 2. **DEX-1-2-HEALTH** — Health endpoints (GET /health/dex, wallet/RPC health)
 3. **DEX-1-2-OBS** — Prometheus метрики + Grafana dashboard
-4. **DEX-1-2-MEMPOOL** — MEV detection (опциональный, low risk)
 
 ## Документация обновлена
-- `docs/progress.md` — добавлена запись session 11
-- `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` — v1.13, RECON-ONCHAIN → done
+- `docs/progress.md` — добавлена запись session 12
+- `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` — v1.14, OUTBOX-EVENTS → done
 - `session_summary.md` — этот файл
