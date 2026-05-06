@@ -6,9 +6,9 @@
 
 ## Текущий статус
 
-**DEX план:** 19/35 done + 1 implemented (RECON-ONCHAIN). FILL-TRACKING + UNI2, UNI3, SUSHI, VENUE-BIND + все DEX-1.0
-**Текущий шаг:** `DEX-1-2-RECON-ONCHAIN` → `implemented` (awaiting review)
-**Следующие:** review RECON-ONCHAIN → `DEX-1-2-MEMPOOL`, `DEX-1-2-OUTBOX-EVENTS`
+**DEX план:** 20/35 done. RECON-ONCHAIN reviewed → done.
+**Текущий шаг:** `DEX-1-2-OUTBOX-EVENTS` (next to implement)
+**Следующие:** `DEX-1-2-OUTBOX-EVENTS`, `DEX-1-2-HEALTH`, `DEX-1-2-OBS`
 
 **Build:** 21/21 ✅ | **Lint:** 28/28 ✅ | **Fill tracker tests:** 9/9 ✅
 
@@ -17,8 +17,8 @@
 ## Незавершённые задачи
 
 ### Высокий приоритет
-1. **DEX-1-2-RECON-ONCHAIN** → `implemented` — awaiting review
-2. **DEX-1-2:** `MEMPOOL`, `OUTBOX-EVENTS`, `HEALTH`, `OBS`
+1. **DEX-1-2-OUTBOX-EVENTS** → `planned` — следующий к реализации
+2. **DEX-1-2:** `HEALTH`, `OBS`, `MEMPOOL`
 3. **CI зелёный на GitHub Actions** — не верифицирован
 
 ### Средний приоритет
@@ -35,6 +35,26 @@
 ---
 
 ## Последние события (2026-05)
+
+### 2026-05-06 — DEX-1-2-RECON-ONCHAIN → done ✅ (session 11)
+**Статус:** done (review passed)
+**Задача:** `/review-step` DEX-1-2-RECON-ONCHAIN — DEX reconciliation detectors
+
+- Три DEX-детектора: `dex_receipt_leg_mismatch`, `wallet_balance_drift`, `dex_stale_pending_tx`
+- Чистое разделение CEX/DEX детекторов, idempotent inserts
+- Configurable thresholds: `stalePendingHours` (default 1), `balanceDriftHours` (default 24)
+- Unit tests: **7/7 passed** (reconciliation-service)
+- DEX план: **20/35 done**
+
+**Изменённые файлы:**
+- `apps/reconciliation-service/src/mismatches/dex-reconciliation.detectors.ts` (новый)
+- `apps/reconciliation-service/src/mismatches/dex-reconciliation.detectors.spec.ts` (новый)
+- `apps/reconciliation-service/src/mismatches/mismatches.service.ts` (интеграция runDexDetectors)
+- `apps/reconciliation-service/src/mismatches/mismatches.service.spec.ts`
+- `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` (RECON-ONCHAIN → done)
+- `docs/progress.md` (статус обновлён)
+
+**Следующие шаги:** `DEX-1-2-OUTBOX-EVENTS`, `DEX-1-2-HEALTH`, `DEX-1-2-OBS`
 
 ### 2026-05-06 — DEX-1-2-FILL-TRACKING → done ✅
 **Статус:** done (review passed session 8)
@@ -115,7 +135,14 @@
 ## Архив (краткое резюме)
 
 ### DEX-1.0 Execution Services (2026-04-30)
-- `RpcProviderManager`, `GasEstimatorService`, `WalletManagerService`, `KeyVaultService` (20 tests)
+Прежде чем ответить придумай как ты проверишь свой ответ.
+Сессия заканчивается. Сделай следующее:
+1. /compact "Focus: изменённые файлы, принятые решения, открытые вопросы"
+2. Добавь summary в docs/progress.md (формат: дата, задача, статус, след. шаги)
+3. Сохрани session_summary.md с ключевыми решениями этой сессии
+4. Актуализируй информацию plans/DEVELOPMENT_PLAN-DEX.md
+5. Сделай коммит и пуш на ГИТ
+Не удаляй и не перезаписывай предыдущие записи в progress.md — только append.- `RpcProviderManager`, `GasEstimatorService`, `WalletManagerService`, `KeyVaultService` (20 tests)
 - `PoolDiscoveryService`, `DexRiskPolicyService`, `TokenApproveService`, `SlippageProtectionService`
 - `ExecutionModule` — DI registration, `RpcHealthController`
 
