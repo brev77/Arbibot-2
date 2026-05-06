@@ -6,6 +6,7 @@ import { OnChainTransaction, WalletState } from '@arbibot/persistence';
 
 import { WalletManagerService } from './wallet-manager.service';
 import { DexFillTrackerService } from './dex-fill-tracker.service';
+import { DexOutboxEventsService } from './dex-outbox-events.service';
 import { GasEstimatorService } from './gas/gas-estimator.service';
 import { RpcProviderManager } from './rpc/rpc-provider-manager.service';
 import { RpcHealthController } from './rpc/rpc-health.controller';
@@ -26,6 +27,7 @@ import { SushiSwapV2Adapter } from './adapters/sushiswap-v2.adapter';
   providers: [
     WalletManagerService,
     DexFillTrackerService,
+    DexOutboxEventsService,
     RpcProviderManager,
     GasEstimatorService,
     PoolDiscoveryService,
@@ -39,6 +41,7 @@ import { SushiSwapV2Adapter } from './adapters/sushiswap-v2.adapter';
   exports: [
     WalletManagerService,
     DexFillTrackerService,
+    DexOutboxEventsService,
     GasEstimatorService,
     PoolDiscoveryService,
     DexRiskPolicyService,

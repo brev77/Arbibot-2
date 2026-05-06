@@ -13,6 +13,9 @@ const KAFKA_PUBLISH_EVENT_TYPES = [
   EVENT_NAMES.planArmed,
   EVENT_NAMES.legFilled,
   EVENT_NAMES.planCompleted,
+  EVENT_NAMES.dexTransactionSubmitted,
+  EVENT_NAMES.dexTransactionConfirmed,
+  EVENT_NAMES.dexTransactionFailed,
 ] as const;
 
 export type PublishSnapshotUpdatedResult = 'published' | 'empty';

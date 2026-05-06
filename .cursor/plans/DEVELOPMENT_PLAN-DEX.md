@@ -6,8 +6,8 @@
 
 # Arbibot 2 — план разработки DEX ↔ DEX (EVM, EOA, sequential) — 🟡 АКТИВНЫЙ
 
-> **Прогресс:** 20/35 шагов → `done`. Следующий шаг: `DEX-1-2-OUTBOX-EVENTS`.
-> **Обновлено:** 2026-05-06 (session 11)
+> **Прогресс:** 21/35 шагов → `done`. Следующий шаг: `DEX-1-2-MEMPOOL`.
+> **Обновлено:** 2026-05-06 (session 12)
 
 Документ дополняет канон [`DEVELOPMENT_PLAN.md`](./DEVELOPMENT_PLAN.md) и **не** меняет нумерацию фаз §50 основного плана. Опирается на:
 
@@ -1203,7 +1203,15 @@ graph TD
 - **rollback_procedure:** Удалить события из allowlist
 - **ci_integration:** Unit tests в CI
 - **review_required:** `backend`
-- **status:** `planned`
+- **review_notes:**
+  - ✅ 3 DEX event types: `DexTransactionSubmitted`, `DexTransactionConfirmed`, `DexTransactionFailed`
+  - ✅ `DexOutboxEventsService`: emitSubmitted, emitConfirmed, emitFailed
+  - ✅ Outbox/inbox pattern: idempotent writes (COUNT check before INSERT)
+  - ✅ Event envelope: messageId, correlationId, causationId, entityType, entityId, version, sourceModule, eventTs
+  - ✅ Kafka bridge allowlist обновлён: 3 новых event_type
+  - ✅ Unit tests: 10/10 passed; Build 21/21 ✅
+- **review_passed_date:** 2026-05-06
+- **status:** `done`
 
 #### `DEX-1-2-HEALTH` — Health endpoints для DEX-компонентов
 
@@ -1811,4 +1819,5 @@ graph TD
 - **v1.11** — 2026-05-06: `DEX-1-2-FILL-TRACKING` → `done` ✅ (DexFillTrackerService: receipt → fill, LegFilledPayloadV2 с optional dex metadata, OnChainTransaction.legId bigint→uuid, migration 034; 9/9 tests; build 21/21). **Итого 19/35 done. Следующий: `DEX-1-2-RECON-ONCHAIN`.**
 - **v1.12** — 2026-05-06: `DEX-1-2-RECON-ONCHAIN` → `implemented` (три DEX-детектора в reconciliation-service: stale pending tx, balance drift, missing on-chain record; 7/7 tests; build ✅).
 - **v1.13** — 2026-05-06: `DEX-1-2-RECON-ONCHAIN` → `done` ✅ (review passed session 11: 7/7 tests, architecture check — чистое разделение CEX/DEX, idempotent inserts). **Итого 20/35 done. Следующий: `DEX-1-2-OUTBOX-EVENTS`.**
+- **v1.14** — 2026-05-06: `DEX-1-2-OUTBOX-EVENTS` → `done` ✅ (DexOutboxEventsService: 3 event types, idempotent outbox writes, Kafka bridge allowlist; 10/10 tests; build 21/21). **Итого 21/35 done. Следующий: `DEX-1-2-MEMPOOL`.**
 

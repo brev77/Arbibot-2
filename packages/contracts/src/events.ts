@@ -21,6 +21,9 @@ export const EVENT_NAMES = {
   opportunityDetected: 'OpportunityDetected',
   snapshotUpdated: 'SnapshotUpdated',
   paperPromotionCandidateRequested: 'PaperPromotionCandidateRequested',
+  dexTransactionSubmitted: 'DexTransactionSubmitted',
+  dexTransactionConfirmed: 'DexTransactionConfirmed',
+  dexTransactionFailed: 'DexTransactionFailed',
 } as const;
 
 /** Outbox `schema_version` / envelope `version` for PaperPromotionCandidateRequested (opportunity-service → relay → paper HTTP). */
@@ -147,3 +150,57 @@ export type PlanCompletedPayloadV1 = {
 };
 
 export type PlanCompletedEnvelopeV1 = EventEnvelope<PlanCompletedPayloadV1>;
+
+// ---------------------------------------------------------------------------
+// DEX Transaction outbox events (DEX-1-2-OUTBOX-EVENTS)
+// ---------------------------------------------------------------------------
+
+/** Outbox `schema_version` / envelope `version` for DexTransaction events. */
+export const DEX_TRANSACTION_PAYLOAD_SCHEMA_VERSION = 1 as const;
+
+/** DexTransactionSubmitted — emitted when a DEX tx is submitted to the mempool. */
+export type DexTransactionSubmittedPayloadV1 = {
+  readonly txHash: string;
+  readonly chainId: number;
+  readonly legId: string | null;
+  readonly planId: string | null;
+  readonly fromAddress: string;
+  readonly toAddress: string;
+  readonly value: string;
+  readonly gasLimit: string;
+  readonly nonce: number | null;
+  readonly submittedAt: string;
+};
+
+export type DexTransactionSubmittedEnvelopeV1 = EventEnvelope<DexTransactionSubmittedPayloadV1>;
+
+/** DexTransactionConfirmed — emitted when a DEX tx is confirmed on-chain. */
+export type DexTransactionConfirmedPayloadV1 = {
+  readonly txHash: string;
+  readonly chainId: number;
+  readonly legId: string | null;
+  readonly planId: string | null;
+  readonly blockNumber: number | null;
+  readonly gasUsed: string | null;
+  readonly effectiveGasPrice: string | null;
+  readonly confirmations: number;
+  readonly confirmedAt: string;
+};
+
+export type DexTransactionConfirmedEnvelopeV1 = EventEnvelope<DexTransactionConfirmedPayloadV1>;
+
+/** DexTransactionFailed — emitted when a DEX tx fails or reverts on-chain. */
+export type DexTransactionFailedPayloadV1 = {
+  readonly txHash: string;
+  readonly chainId: number;
+  readonly legId: string | null;
+  readonly planId: string | null;
+  readonly blockNumber: number | null;
+  readonly gasUsed: string | null;
+  readonly effectiveGasPrice: string | null;
+  readonly revertReason: string | null;
+  readonly errorMessage: string | null;
+  readonly failedAt: string;
+};
+
+export type DexTransactionFailedEnvelopeV1 = EventEnvelope<DexTransactionFailedPayloadV1>;
