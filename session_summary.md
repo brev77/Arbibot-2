@@ -1,6 +1,27 @@
 # Session Summary — Arbibot 2
 
-**Обновлено:** 2026-05-06 (session 8)
+**Обновлено:** 2026-05-06 (session 9)
+
+---
+
+## Session 9 (2026-05-06) — ESLint projectService fix + lint cleanup
+
+### Ключевые решения
+1. **Root cause:** `eslint.config.mjs` содержал `projectService: true` вместо `project: true`
+2. **`projectService: true` → `project: true`** — исправляет "file not found by project service"
+3. **Добавлен override `unbound-method: off`** для `*.spec.ts` файлов
+4. **Удалён unused import** `DexFillTrackerService` из `legs.service.ts`
+5. **Исправлен `venue-factory.service.ts`:** убран type assertion, исправлен template literal
+
+### Изменённые файлы
+- `eslint.config.mjs` — projectService → project; spec override
+- `apps/execution-orchestrator/src/legs/legs.service.ts` — удалён unused import
+- `apps/execution-orchestrator/src/execution/venue-factory.service.ts` — type fix
+
+### Результаты проверки
+- Lint contracts-eth: ✅ (0/0)
+- Lint execution-orchestrator: ✅ (0 errors, 23 pre-existing warnings)
+- Build: 7/7 ✅
 
 ---
 

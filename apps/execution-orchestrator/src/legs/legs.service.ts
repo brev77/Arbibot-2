@@ -57,7 +57,6 @@ export function resolveInstrumentKeyForPlan(plan: ExecutionPlanEntity): string {
   return `arb:execution-plan:${plan.id}`;
 }
 
-import { DexFillTrackerService } from '../execution/dex-fill-tracker.service';
 
 import type { ApplyFillDto } from './dto/apply-fill.dto';
 import { executionLegPartialFillCommits } from './execution-leg-metrics';

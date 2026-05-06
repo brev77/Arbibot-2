@@ -195,3 +195,42 @@
 
 **Total migrations:** 001–034
 **CI jobs:** build, lint, test, e2e-phase2, e2e-phase2-watchlist-route-scoring, e2e-phase3-paper-promotion, e2e-phase3-paper-discovery, e2e-phase4-tier-routing, bus-smoke
+
+---
+
+## 2026-05-06 (session 9) — ESLint projectService fix + lint cleanup
+
+**Дата:** 2026-05-06 20:10
+**Задача:** Исправить CI lint ошибку в `@arbibot/contracts-eth` + связанные lint ошибки
+**Статус:** `done` ✅
+**След. шаги:** `DEX-1-2-RECON-ONCHAIN`
+
+### Описание проблемы
+CI падал с ошибкой:
+```
+Parsing error: packages/contracts-eth/src/index.spec.ts was not found by the project service
+```
+
+### Принятые решения
+1. **Root cause:** `eslint.config.mjs` содержал `projectService: true` — это имя параметра, а не булево значение. Правильный параметр: `project: true`.
+2. **`projectService: true` → `project: true`** — говорит typescript-eslint автоматически искать ближайший tsconfig.json
+3. **Добавлен override `unbound-method: off`** для `*.spec.ts` (Jest mock-объекты вызывают false positive)
+4. **Удалён unused import** `DexFillTrackerService` из `legs.service.ts`
+5. **Исправлен `venue-factory.service.ts`:**
+   - Убран ненужный type assertion `(config as Record<string, unknown>).venueKey` → `config.venueKey`
+   - Исправлен `never` в template literal для default case — использован `String(key)`
+
+### Изменённые файлы
+- **`eslint.config.mjs`** — `projectService: true` → `project: true`; override для spec-файлов
+- **`apps/execution-orchestrator/src/legs/legs.service.ts`** — удалён unused import
+- **`apps/execution-orchestrator/src/execution/venue-factory.service.ts`** — type assertion + template literal fix
+
+### Результаты проверки
+- `npm run lint -w @arbibot/contracts-eth` ✅ (0 errors, 0 warnings)
+- `npm run lint -w @arbibot/execution-orchestrator` ✅ (0 errors, 23 pre-existing warnings)
+- `turbo build` для обоих пакетов ✅ (7/7 successful)
+
+### Открытые вопросы
+- CI зелёный на GitHub Actions не верифицирован (должен пройти после push)
+- 23 pre-existing `no-explicit-any` warnings в execution-orchestrator (DEX код)
+- 3 unused eslint-disable directives в `wallet-manager.service.spec.ts` (ранее добавленные для unbound-method)

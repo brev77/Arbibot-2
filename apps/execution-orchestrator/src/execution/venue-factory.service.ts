@@ -68,7 +68,7 @@ export function extractVenueKey(
 
   // Plan-level default
   if ('venueKey' in config) {
-    const vk = (config as Record<string, unknown>).venueKey;
+    const vk = config.venueKey;
     if (typeof vk === 'string' && vk.length > 0) {
       return vk;
     }
@@ -176,7 +176,7 @@ export class VenueFactoryService implements VenueAdapter {
     const dexEnabled = process.env.DEX_VENUE_ENABLED === 'true';
     if (!dexEnabled) {
       throw new VenueSubmitClientError(
-        `VenueFactory: DEX venue "${key}" requested but DEX_VENUE_ENABLED is not "true". ` +
+        `VenueFactory: DEX venue "${String(key)}" requested but DEX_VENUE_ENABLED is not "true". ` +
         `Set DEX_VENUE_ENABLED=true to enable on-chain adapters.`,
         { category: 'validation' },
       );
@@ -191,7 +191,7 @@ export class VenueFactoryService implements VenueAdapter {
         return this.sushiAdapter;
       default:
         throw new VenueSubmitClientError(
-          `VenueFactory: DEX venue "${key}" is recognised but has no adapter registered`,
+          `VenueFactory: DEX venue ${String(key)} is recognised but has no adapter registered`,
           { category: 'validation' },
         );
     }
