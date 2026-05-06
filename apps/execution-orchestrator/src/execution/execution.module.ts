@@ -2,9 +2,10 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { KeyVaultModule } from '@arbibot/nest-platform';
-import { WalletState } from '@arbibot/persistence';
+import { OnChainTransaction, WalletState } from '@arbibot/persistence';
 
 import { WalletManagerService } from './wallet-manager.service';
+import { DexFillTrackerService } from './dex-fill-tracker.service';
 import { GasEstimatorService } from './gas/gas-estimator.service';
 import { RpcProviderManager } from './rpc/rpc-provider-manager.service';
 import { RpcHealthController } from './rpc/rpc-health.controller';
@@ -19,11 +20,12 @@ import { SushiSwapV2Adapter } from './adapters/sushiswap-v2.adapter';
 @Module({
   imports: [
     KeyVaultModule,
-    TypeOrmModule.forFeature([WalletState]),
+    TypeOrmModule.forFeature([WalletState, OnChainTransaction]),
   ],
   controllers: [RpcHealthController],
   providers: [
     WalletManagerService,
+    DexFillTrackerService,
     RpcProviderManager,
     GasEstimatorService,
     PoolDiscoveryService,
@@ -36,6 +38,7 @@ import { SushiSwapV2Adapter } from './adapters/sushiswap-v2.adapter';
   ],
   exports: [
     WalletManagerService,
+    DexFillTrackerService,
     GasEstimatorService,
     PoolDiscoveryService,
     DexRiskPolicyService,

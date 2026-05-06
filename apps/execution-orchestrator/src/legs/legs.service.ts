@@ -17,12 +17,13 @@ import {
   EVENT_NAMES,
   LEG_FILLED_PAYLOAD_SCHEMA_VERSION,
   SERVICE_IDS,
-  type LegFilledPayloadV1,
+  type LegFilledPayloadV2,
 } from '@arbibot/contracts';
 import {
   ExecutionLegEntity,
   ExecutionLegFillIdempotencyEntity,
   ExecutionPlanEntity,
+  OnChainTransaction,
   OutboxEventEntity,
 } from '@arbibot/persistence';
 import { AuditClientService, type IAuditClient } from '@arbibot/nest-platform';
@@ -55,6 +56,8 @@ export function resolveInstrumentKeyForPlan(plan: ExecutionPlanEntity): string {
   }
   return `arb:execution-plan:${plan.id}`;
 }
+
+import { DexFillTrackerService } from '../execution/dex-fill-tracker.service';
 
 import type { ApplyFillDto } from './dto/apply-fill.dto';
 import { executionLegPartialFillCommits } from './execution-leg-metrics';
@@ -427,12 +430,31 @@ export class LegsService {
           plan.correlationId !== null && plan.correlationId.trim().length > 0
             ? plan.correlationId
             : plan.id;
-        const payload: LegFilledPayloadV1 = {
+
+        // DEX-1-2-FILL-TRACKING: enrich outbox payload with on-chain metadata
+        const onChainTx = await em.findOne(OnChainTransaction, {
+          where: { legId: saved.id, status: 'confirmed' },
+          order: { createdAt: 'DESC' },
+        });
+        const dexMeta = onChainTx !== null
+          ? {
+              txHash: onChainTx.txHash,
+              chainId: onChainTx.chainId,
+              gasUsed: onChainTx.gasUsed,
+              effectiveGasPrice: onChainTx.gasPrice,
+              blockNumber: onChainTx.blockNumber,
+              fromAddress: onChainTx.fromAddress,
+              toAddress: onChainTx.toAddress,
+            }
+          : undefined;
+
+        const payload: LegFilledPayloadV2 = {
           legId: saved.id,
           planId: saved.planId,
           state: 'filled',
           filledQuantity: saved.filledQuantity,
           entityVersion: saved.entityVersion,
+          ...(dexMeta !== undefined ? { dex: dexMeta } : {}),
         };
         const envelope = {
           messageId,

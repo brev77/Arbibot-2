@@ -6,8 +6,8 @@
 
 # Arbibot 2 — план разработки DEX ↔ DEX (EVM, EOA, sequential) — 🟡 АКТИВНЫЙ
 
-> **Прогресс:** 17/35 шагов → `done` + `DEX-1-1-ADAPTER-SUSHI` → `implemented`. Следующий шаг: `/review-step` для SUSHI.
-> **Обновлено:** 2026-05-05 (session 5)
+> **Прогресс:** 19/35 шагов → `done`. Следующий шаг: `DEX-1-2-RECON-ONCHAIN`.
+> **Обновлено:** 2026-05-06 (session 8)
 
 Документ дополняет канон [`DEVELOPMENT_PLAN.md`](./DEVELOPMENT_PLAN.md) и **не** меняет нумерацию фаз §50 основного плана. Опирается на:
 
@@ -990,7 +990,8 @@ graph TD
   - ✅ Unit tests: 19/19 passed
   - ✅ Build: 21/21 ✅, Lint: 0 errors
   - ✅ Prometheus metrics: `arb_dex_sushiswap_v2_swap_total`, `arb_dex_sushiswap_v2_swap_latency_seconds`
-- **status:** `implemented`
+- **review_passed_date:** 2026-05-05
+- **status:** `done`
 
 #### `DEX-1-1-VENUE-BIND` — Связка с `VenueAdapter` / расширение DI
 
@@ -1113,7 +1114,13 @@ graph TD
 - **rollback_procedure:** Откатить изменения в `PortfolioPosition`
 - **ci_integration:** Unit tests в CI
 - **review_required:** `backend`
-- **status:** `planned`
+- **review_notes:**
+  - DexFillTrackerService реализован (9/9 tests, build 21/21)
+  - LegFilledPayloadV2 с optional dex metadata
+  - OnChainTransaction.legId: bigint → uuid, migration 034
+  - DI: ExecutionModule, backward compatible
+- **review_passed_date:** 2026-05-06
+- **status:** `done`
 
 #### `DEX-1-2-MEMPOOL` — Mempool monitoring (MEV detection)
 
@@ -1794,3 +1801,5 @@ graph TD
 - **v1.8** — 2026-05-05: `DEX-1-1-ADAPTER-UNI3` → `done` (review passed: build 0 errors, 21/21 tests, commit `a48c644`). **Итого 16/35 done. Следующий: DEX-1-1-VENUE-BIND.**
 - **v1.9** — 2026-05-05: `DEX-1-1-VENUE-BIND` → `done` ✅ (VenueFactoryService: extractVenueKey, resolveAdapter, submitLeg; feature flag DEX_VENUE_ENABLED; LegsModule + ExecutionModule DI; 21/21 unit tests; build 21/21). **Итого 17/35 done. Следующий: `DEX-1-1-ADAPTER-SUSHI`.**
 - **v1.10** — 2026-05-05: `DEX-1-1-ADAPTER-SUSHI` → `implemented` (SushiSwapV2Adapter: swapExactTokensForTokens, shared utils с UniV2, Arbitrum SushiSwap + BNB PancakeSwap, Base → VenueSubmitClientError; 19/19 tests; build 21/21). **Итого 17 done + 1 implemented = 18/35. Следующий: `/review-step` для SUSHI.**
+- **v1.11** — 2026-05-06: `DEX-1-2-FILL-TRACKING` → `done` ✅ (DexFillTrackerService: receipt → fill, LegFilledPayloadV2 с optional dex metadata, OnChainTransaction.legId bigint→uuid, migration 034; 9/9 tests; build 21/21). **Итого 19/35 done. Следующий: `DEX-1-2-RECON-ONCHAIN`.**
+

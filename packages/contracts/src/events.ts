@@ -107,7 +107,7 @@ export type PlanArmedPayloadV1 = {
 export type PlanArmedEnvelopeV1 = EventEnvelope<PlanArmedPayloadV1>;
 
 /** Outbox / envelope `version` and `outbox_events.schema_version` for LegFilled. */
-export const LEG_FILLED_PAYLOAD_SCHEMA_VERSION = 1 as const;
+export const LEG_FILLED_PAYLOAD_SCHEMA_VERSION = 2 as const;
 
 export type LegFilledPayloadV1 = {
   readonly legId: string;
@@ -117,7 +117,24 @@ export type LegFilledPayloadV1 = {
   readonly entityVersion: number;
 };
 
+/** DEX on-chain metadata attached to LegFilled when fill originated from a DEX swap. */
+export type DexFillMetadata = {
+  readonly txHash: string;
+  readonly chainId: number;
+  readonly gasUsed: string | null;
+  readonly effectiveGasPrice: string | null;
+  readonly blockNumber: number | null;
+  readonly fromAddress: string | null;
+  readonly toAddress: string | null;
+};
+
+/** LegFilled v2 payload — extends v1 with optional DEX on-chain metadata. */
+export type LegFilledPayloadV2 = LegFilledPayloadV1 & {
+  readonly dex?: DexFillMetadata;
+};
+
 export type LegFilledEnvelopeV1 = EventEnvelope<LegFilledPayloadV1>;
+export type LegFilledEnvelopeV2 = EventEnvelope<LegFilledPayloadV2>;
 
 /** Outbox / envelope `version` and `outbox_events.schema_version` for PlanCompleted. */
 export const PLAN_COMPLETED_PAYLOAD_SCHEMA_VERSION = 1 as const;

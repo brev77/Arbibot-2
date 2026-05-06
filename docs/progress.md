@@ -1,24 +1,24 @@
 # Progress Arbibot 2
 
-**Обновлено:** 2026-05-05
+**Обновлено:** 2026-05-06
 
 ---
 
 ## Текущий статус
 
-**DEX план:** 17/35 шагов → `done` (UNI2, UNI3, VENUE-BIND + все DEX-1.0)
-**Текущий шаг:** `DEX-1-1-ADAPTER-SUSHI` → `implemented` (awaiting `/review-step`)
-**Следующие:** `DEX-1-2-FILL-TRACKING`, `DEX-1-2-RECON-ONCHAIN`
+**DEX план:** 19/35 шагов → `done` (FILL-TRACKING + UNI2, UNI3, SUSHI, VENUE-BIND + все DEX-1.0)
+**Текущий шаг:** `DEX-1-2-RECON-ONCHAIN` → `planned`
+**Следующие:** `DEX-1-2-RECON-ONCHAIN`, `DEX-1-2-MEMPOOL`, `DEX-1-2-OUTBOX-EVENTS`
 
-**Build:** 21/21 ✅ | **Lint:** 28/28 ✅ | **SushiSwap tests:** 19/19 ✅
+**Build:** 21/21 ✅ | **Lint:** 28/28 ✅ | **Fill tracker tests:** 9/9 ✅
 
 ---
 
 ## Незавершённые задачи
 
 ### Высокий приоритет
-1. **DEX-1-1-ADAPTER-SUSHI** → `implemented`, awaiting `/review-step` → `done`
-2. **DEX-1-2:** `FILL-TRACKING`, `RECON-ONCHAIN`, `OUTBOX-EVENTS`
+1. **DEX-1-2-RECON-ONCHAIN** → `planned` — следующий шаг
+2. **DEX-1-2:** `MEMPOOL`, `OUTBOX-EVENTS`, `HEALTH`, `OBS`
 3. **CI зелёный на GitHub Actions** — не верифицирован
 
 ### Средний приоритет
@@ -36,8 +36,33 @@
 
 ## Последние события (2026-05)
 
-### 2026-05-05 — DEX-1-1-ADAPTER-SUSHI: SushiSwapV2Adapter → implemented
-**Статус:** implemented (awaiting `/review-step`)
+### 2026-05-06 — DEX-1-2-FILL-TRACKING → done ✅
+**Статус:** done (review passed session 8)
+
+- `DexFillTrackerService` — receipt → fill связывание
+- `LegFilledPayloadV2` с optional dex metadata (txHash, chainId, gasUsed, from, to, protocolVersion)
+- `OnChainTransaction.legId` тип изменён: bigint → uuid (migration 034)
+- Backward compatible: `applyFill()` без dex metadata → v1 payload
+- DI: `ExecutionModule`, без breaking changes
+- Unit tests: **9/9 passed**
+- Build: **21/21** ✅
+
+**Созданные файлы:**
+- `apps/execution-orchestrator/src/execution/dex-fill-tracker.service.ts`
+- `apps/execution-orchestrator/src/execution/dex-fill-tracker.service.spec.ts`
+- `infra/postgres/migrations/034_on_chain_tx_leg_id_uuid.sql`
+
+**Изменённые файлы:**
+- `packages/contracts/src/events.ts` (LegFilledPayloadV2)
+- `packages/persistence/src/on-chain-transaction.entity.ts` (legId: uuid)
+- `apps/execution-orchestrator/src/legs/legs.service.ts` (dex metadata integration)
+- `apps/execution-orchestrator/src/execution/execution.module.ts` (DI)
+
+### 2026-05-05 — DEX-1-1-ADAPTER-SUSHI → done ✅
+**Статус:** done (review passed session 6)
+
+- Review: build 21/21 ✅, Sushi 19/19 ✅, architecture guard + backend review PASS
+- 3 pre-existing test failures (не связаны с SUSHI)
 
 - `SushiSwapV2Adapter` — `swapExactTokensForTokens` через ethers.js
 - Shared utils с UniV2: `extractSwapParams`, `applySlippage`, `getSlippageBps`, `ensureApproval`
@@ -139,10 +164,10 @@
 
 ## 2026-05-05 (session 5) — DEX-1-1-ADAPTER-SUSHI → implemented
 
-**Дата:** 2026-05-05 22:00
-**Задача:** DEX-1-1-ADAPTER-SUSHI — SushiSwap V2-style адаптер
-**Статус:** `implemented` (awaiting `/review-step`)
-**След. шаги:** `/review-step` → `done`, затем DEX-1-2-FILL-TRACKING
+**Дата:** 2026-05-05 23:15
+**Задача:** DEX-1-1-ADAPTER-SUSHI — `/review-step` → done
+**Статус:** `done` ✅ (review passed)
+**След. шаги:** `DEX-1-2-FILL-TRACKING`
 
 ### Принятые решения
 1. `SushiSwapV2Adapter` наследует паттерн UniV2: `swapExactTokensForTokens` через ethers.js
@@ -168,5 +193,5 @@
 ---
 (архив и справочная информация — в начале файла)
 
-**Total migrations:** 001–033
+**Total migrations:** 001–034
 **CI jobs:** build, lint, test, e2e-phase2, e2e-phase2-watchlist-route-scoring, e2e-phase3-paper-promotion, e2e-phase3-paper-discovery, e2e-phase4-tier-routing, bus-smoke

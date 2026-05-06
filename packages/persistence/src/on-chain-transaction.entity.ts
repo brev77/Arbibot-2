@@ -31,8 +31,8 @@ export class OnChainTransaction {
   @Column({ name: 'chain_id', type: 'integer' })
   chainId!: number;
 
-  @Column({ name: 'leg_id', type: 'bigint', nullable: true })
-  legId!: number | null;
+  @Column({ name: 'leg_id', type: 'uuid', nullable: true })
+  legId!: string | null;
 
   @Column({ name: 'from_address', type: 'varchar', length: 42 })
   fromAddress!: string;

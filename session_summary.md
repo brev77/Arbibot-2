@@ -1,6 +1,57 @@
 # Session Summary — Arbibot 2
 
-**Обновлено:** 2026-05-05 (session 5)
+**Обновлено:** 2026-05-06 (session 8)
+
+---
+
+## Session 8 (2026-05-06) — FILL-TRACKING → done ✅
+
+### Ключевые решения
+1. **DEX-1-2-FILL-TRACKING → `done`** — DexFillTrackerService: receipt → fill, 9/9 тестов
+2. `LegFilledPayloadV2` с optional dex metadata (txHash, chainId, gasUsed, from, to, protocolVersion)
+3. `OnChainTransaction.legId` тип изменён: bigint → uuid (migration 034)
+4. Backward compatible: `applyFill()` без dex metadata → v1 payload
+5. DEX план обновлён: **19/35 done**, следующий `DEX-1-2-RECON-ONCHAIN`
+
+### Созданные файлы
+- `apps/execution-orchestrator/src/execution/dex-fill-tracker.service.ts`
+- `apps/execution-orchestrator/src/execution/dex-fill-tracker.service.spec.ts`
+- `infra/postgres/migrations/034_on_chain_tx_leg_id_uuid.sql`
+
+### Изменённые файлы
+- `packages/contracts/src/events.ts` (LegFilledPayloadV2)
+- `packages/persistence/src/on-chain-transaction.entity.ts` (legId: uuid)
+- `apps/execution-orchestrator/src/legs/legs.service.ts` (dex metadata integration)
+- `apps/execution-orchestrator/src/execution/execution.module.ts` (DI)
+- `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` — v1.11, 19/35
+- `docs/progress.md`, `session_summary.md`, `AGENTS.md`
+
+### Результаты проверки
+- Build: 21/21 ✅ | Tests: 9/9 ✅ | Lint: 0 errors
+
+---
+
+## Session 7 (2026-05-06) — Status check + plan update
+
+### Ключевые решения
+1. Прочитаны progress.md, session_summary.md, DEX plan — статус подтверждён
+2. AGENTS.md актуальность проверена — обновлений не требуется
+3. Краткосрочный план: FILL-TRACKING → RECON-ONCHAIN → MEMPOOL
+
+---
+
+## Session 6 (2026-05-05) — SUSHI review → done ✅
+
+### Ключевые решения
+1. **DEX-1-1-ADAPTER-SUSHI → `done`** — review passed: build 21/21, Sushi 19/19, architecture guard + backend review PASS
+2. 3 pre-existing test failures задокументированы (не связаны с SUSHI)
+3. DEX план обновлён: 18/35 done, следующий `DEX-1-2-FILL-TRACKING`
+
+### Изменённые файлы
+- `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` — v1.11, SUSHI → done
+- `AGENTS.md` — 18/35
+- `docs/progress.md` — актуализация
+- `session_summary.md` — session 6
 
 ---
 
@@ -20,9 +71,9 @@
 ### Результаты проверки
 - Build: 21/21 ✅ | Tests: 19/19 ✅ | Lint: 0 errors
 
-### Следующий шаг
-- `/review-step` для DEX-1-1-ADAPTER-SUSHI → `done`
-- Затем `DEX-1-2-FILL-TRACKING`
+### Следующий шаг (completed session 6)
+- ✅ `/review-step` для DEX-1-1-ADAPTER-SUSHI → `done`
+- → `DEX-1-2-FILL-TRACKING`
 
 ---
 
@@ -76,23 +127,24 @@
 
 ## Текущий статус DEX плана
 
-**Прогресс:** 17/35 done (48.6%)
-**Текущий этап:** DEX-1.1 — адаптеры
-**Следующий шаг:** DEX-1-1-ADAPTER-SUSHI
+**Прогресс:** 19/35 done (54.3%)
+**Текущий этап:** DEX-1.2 — сверка, observability, инциденты
+**Следующий шаг:** DEX-1-2-RECON-ONCHAIN
 
-### Done (17):
+### Done (19):
 DEX-1-0-ADR-STRUCTURE, DEX-1-0-TECH-CHOICE, DEX-1-0-ABIS, DEX-1-0-RPC,
 DEX-1-0-MIGRATIONS, DEX-1-0-POOL-DISCOVERY, DEX-1-0-VAULT, DEX-1-0-WALLET-MGT,
 DEX-1-0-GAS, DEX-1-0-RISK-POLICIES, DEX-1-0-FILTERS, DEX-1-0-ENV-EXAMPLE,
 DEX-1-1-APPROVE-PATTERN, DEX-1-1-SLIPPAGE, DEX-1-1-ADAPTER-UNI2,
-DEX-1-1-ADAPTER-UNI3, DEX-1-1-VENUE-BIND
+DEX-1-1-ADAPTER-UNI3, DEX-1-1-ADAPTER-SUSHI, DEX-1-1-VENUE-BIND,
+DEX-1-2-FILL-TRACKING
 
 ### Следующие:
-1. DEX-1-1-ADAPTER-SUSHI (SushiSwap)
-2. DEX-1-2-RECON-ONCHAIN
-3. DEX-1-2-FILL-TRACKING
-4. DEX-1-2-OUTBOX-EVENTS
-5. DEX-1-2-HEALTH
+1. DEX-1-2-RECON-ONCHAIN (reconciliation DEX detectors)
+2. DEX-1-2-MEMPOOL (MEV detection)
+3. DEX-1-2-OUTBOX-EVENTS
+4. DEX-1-2-HEALTH
+5. DEX-1-2-OBS
 
 ### Открытые вопросы
 - CI зелёный на GitHub Actions не верифицирован
