@@ -6,8 +6,8 @@
 
 # Arbibot 2 — план разработки DEX ↔ DEX (EVM, EOA, sequential) — 🟡 АКТИВНЫЙ
 
-> **Прогресс:** 21/35 шагов → `done`. Следующий шаг: `DEX-1-2-MEMPOOL`.
-> **Обновлено:** 2026-05-06 (session 12)
+> **Прогресс:** 22/35 шагов → `done`. Следующий шаг: `DEX-1-2-HEALTH`.
+> **Обновлено:** 2026-05-10 (session 13)
 
 Документ дополняет канон [`DEVELOPMENT_PLAN.md`](./DEVELOPMENT_PLAN.md) и **не** меняет нумерацию фаз §50 основного плана. Опирается на:
 
@@ -1164,7 +1164,19 @@ graph TD
 - **rollback_procedure:** Остановить воркер
 - **ci_integration:** Unit tests в CI (mock mempool)
 - **review_required:** `backend`
-- **status:** `planned`
+- **review_notes:**
+  - ✅ `DexMempoolMonitorWorker` реализован в `apps/execution-orchestrator/src/execution/workers/`
+  - ✅ Mempool subscription через ethers.js `provider.on('pending', ...)` для each chain
+  - ✅ MEV detection patterns: frontrun (same-token tx before ours with higher gas), sandwich (frontrun + backrun pair), suspicious gas premium
+  - ✅ In-memory store: recent pending tx per token pair, configurable window (`MEMPOOL_RECENT_WINDOW_MS`)
+  - ✅ Prometheus metrics: `arb_dex_mempool_pending_tx_observed_total`, `arb_dex_mev_detected_total` (label: type), `arb_dex_mev_risk_score` (gauge)
+  - ✅ Feature flag `MEMPOOL_MONITOR_ENABLED` (default: false)
+  - ✅ Env vars: `MEMPOOL_MONITOR_ENABLED`, `MEMPOOL_CHAINS`, `MEMPOOL_GAS_PREMIUM_THRESHOLD_PERCENT`, `MEMPOOL_RECENT_WINDOW_MS`, `MEMPOOL_MAX_PENDING_TX`
+  - ✅ Unit tests: 12/12 passed (lifecycle, frontrun/sandwich/noise detection, multi-chain, edge cases)
+  - ✅ DI: зарегистрирован в `ExecutionModule`
+  - ✅ `docs/dex-mev-threats.md` — документ с угрозами и countermeasures
+- **review_passed_date:** 2026-05-10
+- **status:** `done`
 
 #### `DEX-1-2-OUTBOX-EVENTS` — Outbox-события для DEX-транзакций
 
@@ -1820,4 +1832,5 @@ graph TD
 - **v1.12** — 2026-05-06: `DEX-1-2-RECON-ONCHAIN` → `implemented` (три DEX-детектора в reconciliation-service: stale pending tx, balance drift, missing on-chain record; 7/7 tests; build ✅).
 - **v1.13** — 2026-05-06: `DEX-1-2-RECON-ONCHAIN` → `done` ✅ (review passed session 11: 7/7 tests, architecture check — чистое разделение CEX/DEX, idempotent inserts). **Итого 20/35 done. Следующий: `DEX-1-2-OUTBOX-EVENTS`.**
 - **v1.14** — 2026-05-06: `DEX-1-2-OUTBOX-EVENTS` → `done` ✅ (DexOutboxEventsService: 3 event types, idempotent outbox writes, Kafka bridge allowlist; 10/10 tests; build 21/21). **Итого 21/35 done. Следующий: `DEX-1-2-MEMPOOL`.**
+- **v1.15** — 2026-05-10: `DEX-1-2-MEMPOOL` → `done` ✅ (DexMempoolMonitorWorker: mempool subscription via ethers.js, MEV detection patterns (frontrun/sandwich), risk score, Prometheus metrics, feature flag; 12/12 tests; docs/dex-mev-threats.md; build 21/21). **Итого 22/35 done. Следующий: `DEX-1-2-HEALTH`.**
 

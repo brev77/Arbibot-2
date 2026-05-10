@@ -17,6 +17,7 @@ import { SlippageProtectionService } from './slippage/slippage-protection.servic
 import { UniswapV2Adapter } from './adapters/uniswap-v2.adapter';
 import { UniswapV3Adapter } from './adapters/uniswap-v3.adapter';
 import { SushiSwapV2Adapter } from './adapters/sushiswap-v2.adapter';
+import { DexMempoolMonitorWorker } from './workers/dex-mempool-monitor.worker';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { SushiSwapV2Adapter } from './adapters/sushiswap-v2.adapter';
     UniswapV2Adapter,
     UniswapV3Adapter,
     SushiSwapV2Adapter,
+    DexMempoolMonitorWorker,
   ],
   exports: [
     WalletManagerService,
@@ -50,6 +52,7 @@ import { SushiSwapV2Adapter } from './adapters/sushiswap-v2.adapter';
     UniswapV2Adapter,
     UniswapV3Adapter,
     SushiSwapV2Adapter,
+    DexMempoolMonitorWorker,
   ],
 })
 export class ExecutionModule {}

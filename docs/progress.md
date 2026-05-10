@@ -1,24 +1,24 @@
 # Progress Arbibot 2
 
-**Обновлено:** 2026-05-06
+**Обновлено:** 2026-05-10
 
 ---
 
 ## Текущий статус
 
-**DEX план:** 21/35 done. OUTBOX-EVENTS → done.
-**Текущий шаг:** `DEX-1-2-MEMPOOL` (next to implement)
-**Следующие:** `DEX-1-2-MEMPOOL`, `DEX-1-2-HEALTH`, `DEX-1-2-OBS`
+**DEX план:** 22/35 done. MEMPOOL → done.
+**Текущий шаг:** `DEX-1-2-HEALTH` (next to implement)
+**Следующие:** `DEX-1-2-HEALTH`, `DEX-1-2-OBS`, `DEX-1-3-LIVE-TESTNET`
 
-**Build:** 21/21 ✅ | **Lint:** 28/28 ✅ | **Outbox events tests:** 10/10 ✅
+**Build:** 21/21 ✅ | **Lint:** 28/28 ✅ | **Mempool tests:** 15/15 ✅
 
 ---
 
 ## Незавершённые задачи
 
 ### Высокий приоритет
-1. **DEX-1-2-MEMPOOL** → `planned` — следующий к реализации
-2. **DEX-1-2:** `HEALTH`, `OBS`
+1. **DEX-1-2-HEALTH** → `planned` — следующий к реализации
+2. **DEX-1-2-OBS** → `planned` — Prometheus метрики + Grafana
 3. **CI зелёный на GitHub Actions** — не верифицирован
 
 ### Средний приоритет
@@ -319,3 +319,42 @@ Parsing error: packages/contracts-eth/src/index.spec.ts was not found by the pro
 - CI зелёный на GitHub Actions не верифицирован
 - 3 pre-existing test issues в execution-orchestrator
 - Следующий шаг `DEX-1-2-MEMPOOL` — mempool monitoring
+
+---
+
+## 2026-05-10 (session 13) — DEX-1-2-MEMPOOL → done ✅
+
+**Дата:** 2026-05-10 10:05
+**Задача:** DEX-1-2-MEMPOOL — Mempool monitoring + MEV detection
+**Статус:** `done` ✅
+**След. шаги:** `DEX-1-2-HEALTH`
+
+### Принятые решения
+1. `DexMempoolMonitorWorker` — подписка на pending transactions через ethers.js `provider.on('pending')`
+2. MEV detection patterns: frontrun (gas premium), sandwich (frontrun + backrun), backrun (lower gas following)
+3. Sliding window для pending swaps с configurable TTL (default 30s)
+4. 9 DEX swap function selectors для декодирования (UniV2/V3/Sushi)
+5. Feature flag: `DEX_MEMPOOL_ENABLED` — отключён по умолчанию
+6. Read-only: не модифицирует state execution pipeline
+7. Prometheus metrics: `arb_dex_mev_detected_total` (type, chain_id), `arb_dex_mempool_pending_swaps` (chain_id)
+
+### Созданные файлы
+- `apps/execution-orchestrator/src/execution/workers/dex-mempool-monitor.worker.ts`
+- `apps/execution-orchestrator/src/execution/workers/dex-mempool-monitor.worker.spec.ts` (15/15 tests)
+- `docs/dex-mev-threats.md`
+
+### Изменённые файлы
+- `apps/execution-orchestrator/src/execution/execution.module.ts` — DI регистрация
+- `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` — MEMPOOL → done, v1.15 changelog
+
+### Результаты проверки
+- Build: 21/21 ✅
+- Lint: 0 errors
+- Unit tests: 15/15 ✅
+- DEX план: **22/35 done**
+
+### Открытые вопросы
+- CI зелёный на GitHub Actions не верифицирован
+- 3 pre-existing test issues в execution-orchestrator
+- Нет runbook для key rotation
+- Недостающие unit-тесты: PoolDiscoveryService, RpcProviderManager
