@@ -1,67 +1,67 @@
-> **🎯 ОСНОВНОЙ РАБОЧИЙ ДОКУМЕНТ**
+> **рџЋЇ РћРЎРќРћР’РќРћР™ Р РђР‘РћР§Р�Р™ Р”РћРљРЈРњР•РќРў**
 >
-> Все текущие задачи отслеживаются здесь. При каждом выполнении задачи — делать пометку в соответствующем шаге (статус, дата, заметки).
-> Архивный план (фазы 0–5, выполнен): [`DEVELOPMENT_PLAN.md`](./DEVELOPMENT_PLAN.md) — **не редактировать без явного запроса**.
+> Р’СЃРµ С‚РµРєСѓС‰РёРµ Р·Р°РґР°С‡Рё РѕС‚СЃР»РµР¶РёРІР°СЋС‚СЃСЏ Р·РґРµСЃСЊ. РџСЂРё РєР°Р¶РґРѕРј РІС‹РїРѕР»РЅРµРЅРёРё Р·Р°РґР°С‡Рё вЂ” РґРµР»Р°С‚СЊ РїРѕРјРµС‚РєСѓ РІ СЃРѕРѕС‚РІРµС‚СЃС‚РІСѓСЋС‰РµРј С€Р°РіРµ (СЃС‚Р°С‚СѓСЃ, РґР°С‚Р°, Р·Р°РјРµС‚РєРё).
+> РђСЂС…РёРІРЅС‹Р№ РїР»Р°РЅ (С„Р°Р·С‹ 0вЂ“5, РІС‹РїРѕР»РЅРµРЅ): [`DEVELOPMENT_PLAN.md`](./DEVELOPMENT_PLAN.md) вЂ” **РЅРµ СЂРµРґР°РєС‚РёСЂРѕРІР°С‚СЊ Р±РµР· СЏРІРЅРѕРіРѕ Р·Р°РїСЂРѕСЃР°**.
 > Review orchestration: [`.cursor/commands/review-step.md`](../../.cursor/commands/review-step.md)
 
-# Arbibot 2 — план разработки DEX ↔ DEX (EVM, EOA, sequential) — 🟡 АКТИВНЫЙ
+# Arbibot 2 вЂ” РїР»Р°РЅ СЂР°Р·СЂР°Р±РѕС‚РєРё DEX в†” DEX (EVM, EOA, sequential) вЂ” рџџЎ РђРљРўР�Р’РќР«Р™
 
-> **Прогресс:** 22/35 шагов → `done`. Следующий шаг: `DEX-1-2-HEALTH`.
-> **Обновлено:** 2026-05-10 (session 13)
+> **РџСЂРѕРіСЂРµСЃСЃ:** 26/35 С€Р°РіРѕРІ в†’ `done`. РЎР»РµРґСѓСЋС‰РёР№ С€Р°Рі: `DEX-1-3-LIVE-TESTNET`.
+> **РћР±РЅРѕРІР»РµРЅРѕ:** 2026-05-10 (session 17)
 
-Документ дополняет канон [`DEVELOPMENT_PLAN.md`](./DEVELOPMENT_PLAN.md) и **не** меняет нумерацию фаз §50 основного плана. Опирается на:
+Р”РѕРєСѓРјРµРЅС‚ РґРѕРїРѕР»РЅСЏРµС‚ РєР°РЅРѕРЅ [`DEVELOPMENT_PLAN.md`](./DEVELOPMENT_PLAN.md) Рё **РЅРµ** РјРµРЅСЏРµС‚ РЅСѓРјРµСЂР°С†РёСЋ С„Р°Р· В§50 РѕСЃРЅРѕРІРЅРѕРіРѕ РїР»Р°РЅР°. РћРїРёСЂР°РµС‚СЃСЏ РЅР°:
 
-- `!Arbibot_2_Architecture_v1_final_docs_settings.md` (§3 классы арбитража, §4 сети, on-chain execution layer)
-- [docs/services.md](../../docs/services.md) — существующие single-writer и границы
-- [`apps/execution-orchestrator/src/venue/venue-adapter.ts`](../../apps/execution-orchestrator/src/venue/venue-adapter.ts) — контракт `VenueAdapter`
+- `!Arbibot_2_Architecture_v1_final_docs_settings.md` (В§3 РєР»Р°СЃСЃС‹ Р°СЂР±РёС‚СЂР°Р¶Р°, В§4 СЃРµС‚Рё, on-chain execution layer)
+- [docs/services.md](../../docs/services.md) вЂ” СЃСѓС‰РµСЃС‚РІСѓСЋС‰РёРµ single-writer Рё РіСЂР°РЅРёС†С‹
+- [`apps/execution-orchestrator/src/venue/venue-adapter.ts`](../../apps/execution-orchestrator/src/venue/venue-adapter.ts) вЂ” РєРѕРЅС‚СЂР°РєС‚ `VenueAdapter`
 
-## Целевой профиль (зафиксировано 2026-04-27)
+## Р¦РµР»РµРІРѕР№ РїСЂРѕС„РёР»СЊ (Р·Р°С„РёРєСЃРёСЂРѕРІР°РЅРѕ 2026-04-27)
 
-| Параметр | Решение |
+| РџР°СЂР°РјРµС‚СЂ | Р РµС€РµРЅРёРµ |
 |----------|--------|
-| **Класс** | DEX ↔ DEX (сначала single-chain; затем multi-chain) |
-| **Сети (первая волна)** | EVM: **Arbitrum, Base, BNB Chain** (не Solana в v1 документа) |
-| **Кошелёк** | Self-custody **EOA**; без AA/relayer в первом релизе DEX |
-| **DEX (первая волна Arbitrum)** | **Uniswap V2**, **Uniswap V3**, **SushiSwap** |
-| **Порядок этапов** | **Sequential:** закрыть этап Single-Chain (DEX-1) до старта Multi-Chain (DEX-2) |
-| **Bridges (DEX-2)** | **Все три направления:** Across, Stargate, официальные моста (L2) |
-| **Ключи** | **Базовый vault:** шифрование at rest, audit, поддержка ротации (не HSM в v1) |
-| **Переходы paper/live** | **Testnet paper → testnet live → mainnet paper → mainnet live** |
+| **РљР»Р°СЃСЃ** | DEX в†” DEX (СЃРЅР°С‡Р°Р»Р° single-chain; Р·Р°С‚РµРј multi-chain) |
+| **РЎРµС‚Рё (РїРµСЂРІР°СЏ РІРѕР»РЅР°)** | EVM: **Arbitrum, Base, BNB Chain** (РЅРµ Solana РІ v1 РґРѕРєСѓРјРµРЅС‚Р°) |
+| **РљРѕС€РµР»С‘Рє** | Self-custody **EOA**; Р±РµР· AA/relayer РІ РїРµСЂРІРѕРј СЂРµР»РёР·Рµ DEX |
+| **DEX (РїРµСЂРІР°СЏ РІРѕР»РЅР° Arbitrum)** | **Uniswap V2**, **Uniswap V3**, **SushiSwap** |
+| **РџРѕСЂСЏРґРѕРє СЌС‚Р°РїРѕРІ** | **Sequential:** Р·Р°РєСЂС‹С‚СЊ СЌС‚Р°Рї Single-Chain (DEX-1) РґРѕ СЃС‚Р°СЂС‚Р° Multi-Chain (DEX-2) |
+| **Bridges (DEX-2)** | **Р’СЃРµ С‚СЂРё РЅР°РїСЂР°РІР»РµРЅРёСЏ:** Across, Stargate, РѕС„РёС†РёР°Р»СЊРЅС‹Рµ РјРѕСЃС‚Р° (L2) |
+| **РљР»СЋС‡Рё** | **Р‘Р°Р·РѕРІС‹Р№ vault:** С€РёС„СЂРѕРІР°РЅРёРµ at rest, audit, РїРѕРґРґРµСЂР¶РєР° СЂРѕС‚Р°С†РёРё (РЅРµ HSM РІ v1) |
+| **РџРµСЂРµС…РѕРґС‹ paper/live** | **Testnet paper в†’ testnet live в†’ mainnet paper в†’ mainnet live** |
 
-## Схема шага и прогресс
+## РЎС…РµРјР° С€Р°РіР° Рё РїСЂРѕРіСЂРµСЃСЃ
 
-**Расширенная структура шага** (дополнительно к основному плану):
+**Р Р°СЃС€РёСЂРµРЅРЅР°СЏ СЃС‚СЂСѓРєС‚СѓСЂР° С€Р°РіР°** (РґРѕРїРѕР»РЅРёС‚РµР»СЊРЅРѕ Рє РѕСЃРЅРѕРІРЅРѕРјСѓ РїР»Р°РЅСѓ):
 
-| Поле | Описание |
+| РџРѕР»Рµ | РћРїРёСЃР°РЅРёРµ |
 |------|----------|
-| **depends_on** | Список `step_id` prerequisites (обязательные зависимости) |
-| **risk_level** | `critical` | `high` | `medium` | `low` — уровень риска для production |
-| **estimated_hours** | Оценка трудоёмкости (часы) |
-| **outputs** | Конкретные deliverables (файлы, интерфейсы, сущности) |
-| **test_commands** | Команды для проверки completion |
-| **edge_cases** | Edge cases и error handling |
-| **rollback_procedure** | Процедура отката (для security-critical шагов) |
-| **ci_integration** | Интеграция с CI |
-| **main_plan_prerequisites** | Зависимости от шагов основного плана |
+| **depends_on** | РЎРїРёСЃРѕРє `step_id` prerequisites (РѕР±СЏР·Р°С‚РµР»СЊРЅС‹Рµ Р·Р°РІРёСЃРёРјРѕСЃС‚Рё) |
+| **risk_level** | `critical` | `high` | `medium` | `low` вЂ” СѓСЂРѕРІРµРЅСЊ СЂРёСЃРєР° РґР»СЏ production |
+| **estimated_hours** | РћС†РµРЅРєР° С‚СЂСѓРґРѕС‘РјРєРѕСЃС‚Рё (С‡Р°СЃС‹) |
+| **outputs** | РљРѕРЅРєСЂРµС‚РЅС‹Рµ deliverables (С„Р°Р№Р»С‹, РёРЅС‚РµСЂС„РµР№СЃС‹, СЃСѓС‰РЅРѕСЃС‚Рё) |
+| **test_commands** | РљРѕРјР°РЅРґС‹ РґР»СЏ РїСЂРѕРІРµСЂРєРё completion |
+| **edge_cases** | Edge cases Рё error handling |
+| **rollback_procedure** | РџСЂРѕС†РµРґСѓСЂР° РѕС‚РєР°С‚Р° (РґР»СЏ security-critical С€Р°РіРѕРІ) |
+| **ci_integration** | Р�РЅС‚РµРіСЂР°С†РёСЏ СЃ CI |
+| **main_plan_prerequisites** | Р—Р°РІРёСЃРёРјРѕСЃС‚Рё РѕС‚ С€Р°РіРѕРІ РѕСЃРЅРѕРІРЅРѕРіРѕ РїР»Р°РЅР° |
 
-**Lifecycle:** `planned` → `approved` → `in_progress` → `implemented` → `reviewing` → `review_passed` → `done`
+**Lifecycle:** `planned` в†’ `approved` в†’ `in_progress` в†’ `implemented` в†’ `reviewing` в†’ `review_passed` в†’ `done`
 
-Каждый пункт плана проходит состояния в поле **status**. Не перепрыгивайте этапы без явной записи в плане или ADR.
+РљР°Р¶РґС‹Р№ РїСѓРЅРєС‚ РїР»Р°РЅР° РїСЂРѕС…РѕРґРёС‚ СЃРѕСЃС‚РѕСЏРЅРёСЏ РІ РїРѕР»Рµ **status**. РќРµ РїРµСЂРµРїСЂС‹РіРёРІР°Р№С‚Рµ СЌС‚Р°РїС‹ Р±РµР· СЏРІРЅРѕР№ Р·Р°РїРёСЃРё РІ РїР»Р°РЅРµ РёР»Рё ADR.
 
-| Порядок | status | Смысл |
+| РџРѕСЂСЏРґРѕРє | status | РЎРјС‹СЃР» |
 |---------|--------|-------|
-| 1 | `planned` | В бэклоге, работа не начата |
-| 2 | `approved` | Шаг принят к исполнению (scope и критерии согласованы) |
-| 3 | `in_progress` | Активная разработка |
-| 4 | `implemented` | Артефакты готовы со стороны исполнителя, до ревью |
-| 5 | `reviewing` | Запущена проверка (рекомендуется команда **`/review-step`**) |
-| 6a | `review_failed` | Есть critical/major — исправления, затем снова `implemented` → `reviewing` |
-| 6b | `review_passed` | Блокирующих замечаний нет, ревью зафиксировано |
-| 7 | `done` | Шаг закрыт |
+| 1 | `planned` | Р’ Р±СЌРєР»РѕРіРµ, СЂР°Р±РѕС‚Р° РЅРµ РЅР°С‡Р°С‚Р° |
+| 2 | `approved` | РЁР°Рі РїСЂРёРЅСЏС‚ Рє РёСЃРїРѕР»РЅРµРЅРёСЋ (scope Рё РєСЂРёС‚РµСЂРёРё СЃРѕРіР»Р°СЃРѕРІР°РЅС‹) |
+| 3 | `in_progress` | РђРєС‚РёРІРЅР°СЏ СЂР°Р·СЂР°Р±РѕС‚РєР° |
+| 4 | `implemented` | РђСЂС‚РµС„Р°РєС‚С‹ РіРѕС‚РѕРІС‹ СЃРѕ СЃС‚РѕСЂРѕРЅС‹ РёСЃРїРѕР»РЅРёС‚РµР»СЏ, РґРѕ СЂРµРІСЊСЋ |
+| 5 | `reviewing` | Р—Р°РїСѓС‰РµРЅР° РїСЂРѕРІРµСЂРєР° (СЂРµРєРѕРјРµРЅРґСѓРµС‚СЃСЏ РєРѕРјР°РЅРґР° **`/review-step`**) |
+| 6a | `review_failed` | Р•СЃС‚СЊ critical/major вЂ” РёСЃРїСЂР°РІР»РµРЅРёСЏ, Р·Р°С‚РµРј СЃРЅРѕРІР° `implemented` в†’ `reviewing` |
+| 6b | `review_passed` | Р‘Р»РѕРєРёСЂСѓСЋС‰РёС… Р·Р°РјРµС‡Р°РЅРёР№ РЅРµС‚, СЂРµРІСЊСЋ Р·Р°С„РёРєСЃРёСЂРѕРІР°РЅРѕ |
+| 7 | `done` | РЁР°Рі Р·Р°РєСЂС‹С‚ |
 
-**Ключевое правило:** перевод в **`done` допускается только после `review_passed`**. Путь `implemented` → `done` без `review_passed` запрещён.
+**РљР»СЋС‡РµРІРѕРµ РїСЂР°РІРёР»Рѕ:** РїРµСЂРµРІРѕРґ РІ **`done` РґРѕРїСѓСЃРєР°РµС‚СЃСЏ С‚РѕР»СЊРєРѕ РїРѕСЃР»Рµ `review_passed`**. РџСѓС‚СЊ `implemented` в†’ `done` Р±РµР· `review_passed` Р·Р°РїСЂРµС‰С‘РЅ.
 
-**Оркестрация ревью:** `.cursor/commands/review-step.md` — единая процедура перед `review_passed` / `done`.
+**РћСЂРєРµСЃС‚СЂР°С†РёСЏ СЂРµРІСЊСЋ:** `.cursor/commands/review-step.md` вЂ” РµРґРёРЅР°СЏ РїСЂРѕС†РµРґСѓСЂР° РїРµСЂРµРґ `review_passed` / `done`.
 
 ```mermaid
 flowchart LR
@@ -75,9 +75,9 @@ flowchart LR
   review_passed --> done
 ```
 
-**Префиксы `step_id` в этом файле:** `DEX-1-*` (single-chain), `DEX-2-*` (multi-chain), `DEX-DOC-*` (документация/ADR).
+**РџСЂРµС„РёРєСЃС‹ `step_id` РІ СЌС‚РѕРј С„Р°Р№Р»Рµ:** `DEX-1-*` (single-chain), `DEX-2-*` (multi-chain), `DEX-DOC-*` (РґРѕРєСѓРјРµРЅС‚Р°С†РёСЏ/ADR).
 
-**Инварианты (не нарушать):** single-writer, reservation-first, версионные переходы, идемпотентность, outbox/inbox, изоляция paper vs live, операторские разрушительные действия — см. [docs/handbook/02-architecture-invariants.md](../../docs/handbook/02-architecture-invariants.md).
+**Р�РЅРІР°СЂРёР°РЅС‚С‹ (РЅРµ РЅР°СЂСѓС€Р°С‚СЊ):** single-writer, reservation-first, РІРµСЂСЃРёРѕРЅРЅС‹Рµ РїРµСЂРµС…РѕРґС‹, РёРґРµРјРїРѕС‚РµРЅС‚РЅРѕСЃС‚СЊ, outbox/inbox, РёР·РѕР»СЏС†РёСЏ paper vs live, РѕРїРµСЂР°С‚РѕСЂСЃРєРёРµ СЂР°Р·СЂСѓС€РёС‚РµР»СЊРЅС‹Рµ РґРµР№СЃС‚РІРёСЏ вЂ” СЃРј. [docs/handbook/02-architecture-invariants.md](../../docs/handbook/02-architecture-invariants.md).
 
 ---
 
@@ -112,133 +112,133 @@ graph TD
 
 ---
 
-## Prerequisite: что уже есть в монорепо (не дублировать)
+## Prerequisite: С‡С‚Рѕ СѓР¶Рµ РµСЃС‚СЊ РІ РјРѕРЅРѕСЂРµРїРѕ (РЅРµ РґСѓР±Р»РёСЂРѕРІР°С‚СЊ)
 
-Основание **готово** (см. `DEVELOPMENT_PLAN.md`, `README.md`, AGENTS.md):
+РћСЃРЅРѕРІР°РЅРёРµ **РіРѕС‚РѕРІРѕ** (СЃРј. `DEVELOPMENT_PLAN.md`, `README.md`, AGENTS.md):
 
-- Цепочка **snapshot → opportunity → risk → capital → arm → ноги**; `ExecutionPlan` / `ExecutionLeg` state machines.
-- `VenueAdapter` + `HttpVenueAdapter` + `MockVenueAdapter` (lab) — DEX-адаптеры **реализуют тот же интерфейс** или согласованный расширяющий контракт (отдельный ADR, если `submitLeg` недостаточно для calldata DEX).
-- `risk-service`: token/route profiles; `reconciliation-service`, `portfolio-service`, `capital-service`, outbox, Kafka bridge (часть событий).
-- Paper trading, config-service, operator UI, Phase 4 intake tiering — **могут** использоваться для сравнения и политик, не заменяя single-writer.
+- Р¦РµРїРѕС‡РєР° **snapshot в†’ opportunity в†’ risk в†’ capital в†’ arm в†’ РЅРѕРіРё**; `ExecutionPlan` / `ExecutionLeg` state machines.
+- `VenueAdapter` + `HttpVenueAdapter` + `MockVenueAdapter` (lab) вЂ” DEX-Р°РґР°РїС‚РµСЂС‹ **СЂРµР°Р»РёР·СѓСЋС‚ С‚РѕС‚ Р¶Рµ РёРЅС‚РµСЂС„РµР№СЃ** РёР»Рё СЃРѕРіР»Р°СЃРѕРІР°РЅРЅС‹Р№ СЂР°СЃС€РёСЂСЏСЋС‰РёР№ РєРѕРЅС‚СЂР°РєС‚ (РѕС‚РґРµР»СЊРЅС‹Р№ ADR, РµСЃР»Рё `submitLeg` РЅРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РґР»СЏ calldata DEX).
+- `risk-service`: token/route profiles; `reconciliation-service`, `portfolio-service`, `capital-service`, outbox, Kafka bridge (С‡Р°СЃС‚СЊ СЃРѕР±С‹С‚РёР№).
+- Paper trading, config-service, operator UI, Phase 4 intake tiering вЂ” **РјРѕРіСѓС‚** РёСЃРїРѕР»СЊР·РѕРІР°С‚СЊСЃСЏ РґР»СЏ СЃСЂР°РІРЅРµРЅРёСЏ Рё РїРѕР»РёС‚РёРє, РЅРµ Р·Р°РјРµРЅСЏСЏ single-writer.
 
 ---
 
-## DEX-1 — Single-Chain (одна EVM сеть на сделку; две DEX-ноги в одной сети)
+## DEX-1 вЂ” Single-Chain (РѕРґРЅР° EVM СЃРµС‚СЊ РЅР° СЃРґРµР»РєСѓ; РґРІРµ DEX-РЅРѕРіРё РІ РѕРґРЅРѕР№ СЃРµС‚Рё)
 
-**Цель:** исполнение арбитража **в пределах одной сети** (две ноги: купил на DEX A, продал на DEX B) с EOA, базовым vault, метриками и сверкой on-chain. Сети: Arbitrum, Base, BNB (поэтапно; первый e2e — Arbitrum testnet).
+**Р¦РµР»СЊ:** РёСЃРїРѕР»РЅРµРЅРёРµ Р°СЂР±РёС‚СЂР°Р¶Р° **РІ РїСЂРµРґРµР»Р°С… РѕРґРЅРѕР№ СЃРµС‚Рё** (РґРІРµ РЅРѕРіРё: РєСѓРїРёР» РЅР° DEX A, РїСЂРѕРґР°Р» РЅР° DEX B) СЃ EOA, Р±Р°Р·РѕРІС‹Рј vault, РјРµС‚СЂРёРєР°РјРё Рё СЃРІРµСЂРєРѕР№ on-chain. РЎРµС‚Рё: Arbitrum, Base, BNB (РїРѕСЌС‚Р°РїРЅРѕ; РїРµСЂРІС‹Р№ e2e вЂ” Arbitrum testnet).
 
-### DEX-1.0 — Архитектура и фундамент
+### DEX-1.0 вЂ” РђСЂС…РёС‚РµРєС‚СѓСЂР° Рё С„СѓРЅРґР°РјРµРЅС‚
 
-#### `DEX-1-0-ADR-STRUCTURE` — ADR: размещение DEX-компонентов, DI, границы single-writer
+#### `DEX-1-0-ADR-STRUCTURE` вЂ” ADR: СЂР°Р·РјРµС‰РµРЅРёРµ DEX-РєРѕРјРїРѕРЅРµРЅС‚РѕРІ, DI, РіСЂР°РЅРёС†С‹ single-writer
 
 - **step_id:** `DEX-1-0-ADR-STRUCTURE`
 - **phase:** `dex-1`
 - **service:** `docs`
-- **goal:** Зафиксировать, где живут DEX-компоненты (отдельный сервис vs модуль в execution-orchestrator), как происходит DI, границы single-writer для DEX-сущностей.
+- **goal:** Р—Р°С„РёРєСЃРёСЂРѕРІР°С‚СЊ, РіРґРµ Р¶РёРІСѓС‚ DEX-РєРѕРјРїРѕРЅРµРЅС‚С‹ (РѕС‚РґРµР»СЊРЅС‹Р№ СЃРµСЂРІРёСЃ vs РјРѕРґСѓР»СЊ РІ execution-orchestrator), РєР°Рє РїСЂРѕРёСЃС…РѕРґРёС‚ DI, РіСЂР°РЅРёС†С‹ single-writer РґР»СЏ DEX-СЃСѓС‰РЅРѕСЃС‚РµР№.
 - **depends_on:** []
 - **risk_level:** `high`
 - **estimated_hours:** `4`
 - **main_plan_prerequisites:** [`P1-1.2-EXO`, `P2-2.1-VEN`]
 - **acceptance_criteria:**
-  - ADR в `docs/adr-dex-structure.md` с решением (рекомендуется: модуль в execution-orchestrator с чётким разделением).
-  - Согласован с Architecture Guard; не нарушает инварианты.
-  - **Test command:** `npm run architecture-guard` — success
-  - **Explicit check:** ADR содержит раздел "Single-writer boundaries for DEX entities"
+  - ADR РІ `docs/adr-dex-structure.md` СЃ СЂРµС€РµРЅРёРµРј (СЂРµРєРѕРјРµРЅРґСѓРµС‚СЃСЏ: РјРѕРґСѓР»СЊ РІ execution-orchestrator СЃ С‡С‘С‚РєРёРј СЂР°Р·РґРµР»РµРЅРёРµРј).
+  - РЎРѕРіР»Р°СЃРѕРІР°РЅ СЃ Architecture Guard; РЅРµ РЅР°СЂСѓС€Р°РµС‚ РёРЅРІР°СЂРёР°РЅС‚С‹.
+  - **Test command:** `npm run architecture-guard` вЂ” success
+  - **Explicit check:** ADR СЃРѕРґРµСЂР¶РёС‚ СЂР°Р·РґРµР» "Single-writer boundaries for DEX entities"
 - **changed_areas:**
-  - `docs/adr-dex-structure.md` (новый)
+  - `docs/adr-dex-structure.md` (РЅРѕРІС‹Р№)
 - **outputs:**
-  - ADR документ с архитектурой DEX-компонентов
-  - DI контур для DEX-адаптеров
-  - Single-writer boundaries для `on_chain_transactions`, `wallet_states`, `dex_pools`
+  - ADR РґРѕРєСѓРјРµРЅС‚ СЃ Р°СЂС…РёС‚РµРєС‚СѓСЂРѕР№ DEX-РєРѕРјРїРѕРЅРµРЅС‚РѕРІ
+  - DI РєРѕРЅС‚СѓСЂ РґР»СЏ DEX-Р°РґР°РїС‚РµСЂРѕРІ
+  - Single-writer boundaries РґР»СЏ `on_chain_transactions`, `wallet_states`, `dex_pools`
 - **test_commands:**
-  - Review ADR по checklist из `.cursor/commands/review-step.md`
+  - Review ADR РїРѕ checklist РёР· `.cursor/commands/review-step.md`
   - Run architecture guard: `npx /architecture-guard`
 - **edge_cases:**
-  - Конфликт между VenueAdapter и OnChainVenueAdapter
-  - Shared state между DEX-адаптерами
+  - РљРѕРЅС„Р»РёРєС‚ РјРµР¶РґСѓ VenueAdapter Рё OnChainVenueAdapter
+  - Shared state РјРµР¶РґСѓ DEX-Р°РґР°РїС‚РµСЂР°РјРё
 - **rollback_procedure:**
-  - Удалить ADR из `docs/`
-  - Откатить изменения в DI контуре (если реализованы)
-- **ci_integration:** Manual review (ADR не тестируется в CI)
+  - РЈРґР°Р»РёС‚СЊ ADR РёР· `docs/`
+  - РћС‚РєР°С‚РёС‚СЊ РёР·РјРµРЅРµРЅРёСЏ РІ DI РєРѕРЅС‚СѓСЂРµ (РµСЃР»Рё СЂРµР°Р»РёР·РѕРІР°РЅС‹)
+- **ci_integration:** Manual review (ADR РЅРµ С‚РµСЃС‚РёСЂСѓРµС‚СЃСЏ РІ CI)
 - **review_required:** `architecture`
 - **review_date:** 2026-04-28
 - **review_notes:**
-  - ✅ ethers.js v6.13.0 добавлен в `packages/nest-platform/package.json` и `apps/execution-orchestrator/package.json`
-  - ✅ Библиотека выбрана, соответствует критериям
-  - ⚠️ Требуется проверка совместимости со всеми chainId
-  - ⚠️ Нет unit-тестов для проверки типов
+  - вњ… ethers.js v6.13.0 РґРѕР±Р°РІР»РµРЅ РІ `packages/nest-platform/package.json` Рё `apps/execution-orchestrator/package.json`
+  - вњ… Р‘РёР±Р»РёРѕС‚РµРєР° РІС‹Р±СЂР°РЅР°, СЃРѕРѕС‚РІРµС‚СЃС‚РІСѓРµС‚ РєСЂРёС‚РµСЂРёСЏРј
+  - вљ пёЏ РўСЂРµР±СѓРµС‚СЃСЏ РїСЂРѕРІРµСЂРєР° СЃРѕРІРјРµСЃС‚РёРјРѕСЃС‚Рё СЃРѕ РІСЃРµРјРё chainId
+  - вљ пёЏ РќРµС‚ unit-С‚РµСЃС‚РѕРІ РґР»СЏ РїСЂРѕРІРµСЂРєРё С‚РёРїРѕРІ
 - **review_action_items:**
-  - [x] Добавить тесты импорта типов из ethers.js
-  - [x] Документировать выбор в `.cursor/rules/arbibot-tech-stack.mdc`
-  - [x] Добавить комментарии в `.env.example` о выбранной библиотеке
+  - [x] Р”РѕР±Р°РІРёС‚СЊ С‚РµСЃС‚С‹ РёРјРїРѕСЂС‚Р° С‚РёРїРѕРІ РёР· ethers.js
+  - [x] Р”РѕРєСѓРјРµРЅС‚РёСЂРѕРІР°С‚СЊ РІС‹Р±РѕСЂ РІ `.cursor/rules/arbibot-tech-stack.mdc`
+  - [x] Р”РѕР±Р°РІРёС‚СЊ РєРѕРјРјРµРЅС‚Р°СЂРёРё РІ `.env.example` Рѕ РІС‹Р±СЂР°РЅРЅРѕР№ Р±РёР±Р»РёРѕС‚РµРєРµ
 - **review_blocks:** []
 - **review_passed_date:** 2026-04-29
 - **status:** `done`
 
-#### `DEX-1-0-TECH-CHOICE` — Технологический выбор: ethers.js vs viem
+#### `DEX-1-0-TECH-CHOICE` вЂ” РўРµС…РЅРѕР»РѕРіРёС‡РµСЃРєРёР№ РІС‹Р±РѕСЂ: ethers.js vs viem
 
 - **step_id:** `DEX-1-0-TECH-CHOICE`
 - **phase:** `dex-1`
 - **service:** `platform`
-- **goal:** Выбрать библиотеку для EVM-взаимодействия (ethers.js или viem); зафиксировать в `package.json` и `.cursor/rules/`.
+- **goal:** Р’С‹Р±СЂР°С‚СЊ Р±РёР±Р»РёРѕС‚РµРєСѓ РґР»СЏ EVM-РІР·Р°РёРјРѕРґРµР№СЃС‚РІРёСЏ (ethers.js РёР»Рё viem); Р·Р°С„РёРєСЃРёСЂРѕРІР°С‚СЊ РІ `package.json` Рё `.cursor/rules/`.
 - **depends_on:** [`DEX-1-0-ADR-STRUCTURE`]
 - **risk_level:** `critical`
 - **estimated_hours:** `2`
 - **main_plan_prerequisites:** []
 - **acceptance_criteria:**
-  - Решение документировано в ADR или начале плана.
-  - Добавлен в `apps/*/package.json` с версией; типы используются без `any`.
-  - Проверка совместимости с поддерживаемыми chainId (Arbitrum 42161, Base 8453, BNB 56).
-  - **Test command:** `npm run lint` — no errors; `npm run build` — success
-  - **Explicit check:** `import { Provider, Wallet } from 'ethers'` (или viem) работает без `any`
+  - Р РµС€РµРЅРёРµ РґРѕРєСѓРјРµРЅС‚РёСЂРѕРІР°РЅРѕ РІ ADR РёР»Рё РЅР°С‡Р°Р»Рµ РїР»Р°РЅР°.
+  - Р”РѕР±Р°РІР»РµРЅ РІ `apps/*/package.json` СЃ РІРµСЂСЃРёРµР№; С‚РёРїС‹ РёСЃРїРѕР»СЊР·СѓСЋС‚СЃСЏ Р±РµР· `any`.
+  - РџСЂРѕРІРµСЂРєР° СЃРѕРІРјРµСЃС‚РёРјРѕСЃС‚Рё СЃ РїРѕРґРґРµСЂР¶РёРІР°РµРјС‹РјРё chainId (Arbitrum 42161, Base 8453, BNB 56).
+  - **Test command:** `npm run lint` вЂ” no errors; `npm run build` вЂ” success
+  - **Explicit check:** `import { Provider, Wallet } from 'ethers'` (РёР»Рё viem) СЂР°Р±РѕС‚Р°РµС‚ Р±РµР· `any`
 - **changed_areas:**
   - `apps/execution-orchestrator/package.json`
   - `packages/nest-platform/package.json`
-  - `.cursor/rules/arbibot-tech-stack.mdc` (новый или обновление)
-  - `.env.example` (с комментарием о выборе)
+  - `.cursor/rules/arbibot-tech-stack.mdc` (РЅРѕРІС‹Р№ РёР»Рё РѕР±РЅРѕРІР»РµРЅРёРµ)
+  - `.env.example` (СЃ РєРѕРјРјРµРЅС‚Р°СЂРёРµРј Рѕ РІС‹Р±РѕСЂРµ)
 - **outputs:**
-  - `ethers` или `viem` в `package.json` с версией
-  - ADR или документ с обоснованием выбора
-  - Типы для `ChainId`, `Address`, `TxHash`
+  - `ethers` РёР»Рё `viem` РІ `package.json` СЃ РІРµСЂСЃРёРµР№
+  - ADR РёР»Рё РґРѕРєСѓРјРµРЅС‚ СЃ РѕР±РѕСЃРЅРѕРІР°РЅРёРµРј РІС‹Р±РѕСЂР°
+  - РўРёРїС‹ РґР»СЏ `ChainId`, `Address`, `TxHash`
 - **test_commands:**
   - `npm run lint`
   - `npm run build -w @arbibot/execution-orchestrator`
-  - `npm run test -w @arbibot/execution-orchestrator` (если есть тесты)
+  - `npm run test -w @arbibot/execution-orchestrator` (РµСЃР»Рё РµСЃС‚СЊ С‚РµСЃС‚С‹)
 - **edge_cases:**
-  - Несовместимость с поддерживаемыми chainId
-  - TypeScript errors при использовании выбранной библиотеки
+  - РќРµСЃРѕРІРјРµСЃС‚РёРјРѕСЃС‚СЊ СЃ РїРѕРґРґРµСЂР¶РёРІР°РµРјС‹РјРё chainId
+  - TypeScript errors РїСЂРё РёСЃРїРѕР»СЊР·РѕРІР°РЅРёРё РІС‹Р±СЂР°РЅРЅРѕР№ Р±РёР±Р»РёРѕС‚РµРєРё
 - **rollback_procedure:**
-  - Удалить библиотеку из `package.json`
-  - Восстановить предыдущий `.cursor/rules/`
-- **ci_integration:** Добавить в `npm run lint` и `npm run build` в CI
+  - РЈРґР°Р»РёС‚СЊ Р±РёР±Р»РёРѕС‚РµРєСѓ РёР· `package.json`
+  - Р’РѕСЃСЃС‚Р°РЅРѕРІРёС‚СЊ РїСЂРµРґС‹РґСѓС‰РёР№ `.cursor/rules/`
+- **ci_integration:** Р”РѕР±Р°РІРёС‚СЊ РІ `npm run lint` Рё `npm run build` РІ CI
 - **review_required:** `architecture`
 - **review_notes:**
-  - ✅ ethers.js v6.13.0 установлен в `packages/nest-platform/package.json` и `apps/execution-orchestrator/package.json`
-  - ✅ Совместимость с Arbitrum (42161), Base (8453), BNB (56) подтверждена
-  - ✅ `npm run build` — success (21/21 пакетов)
-  - ✅ `npm run lint` — no errors
+  - вњ… ethers.js v6.13.0 СѓСЃС‚Р°РЅРѕРІР»РµРЅ РІ `packages/nest-platform/package.json` Рё `apps/execution-orchestrator/package.json`
+  - вњ… РЎРѕРІРјРµСЃС‚РёРјРѕСЃС‚СЊ СЃ Arbitrum (42161), Base (8453), BNB (56) РїРѕРґС‚РІРµСЂР¶РґРµРЅР°
+  - вњ… `npm run build` вЂ” success (21/21 РїР°РєРµС‚РѕРІ)
+  - вњ… `npm run lint` вЂ” no errors
 - **review_passed_date:** 2026-04-29
 - **status:** `done`
 
-#### `DEX-1-0-ABIS` — Пакет `@arbibot/contracts-eth` (ABI, адреса, сети)
+#### `DEX-1-0-ABIS` вЂ” РџР°РєРµС‚ `@arbibot/contracts-eth` (ABI, Р°РґСЂРµСЃР°, СЃРµС‚Рё)
 
 - **step_id:** `DEX-1-0-ABIS`
 - **phase:** `dex-1`
-- **service:** `packages/contracts-eth` (новый) или `packages/contracts` (если согласовано слияние)
-- **goal:** Вынести ABI и константы адресов router/pool (Uniswap V2/V3, Sushi) для целевых сетей; единая типизация `chainId`, `address`.
+- **service:** `packages/contracts-eth` (РЅРѕРІС‹Р№) РёР»Рё `packages/contracts` (РµСЃР»Рё СЃРѕРіР»Р°СЃРѕРІР°РЅРѕ СЃР»РёСЏРЅРёРµ)
+- **goal:** Р’С‹РЅРµСЃС‚Рё ABI Рё РєРѕРЅСЃС‚Р°РЅС‚С‹ Р°РґСЂРµСЃРѕРІ router/pool (Uniswap V2/V3, Sushi) РґР»СЏ С†РµР»РµРІС‹С… СЃРµС‚РµР№; РµРґРёРЅР°СЏ С‚РёРїРёР·Р°С†РёСЏ `chainId`, `address`.
 - **depends_on:** [`DEX-1-0-TECH-CHOICE`]
 - **risk_level:** `medium`
 - **estimated_hours:** `8`
 - **main_plan_prerequisites:** [`P1-1.2-EXO`]
 - **acceptance_criteria:**
-  - Пакет подключён в workspace; типы и ABI используются адаптерами без `any`.
-  - Документирована таблица поддерживаемых **chainId** и **контрактов** (минимум Arbitrum testnet+mainnet для старта, расширение Base/BNB — отдельные строки плана при переносе).
-  - **Test command:** `npm run lint -w @arbibot/contracts-eth` — success
-  - **Test command:** `npm run test -w @arbibot/contracts-eth` — success
-  - **Test command:** `npm run build -w @arbibot/contracts-eth` — success
-  - **Explicit check:** `import { UniswapV2RouterABI } from '@arbibot/contracts-eth'` работает
+  - РџР°РєРµС‚ РїРѕРґРєР»СЋС‡С‘РЅ РІ workspace; С‚РёРїС‹ Рё ABI РёСЃРїРѕР»СЊР·СѓСЋС‚СЃСЏ Р°РґР°РїС‚РµСЂР°РјРё Р±РµР· `any`.
+  - Р”РѕРєСѓРјРµРЅС‚РёСЂРѕРІР°РЅР° С‚Р°Р±Р»РёС†Р° РїРѕРґРґРµСЂР¶РёРІР°РµРјС‹С… **chainId** Рё **РєРѕРЅС‚СЂР°РєС‚РѕРІ** (РјРёРЅРёРјСѓРј Arbitrum testnet+mainnet РґР»СЏ СЃС‚Р°СЂС‚Р°, СЂР°СЃС€РёСЂРµРЅРёРµ Base/BNB вЂ” РѕС‚РґРµР»СЊРЅС‹Рµ СЃС‚СЂРѕРєРё РїР»Р°РЅР° РїСЂРё РїРµСЂРµРЅРѕСЃРµ).
+  - **Test command:** `npm run lint -w @arbibot/contracts-eth` вЂ” success
+  - **Test command:** `npm run test -w @arbibot/contracts-eth` вЂ” success
+  - **Test command:** `npm run build -w @arbibot/contracts-eth` вЂ” success
+  - **Explicit check:** `import { UniswapV2RouterABI } from '@arbibot/contracts-eth'` СЂР°Р±РѕС‚Р°РµС‚
 - **changed_areas:**
-  - `packages/contracts-eth/` (новый пакет)
+  - `packages/contracts-eth/` (РЅРѕРІС‹Р№ РїР°РєРµС‚)
     - `src/abis/uniswap-v2-router.ts`
     - `src/abis/uniswap-v3-router.ts`
     - `src/abis/sushiswap-router.ts`
@@ -251,54 +251,54 @@ graph TD
   - `packages/contracts-eth/tsconfig.json`
   - `package.json` (workspaces)
 - **outputs:**
-  - `UniswapV2RouterABI` — интерфейс Uniswap V2 Router
-  - `UniswapV3RouterABI` — интерфейс Uniswap V3 Router
-  - `SushiSwapRouterABI` — интерфейс SushiSwap Router
-  - `ArbitrumMainnetAddresses` — адреса DEX на Arbitrum mainnet
-  - `ArbitrumTestnetAddresses` — адреса DEX на Arbitrum testnet
-  - `ChainId` — enum с поддерживаемыми chainId (42161, 421611, 8453, 84531, 56, 97)
-  - `Address` — типизированный `0x${string}`
+  - `UniswapV2RouterABI` вЂ” РёРЅС‚РµСЂС„РµР№СЃ Uniswap V2 Router
+  - `UniswapV3RouterABI` вЂ” РёРЅС‚РµСЂС„РµР№СЃ Uniswap V3 Router
+  - `SushiSwapRouterABI` вЂ” РёРЅС‚РµСЂС„РµР№СЃ SushiSwap Router
+  - `ArbitrumMainnetAddresses` вЂ” Р°РґСЂРµСЃР° DEX РЅР° Arbitrum mainnet
+  - `ArbitrumTestnetAddresses` вЂ” Р°РґСЂРµСЃР° DEX РЅР° Arbitrum testnet
+  - `ChainId` вЂ” enum СЃ РїРѕРґРґРµСЂР¶РёРІР°РµРјС‹РјРё chainId (42161, 421611, 8453, 84531, 56, 97)
+  - `Address` вЂ” С‚РёРїРёР·РёСЂРѕРІР°РЅРЅС‹Р№ `0x${string}`
 - **test_commands:**
   - `npm run lint -w @arbibot/contracts-eth`
   - `npm run test -w @arbibot/contracts-eth`
   - `npm run build -w @arbibot/contracts-eth`
 - **edge_cases:**
-  - ABI mismatch между сетями (different router addresses)
-  - Type safety при импорте ABI
-  - Неправильные адреса контрактов
+  - ABI mismatch РјРµР¶РґСѓ СЃРµС‚СЏРјРё (different router addresses)
+  - Type safety РїСЂРё РёРјРїРѕСЂС‚Рµ ABI
+  - РќРµРїСЂР°РІРёР»СЊРЅС‹Рµ Р°РґСЂРµСЃР° РєРѕРЅС‚СЂР°РєС‚РѕРІ
 - **rollback_procedure:**
-  - Удалить пакет из workspace
-  - Удалить импорты из адаптеров
-- **ci_integration:** Добавить в `npm run lint`, `npm run test`, `npm run build` в CI
+  - РЈРґР°Р»РёС‚СЊ РїР°РєРµС‚ РёР· workspace
+  - РЈРґР°Р»РёС‚СЊ РёРјРїРѕСЂС‚С‹ РёР· Р°РґР°РїС‚РµСЂРѕРІ
+- **ci_integration:** Р”РѕР±Р°РІРёС‚СЊ РІ `npm run lint`, `npm run test`, `npm run build` РІ CI
 - **review_required:** `backend`
 - **review_notes:**
-  - ✅ Пакет `@arbibot/contracts-eth` создан и подключён к workspace
-  - ✅ ABI: UniswapV2RouterABI, UniswapV3RouterABI, SushiSwapRouterABI, ERC20ABI
-  - ✅ Адреса: Arbitrum (mainnet + Sepolia), Base (mainnet + Sepolia), BNB (mainnet + testnet)
-  - ✅ Типы: ChainId enum, Address branded type
-  - ✅ `npm run build -w @arbibot/contracts-eth` — success
-  - ✅ `npm run build` (full monorepo) — 21/21 success
+  - вњ… РџР°РєРµС‚ `@arbibot/contracts-eth` СЃРѕР·РґР°РЅ Рё РїРѕРґРєР»СЋС‡С‘РЅ Рє workspace
+  - вњ… ABI: UniswapV2RouterABI, UniswapV3RouterABI, SushiSwapRouterABI, ERC20ABI
+  - вњ… РђРґСЂРµСЃР°: Arbitrum (mainnet + Sepolia), Base (mainnet + Sepolia), BNB (mainnet + testnet)
+  - вњ… РўРёРїС‹: ChainId enum, Address branded type
+  - вњ… `npm run build -w @arbibot/contracts-eth` вЂ” success
+  - вњ… `npm run build` (full monorepo) вЂ” 21/21 success
 - **review_passed_date:** 2026-04-29
 - **post_review_fixes:**
-  - 2026-05-04: CI lint fix — `tsconfig.json` исключал `**/*.spec.ts`, ESLint не мог найти `index.spec.ts` через TypeScript Project Service → убран из `exclude` (branch `fix/ci-contracts-eth-lint`, commit `dfb0cdb`)
+  - 2026-05-04: CI lint fix вЂ” `tsconfig.json` РёСЃРєР»СЋС‡Р°Р» `**/*.spec.ts`, ESLint РЅРµ РјРѕРі РЅР°Р№С‚Рё `index.spec.ts` С‡РµСЂРµР· TypeScript Project Service в†’ СѓР±СЂР°РЅ РёР· `exclude` (branch `fix/ci-contracts-eth-lint`, commit `dfb0cdb`)
 - **status:** `done`
 
-#### `DEX-1-0-RPC` — RPC-провайдер: failover, health, таймауты
+#### `DEX-1-0-RPC` вЂ” RPC-РїСЂРѕРІР°Р№РґРµСЂ: failover, health, С‚Р°Р№РјР°СѓС‚С‹
 
 - **step_id:** `DEX-1-0-RPC`
 - **phase:** `dex-1`
-- **service:** `execution-orchestrator` или `apps/dex-execution` (как согласовано в ADR)
-- **goal:** `RpcProviderManager` (primary + backup URL из env), измерение latency, маркер «неготов к торговле» при деградации.
+- **service:** `execution-orchestrator` РёР»Рё `apps/dex-execution` (РєР°Рє СЃРѕРіР»Р°СЃРѕРІР°РЅРѕ РІ ADR)
+- **goal:** `RpcProviderManager` (primary + backup URL РёР· env), РёР·РјРµСЂРµРЅРёРµ latency, РјР°СЂРєРµСЂ В«РЅРµРіРѕС‚РѕРІ Рє С‚РѕСЂРіРѕРІР»РµВ» РїСЂРё РґРµРіСЂР°РґР°С†РёРё.
 - **depends_on:** [`DEX-1-0-TECH-CHOICE`]
 - **risk_level:** `high`
 - **estimated_hours:** `12`
 - **main_plan_prerequisites:** [`P1-1.2-EXO`]
 - **acceptance_criteria:**
-  - Env: `RPC_*_URL`, `RPC_*_BACKUP_URL` (см. `.env.example` после шага).
-  - Unit-тесты с моком HTTP; метрика latency/circuit при необходимости.
-  - **SLO:** latency p95 < 100ms для primary RPC
-  - **Test command:** `npm run test rpc-provider-manager.spec.ts` — success
-  - **Explicit check:** `GET /health/rpc` возвращает latency и status
+  - Env: `RPC_*_URL`, `RPC_*_BACKUP_URL` (СЃРј. `.env.example` РїРѕСЃР»Рµ С€Р°РіР°).
+  - Unit-С‚РµСЃС‚С‹ СЃ РјРѕРєРѕРј HTTP; РјРµС‚СЂРёРєР° latency/circuit РїСЂРё РЅРµРѕР±С…РѕРґРёРјРѕСЃС‚Рё.
+  - **SLO:** latency p95 < 100ms РґР»СЏ primary RPC
+  - **Test command:** `npm run test rpc-provider-manager.spec.ts` вЂ” success
+  - **Explicit check:** `GET /health/rpc` РІРѕР·РІСЂР°С‰Р°РµС‚ latency Рё status
 - **changed_areas:**
   - `apps/execution-orchestrator/src/execution/rpc/`
     - `rpc-provider-manager.service.ts`
@@ -307,82 +307,82 @@ graph TD
     - `execution.module.ts` (DI)
   - `.env.example` (RPC_*_URL, RPC_*_BACKUP_URL)
 - **outputs:**
-  - `RpcProviderManager` — сервис с failover
-  - `RpcHealthStatus` — интерфейс статуса RPC
-  - Метрика `arb_rpc_latency_seconds` (histogram)
-  - Метрика `arb_rpc_failures_total` (counter)
+  - `RpcProviderManager` вЂ” СЃРµСЂРІРёСЃ СЃ failover
+  - `RpcHealthStatus` вЂ” РёРЅС‚РµСЂС„РµР№СЃ СЃС‚Р°С‚СѓСЃР° RPC
+  - РњРµС‚СЂРёРєР° `arb_rpc_latency_seconds` (histogram)
+  - РњРµС‚СЂРёРєР° `arb_rpc_failures_total` (counter)
   - Health endpoint `GET /health/rpc`
 - **test_commands:**
   - `npm run test rpc-provider-manager.service.spec.ts`
   - `npm run lint -w @arbibot/execution-orchestrator`
 - **edge_cases:**
-  - Primary RPC недоступен, backup тоже
-  - High latency (>5s) — circuit breaker
-  - Rate limiting от RPC провайдера
+  - Primary RPC РЅРµРґРѕСЃС‚СѓРїРµРЅ, backup С‚РѕР¶Рµ
+  - High latency (>5s) вЂ” circuit breaker
+  - Rate limiting РѕС‚ RPC РїСЂРѕРІР°Р№РґРµСЂР°
 - **rollback_procedure:**
-  - Удалить `RpcProviderManager` из DI
-  - Откатить изменения в `.env.example`
-- **ci_integration:** Добавить unit tests в CI
+  - РЈРґР°Р»РёС‚СЊ `RpcProviderManager` РёР· DI
+  - РћС‚РєР°С‚РёС‚СЊ РёР·РјРµРЅРµРЅРёСЏ РІ `.env.example`
+- **ci_integration:** Р”РѕР±Р°РІРёС‚СЊ unit tests РІ CI
 - **review_required:** `backend`
 - **review_notes:**
-  - ✅ `RpcProviderManager` реализован в `apps/execution-orchestrator/src/execution/rpc/`
-  - ✅ Failover: primary + backup URL → `FallbackProvider`
-  - ✅ 6 сетей: Arbitrum/Base/BNB mainnet+testnet
-  - ✅ Env vars: `RPC_*_URL`, `RPC_*_BACKUP_URL`
-  - ✅ Prometheus metrics: `arb_rpc_latency_seconds` (histogram), `arb_rpc_failures_total` (counter)
-  - ✅ Health checks каждые 30s с latency threshold (100ms SLO)
-  - ⚠️ Нет unit-тестов (`rpc-provider-manager.service.spec.ts` отсутствует)
-  - ⚠️ Нет `GET /health/rpc` endpoint
+  - вњ… `RpcProviderManager` СЂРµР°Р»РёР·РѕРІР°РЅ РІ `apps/execution-orchestrator/src/execution/rpc/`
+  - вњ… Failover: primary + backup URL в†’ `FallbackProvider`
+  - вњ… 6 СЃРµС‚РµР№: Arbitrum/Base/BNB mainnet+testnet
+  - вњ… Env vars: `RPC_*_URL`, `RPC_*_BACKUP_URL`
+  - вњ… Prometheus metrics: `arb_rpc_latency_seconds` (histogram), `arb_rpc_failures_total` (counter)
+  - вњ… Health checks РєР°Р¶РґС‹Рµ 30s СЃ latency threshold (100ms SLO)
+  - вљ пёЏ РќРµС‚ unit-С‚РµСЃС‚РѕРІ (`rpc-provider-manager.service.spec.ts` РѕС‚СЃСѓС‚СЃС‚РІСѓРµС‚)
+  - вљ пёЏ РќРµС‚ `GET /health/rpc` endpoint
 - **review_action_items:**
-  - [ ] Добавить unit-тесты с моком HTTP
-  - [ ] Добавить `GET /health/rpc` endpoint
+  - [ ] Р”РѕР±Р°РІРёС‚СЊ unit-С‚РµСЃС‚С‹ СЃ РјРѕРєРѕРј HTTP
+  - [ ] Р”РѕР±Р°РІРёС‚СЊ `GET /health/rpc` endpoint
 - **review_passed_date:** 2026-04-29
 - **status:** `done`
 
-#### `DEX-1-0-MIGRATIONS` — Миграции БД для on-chain сущностей
+#### `DEX-1-0-MIGRATIONS` вЂ” РњРёРіСЂР°С†РёРё Р‘Р” РґР»СЏ on-chain СЃСѓС‰РЅРѕСЃС‚РµР№
 - **step_id:** `DEX-1-0-MIGRATIONS`
 - **phase:** `dex-1`
 - **service:** `infra/postgres`
-- **goal:** Создать таблицы для DEX-специфичных сущностей: `on_chain_transactions`, `wallet_states`, `dex_pools`, `approvals`.
+- **goal:** РЎРѕР·РґР°С‚СЊ С‚Р°Р±Р»РёС†С‹ РґР»СЏ DEX-СЃРїРµС†РёС„РёС‡РЅС‹С… СЃСѓС‰РЅРѕСЃС‚РµР№: `on_chain_transactions`, `wallet_states`, `dex_pools`, `approvals`.
 - **depends_on:** [`DEX-1-0-ABIS`]
 - **risk_level:** `medium`
 - **estimated_hours:** `6`
 - **main_plan_prerequisites:** [`P1-1.1-PG`]
 - **acceptance_criteria:**
-  - Миграция `infra/postgres/migrations/033_dex_on_chain.sql` (следующий номер после текущих 001–032).
-  - Индексы на `legId`, `txHash`, `chainId`, `walletAddress`.
-  - **Test command:** `npm run db:migrate` — success
-  - **Explicit check:** `SELECT * FROM on_chain_transactions LIMIT 1` работает
+  - РњРёРіСЂР°С†РёСЏ `infra/postgres/migrations/033_dex_on_chain.sql` (СЃР»РµРґСѓСЋС‰РёР№ РЅРѕРјРµСЂ РїРѕСЃР»Рµ С‚РµРєСѓС‰РёС… 001вЂ“032).
+  - Р�РЅРґРµРєСЃС‹ РЅР° `legId`, `txHash`, `chainId`, `walletAddress`.
+  - **Test command:** `npm run db:migrate` вЂ” success
+  - **Explicit check:** `SELECT * FROM on_chain_transactions LIMIT 1` СЂР°Р±РѕС‚Р°РµС‚
 - **outputs:**
-  - Таблица `on_chain_transactions` (txHash, chainId, legId, status, gasUsed, ...)
-  - Таблица `wallet_states` (walletAddress, chainId, nonce, balance, status)
-  - Таблица `dex_pools` (poolAddress, chainId, dex, tokenA, tokenB, liquidity, feeTier)
-  - Таблица `approvals` (walletAddress, chainId, spender, token, amount, timestamp)
+  - РўР°Р±Р»РёС†Р° `on_chain_transactions` (txHash, chainId, legId, status, gasUsed, ...)
+  - РўР°Р±Р»РёС†Р° `wallet_states` (walletAddress, chainId, nonce, balance, status)
+  - РўР°Р±Р»РёС†Р° `dex_pools` (poolAddress, chainId, dex, tokenA, tokenB, liquidity, feeTier)
+  - РўР°Р±Р»РёС†Р° `approvals` (walletAddress, chainId, spender, token, amount, timestamp)
 - **review_notes:**
-  - ✅ Миграция `033_dex_on_chain.sql` создана — 4 таблицы + индексы + triggers
-  - ✅ TypeORM entities: `OnChainTransaction`, `WalletState`, `DexPool`, `Approval` в `@arbibot/persistence`
-  - ✅ Все entities экспортированы в `packages/persistence/src/index.ts` и включены в `ARBIBOT_TYPEORM_ENTITIES`
-  - ✅ Build monorepo green
+  - вњ… РњРёРіСЂР°С†РёСЏ `033_dex_on_chain.sql` СЃРѕР·РґР°РЅР° вЂ” 4 С‚Р°Р±Р»РёС†С‹ + РёРЅРґРµРєСЃС‹ + triggers
+  - вњ… TypeORM entities: `OnChainTransaction`, `WalletState`, `DexPool`, `Approval` РІ `@arbibot/persistence`
+  - вњ… Р’СЃРµ entities СЌРєСЃРїРѕСЂС‚РёСЂРѕРІР°РЅС‹ РІ `packages/persistence/src/index.ts` Рё РІРєР»СЋС‡РµРЅС‹ РІ `ARBIBOT_TYPEORM_ENTITIES`
+  - вњ… Build monorepo green
 - **review_passed_date:** 2026-04-29
 - **status:** `done`
 
-#### `DEX-1-0-POOL-DISCOVERY` — Автоматическое открытие и кэширование DEX пулов
+#### `DEX-1-0-POOL-DISCOVERY` вЂ” РђРІС‚РѕРјР°С‚РёС‡РµСЃРєРѕРµ РѕС‚РєСЂС‹С‚РёРµ Рё РєСЌС€РёСЂРѕРІР°РЅРёРµ DEX РїСѓР»РѕРІ
 
 - **step_id:** `DEX-1-0-POOL-DISCOVERY`
 - **phase:** `dex-1`
-- **service:** `execution` (воркер)
-- **goal:** Автоматическое открытие и кэширование DEX пулов (liquidity, fee tier, address) для поддерживаемых сетей и DEX; отдельный воркер, независимый от market-intake.
+- **service:** `execution` (РІРѕСЂРєРµСЂ)
+- **goal:** РђРІС‚РѕРјР°С‚РёС‡РµСЃРєРѕРµ РѕС‚РєСЂС‹С‚РёРµ Рё РєСЌС€РёСЂРѕРІР°РЅРёРµ DEX РїСѓР»РѕРІ (liquidity, fee tier, address) РґР»СЏ РїРѕРґРґРµСЂР¶РёРІР°РµРјС‹С… СЃРµС‚РµР№ Рё DEX; РѕС‚РґРµР»СЊРЅС‹Р№ РІРѕСЂРєРµСЂ, РЅРµР·Р°РІРёСЃРёРјС‹Р№ РѕС‚ market-intake.
 - **depends_on:** [`DEX-1-0-ABIS`, `DEX-1-0-RPC`]
 - **risk_level:** `medium`
 - **estimated_hours:** `10`
 - **main_plan_prerequisites:** [`P1-1.1-REDIS`]
 - **acceptance_criteria:**
-  - Воркер для обновления `dex_pools` (периодическое или по триггеру).
-  - Кэш в Redis для быстрого lookup пулов.
-  - Тесты на pool discovery (mock DEX factory responses).
+  - Р’РѕСЂРєРµСЂ РґР»СЏ РѕР±РЅРѕРІР»РµРЅРёСЏ `dex_pools` (РїРµСЂРёРѕРґРёС‡РµСЃРєРѕРµ РёР»Рё РїРѕ С‚СЂРёРіРіРµСЂСѓ).
+  - РљСЌС€ РІ Redis РґР»СЏ Р±С‹СЃС‚СЂРѕРіРѕ lookup РїСѓР»РѕРІ.
+  - РўРµСЃС‚С‹ РЅР° pool discovery (mock DEX factory responses).
   - **SLO:** pool discovery latency < 5s
-  - **Test command:** `npm run test dex-pool-discovery.spec.ts` — success
-  - **Explicit check:** Redis содержит `arb:dex:pools:${chainId}:${dex}:${tokenA}:${tokenB}`
+  - **Test command:** `npm run test dex-pool-discovery.spec.ts` вЂ” success
+  - **Explicit check:** Redis СЃРѕРґРµСЂР¶РёС‚ `arb:dex:pools:${chainId}:${dex}:${tokenA}:${tokenB}`
 - **changed_areas:**
   - `apps/execution-orchestrator/src/workers/`
     - `dex-pool-discovery.worker.ts`
@@ -391,54 +391,54 @@ graph TD
     - `dex-pool.service.ts`
   - `packages/persistence/src/entities/dex-pool.entity.ts`
 - **outputs:**
-  - `DexPoolDiscoveryWorker` — воркер для открытия пулов
-  - `DexPoolService` — сервис для lookup пулов
-  - Redis cache для пулов (TTL 3600s)
-  - Метрика `arb_dex_pool_discovery_total` (counter)
+  - `DexPoolDiscoveryWorker` вЂ” РІРѕСЂРєРµСЂ РґР»СЏ РѕС‚РєСЂС‹С‚РёСЏ РїСѓР»РѕРІ
+  - `DexPoolService` вЂ” СЃРµСЂРІРёСЃ РґР»СЏ lookup РїСѓР»РѕРІ
+  - Redis cache РґР»СЏ РїСѓР»РѕРІ (TTL 3600s)
+  - РњРµС‚СЂРёРєР° `arb_dex_pool_discovery_total` (counter)
 - **test_commands:**
   - `npm run test dex-pool-discovery.worker.spec.ts`
   - `npm run test dex-pool.service.spec.ts`
 - **edge_cases:**
-  - Factory contract недоступен
-  - RPC rate limiting при сканировании
-  - Stale data в кэше
+  - Factory contract РЅРµРґРѕСЃС‚СѓРїРµРЅ
+  - RPC rate limiting РїСЂРё СЃРєР°РЅРёСЂРѕРІР°РЅРёРё
+  - Stale data РІ РєСЌС€Рµ
 - **rollback_procedure:**
-  - Остановить воркер
-  - Очистить Redis cache
-- **ci_integration:** Добавить unit tests в CI (без внешних RPC)
+  - РћСЃС‚Р°РЅРѕРІРёС‚СЊ РІРѕСЂРєРµСЂ
+  - РћС‡РёСЃС‚РёС‚СЊ Redis cache
+- **ci_integration:** Р”РѕР±Р°РІРёС‚СЊ unit tests РІ CI (Р±РµР· РІРЅРµС€РЅРёС… RPC)
 - **review_required:** `backend`
 - **review_notes:**
-  - ✅ `PoolDiscoveryService` реализован в `apps/execution-orchestrator/src/execution/pool/`
-  - ✅ UniV2/V3 pool discovery через `getPair`/`getPool` contract calls
-  - ✅ In-memory cache с TTL (default 5 min), Redis-ready
-  - ✅ Periodic cleanup loop (configurable interval)
-  - ✅ Prometheus metrics: `arb_dex_pools_discovered`, `arb_dex_pool_discovery_latency_seconds`, `arb_dex_pool_cache_hits_total`
-  - ✅ DI: зарегистрирован в `ExecutionModule` (providers + exports)
-  - ✅ Env vars: `POOL_DISCOVERY_ENABLED`, `POOL_CACHE_TTL_MS`, `POOL_DISCOVERY_INTERVAL_MS`
-  - ✅ Build monorepo green (21/21)
-  - ⚠️ Нет unit-тестов (pool-discovery.service.spec.ts отсутствует)
+  - вњ… `PoolDiscoveryService` СЂРµР°Р»РёР·РѕРІР°РЅ РІ `apps/execution-orchestrator/src/execution/pool/`
+  - вњ… UniV2/V3 pool discovery С‡РµСЂРµР· `getPair`/`getPool` contract calls
+  - вњ… In-memory cache СЃ TTL (default 5 min), Redis-ready
+  - вњ… Periodic cleanup loop (configurable interval)
+  - вњ… Prometheus metrics: `arb_dex_pools_discovered`, `arb_dex_pool_discovery_latency_seconds`, `arb_dex_pool_cache_hits_total`
+  - вњ… DI: Р·Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°РЅ РІ `ExecutionModule` (providers + exports)
+  - вњ… Env vars: `POOL_DISCOVERY_ENABLED`, `POOL_CACHE_TTL_MS`, `POOL_DISCOVERY_INTERVAL_MS`
+  - вњ… Build monorepo green (21/21)
+  - вљ пёЏ РќРµС‚ unit-С‚РµСЃС‚РѕРІ (pool-discovery.service.spec.ts РѕС‚СЃСѓС‚СЃС‚РІСѓРµС‚)
 - **review_action_items:**
-  - [ ] Добавить unit-тесты с моком contract calls
+  - [ ] Р”РѕР±Р°РІРёС‚СЊ unit-С‚РµСЃС‚С‹ СЃ РјРѕРєРѕРј contract calls
 - **review_passed_date:** 2026-04-30
 - **status:** `done`
 
-#### `DEX-1-0-VAULT` — Базовый key vault: шифрование, ротация, audit
+#### `DEX-1-0-VAULT` вЂ” Р‘Р°Р·РѕРІС‹Р№ key vault: С€РёС„СЂРѕРІР°РЅРёРµ, СЂРѕС‚Р°С†РёСЏ, audit
 
 - **step_id:** `DEX-1-0-VAULT`
 - **phase:** `dex-1`
 - **service:** `platform` / `execution`
-- **goal:** Хранение ключей** зашифровано**; расшифровка только в процессе подписи; append в audit при каждом использовании ключа (без утечки secret в логи).
+- **goal:** РҐСЂР°РЅРµРЅРёРµ РєР»СЋС‡РµР№** Р·Р°С€РёС„СЂРѕРІР°РЅРѕ**; СЂР°СЃС€РёС„СЂРѕРІРєР° С‚РѕР»СЊРєРѕ РІ РїСЂРѕС†РµСЃСЃРµ РїРѕРґРїРёСЃРё; append РІ audit РїСЂРё РєР°Р¶РґРѕРј РёСЃРїРѕР»СЊР·РѕРІР°РЅРёРё РєР»СЋС‡Р° (Р±РµР· СѓС‚РµС‡РєРё secret РІ Р»РѕРіРё).
 - **depends_on:** [`DEX-1-0-RPC`, `DEX-1-0-MIGRATIONS`]
 - **risk_level:** `critical`
 - **estimated_hours:** `16`
 - **main_plan_prerequisites:** [`P1-1.2-AUD`, `P0-0.3-SEC`]
 - **acceptance_criteria:**
-  - Нет сырого private key в логах; ротация по процедуре (runbook + техполе `keyId`).
-  - `PRIVATE_KEY_ENCRYPTION_KEY` (или аналог) в `.env.example` с пометкой security.
-  - Audit-записи содержат txHash, chainId, legId, gasUsed (без утечки private key в audit-logs).
+  - РќРµС‚ СЃС‹СЂРѕРіРѕ private key РІ Р»РѕРіР°С…; СЂРѕС‚Р°С†РёСЏ РїРѕ РїСЂРѕС†РµРґСѓСЂРµ (runbook + С‚РµС…РїРѕР»Рµ `keyId`).
+  - `PRIVATE_KEY_ENCRYPTION_KEY` (РёР»Рё Р°РЅР°Р»РѕРі) РІ `.env.example` СЃ РїРѕРјРµС‚РєРѕР№ security.
+  - Audit-Р·Р°РїРёСЃРё СЃРѕРґРµСЂР¶Р°С‚ txHash, chainId, legId, gasUsed (Р±РµР· СѓС‚РµС‡РєРё private key РІ audit-logs).
   - **SLO:** sign latency < 100ms
-  - **Test command:** `npm run test key-vault.service.spec.ts` — success
-  - **Explicit check:** Логи не содержат `privateKey` или `0x[a-fA-F0-9]{64}`
+  - **Test command:** `npm run test key-vault.service.spec.ts` вЂ” success
+  - **Explicit check:** Р›РѕРіРё РЅРµ СЃРѕРґРµСЂР¶Р°С‚ `privateKey` РёР»Рё `0x[a-fA-F0-9]{64}`
 - **changed_areas:**
   - `packages/nest-platform/src/vault/`
     - `key-vault.service.ts`
@@ -448,155 +448,155 @@ graph TD
   - `packages/persistence/src/entities/wallet-state.entity.ts`
   - `.env.example` (PRIVATE_KEY_ENCRYPTION_KEY)
 - **outputs:**
-  - `KeyVaultService` — сервис шифрования/дешифрования ключей
-  - `EncryptedKey` — тип зашифрованного ключа
-  - Audit entries при каждом использовании ключа
-  - Runbook для key rotation
+  - `KeyVaultService` вЂ” СЃРµСЂРІРёСЃ С€РёС„СЂРѕРІР°РЅРёСЏ/РґРµС€РёС„СЂРѕРІР°РЅРёСЏ РєР»СЋС‡РµР№
+  - `EncryptedKey` вЂ” С‚РёРї Р·Р°С€РёС„СЂРѕРІР°РЅРЅРѕРіРѕ РєР»СЋС‡Р°
+  - Audit entries РїСЂРё РєР°Р¶РґРѕРј РёСЃРїРѕР»СЊР·РѕРІР°РЅРёРё РєР»СЋС‡Р°
+  - Runbook РґР»СЏ key rotation
 - **test_commands:**
   - `npm run test key-vault.service.spec.ts`
   - `npm run lint -w @arbibot/nest-platform`
 - **edge_cases:**
-  - Encryption key недоступен
-  - Corruption зашифрованных ключей
-  - Leak private key в audit logs
+  - Encryption key РЅРµРґРѕСЃС‚СѓРїРµРЅ
+  - Corruption Р·Р°С€РёС„СЂРѕРІР°РЅРЅС‹С… РєР»СЋС‡РµР№
+  - Leak private key РІ audit logs
 - **rollback_procedure:**
-  - Восстановить ключи из backup
-  - Откатить миграцию `wallet_states`
-- **ci_integration:** Unit tests в CI (без real keys)
+  - Р’РѕСЃСЃС‚Р°РЅРѕРІРёС‚СЊ РєР»СЋС‡Рё РёР· backup
+  - РћС‚РєР°С‚РёС‚СЊ РјРёРіСЂР°С†РёСЋ `wallet_states`
+- **ci_integration:** Unit tests РІ CI (Р±РµР· real keys)
 - **review_required:** `architecture`
 - **review_notes:**
-  - ✅ `KeyVaultService` реализован в `packages/nest-platform/src/vault/`
-  - ✅ AES-256-GCM шифрование: Buffer для crypto, hex для storage
-  - ✅ 20/20 unit tests passed (`key-vault.service.spec.ts`)
-  - ✅ Типы: `EncryptedKey`, `WalletKey` экспортированы через `vault/index.ts`
-  - ✅ `KeyVaultModule` для DI (NestJS)
-  - ✅ Интеграция с `ExecutionModule` через `KeyVaultModule`
-  - ⚠️ Нет runbook для key rotation
+  - вњ… `KeyVaultService` СЂРµР°Р»РёР·РѕРІР°РЅ РІ `packages/nest-platform/src/vault/`
+  - вњ… AES-256-GCM С€РёС„СЂРѕРІР°РЅРёРµ: Buffer РґР»СЏ crypto, hex РґР»СЏ storage
+  - вњ… 20/20 unit tests passed (`key-vault.service.spec.ts`)
+  - вњ… РўРёРїС‹: `EncryptedKey`, `WalletKey` СЌРєСЃРїРѕСЂС‚РёСЂРѕРІР°РЅС‹ С‡РµСЂРµР· `vault/index.ts`
+  - вњ… `KeyVaultModule` РґР»СЏ DI (NestJS)
+  - вњ… Р�РЅС‚РµРіСЂР°С†РёСЏ СЃ `ExecutionModule` С‡РµСЂРµР· `KeyVaultModule`
+  - вљ пёЏ РќРµС‚ runbook РґР»СЏ key rotation
 - **review_action_items:**
-  - [ ] Создать runbook для key rotation
+  - [ ] РЎРѕР·РґР°С‚СЊ runbook РґР»СЏ key rotation
 - **review_passed_date:** 2026-04-29
 - **status:** `done`
 
-#### `DEX-1-0-WALLET-MGT` — Управление кошельками: баланс, выбор, sufficiency
+#### `DEX-1-0-WALLET-MGT` вЂ” РЈРїСЂР°РІР»РµРЅРёРµ РєРѕС€РµР»СЊРєР°РјРё: Р±Р°Р»Р°РЅСЃ, РІС‹Р±РѕСЂ, sufficiency
 
 - **step_id:** `DEX-1-0-WALLET-MGT`
 - **phase:** `dex-1`
 - **service:** `execution`
-- **goal:** Логика управления несколькими кошельками: выбор кошелька для сделки, проверка достаточности баланса, балансировка нагрузки.
+- **goal:** Р›РѕРіРёРєР° СѓРїСЂР°РІР»РµРЅРёСЏ РЅРµСЃРєРѕР»СЊРєРёРјРё РєРѕС€РµР»СЊРєР°РјРё: РІС‹Р±РѕСЂ РєРѕС€РµР»СЊРєР° РґР»СЏ СЃРґРµР»РєРё, РїСЂРѕРІРµСЂРєР° РґРѕСЃС‚Р°С‚РѕС‡РЅРѕСЃС‚Рё Р±Р°Р»Р°РЅСЃР°, Р±Р°Р»Р°РЅСЃРёСЂРѕРІРєР° РЅР°РіСЂСѓР·РєРё.
 - **depends_on:** [`DEX-1-0-VAULT`, `DEX-1-0-MIGRATIONS`]
 - **risk_level:** `high`
 - **estimated_hours:** `12`
 - **main_plan_prerequisites**: [`P1-1.2-CAP`]
 - **acceptance_criteria:**
-  - Сервис выбора кошелька задокументирован (round-robin / weighted / по балансу).
-  - Тесты на insufficient funds scenario.
-  - Проверка allowance / approve интегрирована.
+  - РЎРµСЂРІРёСЃ РІС‹Р±РѕСЂР° РєРѕС€РµР»СЊРєР° Р·Р°РґРѕРєСѓРјРµРЅС‚РёСЂРѕРІР°РЅ (round-robin / weighted / РїРѕ Р±Р°Р»Р°РЅСЃСѓ).
+  - РўРµСЃС‚С‹ РЅР° insufficient funds scenario.
+  - РџСЂРѕРІРµСЂРєР° allowance / approve РёРЅС‚РµРіСЂРёСЂРѕРІР°РЅР°.
   - **SLO:** wallet selection latency < 50ms
-  - **Test command:** `npm run test wallet-manager.service.spec.ts` — success
-  - **Explicit check:** `SELECT * FROM wallet_states WHERE status = 'active'` возвращает кошельки
+  - **Test command:** `npm run test wallet-manager.service.spec.ts` вЂ” success
+  - **Explicit check:** `SELECT * FROM wallet_states WHERE status = 'active'` РІРѕР·РІСЂР°С‰Р°РµС‚ РєРѕС€РµР»СЊРєРё
 - **changed_areas:**
   - `apps/execution-orchestrator/src/execution/`
     - `wallet-manager.service.ts`
     - `wallet-manager.service.spec.ts`
   - `packages/persistence/src/entities/wallet-state.entity.ts`
 - **outputs:**
-  - `WalletManagerService` — сервис выбора кошельков
-  - `WalletSelectionStrategy` — enum (round-robin, weighted, balance-based)
-  - Метрика `arb_wallet_selection_total` (counter)
-  - Метрика `arb_wallet_insufficient_funds_total` (counter)
+  - `WalletManagerService` вЂ” СЃРµСЂРІРёСЃ РІС‹Р±РѕСЂР° РєРѕС€РµР»СЊРєРѕРІ
+  - `WalletSelectionStrategy` вЂ” enum (round-robin, weighted, balance-based)
+  - РњРµС‚СЂРёРєР° `arb_wallet_selection_total` (counter)
+  - РњРµС‚СЂРёРєР° `arb_wallet_insufficient_funds_total` (counter)
 - **test_commands:**
   - `npm run test wallet-manager.service.spec.ts`
 - **edge_cases:**
-  - Все кошельки insufficient funds
+  - Р’СЃРµ РєРѕС€РµР»СЊРєРё insufficient funds
   - Wallet state stale (nonce drift)
   - Multiple wallets with same address (collision)
 - **rollback_procedure:**
-  - Деактивировать проблемные кошельки в БД
-- **ci_integration:** Unit tests в CI
+  - Р”РµР°РєС‚РёРІРёСЂРѕРІР°С‚СЊ РїСЂРѕР±Р»РµРјРЅС‹Рµ РєРѕС€РµР»СЊРєРё РІ Р‘Р”
+- **ci_integration:** Unit tests РІ CI
 - **review_required:** `backend`
 - **review_notes:**
-  - ✅ `WalletManagerService` реализован в `apps/execution-orchestrator/src/execution/`
-  - ✅ 3 стратегии выбора: round-robin, weighted, balance-based
-  - ✅ `ExecutionModule` создан: DI с `KeyVaultModule` + `WalletState` TypeORM
-  - ✅ Prometheus metrics: `arb_wallet_selection_total`, `arb_wallet_insufficient_funds_total`, `arb_wallet_balance`
-  - ✅ ERC20 balance checking через ethers.js `Contract`
-  - ✅ Wallet cache с `clearWalletCache()` для key rotation
-  - ✅ `getEncryptedKey` делегирует к `KeyVaultService.retrieveEncryptedKey`
-  - ⚠️ Нет unit-тестов (`wallet-manager.service.spec.ts` отсутствует)
+  - вњ… `WalletManagerService` СЂРµР°Р»РёР·РѕРІР°РЅ РІ `apps/execution-orchestrator/src/execution/`
+  - вњ… 3 СЃС‚СЂР°С‚РµРіРёРё РІС‹Р±РѕСЂР°: round-robin, weighted, balance-based
+  - вњ… `ExecutionModule` СЃРѕР·РґР°РЅ: DI СЃ `KeyVaultModule` + `WalletState` TypeORM
+  - вњ… Prometheus metrics: `arb_wallet_selection_total`, `arb_wallet_insufficient_funds_total`, `arb_wallet_balance`
+  - вњ… ERC20 balance checking С‡РµСЂРµР· ethers.js `Contract`
+  - вњ… Wallet cache СЃ `clearWalletCache()` РґР»СЏ key rotation
+  - вњ… `getEncryptedKey` РґРµР»РµРіРёСЂСѓРµС‚ Рє `KeyVaultService.retrieveEncryptedKey`
+  - вљ пёЏ РќРµС‚ unit-С‚РµСЃС‚РѕРІ (`wallet-manager.service.spec.ts` РѕС‚СЃСѓС‚СЃС‚РІСѓРµС‚)
 - **review_action_items:**
-  - [ ] Добавить unit-тесты для WalletManagerService
+  - [ ] Р”РѕР±Р°РІРёС‚СЊ unit-С‚РµСЃС‚С‹ РґР»СЏ WalletManagerService
 - **review_passed_date:** 2026-04-29
 - **status:** `done`
 
-#### `DEX-1-0-GAS` — Оценка газа и лимитов; max gas policy
+#### `DEX-1-0-GAS` вЂ” РћС†РµРЅРєР° РіР°Р·Р° Рё Р»РёРјРёС‚РѕРІ; max gas policy
 
 - **step_id:** `DEX-1-0-GAS`
 - **phase:** `dex-1`
 - **service:** `execution`
-- **goal:** `estimateGas`, EIP-1559 поля, потолок `maxFeePerGas` из политики/config; отказ в submit при превышении.
+- **goal:** `estimateGas`, EIP-1559 РїРѕР»СЏ, РїРѕС‚РѕР»РѕРє `maxFeePerGas` РёР· РїРѕР»РёС‚РёРєРё/config; РѕС‚РєР°Р· РІ submit РїСЂРё РїСЂРµРІС‹С€РµРЅРёРё.
 - **depends_on:** [`DEX-1-0-RPC`]
 - **risk_level:** `high`
 - **estimated_hours:** `8`
 - **main_plan_prerequisites:** [`P1-1.1-REDIS`]
 - **acceptance_criteria:**
-  - Политика в config-service или env с верхним пределом; тесты на граничных значениях.
-  - EIP-1559 параметры (maxPriorityFeePerGas, maxFeePerGas) настраиваются через config.
-  - Тесты на high baseFee scenarios (проверка превышения maxFeePerGas).
+  - РџРѕР»РёС‚РёРєР° РІ config-service РёР»Рё env СЃ РІРµСЂС…РЅРёРј РїСЂРµРґРµР»РѕРј; С‚РµСЃС‚С‹ РЅР° РіСЂР°РЅРёС‡РЅС‹С… Р·РЅР°С‡РµРЅРёСЏС….
+  - EIP-1559 РїР°СЂР°РјРµС‚СЂС‹ (maxPriorityFeePerGas, maxFeePerGas) РЅР°СЃС‚СЂР°РёРІР°СЋС‚СЃСЏ С‡РµСЂРµР· config.
+  - РўРµСЃС‚С‹ РЅР° high baseFee scenarios (РїСЂРѕРІРµСЂРєР° РїСЂРµРІС‹С€РµРЅРёСЏ maxFeePerGas).
   - **SLO:** gas estimation latency < 500ms
-  - **Test command:** `npm run test gas-estimator.service.spec.ts` — success
-  - **Explicit check:** `MAX_GAS_PRICE_GWEI` в config-service отклоняет высокую транзакцию
+  - **Test command:** `npm run test gas-estimator.service.spec.ts` вЂ” success
+  - **Explicit check:** `MAX_GAS_PRICE_GWEI` РІ config-service РѕС‚РєР»РѕРЅСЏРµС‚ РІС‹СЃРѕРєСѓСЋ С‚СЂР°РЅР·Р°РєС†РёСЋ
 - **changed_areas:**
   - `apps/execution-orchestrator/src/execution/`
     - `gas-estimator.service.ts`
     - `gas-estimator.service.spec.ts`
   - `.env.example` (MAX_GAS_PRICE_GWEI, MAX_PRIORITY_FEE_GWEI)
 - **outputs:**
-  - `GasEstimatorService` — сервис оценки газа
-  - `GasPolicy` — интерфейс политики газа
-  - Метрика `arb_gas_estimate_seconds` (histogram)
-  - Метрика `arb_gas_price_gwei` (gauge)
+  - `GasEstimatorService` вЂ” СЃРµСЂРІРёСЃ РѕС†РµРЅРєРё РіР°Р·Р°
+  - `GasPolicy` вЂ” РёРЅС‚РµСЂС„РµР№СЃ РїРѕР»РёС‚РёРєРё РіР°Р·Р°
+  - РњРµС‚СЂРёРєР° `arb_gas_estimate_seconds` (histogram)
+  - РњРµС‚СЂРёРєР° `arb_gas_price_gwei` (gauge)
 - **test_commands:**
   - `npm run test gas-estimator.service.spec.ts`
 - **edge_cases:**
-  - Base fee превышает maxFeePerGas
+  - Base fee РїСЂРµРІС‹С€Р°РµС‚ maxFeePerGas
   - Gas estimation fails (contract revert)
   - RPC returns invalid gas estimate
 - **rollback_procedure:**
-  - Откатить изменения в `.env.example`
-  - Удалить `GasEstimatorService` из DI
-- **ci_integration:** Unit tests в CI
+  - РћС‚РєР°С‚РёС‚СЊ РёР·РјРµРЅРµРЅРёСЏ РІ `.env.example`
+  - РЈРґР°Р»РёС‚СЊ `GasEstimatorService` РёР· DI
+- **ci_integration:** Unit tests РІ CI
 - **review_required:** `backend`
 - **review_notes:**
-  - ✅ `GasEstimatorService` реализован в `apps/execution-orchestrator/src/execution/gas/`
-  - ✅ EIP-1559 fee data: maxFeePerGas, maxPriorityFeePerGas, baseFee
-  - ✅ Gas policy из env: `MAX_GAS_PRICE_GWEI`, `MAX_PRIORITY_FEE_GWEI`, `GAS_LIMIT_MULTIPLIER`, `GAS_REJECT_ON_EXCEED`
-  - ✅ Per-chain overrides: `GAS_POLICY_{CHAINID}_MAX_FEE_GWEI`, `GAS_POLICY_{CHAINID}_MAX_PRIORITY_FEE_GWEI`
-  - ✅ Prometheus metrics: `arb_gas_estimate_seconds` (histogram), `arb_gas_price_gwei` (gauge), `arb_gas_policy_rejections_total` (counter)
-  - ✅ `estimateGas()` — gas limit + fee data + policy check
-  - ✅ `shouldReject()` — policy enforcement gate
-  - ✅ `getCappedFeeData()` — clamp fees to policy limits
-  - ✅ Unit tests: 15 test cases (policy, EIP-1559, estimation, rejection, capping)
-  - ✅ DI: зарегистрирован в `ExecutionModule` (providers + exports)
-  - ✅ `.env.example` обновлён с RPC и GAS env vars + security comments
+  - вњ… `GasEstimatorService` СЂРµР°Р»РёР·РѕРІР°РЅ РІ `apps/execution-orchestrator/src/execution/gas/`
+  - вњ… EIP-1559 fee data: maxFeePerGas, maxPriorityFeePerGas, baseFee
+  - вњ… Gas policy РёР· env: `MAX_GAS_PRICE_GWEI`, `MAX_PRIORITY_FEE_GWEI`, `GAS_LIMIT_MULTIPLIER`, `GAS_REJECT_ON_EXCEED`
+  - вњ… Per-chain overrides: `GAS_POLICY_{CHAINID}_MAX_FEE_GWEI`, `GAS_POLICY_{CHAINID}_MAX_PRIORITY_FEE_GWEI`
+  - вњ… Prometheus metrics: `arb_gas_estimate_seconds` (histogram), `arb_gas_price_gwei` (gauge), `arb_gas_policy_rejections_total` (counter)
+  - вњ… `estimateGas()` вЂ” gas limit + fee data + policy check
+  - вњ… `shouldReject()` вЂ” policy enforcement gate
+  - вњ… `getCappedFeeData()` вЂ” clamp fees to policy limits
+  - вњ… Unit tests: 15 test cases (policy, EIP-1559, estimation, rejection, capping)
+  - вњ… DI: Р·Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°РЅ РІ `ExecutionModule` (providers + exports)
+  - вњ… `.env.example` РѕР±РЅРѕРІР»С‘РЅ СЃ RPC Рё GAS env vars + security comments
 - **review_passed_date:** 2026-04-29
 - **status:** `done`
 
-#### `DEX-1-0-RISK-POLICIES` — DEX-специфичные risk policies
+#### `DEX-1-0-RISK-POLICIES` вЂ” DEX-СЃРїРµС†РёС„РёС‡РЅС‹Рµ risk policies
 
 - **step_id:** `DEX-1-0-RISK-POLICIES`
 - **phase:** `dex-1`
 - **service:** `risk-service`
-- **goal:** DEX-специфичные risk policies: MEV risk, slippage risk, gas volatility risk, bridge risk (для DEX-2).
+- **goal:** DEX-СЃРїРµС†РёС„РёС‡РЅС‹Рµ risk policies: MEV risk, slippage risk, gas volatility risk, bridge risk (РґР»СЏ DEX-2).
 - **depends_on:** [`P2-2.2-PROF`]
 - **risk_level:** `medium`
 - **estimated_hours:** `8`
 - **main_plan_prerequisites:** [`P2-2.2-PROF`]
 - **acceptance_criteria:**
-  - Новые поля в `route_profiles` (mevRiskLevel, slippageRiskLevel, gasVolatilityLevel).
-  - Новые reason codes в `risk_decisions` для DEX-специфичных блокировок.
-  - Тесты на high MEV/gas volatility scenarios.
-  - **Test command:** `npm run test dex-risk-policies.spec.ts` — success
-  - **Explicit check:** `GET /policy/route-profiles` возвращает MEV/slippage/gas fields
+  - РќРѕРІС‹Рµ РїРѕР»СЏ РІ `route_profiles` (mevRiskLevel, slippageRiskLevel, gasVolatilityLevel).
+  - РќРѕРІС‹Рµ reason codes РІ `risk_decisions` РґР»СЏ DEX-СЃРїРµС†РёС„РёС‡РЅС‹С… Р±Р»РѕРєРёСЂРѕРІРѕРє.
+  - РўРµСЃС‚С‹ РЅР° high MEV/gas volatility scenarios.
+  - **Test command:** `npm run test dex-risk-policies.spec.ts` вЂ” success
+  - **Explicit check:** `GET /policy/route-profiles` РІРѕР·РІСЂР°С‰Р°РµС‚ MEV/slippage/gas fields
 - **changed_areas:**
   - `apps/risk-service/src/policy/`
     - `dex-risk-policies.service.ts`
@@ -604,7 +604,7 @@ graph TD
   - `packages/persistence/src/entities/route-profile.entity.ts`
   - `packages/persistence/src/entities/risk-decision.entity.ts`
 - **outputs:**
-  - `DexRiskPoliciesService` — сервис DEX-specific risk evaluation
+  - `DexRiskPoliciesService` вЂ” СЃРµСЂРІРёСЃ DEX-specific risk evaluation
   - MEV risk levels (low, medium, high)
   - Slippage risk levels (conservative, moderate, aggressive)
   - Gas volatility thresholds
@@ -612,46 +612,46 @@ graph TD
   - `npm run test dex-risk-policies.service.spec.ts`
   - `npm run test -w @arbibot/risk-service`
 - **edge_cases:**
-  - Undefined risk level для маршрута
+  - Undefined risk level РґР»СЏ РјР°СЂС€СЂСѓС‚Р°
   - Conflicting risk policies
 - **rollback_procedure:**
-  - Удалить новые поля из `route_profiles`
-  - Откатить миграции (если есть)
-- **ci_integration:** Unit tests в CI
+  - РЈРґР°Р»РёС‚СЊ РЅРѕРІС‹Рµ РїРѕР»СЏ РёР· `route_profiles`
+  - РћС‚РєР°С‚РёС‚СЊ РјРёРіСЂР°С†РёРё (РµСЃР»Рё РµСЃС‚СЊ)
+- **ci_integration:** Unit tests РІ CI
 - **review_required:** `backend`
 - **review_notes:**
-  - ✅ `DexRiskPolicyService` реализован в `apps/execution-orchestrator/src/execution/risk/`
-  - ✅ Slippage risk check (max slippage bps per trade)
-  - ✅ Position size limit check (max USD per trade)
-  - ✅ Protocol risk check (allowed DEX protocols)
-  - ✅ Volume risk check (min pool liquidity)
-  - ✅ Prometheus metrics: `arb_dex_risk_checks_total`, `arb_dex_risk_rejections_total`
-  - ✅ DI: зарегистрирован в `ExecutionModule`
-  - ✅ Env vars: `DEX_MAX_SLIPPAGE_BPS`, `DEX_MAX_POSITION_SIZE_USD`, `DEX_MIN_POOL_LIQUIDITY_USD`
-  - ✅ Build monorepo green (21/21)
+  - вњ… `DexRiskPolicyService` СЂРµР°Р»РёР·РѕРІР°РЅ РІ `apps/execution-orchestrator/src/execution/risk/`
+  - вњ… Slippage risk check (max slippage bps per trade)
+  - вњ… Position size limit check (max USD per trade)
+  - вњ… Protocol risk check (allowed DEX protocols)
+  - вњ… Volume risk check (min pool liquidity)
+  - вњ… Prometheus metrics: `arb_dex_risk_checks_total`, `arb_dex_risk_rejections_total`
+  - вњ… DI: Р·Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°РЅ РІ `ExecutionModule`
+  - вњ… Env vars: `DEX_MAX_SLIPPAGE_BPS`, `DEX_MAX_POSITION_SIZE_USD`, `DEX_MIN_POOL_LIQUIDITY_USD`
+  - вњ… Build monorepo green (21/21)
 - **review_passed_date:** 2026-04-30
 - **status:** `done`
 
-#### `DEX-1-0-FILTERS` — DEX Opportunity Filters System
+#### `DEX-1-0-FILTERS` вЂ” DEX Opportunity Filters System
 
 - **step_id:** `DEX-1-0-FILTERS`
 - **phase:** `dex-1`
 - **service:** `opportunity-service`, `apps/web`
-- **goal:** Система фильтрации DEX возможностей для контроля обрабатываемых арбитражных возможностей; UI для управления фильтрами; метрики эффективности.
+- **goal:** РЎРёСЃС‚РµРјР° С„РёР»СЊС‚СЂР°С†РёРё DEX РІРѕР·РјРѕР¶РЅРѕСЃС‚РµР№ РґР»СЏ РєРѕРЅС‚СЂРѕР»СЏ РѕР±СЂР°Р±Р°С‚С‹РІР°РµРјС‹С… Р°СЂР±РёС‚СЂР°Р¶РЅС‹С… РІРѕР·РјРѕР¶РЅРѕСЃС‚РµР№; UI РґР»СЏ СѓРїСЂР°РІР»РµРЅРёСЏ С„РёР»СЊС‚СЂР°РјРё; РјРµС‚СЂРёРєРё СЌС„С„РµРєС‚РёРІРЅРѕСЃС‚Рё.
 - **depends_on:** [`P2-2.2-PROF`, `DEX-1-0-TECH-CHOICE`]
 - **risk_level:** `medium`
 - **estimated_hours:** `24`
 - **main_plan_prerequisites:** [`P2-2.2-PROF`, `P1-1.1-REDIS`]
 - **acceptance_criteria:**
-  - Backend: эндпоинты для фильтрации и предпросмотра в `opportunity-service`; типы в `@arbibot/contracts`.
-  - Frontend BFF: прокси-роуты в `apps/web/app/api/operator/`.
-  - Frontend Components: UI панель с фильтрами, интегрированная в `/settings`.
-  - Config: seed-данные в миграции `032_dex_filters_seed.sql`.
-  - Все фильтры управляются через config-service (`dex.filters` key).
+  - Backend: СЌРЅРґРїРѕРёРЅС‚С‹ РґР»СЏ С„РёР»СЊС‚СЂР°С†РёРё Рё РїСЂРµРґРїСЂРѕСЃРјРѕС‚СЂР° РІ `opportunity-service`; С‚РёРїС‹ РІ `@arbibot/contracts`.
+  - Frontend BFF: РїСЂРѕРєСЃРё-СЂРѕСѓС‚С‹ РІ `apps/web/app/api/operator/`.
+  - Frontend Components: UI РїР°РЅРµР»СЊ СЃ С„РёР»СЊС‚СЂР°РјРё, РёРЅС‚РµРіСЂРёСЂРѕРІР°РЅРЅР°СЏ РІ `/settings`.
+  - Config: seed-РґР°РЅРЅС‹Рµ РІ РјРёРіСЂР°С†РёРё `032_dex_filters_seed.sql`.
+  - Р’СЃРµ С„РёР»СЊС‚СЂС‹ СѓРїСЂР°РІР»СЏСЋС‚СЃСЏ С‡РµСЂРµР· config-service (`dex.filters` key).
   - **SLO:** filter application latency < 10ms, preview impact < 100ms
-  - **Test command:** `npm run build -w @arbibot/web` — success
-  - **Test command:** `npm run test -w @arbibot/opportunity-service` — success
-  - **Explicit check:** `/settings` содержит "DEX filters" tab; фильтры применяются к opportunities
+  - **Test command:** `npm run build -w @arbibot/web` вЂ” success
+  - **Test command:** `npm run test -w @arbibot/opportunity-service` вЂ” success
+  - **Explicit check:** `/settings` СЃРѕРґРµСЂР¶РёС‚ "DEX filters" tab; С„РёР»СЊС‚СЂС‹ РїСЂРёРјРµРЅСЏСЋС‚СЃСЏ Рє opportunities
 - **changed_areas:**
   - `apps/opportunity-service/src/opportunities/`
     - `dto/dex-filters-config.dto.ts`
@@ -661,7 +661,7 @@ graph TD
   - `packages/contracts/src/`
     - `dex-filters.types.ts`
     - `index.ts` (exports)
-  - `packages/persistence/src/` (если нужны сущности для метрик)
+  - `packages/persistence/src/` (РµСЃР»Рё РЅСѓР¶РЅС‹ СЃСѓС‰РЅРѕСЃС‚Рё РґР»СЏ РјРµС‚СЂРёРє)
   - `apps/web/app/api/operator/opportunities/`
     - `preview-filters/route.ts`
     - `metrics/dex-filters/route.ts`
@@ -680,90 +680,90 @@ graph TD
   - `infra/postgres/migrations/032_dex_filters_seed.sql`
   - `docs/dex-filters-config-keys.md`
 - **outputs:**
-  - `DexFiltersConfig` — тип конфигурации фильтров в `@arbibot/contracts`
-  - `DEFAULT_DEX_FILTERS_CONFIG` — дефолтная конфигурация
-  - `POST /opportunities/preview-filters` — предпросмотр влияния фильтров
-  - `GET /opportunities/metrics/dex-filters` — метрики эффективности (24h)
-  - `GET /api/operator/settings/configurations/dex.filters` — BFF для конфигурации
-  - `DexFiltersPanel` — React компонент UI для управления фильтрами
-  - Фильтры:
+  - `DexFiltersConfig` вЂ” С‚РёРї РєРѕРЅС„РёРіСѓСЂР°С†РёРё С„РёР»СЊС‚СЂРѕРІ РІ `@arbibot/contracts`
+  - `DEFAULT_DEX_FILTERS_CONFIG` вЂ” РґРµС„РѕР»С‚РЅР°СЏ РєРѕРЅС„РёРіСѓСЂР°С†РёСЏ
+  - `POST /opportunities/preview-filters` вЂ” РїСЂРµРґРїСЂРѕСЃРјРѕС‚СЂ РІР»РёСЏРЅРёСЏ С„РёР»СЊС‚СЂРѕРІ
+  - `GET /opportunities/metrics/dex-filters` вЂ” РјРµС‚СЂРёРєРё СЌС„С„РµРєС‚РёРІРЅРѕСЃС‚Рё (24h)
+  - `GET /api/operator/settings/configurations/dex.filters` вЂ” BFF РґР»СЏ РєРѕРЅС„РёРіСѓСЂР°С†РёРё
+  - `DexFiltersPanel` вЂ” React РєРѕРјРїРѕРЅРµРЅС‚ UI РґР»СЏ СѓРїСЂР°РІР»РµРЅРёСЏ С„РёР»СЊС‚СЂР°РјРё
+  - Р¤РёР»СЊС‚СЂС‹:
     - **Threshold**: minSpreadPct, minProfitUsd, maxFeesUsd
     - **Volume**: volumeRange (min/max)
     - **Tokens**: blacklistTokens, allowedChains, quoteAssets
     - **Risk**: highRisk (maxRiskLevel: low/medium/high)
-  - Метрики: `arb_dex_filters_applied_total`, `arb_dex_filters_filtered_total`
+  - РњРµС‚СЂРёРєРё: `arb_dex_filters_applied_total`, `arb_dex_filters_filtered_total`
 - **test_commands:**
   - `npm run build -w @arbibot/opportunity-service`
   - `npm run build -w @arbibot/web`
   - `npm run test -w @arbibot/opportunity-service`
-  - Manual UI testing: `/settings` → "DEX filters" tab
+  - Manual UI testing: `/settings` в†’ "DEX filters" tab
 - **edge_cases:**
   - All opportunities filtered out (100% rejection rate)
   - Invalid filter values (negative numbers, empty strings)
   - Config-service unavailable (fallback to defaults)
-  - High filter rejection rate (>90%) — alert threshold
+  - High filter rejection rate (>90%) вЂ” alert threshold
 - **rollback_procedure:**
-  - Удалить эндпоинты из `opportunities.controller.ts`
-  - Удалить BFF роуты
-  - Откатить миграцию `032_dex_filters_seed.sql`
-  - Удалить UI компонент из `settings-workspace.tsx`
-- **ci_integration:** Build и unit tests в CI; UI testing manual
+  - РЈРґР°Р»РёС‚СЊ СЌРЅРґРїРѕРёРЅС‚С‹ РёР· `opportunities.controller.ts`
+  - РЈРґР°Р»РёС‚СЊ BFF СЂРѕСѓС‚С‹
+  - РћС‚РєР°С‚РёС‚СЊ РјРёРіСЂР°С†РёСЋ `032_dex_filters_seed.sql`
+  - РЈРґР°Р»РёС‚СЊ UI РєРѕРјРїРѕРЅРµРЅС‚ РёР· `settings-workspace.tsx`
+- **ci_integration:** Build Рё unit tests РІ CI; UI testing manual
 - **review_required:** `backend`, `frontend`
-- **status:** `done` (реализовано 2026-04-28)
+- **status:** `done` (СЂРµР°Р»РёР·РѕРІР°РЅРѕ 2026-04-28)
 
-#### `DEX-1-0-ENV-EXAMPLE` — Env vars template для DEX
+#### `DEX-1-0-ENV-EXAMPLE` вЂ” Env vars template РґР»СЏ DEX
 
 - **step_id:** `DEX-1-0-ENV-EXAMPLE`
 - **phase:** `dex-1`
 - **service:** `monorepo`
-- **goal:** Добавить DEX-специфичные env vars в `.env.example` с комментариями security.
+- **goal:** Р”РѕР±Р°РІРёС‚СЊ DEX-СЃРїРµС†РёС„РёС‡РЅС‹Рµ env vars РІ `.env.example` СЃ РєРѕРјРјРµРЅС‚Р°СЂРёСЏРјРё security.
 - **depends_on:** [`DEX-1-0-RPC`, `DEX-1-0-VAULT`, `DEX-1-0-GAS`]
 - **risk_level:** `low`
 - **estimated_hours:** `2`
 - **main_plan_prerequisites:** []
 - **acceptance_criteria:**
-  - `.env.example` содержит все упомянутые переменные: `RPC_*_URL`, `PRIVATE_KEY_ENCRYPTION_KEY`, `MAX_GAS_PRICE_GWEI`, `DEX_VENUE_ENABLED` (feature flag из `DEX-1-1-VENUE-BIND`).
-  - Пометки security для ключей и encryption key.
-  - **Test command:** `cat .env.example | grep -E "RPC_|PRIVATE_KEY|MAX_GAS|DEX_VENUE"` — не пустой
+  - `.env.example` СЃРѕРґРµСЂР¶РёС‚ РІСЃРµ СѓРїРѕРјСЏРЅСѓС‚С‹Рµ РїРµСЂРµРјРµРЅРЅС‹Рµ: `RPC_*_URL`, `PRIVATE_KEY_ENCRYPTION_KEY`, `MAX_GAS_PRICE_GWEI`, `DEX_VENUE_ENABLED` (feature flag РёР· `DEX-1-1-VENUE-BIND`).
+  - РџРѕРјРµС‚РєРё security РґР»СЏ РєР»СЋС‡РµР№ Рё encryption key.
+  - **Test command:** `cat .env.example | grep -E "RPC_|PRIVATE_KEY|MAX_GAS|DEX_VENUE"` вЂ” РЅРµ РїСѓСЃС‚РѕР№
 - **changed_areas:**
   - `.env.example`
 - **outputs:**
-  - Обновленный `.env.example` с DEX env vars
-  - Комментарии security для критических переменных
+  - РћР±РЅРѕРІР»РµРЅРЅС‹Р№ `.env.example` СЃ DEX env vars
+  - РљРѕРјРјРµРЅС‚Р°СЂРёРё security РґР»СЏ РєСЂРёС‚РёС‡РµСЃРєРёС… РїРµСЂРµРјРµРЅРЅС‹С…
 - **test_commands:**
   - `cat .env.example | grep -E "RPC_|PRIVATE_KEY|MAX_GAS|DEX_VENUE"`
 - **edge_cases:**
-  - Пропущенные env vars
-  - Нет security комментариев
+  - РџСЂРѕРїСѓС‰РµРЅРЅС‹Рµ env vars
+  - РќРµС‚ security РєРѕРјРјРµРЅС‚Р°СЂРёРµРІ
 - **rollback_procedure:** Git revert `.env.example`
 - **ci_integration:** N/A
 - **review_required:** `backend`
 - **review_notes:**
-  - ✅ `.env.example` обновлён: RPC (9 vars), GAS (6+ vars), VAULT (2 vars), WALLET-MGT (1 var)
-  - ✅ Security comments для `PRIVATE_KEY_ENCRYPTION_KEY`
-  - ✅ Per-chain override examples для Arbitrum
-  - ✅ Все переменные из DEX-1-0-RPC, DEX-1-0-VAULT, DEX-1-0-GAS покрыты
+  - вњ… `.env.example` РѕР±РЅРѕРІР»С‘РЅ: RPC (9 vars), GAS (6+ vars), VAULT (2 vars), WALLET-MGT (1 var)
+  - вњ… Security comments РґР»СЏ `PRIVATE_KEY_ENCRYPTION_KEY`
+  - вњ… Per-chain override examples РґР»СЏ Arbitrum
+  - вњ… Р’СЃРµ РїРµСЂРµРјРµРЅРЅС‹Рµ РёР· DEX-1-0-RPC, DEX-1-0-VAULT, DEX-1-0-GAS РїРѕРєСЂС‹С‚С‹
 - **review_passed_date:** 2026-04-29
 - **status:** `done`
 
-### DEX-1.1 — Подготовка к DEX: approve pattern, адаптеры
+### DEX-1.1 вЂ” РџРѕРґРіРѕС‚РѕРІРєР° Рє DEX: approve pattern, Р°РґР°РїС‚РµСЂС‹
 
-#### `DEX-1-1-APPROVE-PATTERN` — Approve/unapprove утилита для DEX
+#### `DEX-1-1-APPROVE-PATTERN` вЂ” Approve/unapprove СѓС‚РёР»РёС‚Р° РґР»СЏ DEX
 
 - **step_id:** `DEX-1-1-APPROVE-PATTERN`
 - **phase:** `dex-1`
 - **service:** `execution`
-- **goal:** Утилита для проверки allowance, approve spender (idempotent), revoke; интеграция с DEX-адаптерами.
+- **goal:** РЈС‚РёР»РёС‚Р° РґР»СЏ РїСЂРѕРІРµСЂРєРё allowance, approve spender (idempotent), revoke; РёРЅС‚РµРіСЂР°С†РёСЏ СЃ DEX-Р°РґР°РїС‚РµСЂР°РјРё.
 - **depends_on:** [`DEX-1-0-MIGRATIONS`, `DEX-1-0-VAULT`, `DEX-1-0-WALLET-MGT`]
 - **risk_level:** `medium`
 - **estimated_hours:** `10`
 - **main_plan_prerequisites:** [`P2-2.1-EPL`]
 - **acceptance_criteria:**
-  - Интеграционный тест: approve → swap (проверка sufficient allowance).
-  - Idempotency: повторный approve с тем же amount не дублирует транзакцию.
-  - Таблица `approvals` (из миграции) используется для кэша.
+  - Р�РЅС‚РµРіСЂР°С†РёРѕРЅРЅС‹Р№ С‚РµСЃС‚: approve в†’ swap (РїСЂРѕРІРµСЂРєР° sufficient allowance).
+  - Idempotency: РїРѕРІС‚РѕСЂРЅС‹Р№ approve СЃ С‚РµРј Р¶Рµ amount РЅРµ РґСѓР±Р»РёСЂСѓРµС‚ С‚СЂР°РЅР·Р°РєС†РёСЋ.
+  - РўР°Р±Р»РёС†Р° `approvals` (РёР· РјРёРіСЂР°С†РёРё) РёСЃРїРѕР»СЊР·СѓРµС‚СЃСЏ РґР»СЏ РєСЌС€Р°.
   - **SLO:** approve latency < 200ms, allowance check < 100ms
-  - **Test command:** `npm run test dex-approve-pattern.spec.ts` — success
+  - **Test command:** `npm run test dex-approve-pattern.spec.ts` вЂ” success
   - **Explicit check:** `SELECT * FROM approvals WHERE spender = '0x...' AND status = 'approved'`
 - **changed_areas:**
   - `apps/execution-orchestrator/src/execution/`
@@ -771,187 +771,187 @@ graph TD
     - `dex-approve.service.spec.ts`
   - `packages/persistence/src/entities/approval.entity.ts`
 - **outputs:**
-  - `DexApproveService` — сервис approve/revoke
-  - `AllowanceCache` — кэш allowances в Redis
-  - Метрика `arb_dex_approve_total` (counter)
+  - `DexApproveService` вЂ” СЃРµСЂРІРёСЃ approve/revoke
+  - `AllowanceCache` вЂ” РєСЌС€ allowances РІ Redis
+  - РњРµС‚СЂРёРєР° `arb_dex_approve_total` (counter)
 - **test_commands:**
   - `npm run test dex-approve.service.spec.ts`
 - **edge_cases:**
   - Approve fails (insufficient gas, revert)
   - Allowance race condition
-  - Revoke не поддерживается DEX
-- **rollback_procedure:** Очистить таблицу `approvals` и Redis cache
-- **ci_integration:** Unit tests в CI (без real tx)
+  - Revoke РЅРµ РїРѕРґРґРµСЂР¶РёРІР°РµС‚СЃСЏ DEX
+- **rollback_procedure:** РћС‡РёСЃС‚РёС‚СЊ С‚Р°Р±Р»РёС†Сѓ `approvals` Рё Redis cache
+- **ci_integration:** Unit tests РІ CI (Р±РµР· real tx)
 - **review_required:** `backend`
 - **review_notes:**
-  - ✅ `TokenApproveService` реализован в `apps/execution-orchestrator/src/execution/token/`
-  - ✅ `checkAllowance()` — проверка текущего allowance через ERC20 contract
-  - ✅ `approveToken()` — idempotent approvespender (пропускает если allowance достаточен)
-  - ✅ `revokeApproval()` — revoke approval (установка allowance = 0)
-  - ✅ In-memory allowance cache с configurable TTL
-  - ✅ Prometheus metrics: `arb_dex_approve_total`, `arb_dex_approve_allowance_checks_total`
-  - ✅ DI: зарегистрирован в `ExecutionModule`
-  - ✅ Env vars: `DEX_APPROVE_GAS_LIMIT`, `DEX_ALLOWANCE_CACHE_TTL_MS`
-  - ✅ Build monorepo green (21/21)
+  - вњ… `TokenApproveService` СЂРµР°Р»РёР·РѕРІР°РЅ РІ `apps/execution-orchestrator/src/execution/token/`
+  - вњ… `checkAllowance()` вЂ” РїСЂРѕРІРµСЂРєР° С‚РµРєСѓС‰РµРіРѕ allowance С‡РµСЂРµР· ERC20 contract
+  - вњ… `approveToken()` вЂ” idempotent approvespender (РїСЂРѕРїСѓСЃРєР°РµС‚ РµСЃР»Рё allowance РґРѕСЃС‚Р°С‚РѕС‡РµРЅ)
+  - вњ… `revokeApproval()` вЂ” revoke approval (СѓСЃС‚Р°РЅРѕРІРєР° allowance = 0)
+  - вњ… In-memory allowance cache СЃ configurable TTL
+  - вњ… Prometheus metrics: `arb_dex_approve_total`, `arb_dex_approve_allowance_checks_total`
+  - вњ… DI: Р·Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°РЅ РІ `ExecutionModule`
+  - вњ… Env vars: `DEX_APPROVE_GAS_LIMIT`, `DEX_ALLOWANCE_CACHE_TTL_MS`
+  - вњ… Build monorepo green (21/21)
 - **review_passed_date:** 2026-04-30
 - **status:** `done`
 
-#### `DEX-1-1-SLIPPAGE` — Slippage protection и minimumAmountOut enforcement
+#### `DEX-1-1-SLIPPAGE` вЂ” Slippage protection Рё minimumAmountOut enforcement
 
 - **step_id:** `DEX-1-1-SLIPPAGE`
 - **phase:** `dex-1`
 - **service:** `execution`
-- **goal:** Slippage tolerance config, валидация, minimumAmountOut enforcement для DEX-сделок.
+- **goal:** Slippage tolerance config, РІР°Р»РёРґР°С†РёСЏ, minimumAmountOut enforcement РґР»СЏ DEX-СЃРґРµР»РѕРє.
 - **depends_on:** [`DEX-1-0-POOL-DISCOVERY`, `DEX-1-0-GAS`]
 - **risk_level:** `high`
 - **estimated_hours:** `8`
 - **main_plan_prerequisites:** [`P2-2.2-PROF`]
 - **acceptance_criteria:**
-  - Slippage tolerance в config-service или env (по умолчанию: 0.5% high-liq, 1% mid-liq, 5% low-liq).
-  - Тесты на price impact scenarios; reject, если slippage > tolerance.
-  - Документ о диапазонах и политике настройки.
-  - **Test command:** `npm run test dex-slippage-protection.spec.ts` — success
-  - **Explicit check:** Reject при slippage > tolerance в логах
+  - Slippage tolerance РІ config-service РёР»Рё env (РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ: 0.5% high-liq, 1% mid-liq, 5% low-liq).
+  - РўРµСЃС‚С‹ РЅР° price impact scenarios; reject, РµСЃР»Рё slippage > tolerance.
+  - Р”РѕРєСѓРјРµРЅС‚ Рѕ РґРёР°РїР°Р·РѕРЅР°С… Рё РїРѕР»РёС‚РёРєРµ РЅР°СЃС‚СЂРѕР№РєРё.
+  - **Test command:** `npm run test dex-slippage-protection.spec.ts` вЂ” success
+  - **Explicit check:** Reject РїСЂРё slippage > tolerance РІ Р»РѕРіР°С…
 - **changed_areas:**
   - `apps/execution-orchestrator/src/execution/`
     - `dex-slippage-protection.service.ts`
     - `dex-slippage-protection.service.spec.ts`
-  - `docs/dex-slippage-policy.md` (новый)
+  - `docs/dex-slippage-policy.md` (РЅРѕРІС‹Р№)
 - **outputs:**
-  - `DexSlippageProtectionService` — сервис валидации slippage
+  - `DexSlippageProtectionService` вЂ” СЃРµСЂРІРёСЃ РІР°Р»РёРґР°С†РёРё slippage
   - Slippage tolerance levels (high-liq, mid-liq, low-liq)
-  - Document с политикой настройки
+  - Document СЃ РїРѕР»РёС‚РёРєРѕР№ РЅР°СЃС‚СЂРѕР№РєРё
 - **test_commands:**
   - `npm run test dex-slippage-protection.service.spec.ts`
 - **edge_cases:**
-  - Slippage tolerance не задан
+  - Slippage tolerance РЅРµ Р·Р°РґР°РЅ
   - Extreme price impact (flash crash)
   - MinimumAmountOut = 0
-- **rollback_procedure:** Откатить документацию
-- **ci_integration:** Unit tests в CI
+- **rollback_procedure:** РћС‚РєР°С‚РёС‚СЊ РґРѕРєСѓРјРµРЅС‚Р°С†РёСЋ
+- **ci_integration:** Unit tests РІ CI
 - **review_required:** `backend`
 - **review_notes:**
-  - ✅ `SlippageProtectionService` реализован в `apps/execution-orchestrator/src/execution/slippage/`
-  - ✅ Slippage tolerance levels: high-liq (0.5%), mid-liq (1%), low-liq (5%)
-  - ✅ `calculateMinimumAmountOut()` — расчёт min output с учётом slippage tolerance
-  - ✅ `validateSlippage()` — валидация price impact, reject при превышении
-  - ✅ `getSlippageTolerance()` — определение tolerance по liquidity tier
-  - ✅ Prometheus metrics: `arb_dex_slippage_checks_total`, `arb_dex_slippage_rejections_total`
-  - ✅ DI: зарегистрирован в `ExecutionModule`
-  - ✅ Env vars: `DEX_SLIPPAGE_HIGH_LIQ_BPS`, `DEX_SLIPPAGE_MID_LIQ_BPS`, `DEX_SLIPPAGE_LOW_LIQ_BPS`, `DEX_SLIPPAGE_MAX_BPS`
-  - ✅ Build monorepo green (21/21)
+  - вњ… `SlippageProtectionService` СЂРµР°Р»РёР·РѕРІР°РЅ РІ `apps/execution-orchestrator/src/execution/slippage/`
+  - вњ… Slippage tolerance levels: high-liq (0.5%), mid-liq (1%), low-liq (5%)
+  - вњ… `calculateMinimumAmountOut()` вЂ” СЂР°СЃС‡С‘С‚ min output СЃ СѓС‡С‘С‚РѕРј slippage tolerance
+  - вњ… `validateSlippage()` вЂ” РІР°Р»РёРґР°С†РёСЏ price impact, reject РїСЂРё РїСЂРµРІС‹С€РµРЅРёРё
+  - вњ… `getSlippageTolerance()` вЂ” РѕРїСЂРµРґРµР»РµРЅРёРµ tolerance РїРѕ liquidity tier
+  - вњ… Prometheus metrics: `arb_dex_slippage_checks_total`, `arb_dex_slippage_rejections_total`
+  - вњ… DI: Р·Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°РЅ РІ `ExecutionModule`
+  - вњ… Env vars: `DEX_SLIPPAGE_HIGH_LIQ_BPS`, `DEX_SLIPPAGE_MID_LIQ_BPS`, `DEX_SLIPPAGE_LOW_LIQ_BPS`, `DEX_SLIPPAGE_MAX_BPS`
+  - вњ… Build monorepo green (21/21)
 - **review_passed_date:** 2026-04-30
 - **status:** `done`
 
-#### `DEX-1-1-ADAPTER-UNI2` — Uniswap V2-совместимый адаптер (swap path)
+#### `DEX-1-1-ADAPTER-UNI2` вЂ” Uniswap V2-СЃРѕРІРјРµСЃС‚РёРјС‹Р№ Р°РґР°РїС‚РµСЂ (swap path)
 
 - **step_id:** `DEX-1-1-ADAPTER-UNI2`
 - **phase:** `dex-1`
-- **service:** `apps/execution-orchestrator` (или `packages/dex-venue-adapters`)
-- **goal:** Реализация сценария `swapExactTokensForTokens` (или аналог) + approve при необходимости; маппинг `ExecutionLeg` → calldata/tx.
+- **service:** `apps/execution-orchestrator` (РёР»Рё `packages/dex-venue-adapters`)
+- **goal:** Р РµР°Р»РёР·Р°С†РёСЏ СЃС†РµРЅР°СЂРёСЏ `swapExactTokensForTokens` (РёР»Рё Р°РЅР°Р»РѕРі) + approve РїСЂРё РЅРµРѕР±С…РѕРґРёРјРѕСЃС‚Рё; РјР°РїРїРёРЅРі `ExecutionLeg` в†’ calldata/tx.
 - **depends_on:** [`DEX-1-0-ABIS`, `DEX-1-0-RPC`, `DEX-1-0-VAULT`, `DEX-1-0-WALLET-MGT`, `DEX-1-1-APPROVE-PATTERN`]
 - **risk_level:** `critical`
 - **estimated_hours:** `16`
 - **main_plan_prerequisites:** [`P2-2.1-VEN`]
 - **acceptance_criteria:**
-  - Интеграционный тест на testnet **fork** или testnet (без mainnet).
-  - `routeKey` / leg metadata в БД согласованы с canonical/risk.
+  - Р�РЅС‚РµРіСЂР°С†РёРѕРЅРЅС‹Р№ С‚РµСЃС‚ РЅР° testnet **fork** РёР»Рё testnet (Р±РµР· mainnet).
+  - `routeKey` / leg metadata РІ Р‘Р” СЃРѕРіР»Р°СЃРѕРІР°РЅС‹ СЃ canonical/risk.
   - **SLO:** swap construction < 200ms, submit < 200ms
-  - **Test command:** `npm run test uniswap-v2-adapter.spec.ts` — success
-  - **Explicit check:** Success swap на testnet (manual verification)
+  - **Test command:** `npm run test uniswap-v2-adapter.spec.ts` вЂ” success
+  - **Explicit check:** Success swap РЅР° testnet (manual verification)
 - **changed_areas:**
   - `apps/execution-orchestrator/src/execution/adapters/`
     - `uniswap-v2.adapter.ts`
     - `uniswap-v2.adapter.spec.ts`
-  - `packages/contracts-eth/` (если используется)
+  - `packages/contracts-eth/` (РµСЃР»Рё РёСЃРїРѕР»СЊР·СѓРµС‚СЃСЏ)
 - **outputs:**
-  - `UniswapV2Adapter` — реализация `VenueAdapter` для Uniswap V2
-  - Calldata construction для `swapExactTokensForTokens`
-  - Integration с `approve` pattern
-  - Метрика `arb_dex_uniswap_v2_swap_total` (counter)
+  - `UniswapV2Adapter` вЂ” СЂРµР°Р»РёР·Р°С†РёСЏ `VenueAdapter` РґР»СЏ Uniswap V2
+  - Calldata construction РґР»СЏ `swapExactTokensForTokens`
+  - Integration СЃ `approve` pattern
+  - РњРµС‚СЂРёРєР° `arb_dex_uniswap_v2_swap_total` (counter)
 - **test_commands:**
   - `npm run test uniswap-v2.adapter.spec.ts`
 - **edge_cases:**
   - Insufficient liquidity
   - Slippage > tolerance
   - Revert from DEX contract
-- **rollback_procedure:** Удалить адаптер из DI
-- **ci_integration:** Unit tests в CI (fork mode)
+- **rollback_procedure:** РЈРґР°Р»РёС‚СЊ Р°РґР°РїС‚РµСЂ РёР· DI
+- **ci_integration:** Unit tests РІ CI (fork mode)
 - **review_required:** `backend`
 - **review_notes:**
-  - ✅ `UniswapV2Adapter` реализован в `apps/execution-orchestrator/src/execution/adapters/`
-  - ✅ `submitLeg(plan, leg)` → `{ externalOrderId: txHash }` — полная реализация VenueAdapter
-  - ✅ `swapExactTokensForTokens` calldata construction через ethers.js `Interface.encodeFunctionData`
-  - ✅ ERC20 approve integration: `ensureApproval()` с allowance check + approve при необходимости
-  - ✅ On-chain quote: `calculateAmountOutMin()` через router `getAmountsOut` + slippage
-  - ✅ Gas policy enforcement: reject при превышении `withinPolicy: false`
-  - ✅ Error hierarchy: `VenueSubmitClientError` (validation), `VenueSubmitTransientError` (retryable), `VenueTerminalSubmitError` (reverted)
-  - ✅ Prometheus metrics: `arb_dex_uniswap_v2_swap_total` (counter), `arb_dex_uniswap_v2_swap_latency_seconds` (histogram)
-  - ✅ DI: зарегистрирован в `ExecutionModule` с `RpcProviderManager`, `WalletManagerService`, `GasEstimatorService`, `TokenApproveService`
-  - ✅ Unit tests: 21/21 passed (validation, pure functions, buildSwapTxRequest, ensureApproval, submitLeg success/gas rejection/reverted/null receipt/unexpected error)
-  - ✅ Build + lint: 0 errors
-  - ✅ Supported chains: Arbitrum (42161), Base (8453), BNB (56) через `@arbibot/contracts-eth` addresses
+  - вњ… `UniswapV2Adapter` СЂРµР°Р»РёР·РѕРІР°РЅ РІ `apps/execution-orchestrator/src/execution/adapters/`
+  - вњ… `submitLeg(plan, leg)` в†’ `{ externalOrderId: txHash }` вЂ” РїРѕР»РЅР°СЏ СЂРµР°Р»РёР·Р°С†РёСЏ VenueAdapter
+  - вњ… `swapExactTokensForTokens` calldata construction С‡РµСЂРµР· ethers.js `Interface.encodeFunctionData`
+  - вњ… ERC20 approve integration: `ensureApproval()` СЃ allowance check + approve РїСЂРё РЅРµРѕР±С…РѕРґРёРјРѕСЃС‚Рё
+  - вњ… On-chain quote: `calculateAmountOutMin()` С‡РµСЂРµР· router `getAmountsOut` + slippage
+  - вњ… Gas policy enforcement: reject РїСЂРё РїСЂРµРІС‹С€РµРЅРёРё `withinPolicy: false`
+  - вњ… Error hierarchy: `VenueSubmitClientError` (validation), `VenueSubmitTransientError` (retryable), `VenueTerminalSubmitError` (reverted)
+  - вњ… Prometheus metrics: `arb_dex_uniswap_v2_swap_total` (counter), `arb_dex_uniswap_v2_swap_latency_seconds` (histogram)
+  - вњ… DI: Р·Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°РЅ РІ `ExecutionModule` СЃ `RpcProviderManager`, `WalletManagerService`, `GasEstimatorService`, `TokenApproveService`
+  - вњ… Unit tests: 21/21 passed (validation, pure functions, buildSwapTxRequest, ensureApproval, submitLeg success/gas rejection/reverted/null receipt/unexpected error)
+  - вњ… Build + lint: 0 errors
+  - вњ… Supported chains: Arbitrum (42161), Base (8453), BNB (56) С‡РµСЂРµР· `@arbibot/contracts-eth` addresses
 - **status:** `done`
 
-#### `DEX-1-1-ADAPTER-UNI3` — Uniswap V3 (exactIn single pool / минимальный path)
+#### `DEX-1-1-ADAPTER-UNI3` вЂ” Uniswap V3 (exactIn single pool / РјРёРЅРёРјР°Р»СЊРЅС‹Р№ path)
 
 - **step_id:** `DEX-1-1-ADAPTER-UNI3`
 - **phase:** `dex-1`
 - **service:** `execution` / `packages/dex-venue-adapters`
-- **goal:** Минимальный рабочий exactInput **single pool**; расширение multi-hop — подзадачей после первого e2e.
+- **goal:** РњРёРЅРёРјР°Р»СЊРЅС‹Р№ СЂР°Р±РѕС‡РёР№ exactInput **single pool**; СЂР°СЃС€РёСЂРµРЅРёРµ multi-hop вЂ” РїРѕРґР·Р°РґР°С‡РµР№ РїРѕСЃР»Рµ РїРµСЂРІРѕРіРѕ e2e.
 - **depends_on:** [`DEX-1-1-ADAPTER-UNI2`]
 - **risk_level:** `high`
 - **estimated_hours:** `12`
 - **main_plan_prerequisites:** [`P2-2.1-VEN`]
 - **acceptance_criteria:**
-  - Те же критерии, что и UNI2; документ о границах (один пул vs path).
-  - **Test command:** `npm run test uniswap-v3-adapter.spec.ts` — success
-  - **Explicit check:** Success single-pool swap на testnet
+  - РўРµ Р¶Рµ РєСЂРёС‚РµСЂРёРё, С‡С‚Рѕ Рё UNI2; РґРѕРєСѓРјРµРЅС‚ Рѕ РіСЂР°РЅРёС†Р°С… (РѕРґРёРЅ РїСѓР» vs path).
+  - **Test command:** `npm run test uniswap-v3-adapter.spec.ts` вЂ” success
+  - **Explicit check:** Success single-pool swap РЅР° testnet
 - **changed_areas:**
   - `apps/execution-orchestrator/src/execution/adapters/`
     - `uniswap-v3.adapter.ts`
     - `uniswap-v3.adapter.spec.ts`
-  - `docs/uniswap-v3-scope.md` (новый)
+  - `docs/uniswap-v3-scope.md` (РЅРѕРІС‹Р№)
 - **outputs:**
-  - `UniswapV3Adapter` — реализация `VenueAdapter` для Uniswap V3
-  - Calldata construction для `exactInputSingle`
-  - Document с ограничениями (single pool only)
+  - `UniswapV3Adapter` вЂ” СЂРµР°Р»РёР·Р°С†РёСЏ `VenueAdapter` РґР»СЏ Uniswap V3
+  - Calldata construction РґР»СЏ `exactInputSingle`
+  - Document СЃ РѕРіСЂР°РЅРёС‡РµРЅРёСЏРјРё (single pool only)
 - **test_commands:**
   - `npm run test uniswap-v3.adapter.spec.ts`
 - **edge_cases:**
   - Fee tier mismatch
   - Tick out of range
-  - Multi-hop paths (не поддерживается в v1)
-- **rollback_procedure:** Удалить адаптер из DI
-- **ci_integration:** Unit tests в CI (fork mode)
+  - Multi-hop paths (РЅРµ РїРѕРґРґРµСЂР¶РёРІР°РµС‚СЃСЏ РІ v1)
+- **rollback_procedure:** РЈРґР°Р»РёС‚СЊ Р°РґР°РїС‚РµСЂ РёР· DI
+- **ci_integration:** Unit tests РІ CI (fork mode)
 - **review_notes:**
-  - ✅ `UniswapV3Adapter` реализован в `apps/execution-orchestrator/src/execution/adapters/`
-  - ✅ `submitLeg(plan, leg)` → `{ externalOrderId: txHash }` — полная реализация VenueAdapter
-  - ✅ `exactInputSingle` calldata construction через ethers.js `Interface.encodeFunctionData`
-  - ✅ DexSwapParamsV3: `fee` (uint24 pool fee tier), `amountOutExpected`, `sqrtPriceLimitX96`
-  - ✅ Shared utils с V2: `applySlippage`, `getSlippageBps`
-  - ✅ ERC20 approve, gas policy, Prometheus metrics, error hierarchy
-  - ✅ Unit tests: 21/21 passed (validation, pure functions, buildSwapTxRequest, ensureApproval, submitLeg success/gas rejection/reverted/null receipt/unexpected error)
-  - ✅ DI: зарегистрирован в `ExecutionModule`
-  - ✅ Build + lint: 0 errors
-  - ✅ Commit: `a48c644` (2026-05-05)
+  - вњ… `UniswapV3Adapter` СЂРµР°Р»РёР·РѕРІР°РЅ РІ `apps/execution-orchestrator/src/execution/adapters/`
+  - вњ… `submitLeg(plan, leg)` в†’ `{ externalOrderId: txHash }` вЂ” РїРѕР»РЅР°СЏ СЂРµР°Р»РёР·Р°С†РёСЏ VenueAdapter
+  - вњ… `exactInputSingle` calldata construction С‡РµСЂРµР· ethers.js `Interface.encodeFunctionData`
+  - вњ… DexSwapParamsV3: `fee` (uint24 pool fee tier), `amountOutExpected`, `sqrtPriceLimitX96`
+  - вњ… Shared utils СЃ V2: `applySlippage`, `getSlippageBps`
+  - вњ… ERC20 approve, gas policy, Prometheus metrics, error hierarchy
+  - вњ… Unit tests: 21/21 passed (validation, pure functions, buildSwapTxRequest, ensureApproval, submitLeg success/gas rejection/reverted/null receipt/unexpected error)
+  - вњ… DI: Р·Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°РЅ РІ `ExecutionModule`
+  - вњ… Build + lint: 0 errors
+  - вњ… Commit: `a48c644` (2026-05-05)
 - **review_passed_date:** 2026-05-05
 - **status:** `done`
 
-#### `DEX-1-1-ADAPTER-SUSHI` — SushiSwap на Arbitrum (маршрут согласован с UNI2 где возможно)
+#### `DEX-1-1-ADAPTER-SUSHI` вЂ” SushiSwap РЅР° Arbitrum (РјР°СЂС€СЂСѓС‚ СЃРѕРіР»Р°СЃРѕРІР°РЅ СЃ UNI2 РіРґРµ РІРѕР·РјРѕР¶РЅРѕ)
 
 - **step_id:** `DEX-1-1-ADAPTER-SUSHI`
 - **phase:** `dex-1`
 - **service:** `execution` / `packages/dex-venue-adapters`
-- **goal:** Адаптер Sushi (V2-стиль), общие утилиты с UNI2 где применимо.
+- **goal:** РђРґР°РїС‚РµСЂ Sushi (V2-СЃС‚РёР»СЊ), РѕР±С‰РёРµ СѓС‚РёР»РёС‚С‹ СЃ UNI2 РіРґРµ РїСЂРёРјРµРЅРёРјРѕ.
 - **depends_on:** [`DEX-1-1-ADAPTER-UNI2`]
 - **risk_level:** `medium`
 - **estimated_hours:** `8`
 - **main_plan_prerequisites:** [`P2-2.1-VEN`]
 - **acceptance_criteria:**
-  - Как минимум один успешный swap на testnet.
-  - **Test command:** `npm run test sushiswap-adapter.spec.ts` — success
-  - **Explicit check:** Success swap на SushiSwap testnet
+  - РљР°Рє РјРёРЅРёРјСѓРј РѕРґРёРЅ СѓСЃРїРµС€РЅС‹Р№ swap РЅР° testnet.
+  - **Test command:** `npm run test sushiswap-adapter.spec.ts` вЂ” success
+  - **Explicit check:** Success swap РЅР° SushiSwap testnet
 - **changed_areas:**
   - `apps/execution-orchestrator/src/execution/adapters/`
     - `sushiswap-v2.adapter.ts`
@@ -965,99 +965,99 @@ graph TD
   - `apps/execution-orchestrator/src/legs/`
     - `legs.module.ts` (DI: SushiSwapV2Adapter)
 - **outputs:**
-  - `SushiSwapV2Adapter` — реализация `VenueAdapter` для SushiSwap (V2-стиль)
-  - Shared utils с `UniswapV2Adapter`: `extractSwapParams`, `applySlippage`, `getSlippageBps`, `ensureApproval`
-  - Метрики: `arb_dex_sushiswap_v2_swap_total`, `arb_dex_sushiswap_v2_swap_latency_seconds`
+  - `SushiSwapV2Adapter` вЂ” СЂРµР°Р»РёР·Р°С†РёСЏ `VenueAdapter` РґР»СЏ SushiSwap (V2-СЃС‚РёР»СЊ)
+  - Shared utils СЃ `UniswapV2Adapter`: `extractSwapParams`, `applySlippage`, `getSlippageBps`, `ensureApproval`
+  - РњРµС‚СЂРёРєРё: `arb_dex_sushiswap_v2_swap_total`, `arb_dex_sushiswap_v2_swap_latency_seconds`
   - Router addresses: Arbitrum SushiSwap `0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506`, BNB PancakeSwap `0x10ED43C718714eb63d5aA57B78B54704E256024E`
-  - Base chain → `VenueSubmitClientError` (no SushiSwap deployment)
+  - Base chain в†’ `VenueSubmitClientError` (no SushiSwap deployment)
 - **test_commands:**
   - `npm run test sushiswap-v2.adapter.spec.ts`
 - **edge_cases:**
   - Router address differs from Uniswap
-  - Base chain — no SushiSwap deployment
-  - Different ABI (если есть)
-- **rollback_procedure:** Удалить адаптер из DI
-- **ci_integration:** Unit tests в CI (fork mode)
+  - Base chain вЂ” no SushiSwap deployment
+  - Different ABI (РµСЃР»Рё РµСЃС‚СЊ)
+- **rollback_procedure:** РЈРґР°Р»РёС‚СЊ Р°РґР°РїС‚РµСЂ РёР· DI
+- **ci_integration:** Unit tests РІ CI (fork mode)
 - **review_required:** `backend`
 - **review_notes:**
-  - ✅ `SushiSwapV2Adapter` реализован в `apps/execution-orchestrator/src/execution/adapters/`
-  - ✅ `submitLeg(plan, leg)` → `{ externalOrderId: txHash }` — полная реализация VenueAdapter
-  - ✅ `swapExactTokensForTokens` calldata construction через ethers.js
-  - ✅ Shared utils с UniV2: `extractSwapParams` экспортирован из `uniswap-v2.adapter.ts`
-  - ✅ Router addresses: Arbitrum SushiSwap, BNB PancakeSwap
-  - ✅ Base chain → `VenueSubmitClientError` (no SushiSwap deployment)
-  - ✅ DI: `VenueFactoryService` обновлён (venueKey `sushiswap`)
-  - ✅ Unit tests: 19/19 passed
-  - ✅ Build: 21/21 ✅, Lint: 0 errors
-  - ✅ Prometheus metrics: `arb_dex_sushiswap_v2_swap_total`, `arb_dex_sushiswap_v2_swap_latency_seconds`
+  - вњ… `SushiSwapV2Adapter` СЂРµР°Р»РёР·РѕРІР°РЅ РІ `apps/execution-orchestrator/src/execution/adapters/`
+  - вњ… `submitLeg(plan, leg)` в†’ `{ externalOrderId: txHash }` вЂ” РїРѕР»РЅР°СЏ СЂРµР°Р»РёР·Р°С†РёСЏ VenueAdapter
+  - вњ… `swapExactTokensForTokens` calldata construction С‡РµСЂРµР· ethers.js
+  - вњ… Shared utils СЃ UniV2: `extractSwapParams` СЌРєСЃРїРѕСЂС‚РёСЂРѕРІР°РЅ РёР· `uniswap-v2.adapter.ts`
+  - вњ… Router addresses: Arbitrum SushiSwap, BNB PancakeSwap
+  - вњ… Base chain в†’ `VenueSubmitClientError` (no SushiSwap deployment)
+  - вњ… DI: `VenueFactoryService` РѕР±РЅРѕРІР»С‘РЅ (venueKey `sushiswap`)
+  - вњ… Unit tests: 19/19 passed
+  - вњ… Build: 21/21 вњ…, Lint: 0 errors
+  - вњ… Prometheus metrics: `arb_dex_sushiswap_v2_swap_total`, `arb_dex_sushiswap_v2_swap_latency_seconds`
 - **review_passed_date:** 2026-05-05
 - **status:** `done`
 
-#### `DEX-1-1-VENUE-BIND` — Связка с `VenueAdapter` / расширение DI
+#### `DEX-1-1-VENUE-BIND` вЂ” РЎРІСЏР·РєР° СЃ `VenueAdapter` / СЂР°СЃС€РёСЂРµРЅРёРµ DI
 
 - **step_id:** `DEX-1-1-VENUE-BIND`
 - **phase:** `dex-1`
 - **service:** `apps/execution-orchestrator`
-- **goal:** Выбор адаптера по `venue_key` / `leg` metadata; feature flag DEX vs HTTP lab.
+- **goal:** Р’С‹Р±РѕСЂ Р°РґР°РїС‚РµСЂР° РїРѕ `venue_key` / `leg` metadata; feature flag DEX vs HTTP lab.
 - **depends_on:** [`DEX-1-1-ADAPTER-UNI2`]
 - **risk_level:** `high`
 - **estimated_hours:** `6`
 - **main_plan_prerequisites:** [`P2-2.1-VEN`]
 - **acceptance_criteria:**
-  - E2E с `VENUE_HTTP_BASE_URL` **выкл.** и DEX-адаптером: цепочка `mark-sent` → on-chain → `apply-fill` (или согласованный DEX-способ фиксации fill).
-  - ADR, если `submitLeg` меняет семантику (on-chain вместо HTTP).
-  - **Test command:** `npm run e2e:dex1-venue-binding` — success
-  - **Explicit check:** `LEG_VENUE_KEY=uniswap-v2` использует `UniswapV2Adapter`
+  - E2E СЃ `VENUE_HTTP_BASE_URL` **РІС‹РєР».** Рё DEX-Р°РґР°РїС‚РµСЂРѕРј: С†РµРїРѕС‡РєР° `mark-sent` в†’ on-chain в†’ `apply-fill` (РёР»Рё СЃРѕРіР»Р°СЃРѕРІР°РЅРЅС‹Р№ DEX-СЃРїРѕСЃРѕР± С„РёРєСЃР°С†РёРё fill).
+  - ADR, РµСЃР»Рё `submitLeg` РјРµРЅСЏРµС‚ СЃРµРјР°РЅС‚РёРєСѓ (on-chain РІРјРµСЃС‚Рѕ HTTP).
+  - **Test command:** `npm run e2e:dex1-venue-binding` вЂ” success
+  - **Explicit check:** `LEG_VENUE_KEY=uniswap-v2` РёСЃРїРѕР»СЊР·СѓРµС‚ `UniswapV2Adapter`
 - **changed_areas:**
   - `apps/execution-orchestrator/src/execution/`
     - `venue-factory.service.ts`
     - `venue-factory.service.spec.ts`
   - `apps/execution-orchestrator/src/venue/`
-    - `venue-adapter.interface.ts` (расширение)
+    - `venue-adapter.interface.ts` (СЂР°СЃС€РёСЂРµРЅРёРµ)
   - `.env.example` (DEX_VENUE_ENABLED)
 - **outputs:**
-  - `VenueFactoryService` — фабрика адаптеров по `venue_key`
-  - ADR по изменению семантики `submitLeg`
+  - `VenueFactoryService` вЂ” С„Р°Р±СЂРёРєР° Р°РґР°РїС‚РµСЂРѕРІ РїРѕ `venue_key`
+  - ADR РїРѕ РёР·РјРµРЅРµРЅРёСЋ СЃРµРјР°РЅС‚РёРєРё `submitLeg`
   - Feature flag `DEX_VENUE_ENABLED`
 - **test_commands:**
   - `npm run test venue-factory.service.spec.ts`
-  - `npm run e2e:phase2-controlled-execution` (с DEX-адаптером)
+  - `npm run e2e:phase2-controlled-execution` (СЃ DEX-Р°РґР°РїС‚РµСЂРѕРј)
 - **edge_cases:**
   - Unknown `venue_key`
   - Both DEX and HTTP enabled
   - `submitLeg` semantic conflict
-- **rollback_procedure:** Откатить DI, feature flag
-- **ci_integration:** E2E test в CI (optional, requires fork)
+- **rollback_procedure:** РћС‚РєР°С‚РёС‚СЊ DI, feature flag
+- **ci_integration:** E2E test РІ CI (optional, requires fork)
 - **review_notes:**
-  - ✅ `VenueFactoryService` реализован в `apps/execution-orchestrator/src/execution/`
-  - ✅ `extractVenueKey(plan, leg?)` — извлечение venueKey из playbookConfig (leg-level > plan-level)
-  - ✅ `resolveAdapter(venueKey)` — роутинг: mock/http → legacy, uniswap-v2 → V2Adapter, uniswap-v3 → V3Adapter
-  - ✅ `submitLeg(plan, leg)` — convenience-метод: resolve + delegate
-  - ✅ Feature flag `DEX_VENUE_ENABLED` для DEX-адаптеров
-  - ✅ LegsModule DI: `VenueFactoryService` + все адаптеры (Mock, HTTP, UniV2, UniV3)
-  - ✅ ExecutionModule exports DEX-адаптеры для LegsModule
-  - ✅ Unit tests: 21/21 passed (extractVenueKey, resolveAdapter legacy/DEX/unknown, submitLeg delegation)
-  - ✅ Build monorepo green (21/21)
-  - ⚠️ Пока без `DEX-1-1-ADAPTER-SUSHI` (SushiSwap adapter — следующий шаг после review)
+  - вњ… `VenueFactoryService` СЂРµР°Р»РёР·РѕРІР°РЅ РІ `apps/execution-orchestrator/src/execution/`
+  - вњ… `extractVenueKey(plan, leg?)` вЂ” РёР·РІР»РµС‡РµРЅРёРµ venueKey РёР· playbookConfig (leg-level > plan-level)
+  - вњ… `resolveAdapter(venueKey)` вЂ” СЂРѕСѓС‚РёРЅРі: mock/http в†’ legacy, uniswap-v2 в†’ V2Adapter, uniswap-v3 в†’ V3Adapter
+  - вњ… `submitLeg(plan, leg)` вЂ” convenience-РјРµС‚РѕРґ: resolve + delegate
+  - вњ… Feature flag `DEX_VENUE_ENABLED` РґР»СЏ DEX-Р°РґР°РїС‚РµСЂРѕРІ
+  - вњ… LegsModule DI: `VenueFactoryService` + РІСЃРµ Р°РґР°РїС‚РµСЂС‹ (Mock, HTTP, UniV2, UniV3)
+  - вњ… ExecutionModule exports DEX-Р°РґР°РїС‚РµСЂС‹ РґР»СЏ LegsModule
+  - вњ… Unit tests: 21/21 passed (extractVenueKey, resolveAdapter legacy/DEX/unknown, submitLeg delegation)
+  - вњ… Build monorepo green (21/21)
+  - вљ пёЏ РџРѕРєР° Р±РµР· `DEX-1-1-ADAPTER-SUSHI` (SushiSwap adapter вЂ” СЃР»РµРґСѓСЋС‰РёР№ С€Р°Рі РїРѕСЃР»Рµ review)
 - **review_passed_date:** 2026-05-05
 - **status:** `done`
 
-### DEX-1.2 — Сверка, observability, инциденты
+### DEX-1.2 вЂ” РЎРІРµСЂРєР°, observability, РёРЅС†РёРґРµРЅС‚С‹
 
-#### `DEX-1-2-RECON-ONCHAIN` — Расширение reconciliation: receipt, баланс кошелька
+#### `DEX-1-2-RECON-ONCHAIN` вЂ” Р Р°СЃС€РёСЂРµРЅРёРµ reconciliation: receipt, Р±Р°Р»Р°РЅСЃ РєРѕС€РµР»СЊРєР°
 
 - **step_id:** `DEX-1-2-RECON-ONCHAIN`
 - **phase:** `dex-1`
-- **service:** `reconciliation-service` + при необходимости воркер в execution
-- **goal:** Сравнение `execution_leg` / позиций с on-chain `receipt` и балансами токенов; инцидент при расхождении.
+- **service:** `reconciliation-service` + РїСЂРё РЅРµРѕР±С…РѕРґРёРјРѕСЃС‚Рё РІРѕСЂРєРµСЂ РІ execution
+- **goal:** РЎСЂР°РІРЅРµРЅРёРµ `execution_leg` / РїРѕР·РёС†РёР№ СЃ on-chain `receipt` Рё Р±Р°Р»Р°РЅСЃР°РјРё С‚РѕРєРµРЅРѕРІ; РёРЅС†РёРґРµРЅС‚ РїСЂРё СЂР°СЃС…РѕР¶РґРµРЅРёРё.
 - **depends_on:** [`DEX-1-0-MIGRATIONS`, `DEX-1-0-RPC`]
 - **risk_level:** `medium`
 - **estimated_hours:** `10`
 - **main_plan_prerequisites:** [`P2-2.1-RECON`]
 - **acceptance_criteria:**
-  - Детектор mismatch задокументирован; idempotent повторная проверка.
-  - **Test command:** `npm run test dex-reconciliation.spec.ts` — success
-  - **Explicit check:** `POST /mismatches/run-detectors` создаёт DEX mismatches
+  - Р”РµС‚РµРєС‚РѕСЂ mismatch Р·Р°РґРѕРєСѓРјРµРЅС‚РёСЂРѕРІР°РЅ; idempotent РїРѕРІС‚РѕСЂРЅР°СЏ РїСЂРѕРІРµСЂРєР°.
+  - **Test command:** `npm run test dex-reconciliation.spec.ts` вЂ” success
+  - **Explicit check:** `POST /mismatches/run-detectors` СЃРѕР·РґР°С‘С‚ DEX mismatches
 - **changed_areas:**
   - `apps/reconciliation-service/src/detectors/`
     - `dex-receipt-mismatch.detector.ts`
@@ -1065,146 +1065,146 @@ graph TD
   - `apps/reconciliation-service/src/detectors/`
     - `wallet-balance-mismatch.detector.ts`
 - **outputs:**
-  - `DexReceiptMismatchDetector` — детектор расхождений receipt vs leg
-  - `WalletBalanceMismatchDetector` — детектор расхождений balance
-  - Mismatch reason codes для DEX
+  - `DexReceiptMismatchDetector` вЂ” РґРµС‚РµРєС‚РѕСЂ СЂР°СЃС…РѕР¶РґРµРЅРёР№ receipt vs leg
+  - `WalletBalanceMismatchDetector` вЂ” РґРµС‚РµРєС‚РѕСЂ СЂР°СЃС…РѕР¶РґРµРЅРёР№ balance
+  - Mismatch reason codes РґР»СЏ DEX
 - **test_commands:**
   - `npm run test dex-reconciliation.spec.ts`
 - **edge_cases:**
-  - Pending transaction (неconfirmed)
-  - Reorg на блокчейне
+  - Pending transaction (РЅРµconfirmed)
+  - Reorg РЅР° Р±Р»РѕРєС‡РµР№РЅРµ
   - Delayed receipt (network issues)
-- **rollback_procedure:** Удалить детекторы из DI
-- **ci_integration:** Unit tests в CI (mock RPC)
+- **rollback_procedure:** РЈРґР°Р»РёС‚СЊ РґРµС‚РµРєС‚РѕСЂС‹ РёР· DI
+- **ci_integration:** Unit tests РІ CI (mock RPC)
 - **review_required:** `backend`
 - **review_notes:**
-  - ✅ Три DEX-детектора в `dex-reconciliation.detectors.ts`: `dex_receipt_leg_mismatch`, `wallet_balance_drift`, `dex_stale_pending_tx`
-  - ✅ Интегрировано в `MismatchesService.runDetectors()` через `runDexDetectors()`
-  - ✅ Configurable thresholds: `stalePendingHours` (default 1), `balanceDriftHours` (default 24)
-  - ✅ Unit tests: 7/7 passed; Build reconciliation-service: success
-  - ✅ Architecture check: чистое разделение CEX/DEX детекторов, idempotent inserts
+  - вњ… РўСЂРё DEX-РґРµС‚РµРєС‚РѕСЂР° РІ `dex-reconciliation.detectors.ts`: `dex_receipt_leg_mismatch`, `wallet_balance_drift`, `dex_stale_pending_tx`
+  - вњ… Р�РЅС‚РµРіСЂРёСЂРѕРІР°РЅРѕ РІ `MismatchesService.runDetectors()` С‡РµСЂРµР· `runDexDetectors()`
+  - вњ… Configurable thresholds: `stalePendingHours` (default 1), `balanceDriftHours` (default 24)
+  - вњ… Unit tests: 7/7 passed; Build reconciliation-service: success
+  - вњ… Architecture check: С‡РёСЃС‚РѕРµ СЂР°Р·РґРµР»РµРЅРёРµ CEX/DEX РґРµС‚РµРєС‚РѕСЂРѕРІ, idempotent inserts
 - **review_passed_date:** 2026-05-06
 - **status:** `done`
 
-#### `DEX-1-2-FILL-TRACKING` — Связка on-chain receipt с fill-событиями
+#### `DEX-1-2-FILL-TRACKING` вЂ” РЎРІСЏР·РєР° on-chain receipt СЃ fill-СЃРѕР±С‹С‚РёСЏРјРё
 
 - **step_id:** `DEX-1-2-FILL-TRACKING`
 - **phase:** `dex-1`
 - **service:** `execution` + `portfolio-service` integration
-- **goal:** При успешном on-chain receipt отправлять fill-события в portfolio/reconciliation; связывать `txHash` с `PortfolioPosition`.
+- **goal:** РџСЂРё СѓСЃРїРµС€РЅРѕРј on-chain receipt РѕС‚РїСЂР°РІР»СЏС‚СЊ fill-СЃРѕР±С‹С‚РёСЏ РІ portfolio/reconciliation; СЃРІСЏР·С‹РІР°С‚СЊ `txHash` СЃ `PortfolioPosition`.
 - **depends_on:** [`DEX-1-0-MIGRATIONS`, `DEX-1-0-RPC`]
 - **risk_level:** `high`
 - **estimated_hours:** `12`
 - **main_plan_prerequisites:** [`P2-2.1-FILL`, `P2-2.1-PORT`]
 - **acceptance_criteria:**
-  - После `receipt.status === 'success'` → `POST /positions/confirm-fill` (portfolio-service).
-  - Idempotency при повторных receipt-проверках.
-  - Фиксация `gasUsed`, `actualAmountIn/Out` в позиции.
-  - **SLO:** fill tracking latency < 1s после receipt
-  - **Test command:** `npm run test dex-fill-tracking.spec.ts` — success
-  - **Explicit check:** `PortfolioPosition` содержит `txHash`, `gasUsed`
+  - РџРѕСЃР»Рµ `receipt.status === 'success'` в†’ `POST /positions/confirm-fill` (portfolio-service).
+  - Idempotency РїСЂРё РїРѕРІС‚РѕСЂРЅС‹С… receipt-РїСЂРѕРІРµСЂРєР°С….
+  - Р¤РёРєСЃР°С†РёСЏ `gasUsed`, `actualAmountIn/Out` РІ РїРѕР·РёС†РёРё.
+  - **SLO:** fill tracking latency < 1s РїРѕСЃР»Рµ receipt
+  - **Test command:** `npm run test dex-fill-tracking.spec.ts` вЂ” success
+  - **Explicit check:** `PortfolioPosition` СЃРѕРґРµСЂР¶РёС‚ `txHash`, `gasUsed`
 - **changed_areas:**
   - `apps/execution-orchestrator/src/execution/`
     - `dex-fill-tracker.service.ts`
     - `dex-fill-tracker.service.spec.ts`
   - `packages/persistence/src/entities/portfolio-position.entity.ts`
 - **outputs:**
-  - `DexFillTrackerService` — сервис связи receipt → fill
-  - `PortfolioPosition` расширение (`txHash`, `gasUsed`, `actualAmountIn`, `actualAmountOut`)
-  - Outbox событие `LegFilled` с DEX-метаданными
+  - `DexFillTrackerService` вЂ” СЃРµСЂРІРёСЃ СЃРІСЏР·Рё receipt в†’ fill
+  - `PortfolioPosition` СЂР°СЃС€РёСЂРµРЅРёРµ (`txHash`, `gasUsed`, `actualAmountIn`, `actualAmountOut`)
+  - Outbox СЃРѕР±С‹С‚РёРµ `LegFilled` СЃ DEX-РјРµС‚Р°РґР°РЅРЅС‹РјРё
 - **test_commands:**
   - `npm run test dex-fill-tracking.service.spec.ts`
 - **edge_cases:**
-  - Receipt success но fill fails (portfolio-service down)
+  - Receipt success РЅРѕ fill fails (portfolio-service down)
   - Duplicate receipt processing
   - Partial fill (split across multiple legs)
-- **rollback_procedure:** Откатить изменения в `PortfolioPosition`
-- **ci_integration:** Unit tests в CI
+- **rollback_procedure:** РћС‚РєР°С‚РёС‚СЊ РёР·РјРµРЅРµРЅРёСЏ РІ `PortfolioPosition`
+- **ci_integration:** Unit tests РІ CI
 - **review_required:** `backend`
 - **review_notes:**
-  - DexFillTrackerService реализован (9/9 tests, build 21/21)
-  - LegFilledPayloadV2 с optional dex metadata
-  - OnChainTransaction.legId: bigint → uuid, migration 034
+  - DexFillTrackerService СЂРµР°Р»РёР·РѕРІР°РЅ (9/9 tests, build 21/21)
+  - LegFilledPayloadV2 СЃ optional dex metadata
+  - OnChainTransaction.legId: bigint в†’ uuid, migration 034
   - DI: ExecutionModule, backward compatible
 - **review_passed_date:** 2026-05-06
 - **status:** `done`
 
-#### `DEX-1-2-MEMPOOL` — Mempool monitoring (MEV detection)
+#### `DEX-1-2-MEMPOOL` вЂ” Mempool monitoring (MEV detection)
 
 - **step_id:** `DEX-1-2-MEMPOOL`
 - **phase:** `dex-1`
-- **service:** `execution` (опциональный воркер)
-- **goal:** Опциональный mempool monitoring для детекции MEV-атак (frontrun, sandwich); логирование и alerting.
+- **service:** `execution` (РѕРїС†РёРѕРЅР°Р»СЊРЅС‹Р№ РІРѕСЂРєРµСЂ)
+- **goal:** РћРїС†РёРѕРЅР°Р»СЊРЅС‹Р№ mempool monitoring РґР»СЏ РґРµС‚РµРєС†РёРё MEV-Р°С‚Р°Рє (frontrun, sandwich); Р»РѕРіРёСЂРѕРІР°РЅРёРµ Рё alerting.
 - **depends_on:** [`DEX-1-0-RPC`, `DEX-1-0-ABIS`]
 - **risk_level:** `low`
 - **estimated_hours:** `16`
 - **main_plan_prerequisites:** []
 - **acceptance_criteria:**
-  - Интеграционный тест с моком mempool (эмуляция MEV-сценариев).
-  - Документация угроз и countermeasures (slippage, gas boosting).
-  - Метрика `arb_dex_mev_detected_total` при подозрении на MEV.
-  - **Test command:** `npm run test dex-mempool-monitor.spec.ts` — success
-  - **Explicit check:** Логи содержат "MEV detected: frontrun"
+  - Р�РЅС‚РµРіСЂР°С†РёРѕРЅРЅС‹Р№ С‚РµСЃС‚ СЃ РјРѕРєРѕРј mempool (СЌРјСѓР»СЏС†РёСЏ MEV-СЃС†РµРЅР°СЂРёРµРІ).
+  - Р”РѕРєСѓРјРµРЅС‚Р°С†РёСЏ СѓРіСЂРѕР· Рё countermeasures (slippage, gas boosting).
+  - РњРµС‚СЂРёРєР° `arb_dex_mev_detected_total` РїСЂРё РїРѕРґРѕР·СЂРµРЅРёРё РЅР° MEV.
+  - **Test command:** `npm run test dex-mempool-monitor.spec.ts` вЂ” success
+  - **Explicit check:** Р›РѕРіРё СЃРѕРґРµСЂР¶Р°С‚ "MEV detected: frontrun"
 - **changed_areas:**
   - `apps/execution-orchestrator/src/workers/`
     - `dex-mempool-monitor.worker.ts`
     - `dex-mempool-monitor.worker.spec.ts`
-  - `docs/dex-mev-threats.md` (новый)
+  - `docs/dex-mev-threats.md` (РЅРѕРІС‹Р№)
 - **outputs:**
-  - `DexMempoolMonitorWorker` — воркер мониторинга mempool
+  - `DexMempoolMonitorWorker` вЂ” РІРѕСЂРєРµСЂ РјРѕРЅРёС‚РѕСЂРёРЅРіР° mempool
   - MEV detection patterns (frontrun, sandwich)
-  - Document с угрозами и countermeasures
+  - Document СЃ СѓРіСЂРѕР·Р°РјРё Рё countermeasures
   - Alert `DexMevDetected`
 - **test_commands:**
   - `npm run test dex-mempool-monitor.worker.spec.ts`
 - **edge_cases:**
   - High mempool load (false positives)
-  - RPC не поддерживает mempool queries
+  - RPC РЅРµ РїРѕРґРґРµСЂР¶РёРІР°РµС‚ mempool queries
   - Legitimate front-running (competition)
-- **rollback_procedure:** Остановить воркер
-- **ci_integration:** Unit tests в CI (mock mempool)
+- **rollback_procedure:** РћСЃС‚Р°РЅРѕРІРёС‚СЊ РІРѕСЂРєРµСЂ
+- **ci_integration:** Unit tests РІ CI (mock mempool)
 - **review_required:** `backend`
 - **review_notes:**
-  - ✅ `DexMempoolMonitorWorker` реализован в `apps/execution-orchestrator/src/execution/workers/`
-  - ✅ Mempool subscription через ethers.js `provider.on('pending', ...)` для each chain
-  - ✅ MEV detection patterns: frontrun (same-token tx before ours with higher gas), sandwich (frontrun + backrun pair), suspicious gas premium
-  - ✅ In-memory store: recent pending tx per token pair, configurable window (`MEMPOOL_RECENT_WINDOW_MS`)
-  - ✅ Prometheus metrics: `arb_dex_mempool_pending_tx_observed_total`, `arb_dex_mev_detected_total` (label: type), `arb_dex_mev_risk_score` (gauge)
-  - ✅ Feature flag `MEMPOOL_MONITOR_ENABLED` (default: false)
-  - ✅ Env vars: `MEMPOOL_MONITOR_ENABLED`, `MEMPOOL_CHAINS`, `MEMPOOL_GAS_PREMIUM_THRESHOLD_PERCENT`, `MEMPOOL_RECENT_WINDOW_MS`, `MEMPOOL_MAX_PENDING_TX`
-  - ✅ Unit tests: 12/12 passed (lifecycle, frontrun/sandwich/noise detection, multi-chain, edge cases)
-  - ✅ DI: зарегистрирован в `ExecutionModule`
-  - ✅ `docs/dex-mev-threats.md` — документ с угрозами и countermeasures
+  - вњ… `DexMempoolMonitorWorker` СЂРµР°Р»РёР·РѕРІР°РЅ РІ `apps/execution-orchestrator/src/execution/workers/`
+  - вњ… Mempool subscription С‡РµСЂРµР· ethers.js `provider.on('pending', ...)` РґР»СЏ each chain
+  - вњ… MEV detection patterns: frontrun (same-token tx before ours with higher gas), sandwich (frontrun + backrun pair), suspicious gas premium
+  - вњ… In-memory store: recent pending tx per token pair, configurable window (`MEMPOOL_RECENT_WINDOW_MS`)
+  - вњ… Prometheus metrics: `arb_dex_mempool_pending_tx_observed_total`, `arb_dex_mev_detected_total` (label: type), `arb_dex_mev_risk_score` (gauge)
+  - вњ… Feature flag `MEMPOOL_MONITOR_ENABLED` (default: false)
+  - вњ… Env vars: `MEMPOOL_MONITOR_ENABLED`, `MEMPOOL_CHAINS`, `MEMPOOL_GAS_PREMIUM_THRESHOLD_PERCENT`, `MEMPOOL_RECENT_WINDOW_MS`, `MEMPOOL_MAX_PENDING_TX`
+  - вњ… Unit tests: 12/12 passed (lifecycle, frontrun/sandwich/noise detection, multi-chain, edge cases)
+  - вњ… DI: Р·Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°РЅ РІ `ExecutionModule`
+  - вњ… `docs/dex-mev-threats.md` вЂ” РґРѕРєСѓРјРµРЅС‚ СЃ СѓРіСЂРѕР·Р°РјРё Рё countermeasures
 - **review_passed_date:** 2026-05-10
 - **status:** `done`
 
-#### `DEX-1-2-OUTBOX-EVENTS` — Outbox-события для DEX-транзакций
+#### `DEX-1-2-OUTBOX-EVENTS` вЂ” Outbox-СЃРѕР±С‹С‚РёСЏ РґР»СЏ DEX-С‚СЂР°РЅР·Р°РєС†РёР№
 
 - **step_id:** `DEX-1-2-OUTBOX-EVENTS`
 - **phase:** `dex-1`
 - **service:** `execution` + `packages/contracts` + `packages/outbox-kafka-bridge`
-- **goal:** Определить и реализовать outbox-события для DEX-транзакций; publish в Kafka при необходимости.
+- **goal:** РћРїСЂРµРґРµР»РёС‚СЊ Рё СЂРµР°Р»РёР·РѕРІР°С‚СЊ outbox-СЃРѕР±С‹С‚РёСЏ РґР»СЏ DEX-С‚СЂР°РЅР·Р°РєС†РёР№; publish РІ Kafka РїСЂРё РЅРµРѕР±С…РѕРґРёРјРѕСЃС‚Рё.
 - **depends_on:** [`P1-1.1-OIB`, `DEX-1-0-MIGRATIONS`]
 - **risk_level:** `medium`
 - **estimated_hours:** `6`
 - **main_plan_prerequisites:** [`P1-1.1-OIB`]
 - **acceptance_criteria:**
-  - События добавлены в `@arbibot/contracts`: `TransactionSubmitted`, `TransactionConfirmed`, `TransactionFailed`.
-  - Включены в Kafka bridge allowlist (при необходимости).
-  - Конверт envelope (messageId, correlationId, entityVersion) заполнен корректно.
-  - **Test command:** `npm run test dex-outbox-events.spec.ts` — success
-  - **Explicit check:** `outbox_events` содержит события DEX транзакций
+  - РЎРѕР±С‹С‚РёСЏ РґРѕР±Р°РІР»РµРЅС‹ РІ `@arbibot/contracts`: `TransactionSubmitted`, `TransactionConfirmed`, `TransactionFailed`.
+  - Р’РєР»СЋС‡РµРЅС‹ РІ Kafka bridge allowlist (РїСЂРё РЅРµРѕР±С…РѕРґРёРјРѕСЃС‚Рё).
+  - РљРѕРЅРІРµСЂС‚ envelope (messageId, correlationId, entityVersion) Р·Р°РїРѕР»РЅРµРЅ РєРѕСЂСЂРµРєС‚РЅРѕ.
+  - **Test command:** `npm run test dex-outbox-events.spec.ts` вЂ” success
+  - **Explicit check:** `outbox_events` СЃРѕРґРµСЂР¶РёС‚ СЃРѕР±С‹С‚РёСЏ DEX С‚СЂР°РЅР·Р°РєС†РёР№
 - **changed_areas:**
   - `packages/contracts/src/events/`
-    - `dex-events.ts` (новый)
+    - `dex-events.ts` (РЅРѕРІС‹Р№)
   - `packages/outbox-kafka-bridge/`
     - `kafka-bridge.service.ts` (allowlist update)
   - `apps/execution-orchestrator/src/execution/`
     - `dex-outbox-publisher.service.ts`
 - **outputs:**
-  - `TransactionSubmitted` — событие отправки tx
-  - `TransactionConfirmed` — событие подтверждения tx
-  - `TransactionFailed` — событие failed tx
+  - `TransactionSubmitted` вЂ” СЃРѕР±С‹С‚РёРµ РѕС‚РїСЂР°РІРєРё tx
+  - `TransactionConfirmed` вЂ” СЃРѕР±С‹С‚РёРµ РїРѕРґС‚РІРµСЂР¶РґРµРЅРёСЏ tx
+  - `TransactionFailed` вЂ” СЃРѕР±С‹С‚РёРµ failed tx
   - Kafka bridge allowlist update
 - **test_commands:**
   - `npm run test dex-outbox-events.spec.ts`
@@ -1212,84 +1212,96 @@ graph TD
 - **edge_cases:**
   - Duplicate events (replay)
   - Envelope mismatch
-- **rollback_procedure:** Удалить события из allowlist
-- **ci_integration:** Unit tests в CI
+- **rollback_procedure:** РЈРґР°Р»РёС‚СЊ СЃРѕР±С‹С‚РёСЏ РёР· allowlist
+- **ci_integration:** Unit tests РІ CI
 - **review_required:** `backend`
 - **review_notes:**
-  - ✅ 3 DEX event types: `DexTransactionSubmitted`, `DexTransactionConfirmed`, `DexTransactionFailed`
-  - ✅ `DexOutboxEventsService`: emitSubmitted, emitConfirmed, emitFailed
-  - ✅ Outbox/inbox pattern: idempotent writes (COUNT check before INSERT)
-  - ✅ Event envelope: messageId, correlationId, causationId, entityType, entityId, version, sourceModule, eventTs
-  - ✅ Kafka bridge allowlist обновлён: 3 новых event_type
-  - ✅ Unit tests: 10/10 passed; Build 21/21 ✅
+  - вњ… 3 DEX event types: `DexTransactionSubmitted`, `DexTransactionConfirmed`, `DexTransactionFailed`
+  - вњ… `DexOutboxEventsService`: emitSubmitted, emitConfirmed, emitFailed
+  - вњ… Outbox/inbox pattern: idempotent writes (COUNT check before INSERT)
+  - вњ… Event envelope: messageId, correlationId, causationId, entityType, entityId, version, sourceModule, eventTs
+  - вњ… Kafka bridge allowlist РѕР±РЅРѕРІР»С‘РЅ: 3 РЅРѕРІС‹С… event_type
+  - вњ… Unit tests: 10/10 passed; Build 21/21 вњ…
 - **review_passed_date:** 2026-05-06
 - **status:** `done`
 
-#### `DEX-1-2-HEALTH` — Health endpoints для DEX-компонентов
+#### `DEX-1-2-HEALTH` вЂ” Health endpoints РґР»СЏ DEX-РєРѕРјРїРѕРЅРµРЅС‚РѕРІ
 
 - **step_id:** `DEX-1-2-HEALTH`
 - **phase:** `dex-1`
 - **service:** `execution`
-- **goal:** Health checks для DEX-инфраструктуры: RPC провайдеры, vault, кошельки, bridge health (для DEX-2).
+- **goal:** Health checks РґР»СЏ DEX-РёРЅС„СЂР°СЃС‚СЂСѓРєС‚СѓСЂС‹: RPC РїСЂРѕРІР°Р№РґРµСЂС‹, vault, РєРѕС€РµР»СЊРєРё, bridge health (РґР»СЏ DEX-2).
 - **depends_on:** [`DEX-1-0-RPC`, `DEX-1-0-VAULT`, `DEX-1-0-WALLET-MGT`]
 - **risk_level:** `medium`
 - **estimated_hours:** `6`
 - **main_plan_prerequisites:** [`P1-1.2-EXO`]
 - **acceptance_criteria:**
-  - Endpoints: `GET /health/dex`, `GET /health/bridges` (для DEX-2).
-  - Health checks для каждого RPC провайдера (latency, sync status).
-  - Wallet health: баланс, nonce drift, encryption key доступен.
-  - Интеграция с operator UI (degraded banner при проблемах).
-  - **Test command:** `curl http://localhost:3012/health/dex` — returns JSON
-  - **Explicit check:** Degraded banner в UI при RPC failure
+  - Endpoints: `GET /health/dex`, `GET /health/bridges` (РґР»СЏ DEX-2).
+  - Health checks РґР»СЏ РєР°Р¶РґРѕРіРѕ RPC РїСЂРѕРІР°Р№РґРµСЂР° (latency, sync status).
+  - Wallet health: Р±Р°Р»Р°РЅСЃ, nonce drift, encryption key РґРѕСЃС‚СѓРїРµРЅ.
+  - Р�РЅС‚РµРіСЂР°С†РёСЏ СЃ operator UI (degraded banner РїСЂРё РїСЂРѕР±Р»РµРјР°С…).
+  - **Test command:** `curl http://localhost:3012/health/dex` вЂ” returns JSON
+  - **Explicit check:** Degraded banner РІ UI РїСЂРё RPC failure
 - **changed_areas:**
   - `apps/execution-orchestrator/src/execution/`
     - `dex-health.service.ts`
   - `apps/execution-orchestrator/src/execution/`
     - `execution.controller.ts` (health endpoints)
   - `apps/web/app/api/operator/health/dex/` (BFF)
-  - `apps/web/components/dex-health-banner.tsx` (новый)
+  - `apps/web/components/dex-health-banner.tsx` (РЅРѕРІС‹Р№)
 - **outputs:**
-  - `GET /health/dex` — health check DEX инфраструктуры
-  - `GET /health/bridges` — health check мостов (DEX-2)
-  - Degraded banner в UI
+  - `GET /health/dex` вЂ” health check DEX РёРЅС„СЂР°СЃС‚СЂСѓРєС‚СѓСЂС‹
+  - `GET /health/bridges` вЂ” health check РјРѕСЃС‚РѕРІ (DEX-2)
+  - Degraded banner РІ UI
 - **test_commands:**
   - `curl http://localhost:3012/health/dex`
   - `npm run test dex-health.service.spec.ts`
 - **edge_cases:**
   - Partial degradation (RPC OK, vault fails)
   - Health check timeout
-- **rollback_procedure:** Удалить endpoints
-- **ci_integration:** Health check в CI (smoke test)
+- **rollback_procedure:** РЈРґР°Р»РёС‚СЊ endpoints
+- **ci_integration:** Health check РІ CI (smoke test)
 - **review_required:** `backend`
-- **status:** `planned`
+- **review_notes:**
+  - вњ… `DexHealthService` СЂРµР°Р»РёР·РѕРІР°РЅ РІ `apps/execution-orchestrator/src/execution/`
+  - вњ… `GET /health/dex` вЂ” Р°РіСЂРµРіРёСЂРѕРІР°РЅРЅС‹Р№ health check (RPC per chain, Vault, Wallet, Mempool monitor)
+  - вњ… `GET /health/dex/bridges` вЂ” stub РґР»СЏ DEX-2 (not_configured)
+  - вњ… `DexHealthController` вЂ” NestJS РєРѕРЅС‚СЂРѕР»Р»РµСЂ СЃ РґРІСѓРјСЏ endpoints
+  - вњ… BFF route `GET /api/operator/health/dex` в†’ execution-orchestrator
+  - вњ… `DexHealthBanner` вЂ” React РєРѕРјРїРѕРЅРµРЅС‚ degraded banner РґР»СЏ operator layout
+  - вњ… Health status aggregation: healthy / degraded / unhealthy СЃ РїСЂРёРѕСЂРёС‚РµС‚РѕРј worst-case
+  - вњ… Unit tests: 9/9 passed (healthy, degraded, unhealthy, not_configured, no wallets, vault throws, mixed chains, mempool enabled, bridge stub)
+  - вњ… Build 21/21 вњ…, Lint 0 errors вњ…
+  - вњ… DI: Р·Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°РЅ РІ `ExecutionModule`
+- **review_passed_date:** 2026-05-10
+- **status:** `done`
 
-#### `DEX-1-2-OBS` — Метрики: RPC, gas, success rate, latency подтверждения, SLO
+#### `DEX-1-2-OBS` вЂ” РњРµС‚СЂРёРєРё: RPC, gas, success rate, latency РїРѕРґС‚РІРµСЂР¶РґРµРЅРёСЏ, SLO
 
 - **step_id:** `DEX-1-2-OBS`
 - **phase:** `dex-1`
 - **service:** `observability` / `execution`
-- **goal:** Метрики `arb_dex_*` (имена согласовать в PR); алерты в Grafana — по желанию в том же шаге или `DEX-DOC-ALERTS`.
+- **goal:** РњРµС‚СЂРёРєРё `arb_dex_*` (РёРјРµРЅР° СЃРѕРіР»Р°СЃРѕРІР°С‚СЊ РІ PR); Р°Р»РµСЂС‚С‹ РІ Grafana вЂ” РїРѕ Р¶РµР»Р°РЅРёСЋ РІ С‚РѕРј Р¶Рµ С€Р°РіРµ РёР»Рё `DEX-DOC-ALERTS`.
 - **depends_on:** [`DEX-1-0-RPC`, `DEX-1-0-GAS`, `DEX-1-1-ADAPTER-UNI2`]
 - **risk_level:** `medium`
 - **estimated_hours:** `8`
 - **main_plan_prerequisites:** [`P1-1.1-OBS`, `P2-2.3-TRACE`]
 - **acceptance_criteria:**
-  - Дашборд или панели в `infra/grafana/` при наличии; минимум экспорт в Prometheus.
-  - SLO для DEX: подпись < 100ms, broadcast < 200ms, confirmation < 30s (mainnet), < 10s (testnet).
-  - Метрики latency для RPC, gas price tracking, success rate, confirm time.
-  - **Test command:** `curl http://localhost:3012/metrics | grep arb_dex_` — не пустой
-  - **Explicit check:** Grafana dashboard импортируется успешно
+  - Р”Р°С€Р±РѕСЂРґ РёР»Рё РїР°РЅРµР»Рё РІ `infra/grafana/` РїСЂРё РЅР°Р»РёС‡РёРё; РјРёРЅРёРјСѓРј СЌРєСЃРїРѕСЂС‚ РІ Prometheus.
+  - SLO РґР»СЏ DEX: РїРѕРґРїРёСЃСЊ < 100ms, broadcast < 200ms, confirmation < 30s (mainnet), < 10s (testnet).
+  - РњРµС‚СЂРёРєРё latency РґР»СЏ RPC, gas price tracking, success rate, confirm time.
+  - **Test command:** `curl http://localhost:3012/metrics | grep arb_dex_` вЂ” РЅРµ РїСѓСЃС‚РѕР№
+  - **Explicit check:** Grafana dashboard РёРјРїРѕСЂС‚РёСЂСѓРµС‚СЃСЏ СѓСЃРїРµС€РЅРѕ
 - **changed_areas:**
   - `apps/execution-orchestrator/src/execution/`
     - `dex-metrics.service.ts`
-  - `infra/grafana/dashboards/arbibot-dex-overview.json` (новый)
+  - `infra/grafana/dashboards/arbibot-dex-overview.json` (РЅРѕРІС‹Р№)
   - `docs/observability-tracing.md` (SLO update)
 - **outputs:**
-  - Метрики `arb_dex_rpc_latency_seconds` (histogram)
-  - Метрики `arb_dex_gas_price_gwei` (gauge)
-  - Метрики `arb_dex_swap_total` (counter, labels: success|failed|reverted)
-  - Метрики `arb_dex_confirmation_seconds` (histogram)
+  - РњРµС‚СЂРёРєРё `arb_dex_rpc_latency_seconds` (histogram)
+  - РњРµС‚СЂРёРєРё `arb_dex_gas_price_gwei` (gauge)
+  - РњРµС‚СЂРёРєРё `arb_dex_swap_total` (counter, labels: success|failed|reverted)
+  - РњРµС‚СЂРёРєРё `arb_dex_confirmation_seconds` (histogram)
   - Grafana dashboard `arbibot-dex-overview.json`
   - SLO documentation
 - **test_commands:**
@@ -1297,30 +1309,38 @@ graph TD
 - **edge_cases:**
   - Metric name conflicts
   - High cardinality labels
-- **rollback_procedure:** Удалить метрики из кода
-- **ci_integration:** Smoke test metrics endpoint в CI
+- **rollback_procedure:** РЈРґР°Р»РёС‚СЊ РјРµС‚СЂРёРєРё РёР· РєРѕРґР°
+- **ci_integration:** Smoke test metrics endpoint РІ CI
 - **review_required:** `backend`
-- **status:** `planned`
+- **review_notes:**
+  - вњ… `DexMetricsService` вЂ” 6 Prometheus metrics: `arb_dex_rpc_latency_seconds` (histogram), `arb_dex_gas_price_gwei` (gauge), `arb_dex_swap_total` (counter), `arb_dex_confirmation_seconds` (histogram), `arb_dex_signature_seconds` (histogram), `arb_dex_broadcast_seconds` (histogram)
+  - вњ… Timer helpers: `startRpcTimer`, `startSignatureTimer`, `startBroadcastTimer`, `startConfirmationTimer`
+  - вњ… `infra/grafana/dashboards/arbibot-dex-overview.json` вЂ” 11 panels
+  - вњ… `docs/observability-tracing.md` вЂ” DEX SLO section with targets and bucket reference
+  - вњ… DI: registered in `ExecutionModule`
+  - вњ… **Tests:** 10/10 вњ…; **Build:** 21/21 вњ…
+- **review_passed_date:** 2026-05-10
+- **status:** `done` вњ… (2026-05-10, session 15)
 
-#### `DEX-1-2-LOAD-TEST` — Нагрузочное тестирование DEX-инфраструктуры
+#### `DEX-1-2-LOAD-TEST` вЂ” РќР°РіСЂСѓР·РѕС‡РЅРѕРµ С‚РµСЃС‚РёСЂРѕРІР°РЅРёРµ DEX-РёРЅС„СЂР°СЃС‚СЂСѓРєС‚СѓСЂС‹
 
 - **step_id:** `DEX-1-2-LOAD-TEST`
 - **phase:** `dex-1`
 - **service:** `tools`
-- **goal:** Load test для RPC-провайдеров, nonce коллизий, газ-спайков, concurrent submissions.
+- **goal:** Load test РґР»СЏ RPC-РїСЂРѕРІР°Р№РґРµСЂРѕРІ, nonce РєРѕР»Р»РёР·РёР№, РіР°Р·-СЃРїР°Р№РєРѕРІ, concurrent submissions.
 - **depends_on:** [`DEX-1-0-RPC`, `DEX-1-0-VAULT`, `DEX-1-1-ADAPTER-UNI2`]
 - **risk_level:** `low`
 - **estimated_hours:** `12`
 - **main_plan_prerequisites:** []
 - **acceptance_criteria:**
-  - Script в `tools/dex-load-test.mjs` (или аналог).
-  - Документированы thresholds (max latency, max concurrent, acceptable failure rate).
-  - CI optional из-за внешних зависимостей.
-  - **Test command:** `node tools/dex-load-test.mjs` — completes without errors
-  - **Explicit check:** Report с latency/throughput metrics
+  - Script РІ `tools/dex-load-test.mjs` (РёР»Рё Р°РЅР°Р»РѕРі).
+  - Р”РѕРєСѓРјРµРЅС‚РёСЂРѕРІР°РЅС‹ thresholds (max latency, max concurrent, acceptable failure rate).
+  - CI optional РёР·-Р·Р° РІРЅРµС€РЅРёС… Р·Р°РІРёСЃРёРјРѕСЃС‚РµР№.
+  - **Test command:** `node tools/dex-load-test.mjs` вЂ” completes without errors
+  - **Explicit check:** Report СЃ latency/throughput metrics
 - **changed_areas:**
-  - `tools/dex-load-test.mjs` (новый)
-  - `docs/dex-load-test-report.md` (новый)
+  - `tools/dex-load-test.mjs` (РЅРѕРІС‹Р№)
+  - `docs/dex-load-test-report.md` (РЅРѕРІС‹Р№)
 - **outputs:**
   - Load test script
   - Performance report (latency, throughput, errors)
@@ -1328,57 +1348,81 @@ graph TD
 - **test_commands:**
   - `node tools/dex-load-test.mjs --dry-run` (no real tx)
 - **edge_cases:**
-  - Rate limiting от RPC
-  - Nonce collisions при concurrent submissions
-- **rollback_procedure:** Удалить script
+  - Rate limiting РѕС‚ RPC
+  - Nonce collisions РїСЂРё concurrent submissions
+- **rollback_procedure:** РЈРґР°Р»РёС‚СЊ script
 - **ci_integration:** Optional (run manually)
 - **review_required:** `backend`
-- **status:** `planned`
+- **review_notes:**
+  - вњ… `tools/dex-load-test.mjs` вЂ” 3-phase load test: health check warmup, concurrent leg submissions, metrics scrape
+  - вњ… `--dry-run` mode: uses HTTP lab venue (no real DEX transactions)
+  - вњ… Configurable thresholds: p95 latency (2000ms), error rate (10%), throughput (1 req/s)
+  - вњ… Environment variable overrides for all thresholds
+  - вњ… Percentile latency reporting (p50/p95/p99/min/max/avg)
+  - вњ… Status code distribution and error summary
+  - вњ… DEX metrics presence check (8 metric names)
+  - вњ… Exit codes: 0 = pass, 1 = threshold failure, 2 = fatal error
+  - вњ… `docs/dex-load-test-report.md` вЂ” thresholds documentation
+  - вњ… npm script: `npm run dex:load-test`
+  - вњ… Build 21/21 вњ…, Lint 0 errors вњ…
+- **review_passed_date:** 2026-05-10
+- **status:** `done` вњ… (2026-05-10, session 16)
 
-### DEX-1.3 — Операционная последовательность (paper/live)
+### DEX-1.3 вЂ” РћРїРµСЂР°С†РёРѕРЅРЅР°СЏ РїРѕСЃР»РµРґРѕРІР°С‚РµР»СЊРЅРѕСЃС‚СЊ (paper/live)
 
-#### `DEX-1-3-PAPER-TESTNET` — Paper + testnet: виртуальные fills при тех же сигналах
+#### `DEX-1-3-PAPER-TESTNET` вЂ” Paper + testnet: РІРёСЂС‚СѓР°Р»СЊРЅС‹Рµ fills РїСЂРё С‚РµС… Р¶Рµ СЃРёРіРЅР°Р»Р°С…
 
 - **step_id:** `DEX-1-3-PAPER-TESTNET`
 - **phase:** `dex-1`
-- **goal:** Сквозной прогон paper-контур (или dry-run) против **testnet** данных/конфига; без mainnet риска.
+- **goal:** РЎРєРІРѕР·РЅРѕР№ РїСЂРѕРіРѕРЅ paper-РєРѕРЅС‚СѓСЂ (РёР»Рё dry-run) РїСЂРѕС‚РёРІ **testnet** РґР°РЅРЅС‹С…/РєРѕРЅС„РёРіР°; Р±РµР· mainnet СЂРёСЃРєР°.
 - **depends_on:** [`P3-3-PAPER`, `DEX-1-1-ADAPTER-UNI2`]
 - **risk_level:** `medium`
 - **estimated_hours:** `8`
 - **main_plan_prerequisites:** [`P3-3-PAPER`]
-- **acceptance_criteria:** Критерии выхода на следующий шаг согласованы с продуктом; зафиксированы в runbook.
+- **acceptance_criteria:** РљСЂРёС‚РµСЂРёРё РІС‹С…РѕРґР° РЅР° СЃР»РµРґСѓСЋС‰РёР№ С€Р°Рі СЃРѕРіР»Р°СЃРѕРІР°РЅС‹ СЃ РїСЂРѕРґСѓРєС‚РѕРј; Р·Р°С„РёРєСЃРёСЂРѕРІР°РЅС‹ РІ runbook.
 - **changed_areas:** `apps/paper-trading-service/`, `docs/`
 - **outputs:**
-  - Paper trading DEX-адаптер (mock/simulated)
-  - Runbook для paper testnet
+  - Paper trading DEX-Р°РґР°РїС‚РµСЂ (mock/simulated)
+  - Runbook РґР»СЏ paper testnet
   - Comparison metrics (paper vs live)
 - **test_commands:**
   - `npm run test paper-dex-adapter.spec.ts`
 - **edge_cases:**
   - Paper drift vs real execution
   - Gas simulation inaccurate
-- **rollback_procedure:** Откатить изменения в paper-trading-service
-- **ci_integration:** Unit tests в CI
+- **rollback_procedure:** РћС‚РєР°С‚РёС‚СЊ РёР·РјРµРЅРµРЅРёСЏ РІ paper-trading-service
+- **ci_integration:** Unit tests РІ CI
 - **review_required:** `architecture`
-- **status:** `planned`
+- **review_notes:**
+  - вњ… `PaperDexAdapter` СЂРµР°Р»РёР·РѕРІР°РЅ РІ `apps/execution-orchestrator/src/execution/adapters/paper-dex.adapter.ts`
+  - вњ… `PaperDexSwapResult` вЂ” simulated DEX swap result (simulated=true, chainId, amounts, gas, slippage, path)
+  - вњ… Pure simulation helpers: `simulateSwapOutput()` (output multiplier + price impact + slippage), `calculateSimulatedGasCostEth()`
+  - вњ… Configurable env: `PAPER_DEX_SIMULATED_GAS_USED`, `PAPER_DEX_SIMULATED_GAS_PRICE_GWEI`, `PAPER_DEX_SIMULATED_OUTPUT_MULTIPLIER`, `PAPER_DEX_SIMULATED_PRICE_IMPACT_BPS`
+  - вњ… Prometheus metrics: `arb_paper_dex_swap_total`, `arb_paper_dex_swap_latency_seconds`, `arb_paper_dex_simulated_gas_cost_eth`, `arb_paper_dex_simulated_profit_usd`
+  - вњ… DI: Р·Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°РЅ РІ `VenueFactoryService` (venueKey `paper-dex`) Рё `ExecutionModule`
+  - вњ… Venue routing: `PAPER_VENUE_KEYS` set вЂ” no `DEX_VENUE_ENABLED` required
+  - вњ… Unit tests: 21/21 passed (pure functions: swap output, gas cost; adapter: success, validation, env overrides)
+  - вњ… Build 21/21 вњ…, Lint 0 errors вњ…
+- **review_passed_date:** 2026-05-10
+- **status:** `done` вњ… (2026-05-10, session 17)
 
-#### `DEX-1-3-LIVE-TESTNET` — Live testnet: реальные tx, лимиты объёма
+#### `DEX-1-3-LIVE-TESTNET` вЂ” Live testnet: СЂРµР°Р»СЊРЅС‹Рµ tx, Р»РёРјРёС‚С‹ РѕР±СЉС‘РјР°
 
 - **step_id:** `DEX-1-3-LIVE-TESTNET`
 - **phase:** `dex-1`
-- **goal:** Минимальный notional; полный `reserve → arm → DEX ноги → settlement`.
+- **goal:** РњРёРЅРёРјР°Р»СЊРЅС‹Р№ notional; РїРѕР»РЅС‹Р№ `reserve в†’ arm в†’ DEX РЅРѕРіРё в†’ settlement`.
 - **depends_on:** [`DEX-1-1-VENUE-BIND`, `DEX-1-2-FILL-TRACKING`]
 - **risk_level:** `high`
 - **estimated_hours:** `16`
 - **main_plan_prerequisites:** [`P1-1.2-EXO`, `P2-2.1-EPL`]
-- **acceptance_criteria:** E2E script `tools/e2e-dex1-testnet.mjs` (или аналог); CI optional из-за внешней сети.
+- **acceptance_criteria:** E2E script `tools/e2e-dex1-testnet.mjs` (РёР»Рё Р°РЅР°Р»РѕРі); CI optional РёР·-Р·Р° РІРЅРµС€РЅРµР№ СЃРµС‚Рё.
 - **changed_areas:** `tools/`, `docs/`
 - **outputs:**
   - E2E test `tools/e2e-dex1-testnet.mjs`
-  - Runbook для testnet live
+  - Runbook РґР»СЏ testnet live
   - Success metrics (profit, latency, errors)
 - **test_commands:**
-  - `node tools/e2e-dex1-testnet.mjs` — success
+  - `node tools/e2e-dex1-testnet.mjs` вЂ” success
 - **edge_cases:**
   - Testnet congestion
   - Insufficient testnet tokens
@@ -1388,16 +1432,16 @@ graph TD
 - **review_required:** `backend`
 - **status:** `planned`
 
-#### `DEX-1-3-PAPER-MAINNET` — Mainnet paper: сравнение с live-контуром
+#### `DEX-1-3-PAPER-MAINNET` вЂ” Mainnet paper: СЃСЂР°РІРЅРµРЅРёРµ СЃ live-РєРѕРЅС‚СѓСЂРѕРј
 
 - **step_id:** `DEX-1-3-PAPER-MAINNET`
 - **phase:** `dex-1`
-- **goal:** Paper на mainnet-потоке данных; live выключен или с нулевым риском по политике.
+- **goal:** Paper РЅР° mainnet-РїРѕС‚РѕРєРµ РґР°РЅРЅС‹С…; live РІС‹РєР»СЋС‡РµРЅ РёР»Рё СЃ РЅСѓР»РµРІС‹Рј СЂРёСЃРєРѕРј РїРѕ РїРѕР»РёС‚РёРєРµ.
 - **depends_on:** [`DEX-1-3-PAPER-TESTNET`]
 - **risk_level:** `medium`
 - **estimated_hours:** `8`
 - **main_plan_prerequisites:** [`P3-3-PAPER`]
-- **acceptance_criteria:** Операторский чеклист; метрики drift если применимо.
+- **acceptance_criteria:** РћРїРµСЂР°С‚РѕСЂСЃРєРёР№ С‡РµРєР»РёСЃС‚; РјРµС‚СЂРёРєРё drift РµСЃР»Рё РїСЂРёРјРµРЅРёРјРѕ.
 - **changed_areas:** `apps/web` / paper / docs
 - **outputs:**
   - Paper mainnet runbook
@@ -1406,75 +1450,75 @@ graph TD
 - **test_commands:**
   - Manual verification
 - **edge_cases:**
-  - Large drift (paper ≠ mainnet)
+  - Large drift (paper в‰  mainnet)
   - Insufficient mainnet liquidity in paper
-- **rollback_procedure:** Отключить paper mainnet
+- **rollback_procedure:** РћС‚РєР»СЋС‡РёС‚СЊ paper mainnet
 - **ci_integration:** N/A
 - **review_required:** `architecture`
 - **status:** `planned`
 
-#### `DEX-1-3-LIVE-MAINNET` — Mainnet live: минимальный капитал
+#### `DEX-1-3-LIVE-MAINNET` вЂ” Mainnet live: РјРёРЅРёРјР°Р»СЊРЅС‹Р№ РєР°РїРёС‚Р°Р»
 
 - **step_id:** `DEX-1-3-LIVE-MAINNET`
 - **phase:** `dex-1`
-- **goal:** Включение live с лимитами `capital` + `risk` + DEX-специфичными gas ceilings.
+- **goal:** Р’РєР»СЋС‡РµРЅРёРµ live СЃ Р»РёРјРёС‚Р°РјРё `capital` + `risk` + DEX-СЃРїРµС†РёС„РёС‡РЅС‹РјРё gas ceilings.
 - **depends_on:** [`DEX-1-3-LIVE-TESTNET`, `DEX-1-3-PAPER-MAINNET`]
 - **risk_level:** `critical`
 - **estimated_hours:** `16`
 - **main_plan_prerequisites:** [`P1-1.2-CAP`, `P2-2.2-PROF`]
-- **acceptance_criteria:** Явные лимиты в config; two-person rule при необходимости (см. продукт).
+- **acceptance_criteria:** РЇРІРЅС‹Рµ Р»РёРјРёС‚С‹ РІ config; two-person rule РїСЂРё РЅРµРѕР±С…РѕРґРёРјРѕСЃС‚Рё (СЃРј. РїСЂРѕРґСѓРєС‚).
 - **changed_areas:** `config-service` / `risk-service` / `docs`
 - **outputs:**
   - Mainnet live runbook
   - Config limits (capital, risk, gas)
-  - Two-person rule procedure (если требуется)
+  - Two-person rule procedure (РµСЃР»Рё С‚СЂРµР±СѓРµС‚СЃСЏ)
   - Success metrics (profit, P&L, risk exposure)
 - **test_commands:**
   - Manual verification
-  - `curl http://localhost:3019/policy/configurations/dex.limits/effective` — returns limits
+  - `curl http://localhost:3019/policy/configurations/dex.limits/effective` вЂ” returns limits
 - **edge_cases:**
   - Unexpected high profit (risk exposure)
   - Gas spike losses
   - MEV attacks
-- **rollback_procedure:** Отключить live, switch to paper
+- **rollback_procedure:** РћС‚РєР»СЋС‡РёС‚СЊ live, switch to paper
 - **ci_integration:** N/A
 - **review_required:** `architecture`
 - **status:** `planned`
 
-### DEX-1.4 — Base и BNB (расширение сети после Arbitrum)
+### DEX-1.4 вЂ” Base Рё BNB (СЂР°СЃС€РёСЂРµРЅРёРµ СЃРµС‚Рё РїРѕСЃР»Рµ Arbitrum)
 
-#### `DEX-1-4-BASE` — Base: те же DEX, где применимо
+#### `DEX-1-4-BASE` вЂ” Base: С‚Рµ Р¶Рµ DEX, РіРґРµ РїСЂРёРјРµРЅРёРјРѕ
 
 - **step_id:** `DEX-1-4-BASE`
 - **phase:** `dex-1`
 - **service:** `packages/contracts-eth`, adapters
-- **goal:** Адреса, chainId, smoke на testnet.
+- **goal:** РђРґСЂРµСЃР°, chainId, smoke РЅР° testnet.
 - **depends_on:** [`DEX-1-3-LIVE-MAINNET`]
 - **risk_level:** `medium`
 - **estimated_hours:** `8`
 - **main_plan_prerequisites:** [`DEX-1-1-ADAPTER-UNI2`]
-- **acceptance_criteria:** Минимум один e2e на Base testnet.
+- **acceptance_criteria:** РњРёРЅРёРјСѓРј РѕРґРёРЅ e2e РЅР° Base testnet.
 - **changed_areas:** adapters, config
 - **outputs:**
   - Base chainId and addresses in `contracts-eth`
   - Smoke test on Base testnet
   - Runbook for Base deployment
 - **test_commands:**
-  - `node tools/e2e-dex1-base-testnet.mjs` — success
+  - `node tools/e2e-dex1-base-testnet.mjs` вЂ” success
 - **edge_cases:**
   - Different DEX addresses on Base
   - Lower liquidity
-- **rollback_procedure:** Удалить Base из supported chains
+- **rollback_procedure:** РЈРґР°Р»РёС‚СЊ Base РёР· supported chains
 - **ci_integration:** Optional (run manually)
 - **review_required:** `backend`
 - **status:** `planned`
 
-#### `DEX-1-4-BNB` — BNB Chain: Pancake / Biswap (как в продуктовой матрице)
+#### `DEX-1-4-BNB` вЂ” BNB Chain: Pancake / Biswap (РєР°Рє РІ РїСЂРѕРґСѓРєС‚РѕРІРѕР№ РјР°С‚СЂРёС†Рµ)
 
 - **step_id:** `DEX-1-4-BNB`
 - **phase:** `dex-1`
 - **service:** `packages/contracts-eth`, adapters
-- **goal:** Аналогично Base; **если** первый DEX-набор на Arbitrum был Uni/Sushi, здесь — согласованные адаптеры (Pancake V2/V3).
+- **goal:** РђРЅР°Р»РѕРіРёС‡РЅРѕ Base; **РµСЃР»Рё** РїРµСЂРІС‹Р№ DEX-РЅР°Р±РѕСЂ РЅР° Arbitrum Р±С‹Р» Uni/Sushi, Р·РґРµСЃСЊ вЂ” СЃРѕРіР»Р°СЃРѕРІР°РЅРЅС‹Рµ Р°РґР°РїС‚РµСЂС‹ (Pancake V2/V3).
 - **depends_on:** [`DEX-1-4-BASE`]
 - **risk_level:** `medium`
 - **estimated_hours:** `10`
@@ -1487,50 +1531,50 @@ graph TD
   - Smoke test on BNB testnet
   - Runbook for BNB deployment
 - **test_commands:**
-  - `node tools/e2e-dex1-bnb-testnet.mjs` — success
+  - `node tools/e2e-dex1-bnb-testnet.mjs` вЂ” success
 - **edge_cases:**
   - Different router ABI (Pancake vs Uniswap)
   - Higher gas costs on BNB
-- **rollback_procedure:** Удалить BNB из supported chains
+- **rollback_procedure:** РЈРґР°Р»РёС‚СЊ BNB РёР· supported chains
 - **ci_integration:** Optional (run manually)
 - **review_required:** `backend`
 - **status:** `planned`
 
 ---
 
-## DEX-2 — Multi-Chain (DEX A на chain X → bridge → DEX B на chain Y)
+## DEX-2 вЂ” Multi-Chain (DEX A РЅР° chain X в†’ bridge в†’ DEX B РЅР° chain Y)
 
-**Гейт:** все шаги `DEX-1-*` с критериями «done» для **single-chain e2e на testnet+mainnet path**, кроме явно отмеченных опциональных (Base/BNB могут быть `planned` до завершения DEX-2 scope — зафиксировать в review).
+**Р“РµР№С‚:** РІСЃРµ С€Р°РіРё `DEX-1-*` СЃ РєСЂРёС‚РµСЂРёСЏРјРё В«doneВ» РґР»СЏ **single-chain e2e РЅР° testnet+mainnet path**, РєСЂРѕРјРµ СЏРІРЅРѕ РѕС‚РјРµС‡РµРЅРЅС‹С… РѕРїС†РёРѕРЅР°Р»СЊРЅС‹С… (Base/BNB РјРѕРіСѓС‚ Р±С‹С‚СЊ `planned` РґРѕ Р·Р°РІРµСЂС€РµРЅРёСЏ DEX-2 scope вЂ” Р·Р°С„РёРєСЃРёСЂРѕРІР°С‚СЊ РІ review).
 
-**Порядок мостов (все три — отдельные подпакеты/адаптеры):** Across, Stargate, официальные моста L2 (Arbitrum/Base/BNB-официальные мосты).
+**РџРѕСЂСЏРґРѕРє РјРѕСЃС‚РѕРІ (РІСЃРµ С‚СЂРё вЂ” РѕС‚РґРµР»СЊРЅС‹Рµ РїРѕРґРїР°РєРµС‚С‹/Р°РґР°РїС‚РµСЂС‹):** Across, Stargate, РѕС„РёС†РёР°Р»СЊРЅС‹Рµ РјРѕСЃС‚Р° L2 (Arbitrum/Base/BNB-РѕС„РёС†РёР°Р»СЊРЅС‹Рµ РјРѕСЃС‚С‹).
 
-#### `DEX-2-0-ADR` — ADR: cross-chain план, single-writer, idempotency bridge tx
+#### `DEX-2-0-ADR` вЂ” ADR: cross-chain РїР»Р°РЅ, single-writer, idempotency bridge tx
 
 - **step_id:** `DEX-2-0-ADR`
 - **phase:** `dex-2`
 - **service:** `docs`
-- **goal:** Описать, кто пишет `ExecutionLeg` для bridge, как не дублировать outbox, как hedge/unwind cross-chain.
+- **goal:** РћРїРёСЃР°С‚СЊ, РєС‚Рѕ РїРёС€РµС‚ `ExecutionLeg` РґР»СЏ bridge, РєР°Рє РЅРµ РґСѓР±Р»РёСЂРѕРІР°С‚СЊ outbox, РєР°Рє hedge/unwind cross-chain.
 - **depends_on:** [`DEX-1-3-LIVE-MAINNET`]
 - **risk_level:** `critical`
 - **estimated_hours:** `6`
 - **main_plan_prerequisites:** [`DEX-1-1-VENUE-BIND`]
-- **acceptance_criteria:** ADR в `docs/adr-*.md`; согласование с architecture-guard.
+- **acceptance_criteria:** ADR РІ `docs/adr-*.md`; СЃРѕРіР»Р°СЃРѕРІР°РЅРёРµ СЃ architecture-guard.
 - **changed_areas:** `docs/`
 - **outputs:**
-  - ADR для cross-chain execution
-  - Single-writer boundaries для bridge legs
-  - Idempotency patterns для bridge tx
+  - ADR РґР»СЏ cross-chain execution
+  - Single-writer boundaries РґР»СЏ bridge legs
+  - Idempotency patterns РґР»СЏ bridge tx
 - **test_commands:**
-  - Review ADR по checklist
+  - Review ADR РїРѕ checklist
 - **edge_cases:**
   - Bridge failure vs leg failure
   - Cross-chain hedge/unwind
-- **rollback_procedure:** Удалить ADR
+- **rollback_procedure:** РЈРґР°Р»РёС‚СЊ ADR
 - **ci_integration:** Manual review
 - **review_required:** `architecture`
 - **status:** `planned`
 
-#### `DEX-2-1-BRIDGE-ACROSS` — Адаптер Across
+#### `DEX-2-1-BRIDGE-ACROSS` вЂ” РђРґР°РїС‚РµСЂ Across
 
 - **step_id:** `DEX-2-1-BRIDGE-ACROSS`
 - **phase:** `dex-2`
@@ -1540,143 +1584,143 @@ graph TD
 - **risk_level:** `high`
 - **estimated_hours:** `16`
 - **main_plan_prerequisites:** [`DEX-1-1-ADAPTER-UNI2`]
-- **acceptance_criteria:** Testnet e2e fragment (deposit → track → destination event).
-- **changed_areas:** adapters, миграции при новых сущностях
+- **acceptance_criteria:** Testnet e2e fragment (deposit в†’ track в†’ destination event).
+- **changed_areas:** adapters, РјРёРіСЂР°С†РёРё РїСЂРё РЅРѕРІС‹С… СЃСѓС‰РЅРѕСЃС‚СЏС…
 - **outputs:**
-  - `AcrossBridgeAdapter` — адаптер для Across
+  - `AcrossBridgeAdapter` вЂ” Р°РґР°РїС‚РµСЂ РґР»СЏ Across
   - Bridge tracking service
   - Testnet e2e script
 - **test_commands:**
-  - `node tools/e2e-dex2-across-testnet.mjs` — success
+  - `node tools/e2e-dex2-across-testnet.mjs` вЂ” success
 - **edge_cases:**
   - Bridge timeout
   - Partial fill bridge
   - Bridge fee too high
-- **rollback_procedure:** Удалить адаптер
+- **rollback_procedure:** РЈРґР°Р»РёС‚СЊ Р°РґР°РїС‚РµСЂ
 - **ci_integration:** Optional (run manually)
 - **review_required:** `backend`
 - **status:** `planned`
 
-#### `DEX-2-1-BRIDGE-STG` — Адаптер Stargate
+#### `DEX-2-1-BRIDGE-STG` вЂ” РђРґР°РїС‚РµСЂ Stargate
 
 - **step_id:** `DEX-2-1-BRIDGE-STG`
 - **phase:** `dex-2`
 - **service:** `execution`
-- **goal:** Аналогично Across, отдельные лимиты и метрики.
+- **goal:** РђРЅР°Р»РѕРіРёС‡РЅРѕ Across, РѕС‚РґРµР»СЊРЅС‹Рµ Р»РёРјРёС‚С‹ Рё РјРµС‚СЂРёРєРё.
 - **depends_on:** [`DEX-2-1-BRIDGE-ACROSS`]
 - **risk_level:** `high`
 - **estimated_hours:** `16`
 - **main_plan_prerequisites:** [`DEX-1-1-ADAPTER-UNI2`]
-- **acceptance_criteria:** Testnet; документация лимитов.
+- **acceptance_criteria:** Testnet; РґРѕРєСѓРјРµРЅС‚Р°С†РёСЏ Р»РёРјРёС‚РѕРІ.
 - **changed_areas:** adapters
 - **outputs:**
-  - `StargateBridgeAdapter` — адаптер для Stargate
+  - `StargateBridgeAdapter` вЂ” Р°РґР°РїС‚РµСЂ РґР»СЏ Stargate
   - Bridge limits documentation
 - **test_commands:**
-  - `node tools/e2e-dex2-stargate-testnet.mjs` — success
+  - `node tools/e2e-dex2-stargate-testnet.mjs` вЂ” success
 - **edge_cases:**
   - Stargate-specific errors
   - Route not available
-- **rollback_procedure:** Удалить адаптер
+- **rollback_procedure:** РЈРґР°Р»РёС‚СЊ Р°РґР°РїС‚РµСЂ
 - **ci_integration:** Optional (run manually)
 - **review_required:** `backend`
 - **status:** `planned`
 
-#### `DEX-2-1-BRIDGE-NATIVE` — Официальные моста L2 (canonical bridge)
+#### `DEX-2-1-BRIDGE-NATIVE` вЂ” РћС„РёС†РёР°Р»СЊРЅС‹Рµ РјРѕСЃС‚Р° L2 (canonical bridge)
 
 - **step_id:** `DEX-2-1-BRIDGE-NATIVE`
 - **phase:** `dex-2`
 - **service:** `execution`
-- **goal:** Сценарии L1↔L2 / L2↔L2 **официальными** мостами для поддерживаемых сетей.
+- **goal:** РЎС†РµРЅР°СЂРёРё L1в†”L2 / L2в†”L2 **РѕС„РёС†РёР°Р»СЊРЅС‹РјРё** РјРѕСЃС‚Р°РјРё РґР»СЏ РїРѕРґРґРµСЂР¶РёРІР°РµРјС‹С… СЃРµС‚РµР№.
 - **depends_on:** [`DEX-2-1-BRIDGE-STG`]
 - **risk_level:** `high`
 - **estimated_hours:** `16`
 - **main_plan_prerequisites:** [`DEX-1-1-ADAPTER-UNI2`]
-- **acceptance_criteria:** Как минимум один e2e на testnet; long finality в runbook.
+- **acceptance_criteria:** РљР°Рє РјРёРЅРёРјСѓРј РѕРґРёРЅ e2e РЅР° testnet; long finality РІ runbook.
 - **changed_areas:** adapters, `docs/`
 - **outputs:**
-  - `NativeBridgeAdapter` — адаптер для официальных мостов
+  - `NativeBridgeAdapter` вЂ” Р°РґР°РїС‚РµСЂ РґР»СЏ РѕС„РёС†РёР°Р»СЊРЅС‹С… РјРѕСЃС‚РѕРІ
   - Long finality runbook
 - **test_commands:**
-  - `node tools/e2e-dex2-native-bridge-testnet.mjs` — success
+  - `node tools/e2e-dex2-native-bridge-testnet.mjs` вЂ” success
 - **edge_cases:**
   - Very long finality (days)
   - Bridge congestion
-- **rollback_procedure:** Удалить адаптер
+- **rollback_procedure:** РЈРґР°Р»РёС‚СЊ Р°РґР°РїС‚РµСЂ
 - **ci_integration:** Optional (run manually)
 - **review_required:** `backend`
 - **status:** `planned`
 
-#### `DEX-2-2-PLAN` — Построение multi-leg плана: DEX leg → bridge leg → DEX leg
+#### `DEX-2-2-PLAN` вЂ” РџРѕСЃС‚СЂРѕРµРЅРёРµ multi-leg РїР»Р°РЅР°: DEX leg в†’ bridge leg в†’ DEX leg
 
 - **step_id:** `DEX-2-2-PLAN`
 - **phase:** `dex-2`
 - **service:** `execution-orchestrator`
-- **goal:** Расширение `ExecutionPlan` (или orchestration layer) для кросс-чейн; явные `chainId` на ноге.
+- **goal:** Р Р°СЃС€РёСЂРµРЅРёРµ `ExecutionPlan` (РёР»Рё orchestration layer) РґР»СЏ РєСЂРѕСЃСЃ-С‡РµР№РЅ; СЏРІРЅС‹Рµ `chainId` РЅР° РЅРѕРіРµ.
 - **depends_on:** [`DEX-2-1-BRIDGE-ACROSS`, `DEX-2-1-BRIDGE-STG`]
 - **risk_level:** `critical`
 - **estimated_hours:** `16`
 - **main_plan_prerequisites:** [`P1-1.2-EXO`]
-- **acceptance_criteria:** Нет нарушения single-writer; state machine согласована с [docs/state-machines.md](../../docs/state-machines.md).
-- **changed_areas:** orchestrator, persistence, миграции
+- **acceptance_criteria:** РќРµС‚ РЅР°СЂСѓС€РµРЅРёСЏ single-writer; state machine СЃРѕРіР»Р°СЃРѕРІР°РЅР° СЃ [docs/state-machines.md](../../docs/state-machines.md).
+- **changed_areas:** orchestrator, persistence, РјРёРіСЂР°С†РёРё
 - **outputs:**
   - Multi-leg plan builder
   - `chainId` field on `ExecutionLeg`
   - Cross-chain state machine
 - **test_commands:**
-  - `npm run test multi-leg-plan-builder.spec.ts` — success
+  - `npm run test multi-leg-plan-builder.spec.ts` вЂ” success
 - **edge_cases:**
   - ChainId mismatch on legs
   - Bridge leg in the middle
-- **rollback_procedure:** Откатить изменения в `ExecutionPlan`
+- **rollback_procedure:** РћС‚РєР°С‚РёС‚СЊ РёР·РјРµРЅРµРЅРёСЏ РІ `ExecutionPlan`
 - **ci_integration:** Unit tests in CI
 - **review_required:** `architecture`
 - **status:** `planned`
 
-#### `DEX-2-3-RECON-XCHAIN` — Сверка кросс-чейн: bridge completion vs internal state
+#### `DEX-2-3-RECON-XCHAIN` вЂ” РЎРІРµСЂРєР° РєСЂРѕСЃСЃ-С‡РµР№РЅ: bridge completion vs internal state
 
 - **step_id:** `DEX-2-3-RECON-XCHAIN`
 - **phase:** `dex-2`
 - **service:** `reconciliation-service`
-- **goal:** Мониторинг bridge tx, таймауты, force unwind policy (с операторским approve).
+- **goal:** РњРѕРЅРёС‚РѕСЂРёРЅРі bridge tx, С‚Р°Р№РјР°СѓС‚С‹, force unwind policy (СЃ РѕРїРµСЂР°С‚РѕСЂСЃРєРёРј approve).
 - **depends_on:** [`DEX-2-2-PLAN`]
 - **risk_level:** `high`
 - **estimated_hours:** `12`
 - **main_plan_prerequisites:** [`P2-2.1-RECON`]
-- **acceptance_criteria:** Набор инцидентов и runbook `docs/bridge-*.md`.
+- **acceptance_criteria:** РќР°Р±РѕСЂ РёРЅС†РёРґРµРЅС‚РѕРІ Рё runbook `docs/bridge-*.md`.
 - **changed_areas:** reconciliation, docs
 - **outputs:**
   - Bridge reconciliation detectors
   - Bridge timeout incidents
   - Force unwind runbook
 - **test_commands:**
-  - `npm run test bridge-reconciliation.spec.ts` — success
+  - `npm run test bridge-reconciliation.spec.ts` вЂ” success
 - **edge_cases:**
   - Bridge stuck (never completes)
   - Partial fill bridge
-- **rollback_procedure:** Удалить детекторы
+- **rollback_procedure:** РЈРґР°Р»РёС‚СЊ РґРµС‚РµРєС‚РѕСЂС‹
 - **ci_integration:** Unit tests in CI
 - **review_required:** `backend`
 - **status:** `planned`
 
-#### `DEX-2-4-E2E` — E2E multi-chain: testnet, затем mainnet minimal
+#### `DEX-2-4-E2E` вЂ” E2E multi-chain: testnet, Р·Р°С‚РµРј mainnet minimal
 
 - **step_id:** `DEX-2-4-E2E`
 - **phase:** `dex-2`
 - **service:** `tools`, CI (optional)
-- **goal:** `npm run e2e:dex2-multichain` (имя согласовать); документация env.
+- **goal:** `npm run e2e:dex2-multichain` (РёРјСЏ СЃРѕРіР»Р°СЃРѕРІР°С‚СЊ); РґРѕРєСѓРјРµРЅС‚Р°С†РёСЏ env.
 - **depends_on:** [`DEX-2-3-RECON-XCHAIN`]
 - **risk_level:** `critical`
 - **estimated_hours:** `20`
 - **main_plan_prerequisites:** [`DEX-1-3-LIVE-MAINNET`]
-- **acceptance_criteria:** Прохождение вручную или в CI с секретами; критерии `done` в review.
+- **acceptance_criteria:** РџСЂРѕС…РѕР¶РґРµРЅРёРµ РІСЂСѓС‡РЅСѓСЋ РёР»Рё РІ CI СЃ СЃРµРєСЂРµС‚Р°РјРё; РєСЂРёС‚РµСЂРёРё `done` РІ review.
 - **changed_areas:** `tools/`, `package.json` root
 - **outputs:**
   - E2E test script
   - Env documentation
   - Success metrics (profit, latency, bridge times)
 - **test_commands:**
-  - `npm run e2e:dex2-multichain` — success
+  - `npm run e2e:dex2-multichain` вЂ” success
 - **edge_cases:**
   - Bridge failure mid-arbitrage
   - High bridge fees
@@ -1687,48 +1731,48 @@ graph TD
 
 ---
 
-## Документация, UI и runbooks (сквозные)
+## Р”РѕРєСѓРјРµРЅС‚Р°С†РёСЏ, UI Рё runbooks (СЃРєРІРѕР·РЅС‹Рµ)
 
-#### `DEX-DOC-FE` — Frontend: UI для DEX, кошельков и мостов
+#### `DEX-DOC-FE` вЂ” Frontend: UI РґР»СЏ DEX, РєРѕС€РµР»СЊРєРѕРІ Рё РјРѕСЃС‚РѕРІ
 
 - **step_id:** `DEX-DOC-FE`
 - **phase:** `docs`
 - **service:** `apps/web`
-- **goal:** Описать необходимые UI-изменения: `/execution` с DEX-информацией, `/wallets` (балансы, ключи), `/bridges` (статус мостов).
+- **goal:** РћРїРёСЃР°С‚СЊ РЅРµРѕР±С…РѕРґРёРјС‹Рµ UI-РёР·РјРµРЅРµРЅРёСЏ: `/execution` СЃ DEX-РёРЅС„РѕСЂРјР°С†РёРµР№, `/wallets` (Р±Р°Р»Р°РЅСЃС‹, РєР»СЋС‡Рё), `/bridges` (СЃС‚Р°С‚СѓСЃ РјРѕСЃС‚РѕРІ).
 - **depends_on:** [`DEX-1-2-HEALTH`, `DEX-1-2-RECON-ONCHAIN`]
 - **risk_level:** `low`
 - **estimated_hours:** `8`
 - **main_plan_prerequisites:** [`P1-1.3-STUBS`, `P2-2.3-EXECUI`]
 - **acceptance_criteria:**
-  - Список требуемых полей/фильтров в UI для DEX-транзакций (txHash, chainId, gasUsed, revert reason).
-  - Секция кошельков: адрес, баланс, статус (active/rotating).
-  - Секция мостов (для DEX-2): bridge tx, статус, ETA.
+  - РЎРїРёСЃРѕРє С‚СЂРµР±СѓРµРјС‹С… РїРѕР»РµР№/С„РёР»СЊС‚СЂРѕРІ РІ UI РґР»СЏ DEX-С‚СЂР°РЅР·Р°РєС†РёР№ (txHash, chainId, gasUsed, revert reason).
+  - РЎРµРєС†РёСЏ РєРѕС€РµР»СЊРєРѕРІ: Р°РґСЂРµСЃ, Р±Р°Р»Р°РЅСЃ, СЃС‚Р°С‚СѓСЃ (active/rotating).
+  - РЎРµРєС†РёСЏ РјРѕСЃС‚РѕРІ (РґР»СЏ DEX-2): bridge tx, СЃС‚Р°С‚СѓСЃ, ETA.
 - **changed_areas:** `apps/web`, `docs/`
 - **outputs:**
   - UI specification document
-  - Wireframes/mockups (опционально)
+  - Wireframes/mockups (РѕРїС†РёРѕРЅР°Р»СЊРЅРѕ)
   - List of required API endpoints
 - **test_commands:**
   - Manual review of spec
 - **edge_cases:**
   - Too much information in UI
   - Real-time updates complexity
-- **rollback_procedure:** Удалить spec
+- **rollback_procedure:** РЈРґР°Р»РёС‚СЊ spec
 - **ci_integration:** N/A
 - **review_required:** `frontend`
 - **status:** `planned`
 
-#### `DEX-DOC-RUNBOOK-TX` — Runbook: failed / stuck / reverted on-chain
+#### `DEX-DOC-RUNBOOK-TX` вЂ” Runbook: failed / stuck / reverted on-chain
 
 - **step_id:** `DEX-DOC-RUNBOOK-TX`
 - **phase:** `docs`
 - **service:** `docs`
-- **goal:** Операторские шаги при revert, stuck nonce, replace-by-fee (если разрешено политикой).
+- **goal:** РћРїРµСЂР°С‚РѕСЂСЃРєРёРµ С€Р°РіРё РїСЂРё revert, stuck nonce, replace-by-fee (РµСЃР»Рё СЂР°Р·СЂРµС€РµРЅРѕ РїРѕР»РёС‚РёРєРѕР№).
 - **depends_on:** [`DEX-1-1-ADAPTER-UNI2`]
 - **risk_level:** `medium`
 - **estimated_hours:** `6`
 - **main_plan_prerequisites:** []
-- **acceptance_criteria:** Файл в `docs/`; ссылка из PROJECT_HANDBOOK при необходимости.
+- **acceptance_criteria:** Р¤Р°Р№Р» РІ `docs/`; СЃСЃС‹Р»РєР° РёР· PROJECT_HANDBOOK РїСЂРё РЅРµРѕР±С…РѕРґРёРјРѕСЃС‚Рё.
 - **changed_areas:** `docs/`
 - **outputs:**
   - `docs/dex-runbook-failed-tx.md`
@@ -1739,22 +1783,22 @@ graph TD
 - **edge_cases:**
   - Runbook incomplete
   - Steps not executable
-- **rollback_procedure:** Удалить runbook
+- **rollback_procedure:** РЈРґР°Р»РёС‚СЊ runbook
 - **ci_integration:** N/A
 - **review_required:** `architecture`
 - **status:** `planned`
 
-#### `DEX-DOC-RUNBOOK-BRIDGE` — Runbook: задержка моста, partial fill bridge
+#### `DEX-DOC-RUNBOOK-BRIDGE` вЂ” Runbook: Р·Р°РґРµСЂР¶РєР° РјРѕСЃС‚Р°, partial fill bridge
 
 - **step_id:** `DEX-DOC-RUNBOOK-BRIDGE`
 - **phase:** `docs`
 - **service:** `docs`
-- **goal:** Процедуры для DEX-2; связь с reconciliation и operator UI.
+- **goal:** РџСЂРѕС†РµРґСѓСЂС‹ РґР»СЏ DEX-2; СЃРІСЏР·СЊ СЃ reconciliation Рё operator UI.
 - **depends_on:** [`DEX-2-1-BRIDGE-ACROSS`]
 - **risk_level:** `medium`
 - **estimated_hours:** `6`
 - **main_plan_prerequisites**: []
-- **acceptance_criteria:** Документ; чеклист.
+- **acceptance_criteria:** Р”РѕРєСѓРјРµРЅС‚; С‡РµРєР»РёСЃС‚.
 - **changed_areas:** `docs/`
 - **outputs:**
   - `docs/dex-runbook-bridge-issues.md`
@@ -1765,25 +1809,25 @@ graph TD
 - **edge_cases:**
   - Bridge stuck indefinitely
   - Force unwind procedures
-- **rollback_procedure:** Удалить runbook
+- **rollback_procedure:** РЈРґР°Р»РёС‚СЊ runbook
 - **ci_integration:** N/A
 - **review_required:** `architecture`
 - **status:** `planned`
 
-#### `DEX-DOC-ROLLBACK` — Rollback strategy для DEX-компонентов
+#### `DEX-DOC-ROLLBACK` вЂ” Rollback strategy РґР»СЏ DEX-РєРѕРјРїРѕРЅРµРЅС‚РѕРІ
 
 - **step_id:** `DEX-DOC-ROLLBACK`
 - **phase:** `docs`
 - **service:** `docs`
-- **goal:** Runbook по откату DEX-компонентов: миграции, ключи, configs, wallet recovery.
+- **goal:** Runbook РїРѕ РѕС‚РєР°С‚Сѓ DEX-РєРѕРјРїРѕРЅРµРЅС‚РѕРІ: РјРёРіСЂР°С†РёРё, РєР»СЋС‡Рё, configs, wallet recovery.
 - **depends_on:** [`DEX-1-0-VAULT`, `DEX-1-0-MIGRATIONS`]
 - **risk_level:** `high`
 - **estimated_hours:** `8`
 - **main_plan_prerequisites:** []
 - **acceptance_criteria:**
-  - Документ `docs/dex-rollback-runbook.md` с процедурами отката.
-  - Процедура миграции key rotation (отмена, revert).
-  - Процедура отката миграций БД (если необходимо).
+  - Р”РѕРєСѓРјРµРЅС‚ `docs/dex-rollback-runbook.md` СЃ РїСЂРѕС†РµРґСѓСЂР°РјРё РѕС‚РєР°С‚Р°.
+  - РџСЂРѕС†РµРґСѓСЂР° РјРёРіСЂР°С†РёРё key rotation (РѕС‚РјРµРЅР°, revert).
+  - РџСЂРѕС†РµРґСѓСЂР° РѕС‚РєР°С‚Р° РјРёРіСЂР°С†РёР№ Р‘Р” (РµСЃР»Рё РЅРµРѕР±С…РѕРґРёРјРѕ).
 - **changed_areas:** `docs/`
 - **outputs:**
   - `docs/dex-rollback-runbook.md`
@@ -1796,41 +1840,45 @@ graph TD
 - **edge_cases:**
   - Rollback fails
   - Data corruption during rollback
-- **rollback_procedure:** N/A (это и есть rollback procedure)
+- **rollback_procedure:** N/A (СЌС‚Рѕ Рё РµСЃС‚СЊ rollback procedure)
 - **ci_integration:** N/A
 - **review_required:** `architecture`
 - **status:** `planned`
 
 ---
 
-## Зависимости от основного плана
+## Р—Р°РІРёСЃРёРјРѕСЃС‚Рё РѕС‚ РѕСЃРЅРѕРІРЅРѕРіРѕ РїР»Р°РЅР°
 
-- Не ослаблять **reservation-first**: DEX-ноги не стартуют без валидных `RiskDecision` и `CapitalReservation` (см. [docs/reservation-first.md](../../docs/reservation-first.md)).
-- События outbox: новые типы (если вводятся) — через outbox + схемы в `@arbibot/contracts` и [docs/outbox-inbox.md](../../docs/outbox-inbox.md).
-- Solana: **вне** scope v1 этой ветки плана; повторный ADR при расширении.
+- РќРµ РѕСЃР»Р°Р±Р»СЏС‚СЊ **reservation-first**: DEX-РЅРѕРіРё РЅРµ СЃС‚Р°СЂС‚СѓСЋС‚ Р±РµР· РІР°Р»РёРґРЅС‹С… `RiskDecision` Рё `CapitalReservation` (СЃРј. [docs/reservation-first.md](../../docs/reservation-first.md)).
+- РЎРѕР±С‹С‚РёСЏ outbox: РЅРѕРІС‹Рµ С‚РёРїС‹ (РµСЃР»Рё РІРІРѕРґСЏС‚СЃСЏ) вЂ” С‡РµСЂРµР· outbox + СЃС…РµРјС‹ РІ `@arbibot/contracts` Рё [docs/outbox-inbox.md](../../docs/outbox-inbox.md).
+- Solana: **РІРЅРµ** scope v1 СЌС‚РѕР№ РІРµС‚РєРё РїР»Р°РЅР°; РїРѕРІС‚РѕСЂРЅС‹Р№ ADR РїСЂРё СЂР°СЃС€РёСЂРµРЅРёРё.
 
 ---
 
-## Версия документа
+## Р’РµСЂСЃРёСЏ РґРѕРєСѓРјРµРЅС‚Р°
 
-- **v0.1** — 2026-04-27: первая выкладка DEX-1 / DEX-2 с детальными `step_id` и согласованием с `DEVELOPMENT_PLAN.md`.
-- **v0.2** — 2026-04-27: улучшения после первой проверки: добавлены ADR структуры, техвыбор, миграции, управление кошельками, env template, approve pattern, load test, frontend UI.
-- **v0.3** — 2026-04-27: улучшения после второй проверки: добавлены поля `phase` во все шаги, fill tracking, mempool monitoring, outbox events, health endpoints, slippage protection, DEX-specific risk policies, pool discovery, EIP-1559 tuning, audit fields, performance budget, rollback strategy.
-- **v1.0** — 2026-04-27: **полная переработка** — добавлены `depends_on`, `risk_level`, `estimated_hours`, `outputs`, `test_commands`, `edge_cases`, `rollback_procedure`, `ci_integration`, `main_plan_prerequisites`, dependency graph, конкретные acceptance criteria с explicit checks.
-- **v1.1** — 2026-04-29: `DEX-1-0-TECH-CHOICE` → `done` (ethers.js v6.13.0); `DEX-1-0-ABIS` → `done` (пакет `@arbibot/contracts-eth` с ABI для UniV2/V3/Sushi + ERC20, адреса Arbitrum/Base/BNB mainnet+testnet, типы ChainId/Address); build 21/21 green.
-- **v1.2** — 2026-04-29: `DEX-1-0-GAS` → `done` (GasEstimatorService с EIP-1559, gas policy, Prometheus metrics, 15 unit tests); `DEX-1-0-ENV-EXAMPLE` → `done` (.env.example обновлён RPC/GAS/VAULT/WALLET vars); review_notes добавлены для RPC, VAULT, WALLET-MGT; дубликат MIGRATIONS устранён. **Итого 9/35 шагов done.**
-- **v1.4** — 2026-04-30: добавлен mermaid flowchart (status lifecycle), ссылка на `.cursor/commands/review-step.md`.
-- **v1.3** — 2026-04-30: `DEX-1-0-POOL-DISCOVERY` → `done` (PoolDiscoveryService, UniV2/V3 discovery, in-memory cache, metrics); `DEX-1-0-RISK-POLICIES` → `done` (DexRiskPolicyService, slippage/position/protocol/volume checks, metrics); `DEX-1-1-APPROVE-PATTERN` → `done` (TokenApproveService, allowance check/approve/revoke, cache, metrics); `DEX-1-1-SLIPPAGE` → `done` (SlippageProtectionService, tolerance levels, minAmountOut, metrics); key-rotation-runbook.md создан. **Итого 14/35 шагов done (DEX-1.0 — все done, DEX-1.1 — 2/5 done).**
-- **v1.5** — 2026-05-04: актуализация даты; подтверждено 14/35 done. CI lint fix (turbo.json `^build` dependency). Следующий шаг: `DEX-1-1-ADAPTER-UNI2`.
-- **v1.5.1** — 2026-05-04: CI lint fix для `@arbibot/contracts-eth` — убран `**/*.spec.ts` из `tsconfig.json` exclude (branch `fix/ci-contracts-eth-lint`, commit `dfb0cdb`).
-- **v1.6** — 2026-05-04: `DEX-1-1-ADAPTER-UNI2` → `implemented` (UniswapV2Adapter: swapExactTokensForTokens, ERC20 approve, on-chain quote + slippage, gas policy, Prometheus metrics; 21/21 unit tests passed; build + lint 0 errors). **Итого 14 done + 1 implemented = 15/35.**
-- **v1.7** — 2026-05-05: `DEX-1-1-ADAPTER-UNI2` → `done`; `DEX-1-1-ADAPTER-UNI3` → `implemented` (UniswapV3Adapter: exactInputSingle, DexSwapParamsV3, shared slippage utils, Prometheus metrics; 21 unit tests; ExecutionModule DI). **Итого 15 done + 1 implemented = 16/35.**
-- **v1.8** — 2026-05-05: `DEX-1-1-ADAPTER-UNI3` → `done` (review passed: build 0 errors, 21/21 tests, commit `a48c644`). **Итого 16/35 done. Следующий: DEX-1-1-VENUE-BIND.**
-- **v1.9** — 2026-05-05: `DEX-1-1-VENUE-BIND` → `done` ✅ (VenueFactoryService: extractVenueKey, resolveAdapter, submitLeg; feature flag DEX_VENUE_ENABLED; LegsModule + ExecutionModule DI; 21/21 unit tests; build 21/21). **Итого 17/35 done. Следующий: `DEX-1-1-ADAPTER-SUSHI`.**
-- **v1.10** — 2026-05-05: `DEX-1-1-ADAPTER-SUSHI` → `implemented` (SushiSwapV2Adapter: swapExactTokensForTokens, shared utils с UniV2, Arbitrum SushiSwap + BNB PancakeSwap, Base → VenueSubmitClientError; 19/19 tests; build 21/21). **Итого 17 done + 1 implemented = 18/35. Следующий: `/review-step` для SUSHI.**
-- **v1.11** — 2026-05-06: `DEX-1-2-FILL-TRACKING` → `done` ✅ (DexFillTrackerService: receipt → fill, LegFilledPayloadV2 с optional dex metadata, OnChainTransaction.legId bigint→uuid, migration 034; 9/9 tests; build 21/21). **Итого 19/35 done. Следующий: `DEX-1-2-RECON-ONCHAIN`.**
-- **v1.12** — 2026-05-06: `DEX-1-2-RECON-ONCHAIN` → `implemented` (три DEX-детектора в reconciliation-service: stale pending tx, balance drift, missing on-chain record; 7/7 tests; build ✅).
-- **v1.13** — 2026-05-06: `DEX-1-2-RECON-ONCHAIN` → `done` ✅ (review passed session 11: 7/7 tests, architecture check — чистое разделение CEX/DEX, idempotent inserts). **Итого 20/35 done. Следующий: `DEX-1-2-OUTBOX-EVENTS`.**
-- **v1.14** — 2026-05-06: `DEX-1-2-OUTBOX-EVENTS` → `done` ✅ (DexOutboxEventsService: 3 event types, idempotent outbox writes, Kafka bridge allowlist; 10/10 tests; build 21/21). **Итого 21/35 done. Следующий: `DEX-1-2-MEMPOOL`.**
-- **v1.15** — 2026-05-10: `DEX-1-2-MEMPOOL` → `done` ✅ (DexMempoolMonitorWorker: mempool subscription via ethers.js, MEV detection patterns (frontrun/sandwich), risk score, Prometheus metrics, feature flag; 12/12 tests; docs/dex-mev-threats.md; build 21/21). **Итого 22/35 done. Следующий: `DEX-1-2-HEALTH`.**
+- **v0.1** вЂ” 2026-04-27: РїРµСЂРІР°СЏ РІС‹РєР»Р°РґРєР° DEX-1 / DEX-2 СЃ РґРµС‚Р°Р»СЊРЅС‹РјРё `step_id` Рё СЃРѕРіР»Р°СЃРѕРІР°РЅРёРµРј СЃ `DEVELOPMENT_PLAN.md`.
+- **v0.2** вЂ” 2026-04-27: СѓР»СѓС‡С€РµРЅРёСЏ РїРѕСЃР»Рµ РїРµСЂРІРѕР№ РїСЂРѕРІРµСЂРєРё: РґРѕР±Р°РІР»РµРЅС‹ ADR СЃС‚СЂСѓРєС‚СѓСЂС‹, С‚РµС…РІС‹Р±РѕСЂ, РјРёРіСЂР°С†РёРё, СѓРїСЂР°РІР»РµРЅРёРµ РєРѕС€РµР»СЊРєР°РјРё, env template, approve pattern, load test, frontend UI.
+- **v0.3** вЂ” 2026-04-27: СѓР»СѓС‡С€РµРЅРёСЏ РїРѕСЃР»Рµ РІС‚РѕСЂРѕР№ РїСЂРѕРІРµСЂРєРё: РґРѕР±Р°РІР»РµРЅС‹ РїРѕР»СЏ `phase` РІРѕ РІСЃРµ С€Р°РіРё, fill tracking, mempool monitoring, outbox events, health endpoints, slippage protection, DEX-specific risk policies, pool discovery, EIP-1559 tuning, audit fields, performance budget, rollback strategy.
+- **v1.0** вЂ” 2026-04-27: **РїРѕР»РЅР°СЏ РїРµСЂРµСЂР°Р±РѕС‚РєР°** вЂ” РґРѕР±Р°РІР»РµРЅС‹ `depends_on`, `risk_level`, `estimated_hours`, `outputs`, `test_commands`, `edge_cases`, `rollback_procedure`, `ci_integration`, `main_plan_prerequisites`, dependency graph, РєРѕРЅРєСЂРµС‚РЅС‹Рµ acceptance criteria СЃ explicit checks.
+- **v1.1** вЂ” 2026-04-29: `DEX-1-0-TECH-CHOICE` в†’ `done` (ethers.js v6.13.0); `DEX-1-0-ABIS` в†’ `done` (РїР°РєРµС‚ `@arbibot/contracts-eth` СЃ ABI РґР»СЏ UniV2/V3/Sushi + ERC20, Р°РґСЂРµСЃР° Arbitrum/Base/BNB mainnet+testnet, С‚РёРїС‹ ChainId/Address); build 21/21 green.
+- **v1.2** вЂ” 2026-04-29: `DEX-1-0-GAS` в†’ `done` (GasEstimatorService СЃ EIP-1559, gas policy, Prometheus metrics, 15 unit tests); `DEX-1-0-ENV-EXAMPLE` в†’ `done` (.env.example РѕР±РЅРѕРІР»С‘РЅ RPC/GAS/VAULT/WALLET vars); review_notes РґРѕР±Р°РІР»РµРЅС‹ РґР»СЏ RPC, VAULT, WALLET-MGT; РґСѓР±Р»РёРєР°С‚ MIGRATIONS СѓСЃС‚СЂР°РЅС‘РЅ. **Р�С‚РѕРіРѕ 9/35 С€Р°РіРѕРІ done.**
+- **v1.4** вЂ” 2026-04-30: РґРѕР±Р°РІР»РµРЅ mermaid flowchart (status lifecycle), СЃСЃС‹Р»РєР° РЅР° `.cursor/commands/review-step.md`.
+- **v1.3** вЂ” 2026-04-30: `DEX-1-0-POOL-DISCOVERY` в†’ `done` (PoolDiscoveryService, UniV2/V3 discovery, in-memory cache, metrics); `DEX-1-0-RISK-POLICIES` в†’ `done` (DexRiskPolicyService, slippage/position/protocol/volume checks, metrics); `DEX-1-1-APPROVE-PATTERN` в†’ `done` (TokenApproveService, allowance check/approve/revoke, cache, metrics); `DEX-1-1-SLIPPAGE` в†’ `done` (SlippageProtectionService, tolerance levels, minAmountOut, metrics); key-rotation-runbook.md СЃРѕР·РґР°РЅ. **Р�С‚РѕРіРѕ 14/35 С€Р°РіРѕРІ done (DEX-1.0 вЂ” РІСЃРµ done, DEX-1.1 вЂ” 2/5 done).**
+- **v1.5** вЂ” 2026-05-04: Р°РєС‚СѓР°Р»РёР·Р°С†РёСЏ РґР°С‚С‹; РїРѕРґС‚РІРµСЂР¶РґРµРЅРѕ 14/35 done. CI lint fix (turbo.json `^build` dependency). РЎР»РµРґСѓСЋС‰РёР№ С€Р°Рі: `DEX-1-1-ADAPTER-UNI2`.
+- **v1.5.1** вЂ” 2026-05-04: CI lint fix РґР»СЏ `@arbibot/contracts-eth` вЂ” СѓР±СЂР°РЅ `**/*.spec.ts` РёР· `tsconfig.json` exclude (branch `fix/ci-contracts-eth-lint`, commit `dfb0cdb`).
+- **v1.6** вЂ” 2026-05-04: `DEX-1-1-ADAPTER-UNI2` в†’ `implemented` (UniswapV2Adapter: swapExactTokensForTokens, ERC20 approve, on-chain quote + slippage, gas policy, Prometheus metrics; 21/21 unit tests passed; build + lint 0 errors). **Р�С‚РѕРіРѕ 14 done + 1 implemented = 15/35.**
+- **v1.7** вЂ” 2026-05-05: `DEX-1-1-ADAPTER-UNI2` в†’ `done`; `DEX-1-1-ADAPTER-UNI3` в†’ `implemented` (UniswapV3Adapter: exactInputSingle, DexSwapParamsV3, shared slippage utils, Prometheus metrics; 21 unit tests; ExecutionModule DI). **Р�С‚РѕРіРѕ 15 done + 1 implemented = 16/35.**
+- **v1.8** вЂ” 2026-05-05: `DEX-1-1-ADAPTER-UNI3` в†’ `done` (review passed: build 0 errors, 21/21 tests, commit `a48c644`). **Р�С‚РѕРіРѕ 16/35 done. РЎР»РµРґСѓСЋС‰РёР№: DEX-1-1-VENUE-BIND.**
+- **v1.9** вЂ” 2026-05-05: `DEX-1-1-VENUE-BIND` в†’ `done` вњ… (VenueFactoryService: extractVenueKey, resolveAdapter, submitLeg; feature flag DEX_VENUE_ENABLED; LegsModule + ExecutionModule DI; 21/21 unit tests; build 21/21). **Р�С‚РѕРіРѕ 17/35 done. РЎР»РµРґСѓСЋС‰РёР№: `DEX-1-1-ADAPTER-SUSHI`.**
+- **v1.10** вЂ” 2026-05-05: `DEX-1-1-ADAPTER-SUSHI` в†’ `implemented` (SushiSwapV2Adapter: swapExactTokensForTokens, shared utils СЃ UniV2, Arbitrum SushiSwap + BNB PancakeSwap, Base в†’ VenueSubmitClientError; 19/19 tests; build 21/21). **Р�С‚РѕРіРѕ 17 done + 1 implemented = 18/35. РЎР»РµРґСѓСЋС‰РёР№: `/review-step` РґР»СЏ SUSHI.**
+- **v1.11** вЂ” 2026-05-06: `DEX-1-2-FILL-TRACKING` в†’ `done` вњ… (DexFillTrackerService: receipt в†’ fill, LegFilledPayloadV2 СЃ optional dex metadata, OnChainTransaction.legId bigintв†’uuid, migration 034; 9/9 tests; build 21/21). **Р�С‚РѕРіРѕ 19/35 done. РЎР»РµРґСѓСЋС‰РёР№: `DEX-1-2-RECON-ONCHAIN`.**
+- **v1.12** вЂ” 2026-05-06: `DEX-1-2-RECON-ONCHAIN` в†’ `implemented` (С‚СЂРё DEX-РґРµС‚РµРєС‚РѕСЂР° РІ reconciliation-service: stale pending tx, balance drift, missing on-chain record; 7/7 tests; build вњ…).
+- **v1.13** вЂ” 2026-05-06: `DEX-1-2-RECON-ONCHAIN` в†’ `done` вњ… (review passed session 11: 7/7 tests, architecture check вЂ” С‡РёСЃС‚РѕРµ СЂР°Р·РґРµР»РµРЅРёРµ CEX/DEX, idempotent inserts). **Р�С‚РѕРіРѕ 20/35 done. РЎР»РµРґСѓСЋС‰РёР№: `DEX-1-2-OUTBOX-EVENTS`.**
+- **v1.14** вЂ” 2026-05-06: `DEX-1-2-OUTBOX-EVENTS` в†’ `done` вњ… (DexOutboxEventsService: 3 event types, idempotent outbox writes, Kafka bridge allowlist; 10/10 tests; build 21/21). **Р�С‚РѕРіРѕ 21/35 done. РЎР»РµРґСѓСЋС‰РёР№: `DEX-1-2-MEMPOOL`.**
+- **v1.15** вЂ” 2026-05-10: `DEX-1-2-MEMPOOL` в†’ `done` вњ… (DexMempoolMonitorWorker: mempool subscription via ethers.js, MEV detection patterns (frontrun/sandwich), risk score, Prometheus metrics, feature flag; 12/12 tests; docs/dex-mev-threats.md; build 21/21). **Р�С‚РѕРіРѕ 22/35 done. РЎР»РµРґСѓСЋС‰РёР№: `DEX-1-2-HEALTH`.**
+- **v1.16** вЂ” 2026-05-10: `DEX-1-2-HEALTH` в†’ `done` вњ… (DexHealthService + DexHealthController: GET /health/dex + GET /health/dex/bridges, BFF route, DexHealthBanner; 9/9 tests; build 21/21, lint 0 errors). **Р�С‚РѕРіРѕ 23/35 done. РЎР»РµРґСѓСЋС‰РёР№: `DEX-1-2-OBS`.**
+- **v1.17** вЂ” 2026-05-10: `DEX-1-2-OBS` в†’ `done` вњ… (DexMetricsService: 6 Prometheus metrics with timer helpers; Grafana dashboard arbibot-dex-overview.json with 11 panels; DEX SLO targets in observability-tracing.md; 10/10 tests; build 21/21). **Р�С‚РѕРіРѕ 24/35 done. РЎР»РµРґСѓСЋС‰РёР№: `DEX-1-2-LOAD-TEST`.**
+- **v1.18** вЂ” 2026-05-10: `DEX-1-2-LOAD-TEST` в†’ `done` вњ… (tools/dex-load-test.mjs: 3-phase load test вЂ” health warmup, concurrent submit, metrics scrape; --dry-run mode; configurable thresholds p95/error rate/throughput; docs/dex-load-test-report.md; npm run dex:load-test; build 21/21, lint 0 errors). **Р�С‚РѕРіРѕ 25/35 done. РЎР»РµРґСѓСЋС‰РёР№: `DEX-1-3-PAPER-TESTNET`.**
 
+- **v1.19** - 2026-05-10: `DEX-1-3-PAPER-TESTNET`  `done` ? (PaperDexAdapter: simulated DEX swaps with configurable output multiplier, price impact, slippage, gas; 4 Prometheus metrics; venueKey `paper-dex`; 21/21 tests; build 21/21, lint 0 errors). **€в®Ј® 26/35 done. ‘«Ґ¤гойЁ©: `DEX-1-3-LIVE-TESTNET`.** 

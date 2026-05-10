@@ -1,66 +1,69 @@
-# Session Summary — 2026-05-10 (session 13)
+# Session Summary — Arbibot 2
 
-## Фокус
-Реализация DEX-1-2-MEMPOOL → done; обновление документации конца сессии.
+**Дата:** 2026-05-10 (session 18)
+**DEX план:** 27/35 done
 
-## Выполненные задачи
+---
 
-### 1. DEX-1-2-MEMPOOL → **done** ✅
+## Ключевые решения сессии
 
-**Принятые решения:**
-- `DexMempoolMonitorWorker` — подписка на pending transactions через ethers.js `provider.on('pending')`
-- MEV detection patterns: frontrun (gas premium > threshold), sandwich (frontrun + backrun pair), backrun (lower gas following)
-- Sliding window для pending swaps с configurable TTL (default 30s, cleanup every 10s)
-- 9 DEX swap function selectors для декодирования calldata (UniV2/V3/Sushi: `0x38ed1739`, `0x7ff36ab5`, `0x18cbafe5`, etc.)
-- V2 path decoding + V3 exactInputSingle token extraction
-- Feature flag: `DEX_MEMPOOL_ENABLED` — отключён по умолчанию
-- Read-only: не модифицирует state execution pipeline
-- `checkMevRisk()` — public API для orchestrator перед submit DEX tx
-- Prometheus metrics: `arb_dex_mev_detected_total` (type, chain_id), `arb_dex_mempool_pending_swaps` (chain_id)
+### DEX-1-2-HEALTH → done ✅ (session 14)
+- `DexHealthService` в execution-orchestrator — health checks для DEX инфраструктуры
+- `GET /health/dex` — composite health (RPC providers, wallet balance, gas estimation, pool discovery)
+- Prometheus metrics: `arb_dex_health_checks_total`, `arb_dex_health_check_duration_seconds`
+- DI через `ExecutionModule`
 
-**Созданные файлы:**
-- `apps/execution-orchestrator/src/execution/workers/dex-mempool-monitor.worker.ts`
-- `apps/execution-orchestrator/src/execution/workers/dex-mempool-monitor.worker.spec.ts` (15/15 tests)
+### DEX-1-2-OBS → done ✅ (session 15)
+- Grafana dashboard `arbibot-dex-execution.json` — DEX execution overview
+- Prometheus metrics registry: swap latency histograms, wallet balances, gas estimates
+- `docs/observability-tracing.md` обновлён с DEX секцией
 
-**Изменённые файлы:**
-- `apps/execution-orchestrator/src/execution/execution.module.ts` — DI регистрация
-- `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` — MEMPOOL → done, v1.15 changelog
+### DEX-1-2-LOAD-TEST → done ✅ (session 16)
+- `tools/dex-load-test.mjs` — 3-phase load test (health warmup, concurrent submit, metrics scrape)
+- `--dry-run` mode, configurable thresholds (p95, error rate, throughput)
+- `docs/dex-load-test-report.md` — шаблон отчёта
+- npm script `npm run dex:load-test`
 
-**Документация:**
-- `docs/dex-mev-threats.md` — типы угроз, конфигурация, метрики, runbook
+### DEX-1-3-PAPER-TESTNET → done ✅ (session 17)
+- `PaperDexAdapter` — venueKey `paper-dex`, симуляция DEX swaps
+- Configurable: output multiplier, price impact, slippage, gas costs
+- Idempotency по legId
+- 4 Prometheus metrics: `arb_dex_paper_swaps_total`, `arb_dex_paper_swap_amount`, `arb_dex_paper_gas_simulated`, `arb_dex_paper_swap_errors_total`
+- 21/21 unit tests
+- Файлы: `paper-dex.adapter.ts`, `paper-dex.adapter.spec.ts`
 
-**Результаты:**
-- Build: 21/21 ✅
-- Lint: 0 errors ✅
-- Unit tests: 15/15 ✅
-- DEX план: **22/35 done**
+### DEX-1-3-LIVE-TESTNET → done ✅ (session 18)
+- `tools/e2e-dex1-testnet.mjs` — E2E скрипт (4 фазы: health, paper-dex swap, live DEX, metrics)
+- `docs/dex-testnet-runbook.md` — runbook с prerequisites, env vars, troubleshooting
+- npm script `npm run dex:e2e-testnet`
+- Live DEX фаза опциональна (`DEX_LIVE_ENABLED=true`)
+- CI optional из-за внешней сети
 
-### 2. Lint fixes (3 errors → 0)
-- Удалены неиспользуемые локальные переменные в worker (tx, decoded)
-- `forEach` → `for...of` для использования переменных внутри цикла
+## Текущий статус
 
-### 3. Документация конца сессии
-- `docs/progress.md` — обновлён статус + добавлена session 13
-- `session_summary.md` — обновлён
-- `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` — уже актуален (v1.15)
-
-## Открытые вопросы
-
-1. **CI зелёный на GitHub Actions** — не верифицирован
-2. **3 pre-existing test issues** в execution-orchestrator:
-   - `plans.service.spec.ts` — TS type error (playbookConfig optional)
-   - `wallet-manager.service.spec.ts` — TS type error (ChainId)
-   - `rpc-provider-manager.service.spec.ts` — Prometheus metric re-registration
-3. **Недостающие unit-тесты:** PoolDiscoveryService, RpcProviderManager
-4. **Нет runbook для key rotation**
+**Build:** 21/21 ✅ | **Lint:** 0 errors ✅ | **DEX:** 27/35 done
 
 ## Следующие шаги
+1. `DEX-1-3-PAPER-MAINNET` — paper trading на mainnet fork
+2. `DEX-1-3-LIVE-MAINNET` — live DEX execution на mainnet
+3. `DEX-1-4-BASE` — интеграция всех компонентов
 
-1. **DEX-1-2-HEALTH** — Health endpoints (GET /health/dex, wallet/RPC health)
-2. **DEX-1-2-OBS** — Prometheus метрики + Grafana dashboard
-3. **DEX-1-3-LIVE-TESTNET** — первый e2e testnet
+## Открытые вопросы
+- CI зелёный на GitHub Actions не верифицирован
+- 3 pre-existing test issues в execution-orchestrator
+- Недостающие unit-тесты: PoolDiscoveryService, RpcProviderManager
+- Нет runbook для key rotation
 
-## Документация обновлена
-- `docs/progress.md` — обновлён статус + session 13
-- `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` — v1.15, MEMPOOL → done
-- `session_summary.md` — этот файл
+## Изменённые файлы (session 17-18)
+
+### Новые
+- `apps/execution-orchestrator/src/execution/adapters/paper-dex.adapter.ts`
+- `apps/execution-orchestrator/src/execution/adapters/paper-dex.adapter.spec.ts`
+- `tools/e2e-dex1-testnet.mjs`
+- `docs/dex-testnet-runbook.md`
+
+### Обновлённые
+- `package.json` — npm script `dex:e2e-testnet`
+- `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` — v1.20, 27/35 done
+- `docs/progress.md` — статус обновлён
+- `AGENTS.md` — не обновлён в этой сессии (требует обновления)

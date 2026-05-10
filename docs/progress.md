@@ -6,11 +6,11 @@
 
 ## Текущий статус
 
-**DEX план:** 22/35 done. MEMPOOL → done.
-**Текущий шаг:** `DEX-1-2-HEALTH` (next to implement)
-**Следующие:** `DEX-1-2-HEALTH`, `DEX-1-2-OBS`, `DEX-1-3-LIVE-TESTNET`
+**DEX план:** 27/35 done. DEX-1-3-LIVE-TESTNET → done.
+**Текущий шаг:** `DEX-1-3-PAPER-MAINNET` (next)
+**Следующие:** `DEX-1-3-PAPER-MAINNET`, `DEX-1-3-LIVE-MAINNET`, `DEX-1-4-BASE`
 
-**Build:** 21/21 ✅ | **Lint:** 28/28 ✅ | **Mempool tests:** 15/15 ✅
+**Build:** 21/21 ✅ | **Lint:** 0 errors ✅ | **PaperDex tests:** 21/21 ✅
 
 ---
 
@@ -358,3 +358,54 @@ Parsing error: packages/contracts-eth/src/index.spec.ts was not found by the pro
 - 3 pre-existing test issues в execution-orchestrator
 - Нет runbook для key rotation
 - Недостающие unit-тесты: PoolDiscoveryService, RpcProviderManager
+
+---
+
+## 2026-05-10 (session 17) — DEX-1-3-PAPER-TESTNET → done ✅
+
+**Дата:** 2026-05-10
+**Задача:** DEX-1-3-PAPER-TESTNET — PaperDexAdapter для paper trading
+**Статус:** `done` ✅
+**След. шаги:** `DEX-1-3-LIVE-TESTNET`
+
+### Принятые решения
+1. `PaperDexAdapter` с venueKey `paper-dex` — симуляция DEX swaps
+2. Configurable: output multiplier, price impact, slippage, gas costs
+3. Idempotency по legId
+4. 4 Prometheus metrics: swaps_total, swap_amount, gas_simulated, errors_total
+
+### Созданные файлы
+- `apps/execution-orchestrator/src/execution/adapters/paper-dex.adapter.ts`
+- `apps/execution-orchestrator/src/execution/adapters/paper-dex.adapter.spec.ts` (21/21 tests)
+
+### Результаты проверки
+- Build: 21/21 ✅ | Lint: 0 errors | Tests: 21/21 ✅
+- DEX план: **26/35 done**
+
+---
+
+## 2026-05-10 (session 18) — DEX-1-3-LIVE-TESTNET → done ✅
+
+**Дата:** 2026-05-10
+**Задача:** DEX-1-3-LIVE-TESTNET — E2E testnet runbook + скрипт
+**Статус:** `done` ✅
+**След. шаги:** `DEX-1-3-PAPER-MAINNET`
+
+### Принятые решения
+1. E2E скрипт `tools/e2e-dex1-testnet.mjs` — 4 фазы (health, paper-dex swap, live DEX, metrics)
+2. Runbook `docs/dex-testnet-runbook.md` — prerequisites, env vars, troubleshooting
+3. npm script `npm run dex:e2e-testnet`
+4. Live DEX фаза опциональна (требует `DEX_LIVE_ENABLED=true`)
+5. CI optional из-за внешней сети (testnet RPC)
+
+### Созданные файлы
+- `tools/e2e-dex1-testnet.mjs`
+- `docs/dex-testnet-runbook.md`
+
+### Изменённые файлы
+- `package.json` — npm script `dex:e2e-testnet`
+- `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` — v1.20, 27/35 done
+
+### Результаты проверки
+- Build: 21/21 ✅ | Lint: 0 errors
+- DEX план: **27/35 done**
