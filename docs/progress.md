@@ -1,25 +1,24 @@
 # Progress Arbibot 2
 
-**Обновлено:** 2026-05-10
+**Обновлено:** 2026-05-14
 
 ---
 
 ## Текущий статус
 
-**DEX план:** 27/35 done. DEX-1-3-LIVE-TESTNET → done.
-**Текущий шаг:** `DEX-1-3-PAPER-MAINNET` (next)
-**Следующие:** `DEX-1-3-PAPER-MAINNET`, `DEX-1-3-LIVE-MAINNET`, `DEX-1-4-BASE`
+**DEX план:** 31/35 done. DEX-1-4-BASE → done.
+**Текущий шаг:** `DEX-1-4-BNB` (next)
+**Следующие:** `DEX-1-4-BNB`, затем DEX-2, DEX-DOC
 
-**Build:** 21/21 ✅ | **Lint:** 0 errors ✅ | **PaperDex tests:** 21/21 ✅
+**Build:** 21/21 ✅ | **Lint:** 0 errors ✅ | **PaperDex tests:** 24/24 ✅
 
 ---
 
 ## Незавершённые задачи
 
 ### Высокий приоритет
-1. **DEX-1-2-HEALTH** → `planned` — следующий к реализации
-2. **DEX-1-2-OBS** → `planned` — Prometheus метрики + Grafana
-3. **CI зелёный на GitHub Actions** — не верифицирован
+1. **~6 sessions незакоммичены** — огромный uncommitted changeset
+2. **CI зелёный на GitHub Actions** — не верифицирован
 
 ### Средний приоритет
 4. **Pre-existing test issues** (execution-orchestrator):
@@ -213,7 +212,7 @@
 ---
 (архив и справочная информация — в начале файла)
 
-**Total migrations:** 001–034
+**Total migrations:** 001–035
 **CI jobs:** build, lint, test, e2e-phase2, e2e-phase2-watchlist-route-scoring, e2e-phase3-paper-promotion, e2e-phase3-paper-discovery, e2e-phase4-tier-routing, bus-smoke
 
 ---
@@ -409,3 +408,162 @@ Parsing error: packages/contracts-eth/src/index.spec.ts was not found by the pro
 ### Результаты проверки
 - Build: 21/21 ✅ | Lint: 0 errors
 - DEX план: **27/35 done**
+
+---
+
+## 2026-05-11 (session 19) — DEX-1-3-PAPER-MAINNET → done ✅
+
+**Дата:** 2026-05-11
+**Задача:** DEX-1-3-PAPER-MAINNET — Paper trading на mainnet-потоке данных
+**Статус:** `done` ✅
+**След. шаги:** `DEX-1-3-LIVE-MAINNET`
+
+### Принятые решения
+1. Drift metrics: `arb_paper_dex_drift_bps` (histogram), `arb_paper_dex_drift_samples_total` (counter)
+2. `PaperDexAdapter.recordDrift()` — публичный метод для drift recording
+3. Feature flag `PAPER_DEX_MAINNET_ENABLED` (env + .env.example)
+4. Grafana dashboard `arbibot-dex-paper-mainnet.json` — 8 панелей (swap rate, success, latency, drift)
+5. Operator checklist для paper → live transition (72h paper, SLO targets, capital limits)
+6. Alerts: `PaperDexDriftSustainedHigh` (P95 > 50 bps), `PaperDexSuccessRateDrop` (< 99.5%)
+
+### Созданные файлы
+- `docs/dex-paper-mainnet-runbook.md`
+- `infra/grafana/dashboards/arbibot-dex-paper-mainnet.json`
+
+### Изменённые файлы
+- `apps/execution-orchestrator/src/execution/adapters/paper-dex.adapter.ts` (drift metrics + recordDrift)
+- `apps/execution-orchestrator/src/execution/adapters/paper-dex.adapter.spec.ts` (3 drift tests)
+- `.env.example` (PAPER_DEX_MAINNET_ENABLED + simulated params)
+
+### Результаты проверки
+- Build: 21/21 ✅ | Tests: 24/24 ✅
+- DEX план: **28/35 done**
+
+---
+
+## 2026-05-11 (session 20) — DEX-1-3-LIVE-MAINNET → done ✅
+
+**Дата:** 2026-05-11
+**Задача:** DEX-1-3-LIVE-MAINNET — Live mainnet execution с лимитами
+**Статус:** `done` ✅
+**След. шаги:** `DEX-1-4-BASE`
+
+### Принятые решения
+1. Two-person rule для live DEX execution (operator + approver)
+2. Migration `035_dex_live_limits_seed.sql` — seed `dex.limits` + `dex.live`
+3. Env vars `DEX_LIVE_*` для настройки лимитов
+4. Runbook `docs/dex-live-mainnet-runbook.md` — prerequisites, two-person rule, rollback
+5. Capital limits per-chain и per-token
+
+### Созданные файлы
+- `infra/postgres/migrations/035_dex_live_limits_seed.sql`
+- `docs/dex-live-mainnet-runbook.md`
+
+### Изменённые файлы
+- `.env.example` (DEX_LIVE_* env vars)
+- `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` — LIVE-MAINNET → done
+
+### Результаты проверки
+- Build: 21/21 ✅
+- DEX план: **29/35 done**
+
+---
+
+## 2026-05-11 (session 21) — DEX-1-2-HEALTH + DEX-1-2-OBS → done ✅
+
+**Дата:** 2026-05-11
+**Задача:** DEX health endpoints + metrics + Grafana dashboard
+**Статус:** `done` ✅
+**След. шаги:** `DEX-1-2-LOAD-TEST`
+
+### Принятые решения
+1. `DexHealthService` + `DexHealthController` — composite health (RPC, wallet, gas, pool discovery)
+2. `DexMetricsService` — Prometheus metrics registry для DEX
+3. `GET /health/dex` endpoint в execution-orchestrator
+4. Grafana dashboard `arbibot-dex-overview.json` — DEX execution overview
+5. BFF `/api/operator/health/dex` — proxy для operator dashboard
+6. `DexHealthBanner` — frontend компонент для DEX health status
+
+### Созданные файлы
+- `apps/execution-orchestrator/src/execution/dex-health.service.ts`
+- `apps/execution-orchestrator/src/execution/dex-health.service.spec.ts`
+- `apps/execution-orchestrator/src/execution/dex-health.controller.ts`
+- `apps/execution-orchestrator/src/execution/dex-metrics.service.ts`
+- `apps/execution-orchestrator/src/execution/dex-metrics.service.spec.ts`
+- `infra/grafana/dashboards/arbibot-dex-overview.json`
+- `apps/web/app/api/operator/health/dex/route.ts`
+- `apps/web/components/dex-health-banner.tsx`
+
+### Изменённые файлы
+- `apps/execution-orchestrator/src/execution/execution.module.ts` (DI)
+- `apps/web/app/(operator)/layout.tsx` (health banner)
+- `docs/observability-tracing.md` (DEX секция)
+
+### Результаты проверки
+- Build: 21/21 ✅
+- DEX план: **30/35 done**
+
+---
+
+## 2026-05-12 (session 22) — DEX-1-2-LOAD-TEST → done ✅
+
+**Дата:** 2026-05-12
+**Задача:** DEX load testing tool
+**Статус:** `done` ✅
+**След. шаги:** `DEX-1-4-BASE`
+
+### Принятые решения
+1. `tools/dex-load-test.mjs` — 3-phase load test (health, concurrent submit, metrics scrape)
+2. `--dry-run` mode, configurable thresholds
+3. `docs/dex-load-test-report.md` — шаблон отчёта
+4. npm script `npm run dex:load-test`
+
+### Созданные файлы
+- `tools/dex-load-test.mjs`
+- `docs/dex-load-test-report.md`
+
+### Изменённые файлы
+- `package.json` — npm script `dex:load-test`
+
+### Результаты проверки
+- Build: 21/21 ✅
+- DEX план: **30/35 done**
+
+---
+
+## 2026-05-12 (session 23) — DEX-1-4-BASE → done ✅
+
+**Дата:** 2026-05-12
+**Задача:** DEX-1-4-BASE — Base chain integration
+**Статус:** `done` ✅
+**След. шаги:** `DEX-1-4-BNB`
+
+### Принятые решения
+1. Base chainId fix: 84531 → 84532 (Base mainnet)
+2. Uniswap V3 как primary venue на Base
+3. `tools/e2e-dex1-base-testnet.mjs` — Base testnet smoke test
+4. `docs/dex-base-runbook.md` — Base deployment runbook
+5. BNB addresses обновлены в `packages/contracts-eth`
+
+### Созданные файлы
+- `tools/e2e-dex1-base-testnet.mjs`
+- `docs/dex-base-runbook.md`
+- `tools/e2e-dex1-bnb-testnet.mjs` (подготовка для DEX-1-4-BNB)
+- `docs/dex-bnb-runbook.md` (подготовка для DEX-1-4-BNB)
+- `apps/execution-orchestrator/src/execution/adapters/pancakeswap-v2.adapter.ts` (подготовка)
+- `apps/execution-orchestrator/src/execution/adapters/biswap-v2.adapter.ts` (подготовка)
+
+### Изменённые файлы
+- `packages/contracts-eth/src/addresses/bnb.ts` (BNB addresses)
+- `apps/execution-orchestrator/src/execution/adapters/uniswap-v2.adapter.ts`
+- `apps/execution-orchestrator/src/execution/adapters/uniswap-v3.adapter.ts`
+- `apps/execution-orchestrator/src/execution/adapters/sushiswap-v2.adapter.ts`
+- `apps/execution-orchestrator/src/execution/execution.module.ts`
+- `apps/execution-orchestrator/src/execution/venue-factory.service.ts`
+- `apps/execution-orchestrator/src/execution/venue-factory.service.spec.ts`
+- `apps/execution-orchestrator/src/execution/rpc/rpc-provider-manager.service.ts`
+- `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` — v2.0, split sections, 31/35 done
+
+### Результаты проверки
+- Build: 21/21 ✅
+- DEX план: **31/35 done**

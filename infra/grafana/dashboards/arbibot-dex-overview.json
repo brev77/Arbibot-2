@@ -1,0 +1,300 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "description": "Arbibot 2 DEX Overview — RPC, gas, swaps, confirmation latency, SLO",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "DEX Health Status",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "arb_dex_health_status",
+          "legendFormat": "{{status}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "1": { "text": "Healthy", "color": "green" }, "0.5": { "text": "Degraded", "color": "yellow" }, "0": { "text": "Unhealthy", "color": "red" } } }
+          ],
+          "thresholds": {
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.5 },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Swap Success Rate (5m)",
+      "type": "gauge",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(arb_dex_swap_total{status=\"success\"}[5m])) / sum(rate(arb_dex_swap_total[5m])) * 100",
+          "legendFormat": "success rate %",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 80 },
+              { "color": "green", "value": 95 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Active Wallets per Chain",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "arb_wallet_balance",
+          "legendFormat": "{{chain_id}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "MEV Detected (total)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(arb_dex_mev_detected_total)",
+          "legendFormat": "MEV events",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "RPC Latency (p50 / p95 / p99)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(arb_dex_rpc_latency_seconds_bucket[5m])) by (le, chain_id))",
+          "legendFormat": "p50 {{chain_id}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(arb_dex_rpc_latency_seconds_bucket[5m])) by (le, chain_id))",
+          "legendFormat": "p95 {{chain_id}}",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(arb_dex_rpc_latency_seconds_bucket[5m])) by (le, chain_id))",
+          "legendFormat": "p99 {{chain_id}}",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      }
+    },
+    {
+      "title": "Gas Price (GWei)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [
+        {
+          "expr": "arb_dex_gas_price_gwei{type=\"base_fee\"}",
+          "legendFormat": "base_fee {{chain_id}}",
+          "refId": "A"
+        },
+        {
+          "expr": "arb_dex_gas_price_gwei{type=\"priority_fee\"}",
+          "legendFormat": "priority_fee {{chain_id}}",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Gwei",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      }
+    },
+    {
+      "title": "Swap Outcomes by Adapter",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [
+        {
+          "expr": "sum(rate(arb_dex_swap_total{status=\"success\"}[5m])) by (adapter)",
+          "legendFormat": "success {{adapter}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(arb_dex_swap_total{status=\"failed\"}[5m])) by (adapter)",
+          "legendFormat": "failed {{adapter}}",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(arb_dex_swap_total{status=\"reverted\"}[5m])) by (adapter)",
+          "legendFormat": "reverted {{adapter}}",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops/s",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      }
+    },
+    {
+      "title": "Confirmation Latency (p50 / p99)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(arb_dex_confirmation_seconds_bucket[5m])) by (le, chain_id, network))",
+          "legendFormat": "p50 {{chain_id}} {{network}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(arb_dex_confirmation_seconds_bucket[5m])) by (le, chain_id, network))",
+          "legendFormat": "p99 {{chain_id}} {{network}}",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      }
+    },
+    {
+      "title": "Signature Latency — SLO < 100ms",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 20 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(arb_dex_signature_seconds_bucket[5m])) by (le, chain_id))",
+          "legendFormat": "p99 {{chain_id}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 0.1 }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      }
+    },
+    {
+      "title": "Broadcast Latency — SLO < 200ms",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 20 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(arb_dex_broadcast_seconds_bucket[5m])) by (le, chain_id))",
+          "legendFormat": "p99 {{chain_id}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 0.2 }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      }
+    },
+    {
+      "title": "Pool Discovery Cache",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 20 },
+      "targets": [
+        {
+          "expr": "rate(arb_dex_pool_cache_hits_total[5m])",
+          "legendFormat": "hits {{chain_id}}",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(arb_dex_pool_cache_misses_total[5m])",
+          "legendFormat": "misses {{chain_id}}",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops/s",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      }
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["arbibot", "dex", "observability"],
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": { "text": "Prometheus", "value": "Prometheus" }
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "Arbibot DEX Overview",
+  "uid": "arb-dex-overview",
+  "version": 1
+}

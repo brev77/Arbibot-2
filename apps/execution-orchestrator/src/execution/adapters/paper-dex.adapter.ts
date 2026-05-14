@@ -152,6 +152,8 @@ export class PaperDexAdapter implements VenueAdapter {
   private swapLatency!: Histogram<string>;
   private simulatedGasGauge!: Gauge<string>;
   private profitGauge!: Gauge<string>;
+  private driftHistogram!: Histogram<string>;
+  private driftSamplesCounter!: Counter<string>;
 
   constructor() {
     this.initializeMetrics();
@@ -313,5 +315,36 @@ export class PaperDexAdapter implements VenueAdapter {
       labelNames: ['chain_id', 'venue'],
       registers: [registry],
     });
+
+    // Drift metrics (DEX-1-3-PAPER-MAINNET) — for paper vs expected comparison
+    this.driftHistogram = new Histogram({
+      name: 'arb_paper_dex_drift_bps',
+      help: 'Drift in basis points between paper simulated output and expected on-chain price',
+      labelNames: ['chain_id', 'route_key'],
+      buckets: [1, 2, 5, 10, 20, 30, 50, 75, 100, 200, 500],
+      registers: [registry],
+    });
+
+    this.driftSamplesCounter = new Counter({
+      name: 'arb_paper_dex_drift_samples_total',
+      help: 'Total drift samples collected for paper mainnet comparison',
+      labelNames: ['chain_id', 'status'],
+      registers: [registry],
+    });
+  }
+
+  /**
+   * Record drift between paper simulated output and expected on-chain price.
+   * Called by the drift comparison worker or manual reconciliation.
+   *
+   * @param chainId - Chain ID (e.g. 42161 for Arbitrum)
+   * @param routeKey - Route key (e.g. "USDC-WETH-univ2")
+   * @param driftBps - Drift in basis points (absolute value)
+   * @param status - Sample status: "measured" | "stale" | "error"
+   */
+  recordDrift(chainId: number, routeKey: string, driftBps: number, status: string = 'measured'): void {
+    const chainLabel = String(chainId);
+    this.driftHistogram.observe({ chain_id: chainLabel, route_key: routeKey }, driftBps);
+    this.driftSamplesCounter.inc({ chain_id: chainLabel, status });
   }
 }

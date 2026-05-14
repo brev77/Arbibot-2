@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 
 import { DegradedStatusBanner } from '../../components/degraded-status-banner';
+import { DexHealthBanner } from '../../components/dex-health-banner';
 import { SafeModeBanner } from '../../components/safe-mode-banner';
 import { OperatorAccessMessage } from '../../components/operator-access-message';
 import { OperatorFiltersBar } from '../../components/operator-filters-bar';
@@ -49,6 +50,7 @@ export default async function OperatorLayout({
       <OperatorNav session={session} />
       <OperatorFiltersBar />
       <DegradedStatusBanner />
+      <DexHealthBanner />
       <SafeModeBanner />
       {children}
     </Providers>

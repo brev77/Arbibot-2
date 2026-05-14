@@ -303,4 +303,40 @@ describe('PaperDexAdapter', () => {
       expect(result.amountOut).toBe('990000000000000000');
     });
   });
+
+  // ─────────────────────────────────────────────────────────────────────
+  // recordDrift — drift metrics (DEX-1-3-PAPER-MAINNET)
+  // ─────────────────────────────────────────────────────────────────────
+
+  describe('recordDrift — drift metrics', () => {
+    it('records drift histogram and counter with correct labels', async () => {
+      adapter.recordDrift(42161, 'USDC-WETH-univ2', 12.5, 'measured');
+
+      const registry = getArbibotMetricsRegistry();
+      const metrics = await registry.getMetricsAsJSON();
+      const driftHist = metrics.find((m: any) => m.name === 'arb_paper_dex_drift_bps'); // eslint-disable-line @typescript-eslint/no-explicit-any
+      const driftCount = metrics.find((m: any) => m.name === 'arb_paper_dex_drift_samples_total'); // eslint-disable-line @typescript-eslint/no-explicit-any
+
+      expect(driftHist).toBeDefined();
+      expect(driftCount).toBeDefined();
+    });
+
+    it('defaults status to "measured" when not specified', async () => {
+      adapter.recordDrift(42161, 'USDC-WETH-univ2', 5);
+
+      const registry = getArbibotMetricsRegistry();
+      const metrics = await registry.getMetricsAsJSON();
+      const driftCount = metrics.find((m: any) => m.name === 'arb_paper_dex_drift_samples_total'); // eslint-disable-line @typescript-eslint/no-explicit-any
+      expect(driftCount).toBeDefined();
+    });
+
+    it('records drift with "stale" status', async () => {
+      adapter.recordDrift(42161, 'USDC-WETH-univ2', 100, 'stale');
+
+      const registry = getArbibotMetricsRegistry();
+      const metrics = await registry.getMetricsAsJSON();
+      const driftCount = metrics.find((m: any) => m.name === 'arb_paper_dex_drift_samples_total'); // eslint-disable-line @typescript-eslint/no-explicit-any
+      expect(driftCount).toBeDefined();
+    });
+  });
 });

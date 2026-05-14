@@ -61,7 +61,7 @@ export class RpcProviderManager implements OnModuleInit, OnModuleDestroy {
       { chainId: 42161, primary: process.env.RPC_ARBITRUM_MAINNET_URL, backup: process.env.RPC_ARBITRUM_MAINNET_BACKUP_URL },
       { chainId: 421611, primary: process.env.RPC_ARBITRUM_TESTNET_URL, backup: process.env.RPC_ARBITRUM_TESTNET_BACKUP_URL },
       { chainId: 8453, primary: process.env.RPC_BASE_MAINNET_URL, backup: process.env.RPC_BASE_MAINNET_BACKUP_URL },
-      { chainId: 84531, primary: process.env.RPC_BASE_TESTNET_URL, backup: process.env.RPC_BASE_TESTNET_BACKUP_URL },
+      { chainId: 84532, primary: process.env.RPC_BASE_TESTNET_URL, backup: process.env.RPC_BASE_TESTNET_BACKUP_URL },
       { chainId: 56, primary: process.env.RPC_BNB_MAINNET_URL, backup: process.env.RPC_BNB_MAINNET_BACKUP_URL },
       { chainId: 97, primary: process.env.RPC_BNB_TESTNET_URL, backup: process.env.RPC_BNB_TESTNET_BACKUP_URL },
     ];

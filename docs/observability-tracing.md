@@ -132,3 +132,49 @@ These targets are **operational** (capacity / UX for analysts). They do **not** 
 | JSONL export (`export-route-scoring-history.mjs`) | Wall-clock under **5 minutes** for **at most 50k** rows per run (default `LIMIT`) | Increase `LIMIT` only with owner/DBA agreement; for full-history analytics off OLTP see [`docs/adr-phase4-clickhouse-gate.md`](adr-phase4-clickhouse-gate.md). |
 | `GET /policy/route-scoring-history/:routeKey` | Stay within **Read-only** Tier latency in the v1 table | If p99 degrades, reduce page size, add a read model, or open the CH gate. |
 | Future CH / DWH load | ETL lag under **15 minutes** behind OLTP appends (initial default) | Read-only consumers only; no second writer to `route_scoring_history` on primary. |
+
+## DEX Observability (DEX-1-2-OBS)
+
+**Scope:** DEX execution pipeline — RPC providers, gas estimation, swap execution, transaction signing, broadcast, and confirmation. All metrics are emitted by `DexMetricsService` in `execution-orchestrator` and exposed on `GET /metrics`.
+
+### DEX SLO Targets
+
+| Metric | SLO | Target | Alert |
+|--------|-----|--------|-------|
+| `arb_dex_signature_seconds` p99 | Signing latency | < 100 ms | Page on-call if p99 > 100ms for 5m |
+| `arb_dex_broadcast_seconds` p99 | Broadcast latency | < 200 ms | Page on-call if p99 > 200ms for 5m |
+| `arb_dex_confirmation_seconds` p99 (mainnet) | On-chain confirmation | < 30 s | Ticket if p99 > 30s for 15m |
+| `arb_dex_confirmation_seconds` p99 (testnet) | On-chain confirmation | < 10 s | Ticket if p99 > 10s for 15m |
+| `arb_dex_swap_total` success rate | Swap success rate | > 95% over 5m | Page on-call if < 80% for 5m |
+| `arb_dex_rpc_latency_seconds` p99 | RPC call latency | < 500 ms | Ticket if p99 > 1s for 10m |
+
+### DEX Metrics Reference
+
+| Metric Name | Type | Labels | Description |
+|-------------|------|--------|-------------|
+| `arb_dex_rpc_latency_seconds` | histogram | `chain_id`, `method` | DEX-specific RPC call latency |
+| `arb_dex_gas_price_gwei` | gauge | `chain_id`, `type` (base_fee / priority_fee) | Current gas price per chain |
+| `arb_dex_swap_total` | counter | `adapter`, `chain_id`, `status` (success / failed / reverted) | Swap outcomes by adapter |
+| `arb_dex_confirmation_seconds` | histogram | `chain_id`, `network` (mainnet / testnet) | Time from broadcast to receipt |
+| `arb_dex_signature_seconds` | histogram | `chain_id` | Transaction signing latency |
+| `arb_dex_broadcast_seconds` | histogram | `chain_id` | Transaction broadcast latency |
+
+### Bucket Reference
+
+- **RPC latency:** `[0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5]` seconds
+- **Confirmation:** `[1, 2, 5, 10, 15, 30, 60, 120, 300]` seconds
+- **Signature:** `[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5]` seconds
+- **Broadcast:** `[0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2]` seconds
+
+### Grafana Dashboard
+
+- **Dashboard:** `infra/grafana/dashboards/arbibot-dex-overview.json` (uid: `arb-dex-overview`)
+- **Panels:** DEX health, swap success rate, RPC latency (p50/p95/p99), gas price, confirmation latency, signature/broadcast SLO, pool cache hit ratio, MEV detected
+
+### Smoke Test
+
+```bash
+curl http://localhost:3012/metrics | grep arb_dex_
+```
+
+Expected: non-empty output with all 6 `arb_dex_*` metrics after the service starts and records at least one data point per metric.

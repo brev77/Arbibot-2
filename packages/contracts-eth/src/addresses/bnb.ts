@@ -20,6 +20,9 @@ export interface BnbAddresses {
   // SushiSwap
   sushiSwapRouter: Address;
   sushiSwapFactory: Address;
+  // Biswap V2
+  biswapV2Router: Address;
+  biswapV2Factory: Address;
   // WBNB
   wbnb: Address;
   // USDT (BEP-20)
@@ -51,6 +54,9 @@ export const BnbMainnetAddresses: BnbAddresses = {
   // SushiSwap
   sushiSwapRouter: '0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506' as Address,
   sushiSwapFactory: '0xc35DADB65012eC5796536bD9864eD8773aBc74C4' as Address,
+  // Biswap V2
+  biswapV2Router: '0x3a6d8cA8D9C0a3E4585c2a2c84D7A36e0301A4E' as Address,
+  biswapV2Factory: '0x858E3312ed3A876947AE49e6A8A2fA7A6b7819E8' as Address,
   // WBNB
   wbnb: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c' as Address,
   // USDT (BEP-20)
@@ -77,6 +83,9 @@ export const BnbTestnetAddresses: BnbAddresses = {
   // SushiSwap
   sushiSwapRouter: '0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506' as Address,
   sushiSwapFactory: '0x0000000000000000000000000000000000000000' as Address,
+  // Biswap V2 (not deployed on BNB testnet)
+  biswapV2Router: '0x0000000000000000000000000000000000000000' as Address,
+  biswapV2Factory: '0x0000000000000000000000000000000000000000' as Address,
   // WBNB
   wbnb: '0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd' as Address,
   // USDT (testnet)

@@ -10,6 +10,9 @@ import { MockVenueAdapter } from '../venue/mock-venue.adapter';
 import { UniswapV2Adapter } from './adapters/uniswap-v2.adapter';
 import { UniswapV3Adapter } from './adapters/uniswap-v3.adapter';
 import { SushiSwapV2Adapter } from './adapters/sushiswap-v2.adapter';
+import { PancakeSwapV2Adapter } from './adapters/pancakeswap-v2.adapter';
+import { BiswapV2Adapter } from './adapters/biswap-v2.adapter';
+import { PaperDexAdapter } from './adapters/paper-dex.adapter';
 
 // ───────────────────────────────────────────────────────────────────────
 // Types
@@ -22,7 +25,7 @@ import { SushiSwapV2Adapter } from './adapters/sushiswap-v2.adapter';
  * - Legacy keys: `http`, `mock` — always available
  * - `auto` / unset — legacy fallback (Mock or HTTP based on env)
  */
-export type DexVenueKey = 'uniswap-v2' | 'uniswap-v3' | 'sushiswap';
+export type DexVenueKey = 'uniswap-v2' | 'uniswap-v3' | 'sushiswap' | 'pancakeswap-v2' | 'biswap';
 export type LegacyVenueKey = 'http' | 'mock';
 export type VenueKey = DexVenueKey | LegacyVenueKey | 'auto';
 
@@ -31,6 +34,13 @@ const DEX_VENUE_KEYS: ReadonlySet<string> = new Set<string>([
   'uniswap-v2',
   'uniswap-v3',
   'sushiswap',
+  'pancakeswap-v2',
+  'biswap',
+]);
+
+/** Paper / simulation venue keys — always available (no DEX_VENUE_ENABLED required). */
+const PAPER_VENUE_KEYS: ReadonlySet<string> = new Set<string>([
+  'paper-dex',
 ]);
 
 // ───────────────────────────────────────────────────────────────────────
@@ -107,6 +117,9 @@ export class VenueFactoryService implements VenueAdapter {
     private readonly uniV2Adapter: UniswapV2Adapter,
     private readonly uniV3Adapter: UniswapV3Adapter,
     private readonly sushiAdapter: SushiSwapV2Adapter,
+    private readonly pancakeV2Adapter: PancakeSwapV2Adapter,
+    private readonly biswapAdapter: BiswapV2Adapter,
+    private readonly paperDexAdapter: PaperDexAdapter,
   ) {
     this.initializeMetrics();
   }
@@ -147,6 +160,11 @@ export class VenueFactoryService implements VenueAdapter {
       return this.resolveLegacyAdapter();
     }
 
+    // Paper / simulation adapter routing (no DEX_VENUE_ENABLED required)
+    if (PAPER_VENUE_KEYS.has(venueKey)) {
+      return this.resolvePaperAdapter(venueKey);
+    }
+
     // DEX adapter routing
     if (DEX_VENUE_KEYS.has(venueKey)) {
       return this.resolveDexAdapter(venueKey as DexVenueKey);
@@ -163,7 +181,7 @@ export class VenueFactoryService implements VenueAdapter {
     // Unknown key
     throw new VenueSubmitClientError(
       `VenueFactory: unknown venueKey "${venueKey}". ` +
-      `Known keys: ${[...DEX_VENUE_KEYS, 'http', 'mock'].join(', ')}`,
+      `Known keys: ${[...DEX_VENUE_KEYS, ...PAPER_VENUE_KEYS, 'http', 'mock'].join(', ')}`,
       { category: 'validation' },
     );
   }
@@ -171,6 +189,16 @@ export class VenueFactoryService implements VenueAdapter {
   // ─────────────────────────────────────────────────────────────────────
   // Internal
   // ─────────────────────────────────────────────────────────────────────
+
+  private resolvePaperAdapter(key: string): VenueAdapter {
+    if (key === 'paper-dex') {
+      return this.paperDexAdapter;
+    }
+    throw new VenueSubmitClientError(
+      `VenueFactory: paper venue ${key} is recognised but has no adapter registered`,
+      { category: 'validation' },
+    );
+  }
 
   private resolveDexAdapter(key: DexVenueKey): VenueAdapter {
     const dexEnabled = process.env.DEX_VENUE_ENABLED === 'true';
@@ -189,6 +217,10 @@ export class VenueFactoryService implements VenueAdapter {
         return this.uniV3Adapter;
       case 'sushiswap':
         return this.sushiAdapter;
+      case 'pancakeswap-v2':
+        return this.pancakeV2Adapter;
+      case 'biswap':
+        return this.biswapAdapter;
       default:
         throw new VenueSubmitClientError(
           `VenueFactory: DEX venue ${String(key)} is recognised but has no adapter registered`,

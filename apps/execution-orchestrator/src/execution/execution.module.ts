@@ -17,14 +17,20 @@ import { SlippageProtectionService } from './slippage/slippage-protection.servic
 import { UniswapV2Adapter } from './adapters/uniswap-v2.adapter';
 import { UniswapV3Adapter } from './adapters/uniswap-v3.adapter';
 import { SushiSwapV2Adapter } from './adapters/sushiswap-v2.adapter';
+import { PancakeSwapV2Adapter } from './adapters/pancakeswap-v2.adapter';
+import { BiswapV2Adapter } from './adapters/biswap-v2.adapter';
+import { PaperDexAdapter } from './adapters/paper-dex.adapter';
 import { DexMempoolMonitorWorker } from './workers/dex-mempool-monitor.worker';
+import { DexHealthService } from './dex-health.service';
+import { DexHealthController } from './dex-health.controller';
+import { DexMetricsService } from './dex-metrics.service';
 
 @Module({
   imports: [
     KeyVaultModule,
     TypeOrmModule.forFeature([WalletState, OnChainTransaction]),
   ],
-  controllers: [RpcHealthController],
+  controllers: [RpcHealthController, DexHealthController],
   providers: [
     WalletManagerService,
     DexFillTrackerService,
@@ -38,7 +44,12 @@ import { DexMempoolMonitorWorker } from './workers/dex-mempool-monitor.worker';
     UniswapV2Adapter,
     UniswapV3Adapter,
     SushiSwapV2Adapter,
+    PancakeSwapV2Adapter,
+    BiswapV2Adapter,
+    PaperDexAdapter,
     DexMempoolMonitorWorker,
+    DexHealthService,
+    DexMetricsService,
   ],
   exports: [
     WalletManagerService,
@@ -52,7 +63,12 @@ import { DexMempoolMonitorWorker } from './workers/dex-mempool-monitor.worker';
     UniswapV2Adapter,
     UniswapV3Adapter,
     SushiSwapV2Adapter,
+    PancakeSwapV2Adapter,
+    BiswapV2Adapter,
+    PaperDexAdapter,
     DexMempoolMonitorWorker,
+    DexHealthService,
+    DexMetricsService,
   ],
 })
 export class ExecutionModule {}

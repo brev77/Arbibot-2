@@ -59,6 +59,7 @@ describe('VenueFactoryService', () => {
   let mockUniV2: ReturnType<typeof mockAdapter>;
   let mockUniV3: ReturnType<typeof mockAdapter>;
   let mockSushi: ReturnType<typeof mockAdapter>;
+  let mockPaperDex: ReturnType<typeof mockAdapter>;
 
   const originalEnv = process.env;
 
@@ -75,12 +76,14 @@ describe('VenueFactoryService', () => {
     mockUniV2 = mockAdapter('UniswapV2Adapter');
     mockUniV3 = mockAdapter('UniswapV3Adapter');
     mockSushi = mockAdapter('SushiSwapV2Adapter');
+    mockPaperDex = mockAdapter('PaperDexAdapter');
 
     service = new VenueFactoryService(
       mockMock,
       mockUniV2 as any, // eslint-disable-line @typescript-eslint/no-explicit-any
       mockUniV3 as any, // eslint-disable-line @typescript-eslint/no-explicit-any
       mockSushi as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      mockPaperDex as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     );
   });
 
@@ -196,6 +199,24 @@ describe('VenueFactoryService', () => {
   });
 
   // ─────────────────────────────────────────────────────────────────────
+  // resolveAdapter — paper-dex routing
+  // ─────────────────────────────────────────────────────────────────────
+
+  describe('resolveAdapter — paper-dex routing', () => {
+    it('returns PaperDexAdapter when venueKey="paper-dex" (no DEX_VENUE_ENABLED required)', () => {
+      delete process.env.DEX_VENUE_ENABLED;
+      const adapter = service.resolveAdapter('paper-dex');
+      expect(adapter).toBe(mockPaperDex);
+    });
+
+    it('returns PaperDexAdapter even when DEX_VENUE_ENABLED=false', () => {
+      process.env.DEX_VENUE_ENABLED = 'false';
+      const adapter = service.resolveAdapter('paper-dex');
+      expect(adapter).toBe(mockPaperDex);
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────
   // resolveAdapter — unknown key
   // ─────────────────────────────────────────────────────────────────────
 
@@ -263,6 +284,16 @@ describe('VenueFactoryService', () => {
 
       expect(result).toEqual({ externalOrderId: 'SushiSwapV2Adapter-order-1' });
       expect(mockSushi.submitLeg).toHaveBeenCalledWith(plan, leg);
+    });
+
+    it('delegates to PaperDexAdapter for venueKey="paper-dex"', async () => {
+      const plan = planStub({ venueKey: 'paper-dex' });
+      const leg = legStub(0);
+
+      const result = await service.submitLeg(plan, leg);
+
+      expect(result).toEqual({ externalOrderId: 'PaperDexAdapter-order-1' });
+      expect(mockPaperDex.submitLeg).toHaveBeenCalledWith(plan, leg);
     });
   });
 });

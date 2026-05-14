@@ -94,7 +94,6 @@ function resolveRouterAddress(chainId: ChainId): Address {
   // Base
   if (
     chainId === (8453 as ChainId) ||
-    chainId === (84531 as ChainId) ||
     chainId === (84532 as ChainId)
   ) {
     return getBaseAddresses(chainId).uniswapV2Router;
