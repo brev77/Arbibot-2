@@ -22,7 +22,7 @@
  *   CAPITAL_API_BASE            — capital-service URL (default: http://127.0.0.1:3011)
  *   DEX_E2E_NOTIONAL_USD        — notional USD for test (default: 10, testnet-safe)
  *   DEX_E2E_VENUE_KEY           — override venue key (default: paper-dex or uniswap-v2)
- *   DEX_E2E_CHAIN_ID            — chain ID for testnet (default: 421613 = Arbitrum Sepolia)
+ *   DEX_E2E_CHAIN_ID            — chain ID for testnet (default: 421614 = Arbitrum Sepolia)
  *   DEX_E2E_TOKEN_IN            — input token address (default: WETH Arbitrum)
  *   DEX_E2E_TOKEN_OUT           — output token address (default: USDC Arbitrum)
  *   DEX_E2E_AMOUNT_IN           — input amount in wei (default: 100000000000000000 = 0.1 ETH)
@@ -51,9 +51,9 @@ const MAX_CONFIRM_WAIT_MS = parseInt(process.env.DEX_E2E_MAX_CONFIRM_WAIT_MS ?? 
 
 const DEFAULT_VENUE_KEY = paperMode ? 'paper-dex' : 'uniswap-v2';
 const VENUE_KEY = process.env.DEX_E2E_VENUE_KEY ?? DEFAULT_VENUE_KEY;
-const CHAIN_ID = parseInt(process.env.DEX_E2E_CHAIN_ID ?? '421613', 10); // Arbitrum Sepolia
-const TOKEN_IN = process.env.DEX_E2E_TOKEN_IN ?? '0x980B62Da83eEff3D24539965B7DCf7B2F093deD4'; // WETH Sepolia
-const TOKEN_OUT = process.env.DEX_E2E_TOKEN_OUT ?? '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d'; // USDC Sepolia
+const CHAIN_ID = parseInt(process.env.DEX_E2E_CHAIN_ID ?? '421614', 10); // Arbitrum Sepolia
+const TOKEN_IN = process.env.DEX_E2E_TOKEN_IN ?? '0x4200000000000000000000000000000000000006'; // WETH Arbitrum Sepolia
+const TOKEN_OUT = process.env.DEX_E2E_TOKEN_OUT ?? '0x75faf114eafb1acbe2a3976482854f7f230fa178'; // USDC Arbitrum Sepolia
 const AMOUNT_IN = process.env.DEX_E2E_AMOUNT_IN ?? '100000000000000000'; // 0.1 ETH
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

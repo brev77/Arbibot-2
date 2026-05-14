@@ -6,9 +6,9 @@
 
 ## Текущий статус
 
-**DEX план:** 31/35 done. DEX-1-4-BASE → done.
-**Текущий шаг:** `DEX-1-4-BNB` (next)
-**Следующие:** `DEX-1-4-BNB`, затем DEX-2, DEX-DOC
+**DEX план:** 33/35 done. DEX-1-4-ARBITRUM → done.
+**Текущий шаг:** `DEX-DOC-FE` / `DEX-DOC-RUNBOOK-TX` (next)
+**Следующие:** DEX-DOC, затем DEX-2
 
 **Build:** 21/21 ✅ | **Lint:** 0 errors ✅ | **PaperDex tests:** 24/24 ✅
 
@@ -567,3 +567,67 @@ Parsing error: packages/contracts-eth/src/index.spec.ts was not found by the pro
 ### Результаты проверки
 - Build: 21/21 ✅
 - DEX план: **31/35 done**
+
+---
+
+## 2026-05-14 (session 24) — DEX-1-4-BNB → done ✅
+
+**Дата:** 2026-05-14
+**Задача:** DEX-1-4-BNB — BNB Chain (PancakeSwap V2 + Biswap V2)
+**Статус:** `done` ✅
+**След. шаги:** `DEX-1-4-ARBITRUM`
+
+### Принятые решения
+1. PancakeSwap V2 adapter — testnet (97) + mainnet (56)
+2. Biswap V2 adapter — mainnet only (56), BNB testnet rejection guard
+3. Адреса TOKEN_IN/TOKEN_OUT приведены к lowercase (EIP-55 checksum fix в ethers.js v6)
+4. Jest 30 + ts-jest 29: тесты через `npm run test -w @arbibot/execution-orchestrator`
+
+### Результаты
+- PancakeSwap V2: **16/16** ✅
+- Biswap V2: **15/15** ✅
+- Build: 21/21 ✅ | Lint: 28/28 ✅
+- DEX план: **32/35 done**
+
+### Изменённые файлы
+- `apps/execution-orchestrator/src/execution/adapters/pancakeswap-v2.adapter.spec.ts`
+- `apps/execution-orchestrator/src/execution/adapters/biswap-v2.adapter.spec.ts`
+- `.cursor/plans/dex/dex-1.4-networks.md`
+- `.cursor/plans/DEVELOPMENT_PLAN-DEX.md`
+
+### Открытые вопросы
+- CI зелёный на GitHub Actions не верифицирован
+- 3 pre-existing test issues в execution-orchestrator
+
+---
+
+## 2026-05-14 (session 25) — DEX-1-4-ARBITRUM → done ✅
+
+**Дата:** 2026-05-14
+**Задача:** DEX-1-4-ARBITRUM — Arbitrum (UniV2/V3/Sushi + chainId fix)
+**Статус:** `done` ✅
+**След. шаги:** `DEX-DOC-FE`, `DEX-DOC-RUNBOOK-TX`
+
+### Принятые решения
+1. Arbitrum Sepolia chainId fix: 421613 → 421614 в generic E2E
+2. Dedicated E2E smoke `tools/e2e-dex1-arbitrum-testnet.mjs` — paper + testnet modes
+3. Runbook `docs/dex-arbitrum-runbook.md` — 3 venue keys, L1 data fee notes
+4. Adapters уже поддерживают Arbitrum (UniV2, UniV3, SushiSwap)
+5. Address verification для Sepolia (421614) и Mainnet (42161)
+
+### Созданные файлы
+- `tools/e2e-dex1-arbitrum-testnet.mjs`
+- `docs/dex-arbitrum-runbook.md`
+
+### Изменённые файлы
+- `tools/e2e-dex1-testnet.mjs` (chainId 421613 → 421614)
+- `.cursor/plans/dex/dex-1.4-networks.md` (3/3 done)
+- `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` (33/35 done)
+
+### Результаты
+- Build: 21/21 ✅ | Lint: 28/28 ✅
+- DEX план: **33/35 done**
+
+### Открытые вопросы
+- CI зелёный на GitHub Actions не верифицирован
+- Следующие: DEX-DOC (frontend spec, failed tx runbook)

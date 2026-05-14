@@ -3,8 +3,8 @@
 > **🎯 ОСНОВНОЙ РАБОЧИЙ ДОКУМЕНТ**
 > Полные детали шагов — в файлах `dex/*.md`. Этот файл — навигация и прогресс.
 
-**Прогресс:** 31/35 шагов → `done`. Следующий шаг: `DEX-1-4-BNB`.
-**Обновлено:** 2026-05-12 (session 23)
+**Прогресс:** 33/35 шагов → `done`. Следующие шаги: `DEX-DOC-FE`, `DEX-DOC-RUNBOOK-TX`.
+**Обновлено:** 2026-05-14 (session 25)
 
 ## Файлы плана
 
@@ -14,7 +14,7 @@
 | [`dex/dex-1.1-adapters.md`](dex/dex-1.1-adapters.md) | Approve pattern, slippage, UniV2/V3/Sushi адаптеры, venue bind | DEX-1-1-* |
 | [`dex/dex-1.2-observability.md`](dex/dex-1.2-observability.md) | Reconciliation on-chain, fill tracking, mempool, outbox events, health, metrics, load test | DEX-1-2-* |
 | [`dex/dex-1.3-operations.md`](dex/dex-1.3-operations.md) | Paper testnet, live testnet, paper mainnet, live mainnet | DEX-1-3-* |
-| [`dex/dex-1.4-networks.md`](dex/dex-1.4-networks.md) | Base, BNB Chain | DEX-1-4-* |
+| [`dex/dex-1.4-networks.md`](dex/dex-1.4-networks.md) | Base, BNB Chain, Arbitrum | DEX-1-4-* |
 | [`dex/dex-2-multichain.md`](dex/dex-2-multichain.md) | Cross-chain ADR, bridge adapters (Across, Stargate, native), multi-leg plan, recon, e2e | DEX-2-* |
 | [`dex/dex-doc.md`](dex/dex-doc.md) | Frontend UI spec, runbooks (tx, bridge, rollback) | DEX-DOC-* |
 
@@ -81,12 +81,13 @@
 | `DEX-1-3-PAPER-MAINNET` | Paper mainnet | ✅ done |
 | `DEX-1-3-LIVE-MAINNET` | Mainnet live с лимитами | ✅ done |
 
-### DEX-1.4 — Расширение сети (2 шага)
+### DEX-1.4 — Расширение сети (3 шага)
 
 | step_id | Суть | Статус |
 |---------|------|--------|
 | `DEX-1-4-BASE` | Base chain | ✅ done |
-| `DEX-1-4-BNB` | BNB Chain (Pancake/Biswap) | 📋 planned |
+| `DEX-1-4-BNB` | BNB Chain (Pancake/Biswap) | ✅ done |
+| `DEX-1-4-ARBITRUM` | Arbitrum (UniV2/V3/Sushi + chainId fix) | ✅ done |
 
 ### DEX-2 — Multi-Chain (5 шагов)
 

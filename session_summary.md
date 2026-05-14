@@ -1,84 +1,88 @@
 # Session Summary — Arbibot 2
 
-**Дата:** 2026-05-14 (sessions 19-23 consolidated)
-**DEX план:** 31/35 done
+**Дата:** 2026-05-14 (sessions 24-25)
+**DEX план:** 33/35 done
 
 ---
 
-## Sessions 19-23 (2026-05-11 — 2026-05-12)
+## Sessions 24-25 (2026-05-14)
 
-### DEX-1-3-PAPER-MAINNET → done ✅ (session 19)
-- Drift metrics: `arb_paper_dex_drift_bps`, `arb_paper_dex_mainnet_trades_total`, `arb_paper_dex_mainnet_profit_usd`
-- Grafana dashboard `arbibot-dex-paper-mainnet.json`
-- Runbook `docs/dex-paper-mainnet-runbook.md`
-- Feature flag `PAPER_DEX_MAINNET_ENABLED`
-- 24/24 tests passed
-- DEX план: **28/35**
+### DEX-1-4-BNB → done ✅ (session 24)
+- PancakeSwap V2 adapter: testnet (97) + mainnet (56) — **16/16** tests
+- Biswap V2 adapter: mainnet only (56), BNB testnet rejection guard — **15/15** tests
+- EIP-55 checksum fix: TOKEN_IN/TOKEN_OUT → lowercase
+- Jest 30 + ts-jest 29 compatibility workaround
+- DEX план: **32/35**
 
-### DEX-1-3-LIVE-MAINNET → done ✅ (session 20)
-- Two-person rule для live DEX execution
-- Migration `035_dex_live_limits_seed.sql` — seed `dex.limits` + `dex.live`
-- Runbook `docs/dex-live-mainnet-runbook.md`
-- Env vars `DEX_LIVE_*`
-- DEX план: **29/35**
-
-### DEX-1-2-HEALTH + DEX-1-2-OBS → done ✅ (session 21)
-- `DexHealthService` + `DexHealthController` — composite health
-- `DexMetricsService` — Prometheus metrics registry
-- `GET /health/dex` endpoint
-- Grafana dashboard `arbibot-dex-overview.json`
-- BFF `/api/operator/health/dex` — proxy
-- `DexHealthBanner` — frontend компонент
-- DEX план: **30/35**
-
-### DEX-1-2-LOAD-TEST → done ✅ (session 22)
-- `tools/dex-load-test.mjs` — 3-phase load test
-- `docs/dex-load-test-report.md`
-- npm script `npm run dex:load-test`
-
-### DEX-1-4-BASE → done ✅ (session 23)
-- Base chainId fix: 84531 → 84532
-- Uniswap V3 как primary venue на Base
-- `tools/e2e-dex1-base-testnet.mjs`
-- `docs/dex-base-runbook.md`
-- Подготовка BNB: PancakeSwap/Biswap adapters, runbook, E2E script
-- DEX план: **31/35**
+### DEX-1-4-ARBITRUM → done ✅ (session 25)
+- Arbitrum Sepolia chainId fix: 421613 → 421614 в generic E2E
+- Dedicated E2E smoke `tools/e2e-dex1-arbitrum-testnet.mjs` — paper + testnet, adapter selection
+- Runbook `docs/dex-arbitrum-runbook.md` — 3 venue keys, L1 data fee notes
+- Address verification для Sepolia + Mainnet
+- DEX план: **33/35**
 
 ---
 
 ## Текущий статус
 
-**Build:** 21/21 ✅ | **Lint:** 0 errors ✅ | **DEX:** 31/35 done
-**Последний commit:** `a2d280f` — DEX-1-3-PAPER-TESTNET + LIVE-TESTNET (27/35)
+**Build:** 21/21 ✅ | **Lint:** 28/28 ✅ (0 errors) | **DEX:** 33/35 done
+
+### DEX-1.4 Network Expansion — все 3 сети завершены
+| Сеть | Адаптеры | Статус |
+|------|----------|--------|
+| Base | UniV2, UniV3 (primary), SushiSwap | ✅ done |
+| BNB Chain | PancakeSwap V2, Biswap V2 | ✅ done |
+| Arbitrum | UniV2, UniV3 (primary), SushiSwap | ✅ done |
+
+### Поддерживаемые DEX адаптеры
+- `uniswap-v2` — Arbitrum, Base, BNB
+- `uniswap-v3` — Arbitrum (primary), Base (primary)
+- `sushiswap` — Arbitrum, BNB (нет на Base)
+- `pancakeswap-v2` — BNB (testnet + mainnet)
+- `biswap-v2` — BNB (mainnet only)
+- `paper-dex` — симуляция для paper trading
 
 ## Следующие шаги
-1. `DEX-1-4-BNB` — PancakeSwap V2 + Biswap V2 (файлы уже созданы, нужен review + тесты)
-2. `DEX-2-0-ADR` — Cross-chain ADR
-3. `DEX-DOC-FE` — Frontend UI spec
+1. `DEX-DOC-FE` — Frontend UI spec для DEX
+2. `DEX-DOC-RUNBOOK-TX` — Failed tx runbook
+3. `DEX-DOC-RUNBOOK-BRIDGE` — Bridge runbook
+4. `DEX-DOC-ROLLBACK` — Rollback strategy
+5. `DEX-2-*` — Multi-chain (cross-chain bridges)
 
 ## Открытые вопросы
 - **~6 sessions незакоммичены** — огромный uncommitted changeset
 - CI зелёный на GitHub Actions не верифицирован
 - 3 pre-existing test issues в execution-orchestrator
 - Недостающие unit-тесты: PoolDiscoveryService, RpcProviderManager
-- Нет runbook для key rotation
 
-## Архив (до session 18)
+## Ключевые решения сессии
+1. **EIP-55 checksum fix**: ethers.js v6 требует lowercase адреса для `encodeFunctionData`, иначе ошибка `invalid address`
+2. **Biswap mainnet-only guard**: `isSupportedChain` возвращает false для testnet chainId
+3. **Arbitrum Sepolia chainId**: 421614 (не 421613 — устаревший deprecated ID)
+4. **Dedicated E2E per-chain**: каждый чейн имеет свой smoke test скрипт
 
-### DEX-1-2-HEALTH → done ✅ (session 14)
-- `DexHealthService`, `GET /health/dex`, Prometheus metrics
+## Архив (до session 23)
 
-### DEX-1-2-OBS → done ✅ (session 15)
-- Grafana dashboard, Prometheus metrics registry
+### DEX-1-4-BASE → done ✅ (session 23)
+- Base chainId fix: 84531 → 84532, UniV3 primary, BNB prep
 
-### DEX-1-2-LOAD-TEST → done ✅ (session 16)
+### DEX-1-2-LOAD-TEST → done ✅ (session 22)
 - `tools/dex-load-test.mjs`, load test report
 
-### DEX-1-3-PAPER-TESTNET → done ✅ (session 17)
-- `PaperDexAdapter`, venueKey `paper-dex`, 21/21 tests
+### DEX-1-2-HEALTH + DEX-1-2-OBS → done ✅ (session 21)
+- `DexHealthService`, `DexMetricsService`, Grafana dashboard, BFF, health banner
+
+### DEX-1-3-LIVE-MAINNET → done ✅ (session 20)
+- Two-person rule, migration 035, runbook
+
+### DEX-1-3-PAPER-MAINNET → done ✅ (session 19)
+- Drift metrics, Grafana dashboard, feature flag
 
 ### DEX-1-3-LIVE-TESTNET → done ✅ (session 18)
-- `tools/e2e-dex1-testnet.mjs`, runbook, npm script
+- E2E testnet script, runbook
+
+### DEX-1-3-PAPER-TESTNET → done ✅ (session 17)
+- `PaperDexAdapter`, 21/21 tests
 
 ### DEX-1-2-MEMPOOL → done ✅ (session 13)
 - MEV detection, mempool monitor, 15/15 tests
