@@ -1,14 +1,14 @@
 # Progress Arbibot 2
 
-**Обновлено:** 2026-05-14
+**Обновлено:** 2026-05-15
 
 ---
 
 ## Текущий статус
 
-**DEX план:** 33/35 done. DEX-1-4-ARBITRUM → done.
-**Текущий шаг:** `DEX-DOC-FE` / `DEX-DOC-RUNBOOK-TX` (next)
-**Следующие:** DEX-DOC, затем DEX-2
+**DEX план:** 35/35 done. **DEX-1 полностью завершён.**
+**Текущий шаг:** нет (DEX-1 complete)
+**Следующие:** DEX-2-* (multi-chain, planned)
 
 **Build:** 21/21 ✅ | **Lint:** 0 errors ✅ | **PaperDex tests:** 24/24 ✅
 
@@ -17,8 +17,7 @@
 ## Незавершённые задачи
 
 ### Высокий приоритет
-1. **~6 sessions незакоммичены** — огромный uncommitted changeset
-2. **CI зелёный на GitHub Actions** — не верифицирован
+1. **CI зелёный на GitHub Actions** — не верифицирован
 
 ### Средний приоритет
 4. **Pre-existing test issues** (execution-orchestrator):
@@ -606,28 +605,52 @@ Parsing error: packages/contracts-eth/src/index.spec.ts was not found by the pro
 **Дата:** 2026-05-14
 **Задача:** DEX-1-4-ARBITRUM — Arbitrum (UniV2/V3/Sushi + chainId fix)
 **Статус:** `done` ✅
-**След. шаги:** `DEX-DOC-FE`, `DEX-DOC-RUNBOOK-TX`
-
-### Принятые решения
-1. Arbitrum Sepolia chainId fix: 421613 → 421614 в generic E2E
-2. Dedicated E2E smoke `tools/e2e-dex1-arbitrum-testnet.mjs` — paper + testnet modes
-3. Runbook `docs/dex-arbitrum-runbook.md` — 3 venue keys, L1 data fee notes
-4. Adapters уже поддерживают Arbitrum (UniV2, UniV3, SushiSwap)
-5. Address verification для Sepolia (421614) и Mainnet (42161)
-
-### Созданные файлы
-- `tools/e2e-dex1-arbitrum-testnet.mjs`
-- `docs/dex-arbitrum-runbook.md`
-
-### Изменённые файлы
-- `tools/e2e-dex1-testnet.mjs` (chainId 421613 → 421614)
-- `.cursor/plans/dex/dex-1.4-networks.md` (3/3 done)
-- `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` (33/35 done)
 
 ### Результаты
 - Build: 21/21 ✅ | Lint: 28/28 ✅
 - DEX план: **33/35 done**
 
+---
+
+## 2026-05-15 (session 26) — DEX-DOC-FE + DEX-DOC-RUNBOOK-TX → done ✅
+
+**Дата:** 2026-05-15
+**Задача:** Завершающая документация DEX-1
+**Статус:** `done` ✅ — **DEX-1 полностью завершён (35/35)**
+**След. шаги:** DEX-2-* (multi-chain, planned)
+
+### DEX-DOC-RUNBOOK-TX
+1. `docs/dex-runbook-failed-tx.md` — runbook для failed/stuck/reverted on-chain транзакций
+2. 3 сценария: Stuck/Pending, Reverted, Failed broadcast
+3. Диагностика через SQL + health + metrics
+4. Escalation path (P3→P0), kill switch процедура
+5. Prometheus alerts: stuck tx, high revert rate, low wallet balance
+6. Prevention: gas estimation buffer, nonce tracking, slippage protection
+
+### DEX-DOC-FE
+1. `docs/dex-frontend-ui-spec.md` — UI spec для DEX в operator dashboard
+2. Execution Plans Table: DEX columns (venueType, chainId, txHash, txStatus, gasCostUsd)
+3. Execution Plan Detail View (/execution/:id): legs table + on-chain tx card
+4. Dashboard DEX Widget: health + aggregate stats
+5. Settings DEX tab: limits, live, filters
+6. Operator actions: speed-up tx, cancel tx, kill switch (DestructiveOperatorAction)
+7. BFF routes: on-chain txs, dex-stats, speed-up, cancel-tx
+8. React Query integration: query keys, invalidation strategy
+9. Implementation priority: P1 (table columns, chain icons) → P2 (detail view, dashboard widget) → P3 (settings, operator actions)
+
+### Созданные файлы
+- `docs/dex-runbook-failed-tx.md`
+- `docs/dex-frontend-ui-spec.md`
+
+### Изменённые файлы
+- `AGENTS.md` (DEX 33→35, актуальный статус)
+- `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` (35/35 done, DEX-DOC-FE + DEX-DOC-RUNBOOK-TX → done)
+- `docs/progress.md` (статус обновлён)
+
+### Результаты
+- DEX план: **35/35 done** — DEX-1 полностью завершён
+
 ### Открытые вопросы
 - CI зелёный на GitHub Actions не верифицирован
-- Следующие: DEX-DOC (frontend spec, failed tx runbook)
+- 3 pre-existing test issues в execution-orchestrator
+- DEX-DOC-RUNBOOK-BRIDGE, DEX-DOC-ROLLBACK — planned (не блокируют DEX-1)

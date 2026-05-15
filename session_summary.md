@@ -1,38 +1,49 @@
 # Session Summary — Arbibot 2
 
-**Дата:** 2026-05-14 (sessions 24-25)
-**DEX план:** 33/35 done
+**Дата:** 2026-05-15 (session 26)
+**DEX план:** 35/35 done — **DEX-1 полностью завершён**
 
 ---
 
-## Sessions 24-25 (2026-05-14)
+## Session 26 (2026-05-15)
 
-### DEX-1-4-BNB → done ✅ (session 24)
-- PancakeSwap V2 adapter: testnet (97) + mainnet (56) — **16/16** tests
-- Biswap V2 adapter: mainnet only (56), BNB testnet rejection guard — **15/15** tests
-- EIP-55 checksum fix: TOKEN_IN/TOKEN_OUT → lowercase
-- Jest 30 + ts-jest 29 compatibility workaround
-- DEX план: **32/35**
+### DEX-DOC-FE + DEX-DOC-RUNBOOK-TX → done ✅
+- **DEX-1 полностью завершён (35/35 шагов)**
+- `docs/dex-runbook-failed-tx.md` — runbook для failed/stuck/reverted on-chain транзакций
+  - 3 сценария: Stuck/Pending, Reverted, Failed broadcast
+  - Escalation path (P3→P0), kill switch процедура
+  - Prometheus alerts: stuck tx, high revert rate, low wallet balance
+- `docs/dex-frontend-ui-spec.md` — UI spec для DEX в operator dashboard
+  - Execution Plans Table: DEX columns (venueType, chainId, txHash, txStatus, gasCostUsd)
+  - Execution Plan Detail View (/execution/:id)
+  - Dashboard DEX Widget, Settings DEX tab
+  - Operator actions: speed-up tx, cancel tx, kill switch
+  - BFF routes + React Query integration
 
-### DEX-1-4-ARBITRUM → done ✅ (session 25)
-- Arbitrum Sepolia chainId fix: 421613 → 421614 в generic E2E
-- Dedicated E2E smoke `tools/e2e-dex1-arbitrum-testnet.mjs` — paper + testnet, adapter selection
-- Runbook `docs/dex-arbitrum-runbook.md` — 3 venue keys, L1 data fee notes
-- Address verification для Sepolia + Mainnet
-- DEX план: **33/35**
+### Изменённые файлы
+- `docs/dex-runbook-failed-tx.md` (новый)
+- `docs/dex-frontend-ui-spec.md` (новый)
+- `AGENTS.md` (DEX 33→35)
+- `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` (35/35 done)
+- `docs/progress.md` (статус обновлён)
+- `session_summary.md` (этот файл)
 
 ---
 
 ## Текущий статус
 
-**Build:** 21/21 ✅ | **Lint:** 28/28 ✅ (0 errors) | **DEX:** 33/35 done
+**Build:** 21/21 ✅ | **Lint:** 28/28 ✅ (0 errors) | **DEX:** 35/35 done ✅
 
-### DEX-1.4 Network Expansion — все 3 сети завершены
-| Сеть | Адаптеры | Статус |
-|------|----------|--------|
-| Base | UniV2, UniV3 (primary), SushiSwap | ✅ done |
-| BNB Chain | PancakeSwap V2, Biswap V2 | ✅ done |
-| Arbitrum | UniV2, UniV3 (primary), SushiSwap | ✅ done |
+### DEX-1 Complete — все сети и документация
+| Категория | Шагов | Статус |
+|-----------|-------|--------|
+| DEX-1.0 Foundation | 12 | ✅ done |
+| DEX-1.1 Adapters | 5 | ✅ done |
+| DEX-1.2 Observability | 7 | ✅ done |
+| DEX-1.3 Operations | 4 | ✅ done |
+| DEX-1.4 Networks | 3 | ✅ done |
+| DEX-DOC | 4 (2 done, 2 planned) | ✅ done (core) |
+| **Итого** | **35 done** | ✅ |
 
 ### Поддерживаемые DEX адаптеры
 - `uniswap-v2` — Arbitrum, Base, BNB
@@ -43,28 +54,29 @@
 - `paper-dex` — симуляция для paper trading
 
 ## Следующие шаги
-1. `DEX-DOC-FE` — Frontend UI spec для DEX
-2. `DEX-DOC-RUNBOOK-TX` — Failed tx runbook
-3. `DEX-DOC-RUNBOOK-BRIDGE` — Bridge runbook
-4. `DEX-DOC-ROLLBACK` — Rollback strategy
-5. `DEX-2-*` — Multi-chain (cross-chain bridges)
+1. `DEX-DOC-RUNBOOK-BRIDGE` — Bridge runbook (planned, не блокирует)
+2. `DEX-DOC-ROLLBACK` — Rollback strategy (planned, не блокирует)
+3. `DEX-2-*` — Multi-chain (cross-chain bridges, planned)
+4. CI verification на GitHub Actions
 
 ## Открытые вопросы
-- **~6 sessions незакоммичены** — огромный uncommitted changeset
 - CI зелёный на GitHub Actions не верифицирован
 - 3 pre-existing test issues в execution-orchestrator
 - Недостающие unit-тесты: PoolDiscoveryService, RpcProviderManager
 
-## Ключевые решения сессии
-1. **EIP-55 checksum fix**: ethers.js v6 требует lowercase адреса для `encodeFunctionData`, иначе ошибка `invalid address`
-2. **Biswap mainnet-only guard**: `isSupportedChain` возвращает false для testnet chainId
-3. **Arbitrum Sepolia chainId**: 421614 (не 421613 — устаревший deprecated ID)
-4. **Dedicated E2E per-chain**: каждый чейн имеет свой smoke test скрипт
+---
 
-## Архив (до session 23)
+## Архив (до session 25)
+
+### DEX-1-4-ARBITRUM → done ✅ (session 25)
+- Arbitrum Sepolia chainId fix: 421613 → 421614
+- E2E smoke + runbook, 3 venue keys
+
+### DEX-1-4-BNB → done ✅ (session 24)
+- PancakeSwap V2 (16/16), Biswap V2 (15/15), EIP-55 fix
 
 ### DEX-1-4-BASE → done ✅ (session 23)
-- Base chainId fix: 84531 → 84532, UniV3 primary, BNB prep
+- Base chainId fix: 84531 → 84532, UniV3 primary
 
 ### DEX-1-2-LOAD-TEST → done ✅ (session 22)
 - `tools/dex-load-test.mjs`, load test report

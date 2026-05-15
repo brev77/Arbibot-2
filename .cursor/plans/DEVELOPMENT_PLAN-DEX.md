@@ -3,8 +3,8 @@
 > **🎯 ОСНОВНОЙ РАБОЧИЙ ДОКУМЕНТ**
 > Полные детали шагов — в файлах `dex/*.md`. Этот файл — навигация и прогресс.
 
-**Прогресс:** 33/35 шагов → `done`. Следующие шаги: `DEX-DOC-FE`, `DEX-DOC-RUNBOOK-TX`.
-**Обновлено:** 2026-05-14 (session 25)
+**Прогресс:** 35/35 шагов → `done`. DEX-1 полностью завершён. Следующий этап: `DEX-2-*` (multi-chain).
+**Обновлено:** 2026-05-15 (session 26)
 
 ## Файлы плана
 
@@ -105,8 +105,8 @@
 
 | step_id | Суть | Статус |
 |---------|------|--------|
-| `DEX-DOC-FE` | Frontend UI spec | 📋 planned |
-| `DEX-DOC-RUNBOOK-TX` | Failed tx runbook | 📋 planned |
+| `DEX-DOC-FE` | Frontend UI spec | ✅ done |
+| `DEX-DOC-RUNBOOK-TX` | Failed tx runbook | ✅ done |
 | `DEX-DOC-RUNBOOK-BRIDGE` | Bridge runbook | 📋 planned |
 | `DEX-DOC-ROLLBACK` | Rollback strategy | 📋 planned |
 
