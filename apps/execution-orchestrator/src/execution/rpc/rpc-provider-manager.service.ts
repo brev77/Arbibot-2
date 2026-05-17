@@ -17,6 +17,8 @@ export class RpcProviderManager implements OnModuleInit, OnModuleDestroy {
   private healthStatus = new Map<number, { healthy: boolean; latency: number; error?: string }>();
   private latencyMetrics = new Map<number, Histogram<string>>();
   private failureMetrics = new Map<number, Counter<string>>();
+  private sharedLatencyHistogram?: Histogram<string>;
+  private sharedFailureCounter?: Counter<string>;
 
   // Configuration
   private readonly LATENCY_THRESHOLD_MS = 100; // SLO: p95 < 100ms
@@ -36,8 +38,10 @@ export class RpcProviderManager implements OnModuleInit, OnModuleDestroy {
   onModuleDestroy() {
     if (this.healthCheckTimer) {
       clearInterval(this.healthCheckTimer);
+      this.healthCheckTimer = undefined;
     }
     this.providers.clear();
+    this.healthStatus.clear();
   }
 
   /**
@@ -138,6 +142,11 @@ export class RpcProviderManager implements OnModuleInit, OnModuleDestroy {
       void this.runHealthChecks();
     }, this.HEALTH_CHECK_INTERVAL_MS);
 
+    // Don't keep process alive for health checks
+    if (this.healthCheckTimer.unref) {
+      this.healthCheckTimer.unref();
+    }
+
     // Run initial health check
     void this.runHealthChecks();
   }
@@ -193,33 +202,44 @@ export class RpcProviderManager implements OnModuleInit, OnModuleDestroy {
    * Initialize metrics for a specific chain
    */
   private initializeChainMetrics(chainId: number) {
-    const registry = getArbibotMetricsRegistry();
-
-    // Latency histogram
-    const latencyHistogram = new Histogram({
-      name: 'arb_rpc_latency_seconds',
-      help: 'RPC call latency in seconds',
-      labelNames: ['chain_id'],
-      registers: [registry],
-      buckets: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5],
-    });
-    this.latencyMetrics.set(chainId, latencyHistogram);
-
-    // Failure counter
-    const failureCounter = new Counter({
-      name: 'arb_rpc_failures_total',
-      help: 'Total RPC call failures',
-      labelNames: ['chain_id'],
-      registers: [registry],
-    });
-    this.failureMetrics.set(chainId, failureCounter);
+    // Use shared metrics with chain_id label differentiation
+    if (this.sharedLatencyHistogram) {
+      this.latencyMetrics.set(chainId, this.sharedLatencyHistogram);
+    }
+    if (this.sharedFailureCounter) {
+      this.failureMetrics.set(chainId, this.sharedFailureCounter);
+    }
   }
 
   /**
-   * Initialize all metrics
+   * Initialize shared metrics (once)
    */
   private initializeMetrics() {
-    // Metrics are initialized per chain in initializeChainMetrics
+    const registry = getArbibotMetricsRegistry();
+
+    try {
+      this.sharedLatencyHistogram = new Histogram({
+        name: 'arb_rpc_latency_seconds',
+        help: 'RPC call latency in seconds',
+        labelNames: ['chain_id'],
+        registers: [registry],
+        buckets: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5],
+      });
+    } catch {
+      // Metric already registered (can happen in tests with shared registry)
+    }
+
+    try {
+      this.sharedFailureCounter = new Counter({
+        name: 'arb_rpc_failures_total',
+        help: 'Total RPC call failures',
+        labelNames: ['chain_id'],
+        registers: [registry],
+      });
+    } catch {
+      // Metric already registered
+    }
+
     this.logger.debug('Metrics initialized');
   }
 }

@@ -284,33 +284,49 @@ export class PoolDiscoveryService implements OnModuleInit, OnModuleDestroy {
   private initializeMetrics(): void {
     const registry = getArbibotMetricsRegistry();
 
-    this.discoveredPoolsGauge = new Gauge({
-      name: 'arb_dex_pools_discovered',
-      help: 'Number of discovered DEX pools in cache',
-      labelNames: ['chain_id'],
-      registers: [registry],
-    });
+    try {
+      this.discoveredPoolsGauge = new Gauge({
+        name: 'arb_dex_pools_discovered',
+        help: 'Number of discovered DEX pools in cache',
+        labelNames: ['chain_id'],
+        registers: [registry],
+      });
+    } catch {
+      // Metric already registered (shared registry in tests)
+    }
 
-    this.discoveryLatencyHistogram = new Histogram({
-      name: 'arb_dex_pool_discovery_latency_seconds',
-      help: 'Pool discovery latency in seconds',
-      labelNames: ['chain_id'],
-      buckets: [0.05, 0.1, 0.25, 0.5, 1, 2, 5],
-      registers: [registry],
-    });
+    try {
+      this.discoveryLatencyHistogram = new Histogram({
+        name: 'arb_dex_pool_discovery_latency_seconds',
+        help: 'Pool discovery latency in seconds',
+        labelNames: ['chain_id'],
+        buckets: [0.05, 0.1, 0.25, 0.5, 1, 2, 5],
+        registers: [registry],
+      });
+    } catch {
+      // Metric already registered
+    }
 
-    this.cacheHitCounter = new Counter({
-      name: 'arb_dex_pool_cache_hits_total',
-      help: 'Pool cache hit count',
-      labelNames: ['chain_id'],
-      registers: [registry],
-    });
+    try {
+      this.cacheHitCounter = new Counter({
+        name: 'arb_dex_pool_cache_hits_total',
+        help: 'Pool cache hit count',
+        labelNames: ['chain_id'],
+        registers: [registry],
+      });
+    } catch {
+      // Metric already registered
+    }
 
-    this.cacheMissCounter = new Counter({
-      name: 'arb_dex_pool_cache_misses_total',
-      help: 'Pool cache miss count',
-      labelNames: ['chain_id'],
-      registers: [registry],
-    });
+    try {
+      this.cacheMissCounter = new Counter({
+        name: 'arb_dex_pool_cache_misses_total',
+        help: 'Pool cache miss count',
+        labelNames: ['chain_id'],
+        registers: [registry],
+      });
+    } catch {
+      // Metric already registered
+    }
   }
 }
