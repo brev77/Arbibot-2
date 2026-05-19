@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { KeyVaultModule } from '@arbibot/nest-platform';
-import { OnChainTransaction, WalletState } from '@arbibot/persistence';
+import { BridgeTransferEntity, OnChainTransaction, WalletState } from '@arbibot/persistence';
 
 import { WalletManagerService } from './wallet-manager.service';
 import { DexFillTrackerService } from './dex-fill-tracker.service';
@@ -24,11 +24,13 @@ import { DexMempoolMonitorWorker } from './workers/dex-mempool-monitor.worker';
 import { DexHealthService } from './dex-health.service';
 import { DexHealthController } from './dex-health.controller';
 import { DexMetricsService } from './dex-metrics.service';
+import { AcrossBridgeAdapter } from './bridge/across-bridge.adapter';
+import { BridgeTransferService } from './bridge/bridge-transfer.service';
 
 @Module({
   imports: [
     KeyVaultModule,
-    TypeOrmModule.forFeature([WalletState, OnChainTransaction]),
+    TypeOrmModule.forFeature([WalletState, OnChainTransaction, BridgeTransferEntity]),
   ],
   controllers: [RpcHealthController, DexHealthController],
   providers: [
@@ -50,6 +52,8 @@ import { DexMetricsService } from './dex-metrics.service';
     DexMempoolMonitorWorker,
     DexHealthService,
     DexMetricsService,
+    AcrossBridgeAdapter,
+    BridgeTransferService,
   ],
   exports: [
     WalletManagerService,
@@ -69,6 +73,8 @@ import { DexMetricsService } from './dex-metrics.service';
     DexMempoolMonitorWorker,
     DexHealthService,
     DexMetricsService,
+    AcrossBridgeAdapter,
+    BridgeTransferService,
   ],
 })
 export class ExecutionModule {}

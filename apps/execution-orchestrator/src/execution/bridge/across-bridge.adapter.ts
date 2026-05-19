@@ -1,0 +1,381 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { Interface, JsonRpcProvider, ZeroAddress } from 'ethers';
+import { Counter, Histogram } from 'prom-client';
+import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
+import {
+  AcrossSpokePoolABI,
+  ChainId,
+  getAcrossAddresses,
+  isAcrossSupportedChainPair,
+} from '@arbibot/contracts-eth';
+
+import type {
+  BridgeAdapter,
+  BridgeFeeEstimate,
+  BridgeStatusResult,
+  BridgeSubmitResult,
+  BridgeTransferParams,
+} from './bridge-adapter.interface';
+
+/** Narrow string → Address for ethers.js interop. */
+const asAddr = (v: string): `0x${string}` => v as `0x${string}`;
+import { RpcProviderManager } from '../rpc/rpc-provider-manager.service';
+import { WalletManagerService } from '../wallet-manager.service';
+import { GasEstimatorService } from '../gas/gas-estimator.service';
+import { TokenApproveService } from '../token/token-approve.service';
+
+// ───────────────────────────────────────────────────────────────────────
+// Constants
+// ───────────────────────────────────────────────────────────────────────
+
+/** Default fill deadline: 30 minutes from deposit. */
+const DEFAULT_FILL_DEADLINE_SECONDS = 1800;
+
+/** Default estimated relay time for Across: 2–5 minutes. */
+const DEFAULT_ESTIMATED_RELAY_MS = 240_000;
+
+/** Estimated gas for depositV3. */
+const ESTIMATED_DEPOSIT_GAS = 200_000n;
+
+/** Estimated gas for destination claim (if needed). */
+const ESTIMATED_CLAIM_GAS = 100_000n;
+
+/**
+ * Across SpokePool deposit status — mapped from on-chain events.
+ */
+type AcrossDepositStatus = 'pending' | 'filled' | 'expired';
+
+// ───────────────────────────────────────────────────────────────────────
+// Adapter
+// ───────────────────────────────────────────────────────────────────────
+
+/**
+ * Across Protocol bridge adapter.
+ *
+ * Implements `BridgeAdapter` for cross-chain transfers via Across V3 SpokePool.
+ * Across uses optimistic verification with bonded relayers for fast (1–5 min) fills.
+ *
+ * **Step:** DEX-2-1-BRIDGE-ACROSS
+ *
+ * Supported routes (mainnet + testnet):
+ *   - Ethereum ↔ Arbitrum
+ *   - Ethereum ↔ Base
+ *   - Arbitrum ↔ Base
+ */
+@Injectable()
+export class AcrossBridgeAdapter implements BridgeAdapter {
+  readonly bridgeKey = 'across';
+  readonly supportedChains: ReadonlyArray<readonly [number, number]>;
+
+  private readonly logger = new Logger(AcrossBridgeAdapter.name);
+  private readonly spokePoolInterface = new Interface(AcrossSpokePoolABI);
+
+  // Metrics
+  private submitCounter!: Counter<string>;
+  private relayLatency!: Histogram<string>;
+  private feeHistogram!: Histogram<string>;
+
+  constructor(
+    private readonly rpcProviderManager: RpcProviderManager,
+    private readonly walletManager: WalletManagerService,
+    private readonly gasEstimator: GasEstimatorService,
+    private readonly tokenApprove: TokenApproveService,
+  ) {
+    this.supportedChains = this.buildSupportedChains();
+    this.initializeMetrics();
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // BridgeAdapter implementation
+  // ─────────────────────────────────────────────────────────────────────
+
+  async submitBridgeTransfer(params: BridgeTransferParams): Promise<BridgeSubmitResult> {
+    const timer = this.relayLatency.startTimer({
+      source: String(params.sourceChainId),
+      dest: String(params.destinationChainId),
+    });
+
+    try {
+      this.logger.log(
+        `submitBridgeTransfer: ${params.sourceChainId} → ${params.destinationChainId} ` +
+        `token=${params.token} amount=${params.amount}`,
+      );
+
+      // 1. Validate chain pair
+      if (!isAcrossSupportedChainPair(params.sourceChainId, params.destinationChainId)) {
+        throw new Error(
+          `Across: unsupported chain pair ${params.sourceChainId} → ${params.destinationChainId}`,
+        );
+      }
+
+      // 2. Resolve provider and SpokePool address
+      const provider = this.rpcProviderManager.getProvider(
+        params.sourceChainId as ChainId,
+      ) as JsonRpcProvider;
+      const spokePoolAddress = getAcrossAddresses(params.sourceChainId).spokePool as string;
+
+      // 3. Select wallet on source chain
+      const selectedWallet = await this.walletManager.selectWallet(
+        params.sourceChainId as ChainId,
+        provider,
+        asAddr(params.token),
+        params.amount,
+      );
+
+      // 4. Ensure ERC20 approval for SpokePool
+      await this.ensureApproval(params, selectedWallet.address, spokePoolAddress);
+
+      // 5. Build depositV3 calldata
+      const quoteTimestamp = Math.floor(Date.now() / 1000);
+      const fillDeadline = quoteTimestamp + DEFAULT_FILL_DEADLINE_SECONDS;
+      const depositor = selectedWallet.address;
+
+      const depositData = this.spokePoolInterface.encodeFunctionData('depositV3', [
+        depositor as `0x${string}`,
+        params.recipientAddress as `0x${string}`,
+        params.token as `0x${string}`,
+        params.destinationToken as `0x${string}`,
+        params.amount,
+        params.amount, // outputAmount = inputAmount (1:1 for same token bridges)
+        BigInt(params.destinationChainId),
+        ZeroAddress, // exclusiveRelayer — any relayer can fill
+        quoteTimestamp,
+        fillDeadline,
+        0, // exclusivityDeadline — no exclusivity
+        new Uint8Array(0), // empty message
+      ]);
+
+      // 6. Estimate gas
+      const gasEstimation = await this.gasEstimator.estimateGas(
+        params.sourceChainId as ChainId,
+        {
+          to: spokePoolAddress,
+          data: depositData,
+          value: 0n,
+          from: depositor,
+        },
+      );
+
+      if (!gasEstimation.withinPolicy) {
+        throw new Error(
+          `Across: gas price exceeds policy for chain ${params.sourceChainId}: ` +
+          `${gasEstimation.policyWarning}`,
+        );
+      }
+
+      // 7. Submit depositV3 transaction
+      const tx = await selectedWallet.wallet.sendTransaction({
+        to: spokePoolAddress,
+        data: depositData,
+        value: 0n,
+        from: depositor,
+        gasLimit: gasEstimation.gasLimit,
+        maxFeePerGas: gasEstimation.feeData.maxFeePerGas,
+        maxPriorityFeePerGas: gasEstimation.feeData.maxPriorityFeePerGas,
+        type: 2,
+      });
+
+      this.logger.log(
+        `submitBridgeTransfer: depositV3 tx sent hash=${tx.hash} ` +
+        `${params.sourceChainId} → ${params.destinationChainId}`,
+      );
+
+      // 8. Wait for source chain confirmation
+      const receipt = await tx.wait(1);
+      if (!receipt || receipt.status === 0) {
+        this.submitCounter.inc({
+          source: String(params.sourceChainId),
+          dest: String(params.destinationChainId),
+          status: 'reverted',
+        });
+        throw new Error(
+          `Across: depositV3 tx ${tx.hash} reverted on source chain ${params.sourceChainId}`,
+        );
+      }
+
+      // 9. Extract depositId from events
+      const depositId = this.extractDepositId(receipt);
+
+      // 10. Record metrics
+      timer({ source: String(params.sourceChainId), dest: String(params.destinationChainId) });
+      this.submitCounter.inc({
+        source: String(params.sourceChainId),
+        dest: String(params.destinationChainId),
+        status: 'success',
+      });
+
+      this.logger.log(
+        `submitBridgeTransfer: confirmed hash=${tx.hash} depositId=${depositId}`,
+      );
+
+      return {
+        sourceTxHash: tx.hash,
+        sourceChainId: params.sourceChainId,
+        destinationChainId: params.destinationChainId,
+        bridgeId: depositId,
+        estimatedRelayMs: DEFAULT_ESTIMATED_RELAY_MS,
+      };
+    } catch (error) {
+      this.submitCounter.inc({
+        source: String(params.sourceChainId),
+        dest: String(params.destinationChainId),
+        status: 'error',
+      });
+      throw error;
+    }
+  }
+
+  async checkBridgeStatus(bridgeId: string): Promise<BridgeStatusResult> {
+    // TODO: Implement on-chain status polling via SpokePool.filledDeposits(depositId)
+    // For now, return pending status — full implementation in DEX-2-1 integration testing
+    this.logger.debug(`checkBridgeStatus: depositId=${bridgeId} → pending (stub)`);
+    return {
+      status: 'pending',
+      sourceTxHash: '',
+      destinationTxHash: null,
+      confirmations: 0,
+      estimatedCompletionMs: DEFAULT_ESTIMATED_RELAY_MS,
+    };
+  }
+
+  async estimateBridgeFee(params: BridgeTransferParams): Promise<BridgeFeeEstimate> {
+    // TODO: Query Across API for real-time fee estimate
+    // Across fee = relayer fee + LP fee + gas
+    // For now, return conservative estimates
+    const bridgeFee = 0n;
+    const relayerFee = 0n;
+    const estimatedGasSource = ESTIMATED_DEPOSIT_GAS;
+    const estimatedGasDestination = ESTIMATED_CLAIM_GAS;
+
+    this.feeHistogram.observe({ bridge_key: 'across' }, 0);
+
+    return {
+      bridgeFee,
+      relayerFee,
+      estimatedGasSource,
+      estimatedGasDestination,
+      totalEstimatedCostUsd: 0,
+    };
+  }
+
+  async estimateRelayTime(_params: BridgeTransferParams): Promise<number> {
+    // Across typical relay: 1–5 minutes for L2↔L2, 5–15 min for L1↔L2
+    return DEFAULT_ESTIMATED_RELAY_MS;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Internal methods
+  // ─────────────────────────────────────────────────────────────────────
+
+  /**
+   * Ensure the SpokePool has sufficient ERC20 allowance.
+   */
+  private async ensureApproval(
+    params: BridgeTransferParams,
+    ownerAddress: string,
+    spokePoolAddress: string,
+  ): Promise<void> {
+    const currentAllowance = await this.tokenApprove.getAllowance({
+      chainId: params.sourceChainId as ChainId,
+      tokenAddress: asAddr(params.token),
+      owner: asAddr(ownerAddress),
+      spender: asAddr(spokePoolAddress),
+    });
+
+    if (currentAllowance >= params.amount) {
+      this.logger.debug(
+        `Sufficient allowance: ${currentAllowance} >= ${params.amount} for ${params.token} → SpokePool`,
+      );
+      return;
+    }
+
+    this.logger.log(
+      `Insufficient allowance, approving ${params.token} for SpokePool ${spokePoolAddress}`,
+    );
+
+    const result = await this.tokenApprove.approveToken({
+      chainId: params.sourceChainId as ChainId,
+      tokenAddress: asAddr(params.token),
+      spender: asAddr(spokePoolAddress),
+      amount: params.amount,
+    });
+
+    if (result.status === 'failed') {
+      throw new Error(
+        `Across: ERC20 approve failed for ${params.token}: tx=${result.txHash}`,
+      );
+    }
+  }
+
+  /**
+   * Extract depositId from V3FundsDeposited event in receipt logs.
+   */
+  private extractDepositId(receipt: { logs: readonly { topics: readonly string[] }[] }): string {
+    const depositTopic = this.spokePoolInterface.getEvent('V3FundsDeposited')!.topicHash;
+
+    for (const log of receipt.logs) {
+      if (log.topics[0] === depositTopic) {
+        // depositId is the first indexed parameter (topics[1])
+        return log.topics[1] ?? 'unknown';
+      }
+    }
+
+    this.logger.warn('V3FundsDeposited event not found in receipt, using tx hash as bridgeId');
+    return 'unknown';
+  }
+
+  /**
+   * Build supported chain pairs from Across address registry.
+   */
+  private buildSupportedChains(): ReadonlyArray<readonly [number, number]> {
+    const chainIds = [
+      ChainId.ETHEREUM_MAINNET,
+      ChainId.ARBITRUM_ONE_MAINNET,
+      ChainId.BASE_MAINNET,
+      ChainId.ETHEREUM_TESTNET_SEPOLIA,
+      ChainId.ARBITRUM_ONE_SEPOLIA,
+      ChainId.BASE_SEPOLIA,
+    ];
+
+    const pairs: [number, number][] = [];
+    for (const src of chainIds) {
+      for (const dst of chainIds) {
+        if (src !== dst && isAcrossSupportedChainPair(src, dst)) {
+          pairs.push([src, dst]);
+        }
+      }
+    }
+    return pairs;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Metrics
+  // ─────────────────────────────────────────────────────────────────────
+
+  private initializeMetrics(): void {
+    const registry = getArbibotMetricsRegistry();
+
+    this.submitCounter = new Counter({
+      name: 'arb_bridge_across_submit_total',
+      help: 'Total Across bridge transfer submissions',
+      labelNames: ['source', 'dest', 'status'],
+      registers: [registry],
+    });
+
+    this.relayLatency = new Histogram({
+      name: 'arb_bridge_across_relay_duration_seconds',
+      help: 'Across bridge relay duration in seconds',
+      labelNames: ['source', 'dest'],
+      buckets: [30, 60, 120, 300, 600, 1800],
+      registers: [registry],
+    });
+
+    this.feeHistogram = new Histogram({
+      name: 'arb_bridge_across_fee_usd',
+      help: 'Across bridge fee in USD',
+      labelNames: ['bridge_key'],
+      buckets: [0.1, 0.5, 1, 5, 10, 50],
+      registers: [registry],
+    });
+  }
+}

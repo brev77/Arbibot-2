@@ -3,8 +3,8 @@
 > **🎯 ОСНОВНОЙ РАБОЧИЙ ДОКУМЕНТ**
 > Полные детали шагов — в файлах `dex/*.md`. Этот файл — навигация и прогресс.
 
-**Прогресс:** 35/35 шагов → `done`. DEX-1 полностью завершён. Следующий этап: `DEX-2-*` (multi-chain).
-**Обновлено:** 2026-05-15 (session 26)
+**Прогресс:** 35/35 + DEX-2-0-ADR → `done`. DEX-1 завершён. DEX-2-1-BRIDGE-ACROSS → `in_progress`.
+**Обновлено:** 2026-05-19 (session 31)
 
 ## Файлы плана
 
@@ -93,8 +93,8 @@
 
 | step_id | Суть | Статус |
 |---------|------|--------|
-| `DEX-2-0-ADR` | Cross-chain ADR | 📋 planned |
-| `DEX-2-1-BRIDGE-ACROSS` | Across adapter | 📋 planned |
+| `DEX-2-0-ADR` | Cross-chain ADR | ✅ done |
+| `DEX-2-1-BRIDGE-ACROSS` | Across adapter | 🔄 in_progress |
 | `DEX-2-1-BRIDGE-STG` | Stargate adapter | 📋 planned |
 | `DEX-2-1-BRIDGE-NATIVE` | Native L2 bridges | 📋 planned |
 | `DEX-2-2-PLAN` | Multi-leg plan builder | 📋 planned |

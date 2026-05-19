@@ -4,6 +4,7 @@ import { EVENT_NAMES } from '@arbibot/contracts';
 import {
   ExecutionLegEntity,
   ExecutionPlanEntity,
+  OnChainTransaction,
   OutboxEventEntity,
 } from '@arbibot/persistence';
 import type { DataSource, EntityManager, Repository } from 'typeorm';
@@ -129,6 +130,11 @@ describe('PlansService', () => {
       appendEntry: jest.fn(),
     } as unknown as IAuditClient;
 
+    const onChainTxRepo = {
+      find: jest.fn().mockResolvedValue([]),
+      findOne: jest.fn().mockResolvedValue(null),
+    } as unknown as Repository<OnChainTransaction>;
+
     const capitalHttp = {
       getReservation: capitalGetReservation,
     } as unknown as CapitalHttpClient;
@@ -139,6 +145,7 @@ describe('PlansService', () => {
     service = new PlansService(
       dataSource,
       plansRepo,
+      onChainTxRepo,
       audit,
       capitalHttp,
       riskHttp,
@@ -153,6 +160,7 @@ describe('PlansService', () => {
       capitalReservationId: null,
       riskDecisionId: '22222222-2222-4222-8222-222222222222',
       routeKey: null,
+      playbookConfig: null,
       entityVersion: 1,
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
       updatedAt: new Date('2026-01-01T00:00:00.000Z'),

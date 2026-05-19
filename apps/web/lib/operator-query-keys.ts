@@ -22,4 +22,12 @@ export const operatorKeys = {
   openclawSafeMode: ['operator', 'openclaw', 'safe-mode'] as const,
   openclawSessions: ['operator', 'openclaw', 'sessions'] as const,
   openclawPositions: ['operator', 'openclaw', 'positions'] as const,
+
+  /* DEX-related keys */
+  executionPlanDetail: (id: string) => ['operator', 'execution', 'plans', id] as const,
+  executionPlanLegs: (planId: string) => ['operator', 'execution', 'plans', planId, 'legs'] as const,
+  executionPlanOnChainTxs: (planId: string) => ['operator', 'execution', 'plans', planId, 'on-chain-txs'] as const,
+  dexDashboardStats: () => ['operator', 'dashboard', 'dex-stats'] as const,
+  dexLimits: () => ['operator', 'settings', 'dex', 'limits'] as const,
+  dexLive: () => ['operator', 'settings', 'dex', 'live'] as const,
 };

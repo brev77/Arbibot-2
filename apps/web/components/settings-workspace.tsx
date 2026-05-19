@@ -31,6 +31,8 @@ import {
 } from '@/components/settings-policy-editor-panels';
 import { DestructiveOperatorAction } from './destructive-operator-action';
 import { DexFiltersPanel } from './dex-filters/dex-filters-panel';
+import { DexLimitsPanel } from './dex-config/dex-limits-panel';
+import { DexLivePanel } from './dex-config/dex-live-panel';
 
 interface SettingsWorkspaceProps {
   environment?: string;
@@ -1123,13 +1125,33 @@ export function SettingsWorkspace({
       )}
 
       {activeTab === 'dex' && (
-        <section className="space-y-4">
-          <h2 className="text-xl font-semibold">DEX filters</h2>
-          <p className="text-sm text-slate-500 html.theme-light:text-slate-600">
-            Configure DEX opportunity filters to control which arbitrage opportunities are processed.
-            See <code className="text-xs">docs/dex-filters-config-keys.md</code>.
-          </p>
-          <DexFiltersPanel environment={environment} tenantId={tenantId} />
+        <section className="space-y-8">
+          <div className="space-y-4">
+            <h2 className="text-xl font-semibold">DEX filters</h2>
+            <p className="text-sm text-slate-500 html.theme-light:text-slate-600">
+              Configure DEX opportunity filters to control which arbitrage opportunities are processed.
+              See <code className="text-xs">docs/dex-filters-config-keys.md</code>.
+            </p>
+            <DexFiltersPanel environment={environment} tenantId={tenantId} />
+          </div>
+
+          <div className="border-t border-slate-700 pt-6 html.theme-light:border-slate-200">
+            <h2 className="text-xl font-semibold">DEX limits</h2>
+            <p className="text-sm text-slate-500 html.theme-light:text-slate-600 mb-4">
+              Capital limits, gas ceilings, per-chain toggles, and emergency kill switch for DEX trading.
+              Config key: <code className="text-xs">dex.limits</code>.
+            </p>
+            <DexLimitsPanel environment={environment} tenantId={tenantId} />
+          </div>
+
+          <div className="border-t border-slate-700 pt-6 html.theme-light:border-slate-200">
+            <h2 className="text-xl font-semibold">DEX live trading</h2>
+            <p className="text-sm text-slate-500 html.theme-light:text-slate-600 mb-4">
+              Live mode toggle, dry-run, chain selection, auto-hedge/unwind.
+              Config key: <code className="text-xs">dex.live</code>.
+            </p>
+            <DexLivePanel environment={environment} tenantId={tenantId} />
+          </div>
         </section>
       )}
 

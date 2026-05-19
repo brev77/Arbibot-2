@@ -1,7 +1,11 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { ExecutionLegEntity, ExecutionPlanEntity } from '@arbibot/persistence';
+import {
+  ExecutionLegEntity,
+  ExecutionPlanEntity,
+  OnChainTransaction,
+} from '@arbibot/persistence';
 
 import { IntegrationModule } from '../integration/integration.module';
 import { PlansController } from './plans.controller';
@@ -10,7 +14,11 @@ import { PlansService } from './plans.service';
 @Module({
   imports: [
     IntegrationModule,
-    TypeOrmModule.forFeature([ExecutionPlanEntity, ExecutionLegEntity]),
+    TypeOrmModule.forFeature([
+      ExecutionPlanEntity,
+      ExecutionLegEntity,
+      OnChainTransaction,
+    ]),
   ],
   controllers: [PlansController],
   providers: [PlansService],

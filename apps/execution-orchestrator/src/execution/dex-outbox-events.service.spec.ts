@@ -75,9 +75,9 @@ describe('DexOutboxEventsService', () => {
     service = moduleRef.get(DexOutboxEventsService);
     em = mockEm as unknown as EntityManager;
     // Override the internal em methods via the mock
-    (em as Record<string, unknown>).count = mockEm.count;
-    (em as Record<string, unknown>).create = mockEm.create;
-    (em as Record<string, unknown>).save = mockEm.save;
+    (em as unknown as Record<string, unknown>).count = mockEm.count;
+    (em as unknown as Record<string, unknown>).create = mockEm.create;
+    (em as unknown as Record<string, unknown>).save = mockEm.save;
   });
 
   // -------------------------------------------------------------------------
@@ -92,7 +92,7 @@ describe('DexOutboxEventsService', () => {
       await service.emitSubmitted(em, tx, correlationId);
 
       expect(savedOutbox).toHaveLength(1);
-      const row = savedOutbox[0];
+      const row = savedOutbox[0]!;
       expect(row.eventType).toBe(EVENT_NAMES.dexTransactionSubmitted);
       expect(row.entityType).toBe('OnChainTransaction');
       expect(row.entityId).toBe(tx.txHash);
@@ -114,7 +114,7 @@ describe('DexOutboxEventsService', () => {
     it('skips if outbox row already exists (idempotency)', async () => {
       const tx = makeOnChainTx();
       // Simulate existing row
-      (em as Record<string, unknown>).count = jest.fn().mockResolvedValue(1);
+      (em as unknown as Record<string, unknown>).count = jest.fn().mockResolvedValue(1);
 
       await service.emitSubmitted(em, tx, 'corr-id');
 
@@ -142,7 +142,7 @@ describe('DexOutboxEventsService', () => {
       await service.emitConfirmed(em, tx, correlationId);
 
       expect(savedOutbox).toHaveLength(1);
-      const row = savedOutbox[0];
+      const row = savedOutbox[0]!;
       expect(row.eventType).toBe(EVENT_NAMES.dexTransactionConfirmed);
 
       const payload = row.payload;
@@ -174,7 +174,7 @@ describe('DexOutboxEventsService', () => {
       await service.emitFailed(em, tx, correlationId);
 
       expect(savedOutbox).toHaveLength(1);
-      const row = savedOutbox[0];
+      const row = savedOutbox[0]!;
       expect(row.eventType).toBe(EVENT_NAMES.dexTransactionFailed);
 
       const payload = row.payload;
@@ -193,7 +193,7 @@ describe('DexOutboxEventsService', () => {
       await service.emitFailed(em, tx, 'corr-id');
 
       expect(savedOutbox).toHaveLength(1);
-      const payload = savedOutbox[0].payload;
+      const payload = savedOutbox[0]!.payload;
       expect(payload.errorMessage).toBe('Transaction was dropped from mempool');
       expect(payload.revertReason).toBeNull();
     });
@@ -210,7 +210,7 @@ describe('DexOutboxEventsService', () => {
 
       await service.emitSubmitted(em, tx, correlationId);
 
-      const envelope = savedOutbox[0].envelope;
+      const envelope = savedOutbox[0]!.envelope;
       expect(envelope).toHaveProperty('messageId');
       expect(envelope).toHaveProperty('correlationId');
       expect(envelope).toHaveProperty('causationId');
@@ -229,7 +229,7 @@ describe('DexOutboxEventsService', () => {
 
       await service.emitSubmitted(em, tx, 'corr-id');
 
-      const envelope = savedOutbox[0].envelope;
+      const envelope = savedOutbox[0]!.envelope;
       expect(envelope.causationId).toBe(legId);
     });
 
@@ -238,7 +238,7 @@ describe('DexOutboxEventsService', () => {
 
       await service.emitSubmitted(em, tx, 'corr-id');
 
-      const envelope = savedOutbox[0].envelope;
+      const envelope = savedOutbox[0]!.envelope;
       expect(envelope.causationId).toBe(envelope.messageId);
     });
   });

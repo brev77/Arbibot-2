@@ -1,16 +1,17 @@
 # Progress Arbibot 2
 
-**Обновлено:** 2026-05-15
+**Обновлено:** 2026-05-19
 
 ---
 
 ## Текущий статус
 
-**DEX план:** 35/35 done. **DEX-1 полностью завершён.**
-**Текущий шаг:** нет (DEX-1 complete)
-**Следующие:** DEX-2-* (multi-chain, planned)
+**DEX план:** 35/35 + DEX-2-0-ADR done. **DEX-2 начат.**
+**DEX Frontend P1+P2+P3:** done ✅
+**Текущий шаг:** DEX-2-1-BRIDGE-ACROSS (🔄 in_progress)
+**Следующие:** DEX-2-1-BRIDGE-STG, DEX-2-1-BRIDGE-NATIVE, DEX-2-2-PLAN
 
-**Build:** 21/21 ✅ | **Lint:** 0 errors ✅ | **PaperDex tests:** 24/24 ✅
+**Build:** 21/21 ✅ | **Lint:** 28/28 ✅ (0 errors) | **Tests:** 303/303 ✅ (execution-orchestrator)
 
 ---
 
@@ -20,11 +21,9 @@
 1. **CI зелёный на GitHub Actions** — не верифицирован
 
 ### Средний приоритет
-4. **Pre-existing test issues** (execution-orchestrator):
-   - `plans.service.spec.ts` — TS type error (playbookConfig optional)
-   - `wallet-manager.service.spec.ts` — TS type error (ChainId)
-   - `rpc-provider-manager.service.spec.ts` — Prometheus metric re-registration
-5. **Недостающие unit-тесты:** `PoolDiscoveryService`, `RpcProviderManager`
+4. ~~**Pre-existing test issues**~~ — ✅ **ИСПРАВЛЕНЫ** (коммит `48f3548`, 2026-05-17)
+5. ~~**Недостающие unit-тесты: PoolDiscoveryService**~~ — ✅ **94 строки тестов добавлены** (`pool-discovery.service.spec.ts`)
+6. **Недостающие unit-тесты:** `RpcProviderManager` (частично покрыт)
 
 ### Низкий приоритет
 6. **Bus E2E:** полный сценарий с реальными событиями — backlog
@@ -33,6 +32,24 @@
 ---
 
 ## Последние события (2026-05)
+
+### 2026-05-17 — Стабилизация DEX сервисов (коммит `48f3548`)
+**Статус:** done (без формального review — bugfix/stabilization)
+
+- `pool-discovery.service.ts` — рефакторинг (66 изменений)
+- `pool-discovery.service.spec.ts` — **94 новые строки тестов** (раньше тестов для PoolDiscovery не было)
+- `rpc-provider-manager.service.ts` — исправление утечки RPC worker (64 изменения)
+- **Все 3 pre-existing test issues ИСПРАВЛЕНЫ:**
+  - `plans.service.spec.ts` — PASS (ранее TS type error)
+  - `wallet-manager.service.spec.ts` — PASS (ранее TS type error)
+  - `rpc-provider-manager.service.spec.ts` — PASS (ранее Prometheus re-registration)
+
+**Результаты проверки (2026-05-18):**
+- Build: 21/21 ✅
+- Lint: 28/28 ✅ (0 errors)
+- Tests: 285/285 ✅ (21 suites, execution-orchestrator)
+
+---
 
 ### 2026-05-06 — DEX-1-2-RECON-ONCHAIN → done ✅ (session 11)
 **Статус:** done (review passed)
@@ -180,6 +197,87 @@
 
 ---
 
+## 2026-05-18 (session 29) — DEX Frontend P3 → done ✅
+
+**Дата:** 2026-05-18
+**Задача:** DEX Frontend UI P3 — Settings DEX tab + Operator Actions
+**Статус:** `done` ✅
+**След. шаги:** DEX-2-* (multi-chain)
+
+### P3: Settings DEX Tab + Operator Actions
+1. `dex-config-types.ts` — DexLimitsConfig, DexLiveConfig типы
+2. `use-dex-config.ts` — React Query hooks (useDexLimits, useDexLive, useSpeedUpTx, useCancelTx)
+3. `dex-config/dex-limits-panel.tsx` — DEX limits config panel (read from config-service `dex.limits`)
+4. `dex-config/dex-live-panel.tsx` — DEX live config panel (read from config-service `dex.live`)
+5. `settings-workspace.tsx` — новая DEX вкладка с limits + live panels
+6. `operator-query-keys.ts` — dexLimits, dexLive query keys
+7. BFF `speed-up/route.ts` + `cancel-tx/route.ts` — proxy mutations to execution-orchestrator
+8. `dex-operator-actions.tsx` — client component: speed-up + cancel tx with DestructiveOperatorAction
+9. `execution/[id]/page.tsx` — интеграция DexOperatorActions в detail view
+
+### Изменённые/созданные файлы
+- `apps/web/lib/dex-config-types.ts` (новый)
+- `apps/web/lib/use-dex-config.ts` (новый)
+- `apps/web/components/dex-config/dex-limits-panel.tsx` (новый)
+- `apps/web/components/dex-config/dex-live-panel.tsx` (новый)
+- `apps/web/components/dex-operator-actions.tsx` (новый)
+- `apps/web/app/api/operator/execution/plans/[id]/legs/[legId]/speed-up/route.ts` (новый)
+- `apps/web/app/api/operator/execution/plans/[id]/legs/[legId]/cancel-tx/route.ts` (новый)
+- `apps/web/components/settings-workspace.tsx` (обновлён — DEX tab)
+- `apps/web/lib/operator-query-keys.ts` (обновлён)
+- `apps/web/app/(operator)/execution/[id]/page.tsx` (обновлён)
+
+### Результаты
+- Build: 21/21 ✅ | Lint: 0 errors ✅ | Tests: 285/285 ✅
+- DEX план: 35/35 done, DEX Frontend P1+P2+P3: done ✅
+
+---
+
+## 2026-05-18 (session 28) — DEX Frontend P1+P2 → done ✅
+
+**Дата:** 2026-05-18
+**Задача:** DEX Frontend UI P1+P2 — Execution Plans Table DEX columns + Detail View
+**Статус:** `done` ✅
+**След. шаги:** DEX Frontend P3 (settings, operator actions), DEX-2-* (multi-chain)
+
+### P1: Execution Plans Table
+1. `execution-types.ts` — `ExecutionPlanListItem` расширена DEX-полями (venueType, chainId, dexAdapter, txHash, txStatus, gasUsedWei, gasCostUsd)
+2. `dex-utils.ts` — chain metadata (Arbitrum/Base/BNB), venue badge, tx status badge, explorer URLs, gas formatting, hash truncation
+3. `execution-plans-table.tsx` — 4 новых DEX колонки (Chain, Adapter, Tx, Gas) + chain dot icons + conditional rendering
+4. `plans.controller.ts` — `GET /execution/plans` enrich: venueType, chainId, dexAdapter, txHash, txStatus, gasUsedWei, gasCostUsd
+5. `plans.service.ts` — новый `findOneLean()` + enrichment методы из on-chain tx data
+
+### P2: Execution Plan Detail View
+1. `ExecutionLegItem` + `OnChainTxItem` типы в `execution-types.ts`
+2. `plans.controller.ts` — `GET /execution/plans/:id/legs` + `GET /execution/plans/:id/on-chain-txs`
+3. BFF routes: `/api/operator/execution/plans/[id]/legs` + `/api/operator/execution/plans/[id]/on-chain-txs`
+4. `operator-query-keys.ts` — `executionPlanLegs`, `executionPlanOnChainTxs` query keys
+5. Detail page `/execution/[id]` — полная переработка: legs table + on-chain tx card + DEX summary + timeline + operator actions placeholder
+6. `OnChainTxCard` — explorer links, gas details, confirmation status, revert/error display
+
+### Изменённые файлы
+- `apps/execution-orchestrator/src/plans/plans.controller.ts`
+- `apps/execution-orchestrator/src/plans/plans.service.ts`
+- `apps/execution-orchestrator/src/plans/plans.module.ts`
+- `apps/web/lib/execution-types.ts`
+- `apps/web/lib/dex-utils.ts`
+- `apps/web/lib/operator-query-keys.ts`
+- `apps/web/components/execution-plans-table.tsx`
+- `apps/web/app/(operator)/execution/[id]/page.tsx` (полная переработка)
+- `apps/web/app/api/operator/execution/plans/[id]/legs/route.ts` (новый)
+- `apps/web/app/api/operator/execution/plans/[id]/on-chain-txs/route.ts` (новый)
+
+### Результаты
+- Build: 21/21 ✅ | Lint: 28/28 ✅ (0 errors) | Tests: 285/285 ✅
+- DEX план: 35/35 done, DEX Frontend P1+P2: done ✅
+
+### Открытые вопросы
+- CI зелёный на GitHub Actions не верифицирован
+- DEX Frontend P3 (settings tab, operator actions) — next priority
+- DEX-2-* (multi-chain bridges) — planned
+
+---
+
 ## 2026-05-05 (session 5) — DEX-1-1-ADAPTER-SUSHI → implemented
 
 **Дата:** 2026-05-05 23:15
@@ -211,7 +309,7 @@
 ---
 (архив и справочная информация — в начале файла)
 
-**Total migrations:** 001–035
+**Total migrations:** 001–036
 **CI jobs:** build, lint, test, e2e-phase2, e2e-phase2-watchlist-route-scoring, e2e-phase3-paper-promotion, e2e-phase3-paper-discovery, e2e-phase4-tier-routing, bus-smoke
 
 ---
@@ -652,5 +750,53 @@ Parsing error: packages/contracts-eth/src/index.spec.ts was not found by the pro
 
 ### Открытые вопросы
 - CI зелёный на GitHub Actions не верифицирован
-- 3 pre-existing test issues в execution-orchestrator
+- ~~3 pre-existing test issues~~ — ИСПРАВЛЕНЫ (коммит 48f3548)
 - DEX-DOC-RUNBOOK-BRIDGE, DEX-DOC-ROLLBACK — planned (не блокируют DEX-1)
+
+---
+
+## 2026-05-19 (session 31) — DEX-2-0-ADR implementation → done ✅
+
+**Дата:** 2026-05-19
+**Задача:** DEX-2-0-ADR — Cross-chain ADR полная реализация
+**Статус:** `done` ✅
+**След. шаги:** DEX-2-1-BRIDGE-ACROSS (завершить интеграцию)
+
+### Принятые решения
+1. **LegType discriminator** — `leg_type` column (`dex`/`bridge`) на `execution_legs`
+2. **Bridge state machine** — `bridgePending` → `bridgeRelaying` → `bridgeConfirming` → `filled`
+3. **BridgeAdapter interface** — `submitBridgeTransfer`, `checkBridgeStatus`, `estimateBridgeFee`, `estimateRelayTime`
+4. **Single-writer** — все bridge сущности в `execution-orchestrator`
+5. **bridge_transfers table** — `idempotency_key` UNIQUE, source/dest TX hashes, timeout tracking
+6. **3-level idempotency** — bridge transfer submission → on-chain TX → fill commitment
+7. **Across as first bridge** — SpokePool ABI, addresses для Arbitrum/Base/BNB
+
+### Созданные файлы
+- `infra/postgres/migrations/036_dex2_crosschain.sql` — bridge_transfers table + leg_type enum + indexes
+- `packages/persistence/src/bridge-transfer.entity.ts` — BridgeTransferEntity (state machine)
+- `packages/contracts-eth/src/abis/across-bridge.ts` — Across SpokePool ABI
+- `packages/contracts-eth/src/addresses/bridge.ts` — bridge addresses
+- `apps/execution-orchestrator/src/execution/bridge/bridge-adapter.interface.ts`
+- `apps/execution-orchestrator/src/execution/bridge/across-bridge.adapter.ts`
+- `apps/execution-orchestrator/src/execution/bridge/across-bridge.adapter.spec.ts` (4 tests)
+- `apps/execution-orchestrator/src/execution/bridge/bridge-transfer.service.ts`
+- `apps/execution-orchestrator/src/execution/bridge/bridge-transfer.service.spec.ts` (14 tests)
+
+### Изменённые файлы
+- `packages/persistence/src/execution-leg.entity.ts` — legType, chainId
+- `packages/persistence/src/on-chain-transaction.entity.ts` — legId (uuid)
+- `packages/persistence/src/index.ts` — BridgeTransferEntity export
+- `packages/contracts-eth/src/index.ts` — bridge ABI/address exports
+- `apps/execution-orchestrator/src/execution/execution.module.ts` — DI
+- `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` — DEX-2-0-ADR → done
+- `session_summary.md` — session 31
+- `docs/progress.md` — статус
+
+### Результаты
+- Build: execution-orchestrator ✅, persistence ✅, contracts-eth ✅
+- Tests: 23/23 suites, **303/303 tests** ✅ (+18 bridge tests)
+- Migration: 036 (total: 001–036)
+
+### Открытые вопросы
+- CI зелёный на GitHub Actions не верифицирован
+- DEX-2-1-BRIDGE-ACROSS — завершить интеграцию Across adapter

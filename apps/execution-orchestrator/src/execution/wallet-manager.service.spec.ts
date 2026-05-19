@@ -121,7 +121,7 @@ describe('WalletManagerService', () => {
 
       const mockProvider = {} as any;
 
-      await expect(service.selectWallet(99999, mockProvider)).rejects.toThrow(
+      await expect(service.selectWallet(99999 as any, mockProvider)).rejects.toThrow( // eslint-disable-line @typescript-eslint/no-explicit-any
         'No active wallets available for chain 99999',
       );
     });

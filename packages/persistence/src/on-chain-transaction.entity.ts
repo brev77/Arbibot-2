@@ -88,6 +88,14 @@ export class OnChainTransaction {
   @Column({ name: 'input_data', type: 'bytea', nullable: true })
   inputData!: string | null;
 
+  /** Reference to bridge transfer (for bridge source/destination TXs). DEX-2. */
+  @Column({ name: 'bridge_transfer_id', type: 'uuid', nullable: true })
+  bridgeTransferId!: string | null;
+
+  /** TX role for bridge operations: source | destination | claim. DEX-2. */
+  @Column({ name: 'tx_role', type: 'text', nullable: true })
+  txRole!: 'source' | 'destination' | 'claim' | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamp with time zone' })
   createdAt!: Date;
 

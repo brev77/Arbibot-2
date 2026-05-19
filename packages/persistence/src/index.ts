@@ -36,6 +36,7 @@ export { materializeRiskWindowReservationExpiryIfNeeded } from './risk-window-re
 export { TokenProfileEntity } from './token-profile.entity';
 export { VenueRefEntity } from './venue-ref.entity';
 export { WatchlistTierSnapshotEntity } from './watchlist-tier-snapshot.entity';
+export { BridgeTransferEntity } from './bridge-transfer.entity';
 export { OnChainTransaction } from './on-chain-transaction.entity';
 export { WalletState } from './wallet-state.entity';
 export { DexPool } from './dex-pool.entity';
@@ -70,6 +71,7 @@ import { RiskWindowReservationEntity } from './risk-window-reservation.entity';
 import { TokenProfileEntity } from './token-profile.entity';
 import { VenueRefEntity } from './venue-ref.entity';
 import { WatchlistTierSnapshotEntity } from './watchlist-tier-snapshot.entity';
+import { BridgeTransferEntity } from './bridge-transfer.entity';
 import { OnChainTransaction } from './on-chain-transaction.entity';
 import { WalletState } from './wallet-state.entity';
 import { DexPool } from './dex-pool.entity';
@@ -106,6 +108,7 @@ export const ARBIBOT_TYPEORM_ENTITIES = [
   PaperDriftSampleEntity,
   PaperCapitalReservationEntity,
   PaperDiscoveryCandidateEntity,
+  BridgeTransferEntity,
   OnChainTransaction,
   WalletState,
   DexPool,

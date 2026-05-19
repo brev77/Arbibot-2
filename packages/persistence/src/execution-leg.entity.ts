@@ -35,6 +35,14 @@ export class ExecutionLegEntity {
   @Column({ name: 'venue_ref', type: 'text', nullable: true })
   venueRef!: string | null;
 
+  /** Leg type discriminator: 'dex' for DEX swaps, 'bridge' for cross-chain bridge transfers. */
+  @Column({ name: 'leg_type', type: 'text', default: 'dex' })
+  legType!: 'dex' | 'bridge';
+
+  /** Explicit chain ID for the leg (null for legacy legs). */
+  @Column({ name: 'chain_id', type: 'integer', nullable: true })
+  chainId!: number | null;
+
   @Column({ name: 'target_quantity', type: 'double precision', default: 1 })
   targetQuantity!: number;
 

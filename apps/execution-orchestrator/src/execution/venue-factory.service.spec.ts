@@ -59,6 +59,8 @@ describe('VenueFactoryService', () => {
   let mockUniV2: ReturnType<typeof mockAdapter>;
   let mockUniV3: ReturnType<typeof mockAdapter>;
   let mockSushi: ReturnType<typeof mockAdapter>;
+  let mockPancake: ReturnType<typeof mockAdapter>;
+  let mockBiswap: ReturnType<typeof mockAdapter>;
   let mockPaperDex: ReturnType<typeof mockAdapter>;
 
   const originalEnv = process.env;
@@ -76,6 +78,8 @@ describe('VenueFactoryService', () => {
     mockUniV2 = mockAdapter('UniswapV2Adapter');
     mockUniV3 = mockAdapter('UniswapV3Adapter');
     mockSushi = mockAdapter('SushiSwapV2Adapter');
+    mockPancake = mockAdapter('PancakeSwapV2Adapter');
+    mockBiswap = mockAdapter('BiswapV2Adapter');
     mockPaperDex = mockAdapter('PaperDexAdapter');
 
     service = new VenueFactoryService(
@@ -83,6 +87,8 @@ describe('VenueFactoryService', () => {
       mockUniV2 as any, // eslint-disable-line @typescript-eslint/no-explicit-any
       mockUniV3 as any, // eslint-disable-line @typescript-eslint/no-explicit-any
       mockSushi as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      mockPancake as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      mockBiswap as any, // eslint-disable-line @typescript-eslint/no-explicit-any
       mockPaperDex as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     );
   });

@@ -20,6 +20,7 @@ import {
 import {
   ExecutionLegEntity,
   ExecutionPlanEntity,
+  OnChainTransaction,
   OutboxEventEntity,
 } from '@arbibot/persistence';
 import {
@@ -33,12 +34,25 @@ import { RiskHttpClient } from '../integration/risk-http.client';
 
 import type { CreatePlanDto } from './dto/create-plan.dto';
 
+/** DEX metadata extracted from on-chain transactions for a plan. */
+export type DexPlanEnrichment = {
+  venueType: 'dex' | 'http' | null;
+  chainId: number | null;
+  dexAdapter: string | null;
+  txHash: string | null;
+  txStatus: 'pending' | 'confirmed' | 'failed' | 'reverted' | null;
+  gasUsedWei: string | null;
+  gasCostUsd: string | null;
+};
+
 @Injectable()
 export class PlansService {
   constructor(
     private readonly dataSource: DataSource,
     @InjectRepository(ExecutionPlanEntity)
     private readonly plans: Repository<ExecutionPlanEntity>,
+    @InjectRepository(OnChainTransaction)
+    private readonly onChainTxRepo: Repository<OnChainTransaction>,
     @Inject(AuditClientService) private readonly audit: IAuditClient,
     private readonly capitalHttp: CapitalHttpClient,
     private readonly riskHttp: RiskHttpClient,
@@ -285,6 +299,110 @@ export class PlansService {
         payload: { state: saved.state },
       });
       return { completed: true, plan: saved };
+    });
+  }
+
+  /**
+   * Get DEX enrichment metadata for a plan by querying on-chain transactions
+   * associated with the plan's execution legs.
+   * Returns null defaults if no on-chain txs are found (HTTP venue or no legs yet).
+   */
+  async getDexEnrichment(planId: string): Promise<DexPlanEnrichment> {
+    const legs = await this.dataSource.getRepository(ExecutionLegEntity).find({
+      where: { planId },
+      select: ['id'],
+    });
+
+    if (legs.length === 0) {
+      return {
+        venueType: null,
+        chainId: null,
+        dexAdapter: null,
+        txHash: null,
+        txStatus: null,
+        gasUsedWei: null,
+        gasCostUsd: null,
+      };
+    }
+
+    const legIds = legs.map((l) => l.id);
+
+    // Get the first on-chain tx for this plan (primary tx)
+    const tx = await this.onChainTxRepo.findOne({
+      where: legIds.map((legId) => ({ legId })),
+      order: { createdAt: 'ASC' },
+    });
+
+    if (tx === null) {
+      return {
+        venueType: null,
+        chainId: null,
+        dexAdapter: null,
+        txHash: null,
+        txStatus: null,
+        gasUsedWei: null,
+        gasCostUsd: null,
+      };
+    }
+
+    // Sum gas across all legs for this plan
+    const allTxs = await this.onChainTxRepo.find({
+      where: legIds.map((legId) => ({ legId })),
+    });
+
+    let totalGasWei = BigInt(0);
+    for (const t of allTxs) {
+      if (t.gasUsed !== null && t.gasPrice !== null) {
+        try {
+          totalGasWei += BigInt(t.gasUsed) * BigInt(t.gasPrice);
+        } catch {
+          // Skip malformed values
+        }
+      }
+    }
+
+    return {
+      venueType: 'dex',
+      chainId: tx.chainId,
+      dexAdapter: null, // adapter name not stored in on_chain_transactions; future: derive from venue_ref
+      txHash: tx.txHash,
+      txStatus: tx.status,
+      gasUsedWei: totalGasWei.toString(),
+      gasCostUsd: null, // requires price oracle; future enhancement
+    };
+  }
+
+  /**
+   * Get execution legs for a plan.
+   */
+  async getLegs(planId: string): Promise<ExecutionLegEntity[]> {
+    await this.getById(planId); // ensures plan exists (404 if not)
+    return this.dataSource.getRepository(ExecutionLegEntity).find({
+      where: { planId },
+      order: { legIndex: 'ASC' },
+    });
+  }
+
+  /**
+   * Get on-chain transactions for all legs of a plan.
+   */
+  async getOnChainTxsForPlan(planId: string): Promise<OnChainTransaction[]> {
+    const legs = await this.getLegs(planId);
+    if (legs.length === 0) return [];
+    const legIds = legs.map((l) => l.id);
+    return this.onChainTxRepo.find({
+      where: legIds.map((legId) => ({ legId })),
+      order: { createdAt: 'ASC' },
+    });
+  }
+
+  /**
+   * Get on-chain transactions for a specific leg.
+   */
+  async getOnChainTxsForLeg(legId: string): Promise<OnChainTransaction[]> {
+    return this.onChainTxRepo.find({
+      where: { legId },
+      order: { createdAt: 'ASC' },
     });
   }
 

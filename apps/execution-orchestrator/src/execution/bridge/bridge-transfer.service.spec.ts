@@ -1,0 +1,199 @@
+import { Test } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
+import { BridgeTransferEntity } from '@arbibot/persistence';
+
+import type { BridgeAdapter, BridgeTransferParams } from './bridge-adapter.interface';
+import { BridgeTransferService } from './bridge-transfer.service';
+
+describe('BridgeTransferService', () => {
+  let service: BridgeTransferService;
+
+  const mockFindOne = jest.fn();
+  const mockCreate = jest.fn();
+  const mockSave = jest.fn();
+  const mockUpdate = jest.fn();
+  const mockFind = jest.fn();
+
+  const mockRepo = {
+    findOne: mockFindOne,
+    create: mockCreate,
+    save: mockSave,
+    update: mockUpdate,
+    find: mockFind,
+  };
+
+  const mockDataSource = { createQueryBuilder: jest.fn() };
+
+  const mockAdapter: BridgeAdapter = {
+    bridgeKey: 'across',
+    supportedChains: [[42161, 8453] as const],
+    submitBridgeTransfer: jest.fn().mockResolvedValue({
+      sourceTxHash: '0xsrc',
+      sourceChainId: 42161,
+      destinationChainId: 8453,
+      bridgeId: 'bridge-123',
+      estimatedRelayMs: 240000,
+    }),
+    checkBridgeStatus: jest.fn().mockResolvedValue({
+      status: 'pending',
+      sourceTxHash: '0xsrc',
+      destinationTxHash: null,
+      confirmations: 0,
+      estimatedCompletionMs: 240000,
+    }),
+    estimateBridgeFee: jest.fn().mockResolvedValue({
+      bridgeFee: 0n,
+      relayerFee: 0n,
+      estimatedGasSource: 200000n,
+      estimatedGasDestination: 100000n,
+      totalEstimatedCostUsd: 0,
+    }),
+    estimateRelayTime: jest.fn().mockResolvedValue(240000),
+  };
+
+  const defaultParams: BridgeTransferParams = {
+    sourceChainId: 42161,
+    destinationChainId: 8453,
+    token: '0xtoken' as `0x${string}`,
+    destinationToken: '0xdesttoken' as `0x${string}`,
+    amount: 1000000000000000000n,
+    recipientAddress: '0xrecipient' as `0x${string}`,
+    idempotencyKey: 'plan:1:across',
+  };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+
+    const module = await Test.createTestingModule({
+      providers: [
+        BridgeTransferService,
+        { provide: getRepositoryToken(BridgeTransferEntity), useValue: mockRepo },
+        { provide: DataSource, useValue: mockDataSource },
+      ],
+    }).compile();
+
+    service = module.get(BridgeTransferService);
+  });
+
+  describe('generateIdempotencyKey', () => {
+    it('should generate deterministic key', () => {
+      const key = BridgeTransferService.generateIdempotencyKey('plan-1', 0, 'across');
+      expect(key).toBe('plan-1:0:across');
+    });
+  });
+
+  describe('submitBridgeTransfer', () => {
+    it('should create new transfer when no existing record', async () => {
+      mockFindOne.mockResolvedValueOnce(null);
+      mockCreate.mockReturnValue({
+        id: 'new-transfer-id',
+        legId: 'leg-1',
+        status: 'pending',
+        idempotencyKey: 'plan:1:across',
+      });
+      mockSave.mockResolvedValue({
+        id: 'new-transfer-id',
+        legId: 'leg-1',
+        bridgeKey: 'across',
+        sourceChainId: 42161,
+        destinationChainId: 8453,
+        status: 'pending',
+      });
+
+      const result = await service.submitBridgeTransfer(mockAdapter, defaultParams, 'leg-1');
+
+      expect(mockFindOne).toHaveBeenCalledWith({
+        where: { idempotencyKey: 'plan:1:across' },
+      });
+      expect(mockSave).toHaveBeenCalled();
+      expect(result.id).toBe('new-transfer-id');
+    });
+
+    it('should return existing active transfer', async () => {
+      mockFindOne.mockResolvedValueOnce({
+        id: 'existing-id',
+        status: 'relaying',
+        idempotencyKey: 'plan:1:across',
+      });
+
+      const result = await service.submitBridgeTransfer(mockAdapter, defaultParams, 'leg-1');
+
+      expect(mockAdapter.submitBridgeTransfer).not.toHaveBeenCalled();
+      expect(result.id).toBe('existing-id');
+    });
+
+    it('should throw on terminal state without operator approval', async () => {
+      mockFindOne.mockResolvedValueOnce({
+        id: 'failed-id',
+        status: 'failed',
+        idempotencyKey: 'plan:1:across',
+      });
+
+      await expect(
+        service.submitBridgeTransfer(mockAdapter, defaultParams, 'leg-1'),
+      ).rejects.toThrow('terminal state');
+    });
+  });
+
+  describe('getById', () => {
+    it('should find by id', async () => {
+      mockFindOne.mockResolvedValueOnce({ id: 'test-id' });
+      const result = await service.getById('test-id');
+      expect(result?.id).toBe('test-id');
+    });
+
+    it('should return null when not found', async () => {
+      mockFindOne.mockResolvedValueOnce(null);
+      const result = await service.getById('nonexistent');
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('getByLegId', () => {
+    it('should find by leg id', async () => {
+      mockFindOne.mockResolvedValueOnce({ id: 'transfer-id', legId: 'leg-1' });
+      const result = await service.getByLegId('leg-1');
+      expect(result?.legId).toBe('leg-1');
+    });
+  });
+
+  describe('markTimedOut', () => {
+    it('should update status to timed_out', async () => {
+      mockUpdate.mockResolvedValueOnce({ affected: 1 });
+      mockFindOne.mockResolvedValueOnce({
+        id: 'transfer-id',
+        status: 'timed_out',
+        failedAt: new Date(),
+      });
+
+      const result = await service.markTimedOut('transfer-id');
+
+      expect(mockUpdate).toHaveBeenCalledWith(
+        'transfer-id',
+        expect.objectContaining({ status: 'timed_out' }),
+      );
+      expect(result.status).toBe('timed_out');
+    });
+  });
+
+  describe('getActiveTransfers', () => {
+    it('should query for pending/relaying/confirming', async () => {
+      mockFind.mockResolvedValueOnce([
+        { id: 't1', status: 'pending' },
+        { id: 't2', status: 'relaying' },
+      ]);
+
+      const results = await service.getActiveTransfers();
+
+      expect(mockFind).toHaveBeenCalledWith({
+        where: [
+          { status: 'pending' },
+          { status: 'relaying' },
+          { status: 'confirming' },
+        ],
+      });
+      expect(results).toHaveLength(2);
+    });
+  });
+});
