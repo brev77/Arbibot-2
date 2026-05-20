@@ -11,6 +11,8 @@ import {
 
 import { OnChainTransaction } from '@arbibot/persistence';
 
+import { CreateMultiLegPlanDto } from './dto/create-multi-leg-plan.dto';
+import { MultiLegPlanBuilderService } from './multi-leg-plan-builder.service';
 import { CreatePlanDto } from './dto/create-plan.dto';
 import { LinkReservationDto } from './dto/link-reservation.dto';
 import type { DexPlanEnrichment } from './plans.service';
@@ -42,7 +44,10 @@ function planView(
 
 @Controller('execution/plans')
 export class PlansController {
-  constructor(private readonly service: PlansService) {}
+  constructor(
+    private readonly service: PlansService,
+    private readonly multiLegBuilder: MultiLegPlanBuilderService,
+  ) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -50,6 +55,18 @@ export class PlansController {
     const row = await this.service.create(body);
     const dex = await this.service.getDexEnrichment(row.id);
     return planView(row, dex);
+  }
+
+  /** Create a multi-leg cross-chain execution plan (DEX-2-2-PLAN). */
+  @Post('multi-leg')
+  @HttpCode(HttpStatus.CREATED)
+  async createMultiLeg(@Body() body: CreateMultiLegPlanDto) {
+    const { plan, config } = await this.multiLegBuilder.buildMultiLegPlan(body);
+    const dex = await this.service.getDexEnrichment(plan.id);
+    return {
+      ...planView(plan, dex),
+      playbookConfig: config,
+    };
   }
 
   @Get()

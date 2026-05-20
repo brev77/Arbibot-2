@@ -23,6 +23,8 @@ import type { VenueAdapter } from '../venue/venue-adapter';
 import { VenueSubmitClientError, VenueTerminalSubmitError } from '../venue/venue-adapter';
 import type { FillOutboundService } from './fill-outbound.service';
 import { LegsService, resolveInstrumentKeyForPlan } from './legs.service';
+import type { BridgeAdapterFactoryService } from '../execution/bridge/bridge-adapter-factory.service';
+import type { BridgeTransferService } from '../execution/bridge/bridge-transfer.service';
 
 function legDefaults(): Pick<
   ExecutionLegEntity,
@@ -196,6 +198,14 @@ describe('LegsService', () => {
 
     fillOutboundSvc = { afterLegFullyFilled: jest.fn() };
 
+    const bridgeAdapterFactory = {
+      resolveAdapter: jest.fn(),
+    } as unknown as BridgeAdapterFactoryService;
+
+    const bridgeTransferService = {
+      submitBridgeTransfer: jest.fn(),
+    } as unknown as BridgeTransferService;
+
     service = new LegsService(
       dataSource,
       plansRepo,
@@ -203,6 +213,8 @@ describe('LegsService', () => {
       audit,
       venue,
       fillOutboundSvc as unknown as FillOutboundService,
+      bridgeAdapterFactory,
+      bridgeTransferService,
     );
   });
 

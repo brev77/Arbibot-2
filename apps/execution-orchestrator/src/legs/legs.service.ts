@@ -35,6 +35,10 @@ import {
   VenueTerminalSubmitError,
   type VenueAdapter,
 } from '../venue/venue-adapter';
+import { BridgeAdapterFactoryService, extractBridgeParams } from '../execution/bridge/bridge-adapter-factory.service';
+import { BridgeTransferService } from '../execution/bridge/bridge-transfer.service';
+import type { BridgeTransferParams } from '../execution/bridge/bridge-adapter.interface';
+import { MultiLegPlanBuilderService } from '../plans/multi-leg-plan-builder.service';
 
 function readBeginLegCount(): number {
   const raw = process.env.EXECUTION_BEGIN_LEG_COUNT?.trim() ?? '1';
@@ -110,6 +114,8 @@ export class LegsService {
     @Inject(AuditClientService) private readonly audit: IAuditClient,
     @Inject(VENUE_ADAPTER) private readonly venue: VenueAdapter,
     private readonly fillOutbound: FillOutboundService,
+    private readonly bridgeAdapterFactory: BridgeAdapterFactoryService,
+    private readonly bridgeTransferService: BridgeTransferService,
   ) {}
 
   async listForPlan(planId: string): Promise<ReturnType<typeof legView>[]> {
@@ -149,19 +155,47 @@ export class LegsService {
       plan.state = 'executing';
       plan.entityVersion += 1;
       await em.save(plan);
-      const legCount = readBeginLegCount();
+
+      // ── Multi-leg plan (DEX-2-2-PLAN) ──────────────────────────────────
+      // If the plan has a MultiLegPlaybookConfig, create legs from it
+      // with proper legType, chainId, and targetQuantity per leg.
+      const multiLegConfig = MultiLegPlanBuilderService.parsePlaybookConfig(
+        plan.playbookConfig,
+      );
+
       const savedLegs: ExecutionLegEntity[] = [];
-      for (let i = 0; i < legCount; i += 1) {
-        const leg = em.create(ExecutionLegEntity, {
-          planId: plan.id,
-          legIndex: i,
-          state: 'created',
-          entityVersion: 1,
-          venueRef: null,
-          targetQuantity: 10,
-          filledQuantity: 0,
-        });
-        savedLegs.push(await em.save(leg));
+
+      if (multiLegConfig && multiLegConfig.legs.length > 0) {
+        // Multi-leg plan: create legs from playbook config
+        for (const legDef of multiLegConfig.legs) {
+          const leg = em.create(ExecutionLegEntity, {
+            planId: plan.id,
+            legIndex: legDef.legIndex,
+            state: 'created',
+            entityVersion: 1,
+            venueRef: null,
+            legType: legDef.legType,
+            chainId: legDef.chainId,
+            targetQuantity: legDef.targetQuantity,
+            filledQuantity: 0,
+          });
+          savedLegs.push(await em.save(leg));
+        }
+      } else {
+        // Legacy single-chain plan: create legs from env config
+        const legCount = readBeginLegCount();
+        for (let i = 0; i < legCount; i += 1) {
+          const leg = em.create(ExecutionLegEntity, {
+            planId: plan.id,
+            legIndex: i,
+            state: 'created',
+            entityVersion: 1,
+            venueRef: null,
+            targetQuantity: 10,
+            filledQuantity: 0,
+          });
+          savedLegs.push(await em.save(leg));
+        }
       }
       this.audit.record({
         idempotencyKey: `execution:BeginExecution:${plan.id}`,
@@ -210,8 +244,54 @@ export class LegsService {
         );
       }
       let externalOrderId: string;
+
+      // ── Bridge-aware execution ──────────────────────────────────────────
+      // If the leg is a bridge leg (legType === 'bridge'), delegate to
+      // BridgeTransferService which handles adapter resolution, submission,
+      // idempotency, and persistence.
+      const isBridgeLeg = leg.legType === 'bridge';
+
       try {
-        ({ externalOrderId } = await this.venue.submitLeg(plan, leg));
+        if (isBridgeLeg) {
+          const bridgeParams = extractBridgeParams(
+            plan.playbookConfig,
+            leg.legIndex,
+            plan.id,
+            leg.id,
+          );
+
+          if (!bridgeParams) {
+            throw new HttpException(
+              `Bridge leg ${legId} has no bridge params in playbookConfig`,
+              HttpStatus.UNPROCESSABLE_ENTITY,
+            );
+          }
+
+          const adapter = this.bridgeAdapterFactory.resolveAdapter(bridgeParams.bridgeKey);
+
+          const transferParams: BridgeTransferParams = {
+            sourceChainId: bridgeParams.sourceChainId,
+            destinationChainId: bridgeParams.destinationChainId,
+            token: bridgeParams.token,
+            destinationToken: bridgeParams.destinationToken,
+            amount: bridgeParams.amount,
+            recipientAddress: bridgeParams.recipientAddress,
+            idempotencyKey: `bridge:${plan.id}:${leg.id}`,
+          };
+
+          // BridgeTransferService.submitBridgeTransfer handles:
+          //  - idempotency (existing active → return, failed → reject)
+          //  - adapter.submitBridgeTransfer call
+          //  - persist BridgeTransferEntity
+          const bridgeEntity = await this.bridgeTransferService.submitBridgeTransfer(
+            adapter,
+            transferParams,
+            leg.id,
+          );
+          externalOrderId = bridgeEntity.id; // bridge transfer UUID as venueRef
+        } else {
+          ({ externalOrderId } = await this.venue.submitLeg(plan, leg));
+        }
       } catch (err) {
         if (err instanceof VenueTerminalSubmitError) {
           leg.state = err.terminalState;

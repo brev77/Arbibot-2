@@ -8,6 +8,8 @@ export { UniswapV3RouterABI } from './abis/uniswap-v3-router';
 export { SushiSwapRouterABI } from './abis/sushiswap-router';
 export { ERC20ABI } from './abis/erc20';
 export { AcrossSpokePoolABI, AcrossSpokePoolDepositV3Fragment } from './abis/across-bridge';
+export { StargateRouterV2ABI, StargateSwapFragment } from './abis/stargate-bridge';
+export { ArbitrumInboxABI, L1StandardBridgeABI, L2StandardBridgeABI } from './abis/native-bridge';
 
 // Addresses — Arbitrum
 export {
@@ -33,11 +35,22 @@ export {
   getBnbAddresses,
 } from './addresses/bnb';
 
-// Addresses — Bridge (Across)
+// Addresses — Bridge (Across + Stargate + Native)
 export {
   AcrossAddresses,
   ACROSS_MAINNET,
   ACROSS_TESTNET,
   getAcrossAddresses,
   isAcrossSupportedChainPair,
+  StargateAddresses,
+  STARGATE_MAINNET,
+  STARGATE_TESTNET,
+  getStargateAddresses,
+  isStargateSupportedChainPair,
+  NativeBridgeType,
+  NativeBridgeAddresses,
+  NATIVE_MAINNET,
+  NATIVE_TESTNET,
+  getNativeBridgeAddresses,
+  isNativeSupportedChainPair,
 } from './addresses/bridge';

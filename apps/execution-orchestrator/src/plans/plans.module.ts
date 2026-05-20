@@ -7,12 +7,15 @@ import {
   OnChainTransaction,
 } from '@arbibot/persistence';
 
+import { ExecutionModule } from '../execution/execution.module';
 import { IntegrationModule } from '../integration/integration.module';
+import { MultiLegPlanBuilderService } from './multi-leg-plan-builder.service';
 import { PlansController } from './plans.controller';
 import { PlansService } from './plans.service';
 
 @Module({
   imports: [
+    ExecutionModule,
     IntegrationModule,
     TypeOrmModule.forFeature([
       ExecutionPlanEntity,
@@ -21,7 +24,7 @@ import { PlansService } from './plans.service';
     ]),
   ],
   controllers: [PlansController],
-  providers: [PlansService],
-  exports: [PlansService],
+  providers: [PlansService, MultiLegPlanBuilderService],
+  exports: [PlansService, MultiLegPlanBuilderService],
 })
 export class PlansModule {}

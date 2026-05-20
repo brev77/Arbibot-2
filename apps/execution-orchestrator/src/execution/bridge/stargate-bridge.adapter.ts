@@ -1,12 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Interface, JsonRpcProvider, ZeroAddress } from 'ethers';
+import { Contract, Interface, JsonRpcProvider, ZeroAddress } from 'ethers';
 import { Counter, Histogram } from 'prom-client';
 import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
 import {
-  AcrossSpokePoolABI,
+  StargateRouterV2ABI,
   ChainId,
-  getAcrossAddresses,
-  isAcrossSupportedChainPair,
+  getStargateAddresses,
+  isStargateSupportedChainPair,
 } from '@arbibot/contracts-eth';
 
 import type {
@@ -28,47 +28,49 @@ import { TokenApproveService } from '../token/token-approve.service';
 // Constants
 // ───────────────────────────────────────────────────────────────────────
 
-/** Default fill deadline: 30 minutes from deposit. */
-const DEFAULT_FILL_DEADLINE_SECONDS = 1800;
-
-/** Default estimated relay time for Across: 2–5 minutes. */
-const DEFAULT_ESTIMATED_RELAY_MS = 240_000;
-
-/** Estimated gas for depositV3. */
-const ESTIMATED_DEPOSIT_GAS = 200_000n;
-
-/** Estimated gas for destination claim (if needed). */
-const ESTIMATED_CLAIM_GAS = 100_000n;
-
 /**
- * Across SpokePool deposit status — mapped from on-chain events.
+ * Default slippage tolerance in basis points (0.5%).
+ * Applied as minAmountLD = amount * (10000 - slippageBP) / 10000.
  */
-type _AcrossDepositStatus = 'pending' | 'filled' | 'expired';
+const DEFAULT_SLIPPAGE_BP = 50;
+
+/** Default estimated relay time for Stargate V2 via LayerZero: 5–20 minutes. */
+const DEFAULT_ESTIMATED_RELAY_MS = 600_000;
+
+/** Estimated gas for Stargate swap (higher due to LayerZero messaging). */
+const ESTIMATED_SWAP_GAS = 350_000n;
+
+/** Estimated gas for destination claim (usually not needed with Stargate). */
+const ESTIMATED_CLAIM_GAS = 50_000n;
 
 // ───────────────────────────────────────────────────────────────────────
 // Adapter
 // ───────────────────────────────────────────────────────────────────────
 
 /**
- * Across Protocol bridge adapter.
+ * Stargate V2 bridge adapter.
  *
- * Implements `BridgeAdapter` for cross-chain transfers via Across V3 SpokePool.
- * Across uses optimistic verification with bonded relayers for fast (1–5 min) fills.
+ * Implements `BridgeAdapter` for cross-chain transfers via Stargate V2 Router.
+ * Stargate uses LayerZero V2 for cross-chain messaging with pooled liquidity
+ * and bus-based dispatch for batched transfers.
  *
- * **Step:** DEX-2-1-BRIDGE-ACROSS
+ * **Step:** DEX-2-1-BRIDGE-STG
  *
  * Supported routes (mainnet + testnet):
  *   - Ethereum ↔ Arbitrum
  *   - Ethereum ↔ Base
+ *   - Ethereum ↔ BNB Chain
  *   - Arbitrum ↔ Base
+ *   - Arbitrum ↔ BNB Chain
+ *   - Base ↔ BNB Chain
  */
 @Injectable()
-export class AcrossBridgeAdapter implements BridgeAdapter {
-  readonly bridgeKey = 'across';
+export class StargateBridgeAdapter implements BridgeAdapter {
+  readonly bridgeKey = 'stargate';
   readonly supportedChains: ReadonlyArray<readonly [number, number]>;
 
-  private readonly logger = new Logger(AcrossBridgeAdapter.name);
-  private readonly spokePoolInterface = new Interface(AcrossSpokePoolABI);
+  private readonly logger = new Logger(StargateBridgeAdapter.name);
+  private readonly routerInterface = new Interface(StargateRouterV2ABI);
 
   // Metrics
   private submitCounter!: Counter<string>;
@@ -102,17 +104,17 @@ export class AcrossBridgeAdapter implements BridgeAdapter {
       );
 
       // 1. Validate chain pair
-      if (!isAcrossSupportedChainPair(params.sourceChainId, params.destinationChainId)) {
+      if (!isStargateSupportedChainPair(params.sourceChainId, params.destinationChainId)) {
         throw new Error(
-          `Across: unsupported chain pair ${params.sourceChainId} → ${params.destinationChainId}`,
+          `Stargate: unsupported chain pair ${params.sourceChainId} → ${params.destinationChainId}`,
         );
       }
 
-      // 2. Resolve provider and SpokePool address
+      // 2. Resolve provider and Router address
       const provider = this.rpcProviderManager.getProvider(
         params.sourceChainId as ChainId,
       ) as JsonRpcProvider;
-      const spokePoolAddress = getAcrossAddresses(params.sourceChainId).spokePool as string;
+      const routerAddress = getStargateAddresses(params.sourceChainId).router as string;
 
       // 3. Select wallet on source chain
       const selectedWallet = await this.walletManager.selectWallet(
@@ -122,53 +124,48 @@ export class AcrossBridgeAdapter implements BridgeAdapter {
         params.amount,
       );
 
-      // 4. Ensure ERC20 approval for SpokePool
-      await this.ensureApproval(params, selectedWallet.address, spokePoolAddress);
+      // 4. Ensure ERC20 approval for Router
+      await this.ensureApproval(params, selectedWallet.address, routerAddress);
 
-      // 5. Build depositV3 calldata
-      const quoteTimestamp = Math.floor(Date.now() / 1000);
-      const fillDeadline = quoteTimestamp + DEFAULT_FILL_DEADLINE_SECONDS;
-      const depositor = selectedWallet.address;
+      // 5. Quote LayerZero fee for cross-chain relay
+      const lzFee = await this.quoteLayerZeroFee(params, provider, routerAddress);
+      this.logger.log(`Quoted LayerZero fee: ${lzFee} wei`);
 
-      const depositData = this.spokePoolInterface.encodeFunctionData('depositV3', [
-        depositor,
-        params.recipientAddress as `0x${string}`,
+      // 6. Build swap calldata with slippage protection
+      const minAmountLD = (params.amount * BigInt(10000 - DEFAULT_SLIPPAGE_BP)) / 10000n;
+      const recipient = params.recipientAddress || selectedWallet.address;
+
+      const swapData = this.routerInterface.encodeFunctionData('swap', [
         params.token as `0x${string}`,
-        params.destinationToken as `0x${string}`,
         params.amount,
-        params.amount, // outputAmount = inputAmount (1:1 for same token bridges)
-        BigInt(params.destinationChainId),
-        ZeroAddress, // exclusiveRelayer — any relayer can fill
-        quoteTimestamp,
-        fillDeadline,
-        0, // exclusivityDeadline — no exclusivity
-        new Uint8Array(0), // empty message
+        minAmountLD,
+        recipient as `0x${string}`,
       ]);
 
-      // 6. Estimate gas
+      // 7. Estimate gas (include LZ fee as value)
       const gasEstimation = await this.gasEstimator.estimateGas(
         params.sourceChainId as ChainId,
         {
-          to: spokePoolAddress,
-          data: depositData,
-          value: 0n,
-          from: depositor,
+          to: routerAddress,
+          data: swapData,
+          value: lzFee,
+          from: selectedWallet.address,
         },
       );
 
       if (!gasEstimation.withinPolicy) {
         throw new Error(
-          `Across: gas price exceeds policy for chain ${params.sourceChainId}: ` +
+          `Stargate: gas price exceeds policy for chain ${params.sourceChainId}: ` +
           `${gasEstimation.policyWarning}`,
         );
       }
 
-      // 7. Submit depositV3 transaction
+      // 8. Submit swap transaction
       const tx = await selectedWallet.wallet.sendTransaction({
-        to: spokePoolAddress,
-        data: depositData,
-        value: 0n,
-        from: depositor,
+        to: routerAddress,
+        data: swapData,
+        value: lzFee,
+        from: selectedWallet.address,
         gasLimit: gasEstimation.gasLimit,
         maxFeePerGas: gasEstimation.feeData.maxFeePerGas,
         maxPriorityFeePerGas: gasEstimation.feeData.maxPriorityFeePerGas,
@@ -176,11 +173,11 @@ export class AcrossBridgeAdapter implements BridgeAdapter {
       });
 
       this.logger.log(
-        `submitBridgeTransfer: depositV3 tx sent hash=${tx.hash} ` +
+        `submitBridgeTransfer: swap tx sent hash=${tx.hash} ` +
         `${params.sourceChainId} → ${params.destinationChainId}`,
       );
 
-      // 8. Wait for source chain confirmation
+      // 9. Wait for source chain confirmation
       const receipt = await tx.wait(1);
       if (!receipt || receipt.status === 0) {
         this.submitCounter.inc({
@@ -189,14 +186,14 @@ export class AcrossBridgeAdapter implements BridgeAdapter {
           status: 'reverted',
         });
         throw new Error(
-          `Across: depositV3 tx ${tx.hash} reverted on source chain ${params.sourceChainId}`,
+          `Stargate: swap tx ${tx.hash} reverted on source chain ${params.sourceChainId}`,
         );
       }
 
-      // 9. Extract depositId from events
-      const depositId = this.extractDepositId(receipt);
+      // 10. Extract swap ID from events
+      const swapId = this.extractSwapId(receipt, tx.hash);
 
-      // 10. Record metrics
+      // 11. Record metrics
       timer({ source: String(params.sourceChainId), dest: String(params.destinationChainId) });
       this.submitCounter.inc({
         source: String(params.sourceChainId),
@@ -205,14 +202,14 @@ export class AcrossBridgeAdapter implements BridgeAdapter {
       });
 
       this.logger.log(
-        `submitBridgeTransfer: confirmed hash=${tx.hash} depositId=${depositId}`,
+        `submitBridgeTransfer: confirmed hash=${tx.hash} swapId=${swapId}`,
       );
 
       return {
         sourceTxHash: tx.hash,
         sourceChainId: params.sourceChainId,
         destinationChainId: params.destinationChainId,
-        bridgeId: depositId,
+        bridgeId: swapId,
         estimatedRelayMs: DEFAULT_ESTIMATED_RELAY_MS,
       };
     } catch (error) {
@@ -227,9 +224,9 @@ export class AcrossBridgeAdapter implements BridgeAdapter {
 
   // eslint-disable-next-line @typescript-eslint/require-await
   async checkBridgeStatus(bridgeId: string): Promise<BridgeStatusResult> {
-    // TODO: Implement on-chain status polling via SpokePool.filledDeposits(depositId)
-    // For now, return pending status — full implementation in DEX-2-1 integration testing
-    this.logger.debug(`checkBridgeStatus: depositId=${bridgeId} → pending (stub)`);
+    // TODO: Implement on-chain status polling via Stargate/LayerZero message status
+    // For now, return pending status — full implementation in DEX-2 integration testing
+    this.logger.debug(`checkBridgeStatus: swapId=${bridgeId} → pending (stub)`);
     return {
       status: 'pending',
       sourceTxHash: '',
@@ -241,15 +238,15 @@ export class AcrossBridgeAdapter implements BridgeAdapter {
 
   // eslint-disable-next-line @typescript-eslint/require-await
   async estimateBridgeFee(_params: BridgeTransferParams): Promise<BridgeFeeEstimate> {
-    // TODO: Query Across API for real-time fee estimate
-    // Across fee = relayer fee + LP fee + gas
+    // TODO: Query Stargate API for real-time fee estimate
+    // Stargate fee = protocol fee + LayerZero relay fee + gas
     // For now, return conservative estimates
     const bridgeFee = 0n;
     const relayerFee = 0n;
-    const estimatedGasSource = ESTIMATED_DEPOSIT_GAS;
+    const estimatedGasSource = ESTIMATED_SWAP_GAS;
     const estimatedGasDestination = ESTIMATED_CLAIM_GAS;
 
-    this.feeHistogram.observe({ bridge_key: 'across' }, 0);
+    this.feeHistogram.observe({ bridge_key: 'stargate' }, 0);
 
     return {
       bridgeFee,
@@ -262,7 +259,8 @@ export class AcrossBridgeAdapter implements BridgeAdapter {
 
   // eslint-disable-next-line @typescript-eslint/require-await
   async estimateRelayTime(_params: BridgeTransferParams): Promise<number> {
-    // Across typical relay: 1–5 minutes for L2↔L2, 5–15 min for L1↔L2
+    // Stargate V2 via LayerZero: typically 5–20 min depending on destination chain
+    // L2↔L2 is faster (~5 min), L1↔L2 is slower (~10-20 min)
     return DEFAULT_ESTIMATED_RELAY_MS;
   }
 
@@ -271,79 +269,121 @@ export class AcrossBridgeAdapter implements BridgeAdapter {
   // ─────────────────────────────────────────────────────────────────────
 
   /**
-   * Ensure the SpokePool has sufficient ERC20 allowance.
+   * Ensure the Stargate Router has sufficient ERC20 allowance.
    */
   private async ensureApproval(
     params: BridgeTransferParams,
     ownerAddress: string,
-    spokePoolAddress: string,
+    routerAddress: string,
   ): Promise<void> {
     const currentAllowance = await this.tokenApprove.getAllowance({
       chainId: params.sourceChainId as ChainId,
       tokenAddress: asAddr(params.token),
       owner: asAddr(ownerAddress),
-      spender: asAddr(spokePoolAddress),
+      spender: asAddr(routerAddress),
     });
 
     if (currentAllowance >= params.amount) {
       this.logger.debug(
-        `Sufficient allowance: ${currentAllowance} >= ${params.amount} for ${params.token} → SpokePool`,
+        `Sufficient allowance: ${currentAllowance} >= ${params.amount} for ${params.token} → Router`,
       );
       return;
     }
 
     this.logger.log(
-      `Insufficient allowance, approving ${params.token} for SpokePool ${spokePoolAddress}`,
+      `Insufficient allowance, approving ${params.token} for Stargate Router ${routerAddress}`,
     );
 
     const result = await this.tokenApprove.approveToken({
       chainId: params.sourceChainId as ChainId,
       tokenAddress: asAddr(params.token),
-      spender: asAddr(spokePoolAddress),
+      spender: asAddr(routerAddress),
       amount: params.amount,
     });
 
     if (result.status === 'failed') {
       throw new Error(
-        `Across: ERC20 approve failed for ${params.token}: tx=${result.txHash}`,
+        `Stargate: ERC20 approve failed for ${params.token}: tx=${result.txHash}`,
       );
     }
   }
 
   /**
-   * Extract depositId from V3FundsDeposited event in receipt logs.
+   * Quote LayerZero fee for a cross-chain swap.
+   *
+   * Returns the fee in wei that must be sent as `value` in the swap TX.
+   * Falls back to 0 if quote fails (will fail at gas estimation instead).
    */
-  private extractDepositId(receipt: { logs: readonly { topics: readonly string[] }[] }): string {
-    const depositTopic = this.spokePoolInterface.getEvent('V3FundsDeposited')!.topicHash;
+  private async quoteLayerZeroFee(
+    params: BridgeTransferParams,
+    provider: JsonRpcProvider,
+    routerAddress: string,
+  ): Promise<bigint> {
+    try {
+      const routerContract = new Contract(
+        routerAddress,
+        new Interface(StargateRouterV2ABI),
+        provider,
+      );
 
-    for (const log of receipt.logs) {
-      if (log.topics[0] === depositTopic) {
-        // depositId is the first indexed parameter (topics[1])
-        return log.topics[1] ?? 'unknown';
-      }
+      // Stargate uses uint16 for LayerZero chain IDs (same as EVM chain IDs for our supported chains)
+      const dstChainId = params.destinationChainId;
+      const recipient = params.recipientAddress || ZeroAddress;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const fee = await (routerContract as any).quoteLayerZeroFee(
+        dstChainId,
+        params.token,
+        params.amount,
+        recipient,
+      );
+
+      return BigInt(fee);
+    } catch (error) {
+      this.logger.warn(
+        `Failed to quote LayerZero fee, using fallback 0: ${String(error)}`,
+      );
+      return 0n;
     }
-
-    this.logger.warn('V3FundsDeposited event not found in receipt, using tx hash as bridgeId');
-    return 'unknown';
   }
 
   /**
-   * Build supported chain pairs from Across address registry.
+   * Extract swap ID from Swap event in receipt logs.
+   */
+  private extractSwapId(receipt: { logs: readonly { topics: readonly string[] }[] }, txHash: string): string {
+    const swapTopic = this.routerInterface.getEvent('Swap')!.topicHash;
+
+    for (const log of receipt.logs) {
+      if (log.topics[0] === swapTopic) {
+        // Return tx hash + log index as unique bridgeId
+        const logIndex = log.topics[1] ?? '0';
+        return `${txHash}:${logIndex}`;
+      }
+    }
+
+    this.logger.warn('Swap event not found in receipt, using tx hash as bridgeId');
+    return txHash;
+  }
+
+  /**
+   * Build supported chain pairs from Stargate address registry.
    */
   private buildSupportedChains(): ReadonlyArray<readonly [number, number]> {
     const chainIds = [
       ChainId.ETHEREUM_MAINNET,
       ChainId.ARBITRUM_ONE_MAINNET,
       ChainId.BASE_MAINNET,
+      ChainId.BNB_CHAIN_MAINNET,
       ChainId.ETHEREUM_TESTNET_SEPOLIA,
       ChainId.ARBITRUM_ONE_SEPOLIA,
       ChainId.BASE_SEPOLIA,
+      ChainId.BNB_CHAIN_TESTNET,
     ];
 
     const pairs: [number, number][] = [];
     for (const src of chainIds) {
       for (const dst of chainIds) {
-        if (src !== dst && isAcrossSupportedChainPair(src, dst)) {
+        if (src !== dst && isStargateSupportedChainPair(src, dst)) {
           pairs.push([src, dst]);
         }
       }
@@ -359,23 +399,23 @@ export class AcrossBridgeAdapter implements BridgeAdapter {
     const registry = getArbibotMetricsRegistry();
 
     this.submitCounter = new Counter({
-      name: 'arb_bridge_across_submit_total',
-      help: 'Total Across bridge transfer submissions',
+      name: 'arb_bridge_stargate_submit_total',
+      help: 'Total Stargate bridge transfer submissions',
       labelNames: ['source', 'dest', 'status'],
       registers: [registry],
     });
 
     this.relayLatency = new Histogram({
-      name: 'arb_bridge_across_relay_duration_seconds',
-      help: 'Across bridge relay duration in seconds',
+      name: 'arb_bridge_stargate_relay_duration_seconds',
+      help: 'Stargate bridge relay duration in seconds',
       labelNames: ['source', 'dest'],
-      buckets: [30, 60, 120, 300, 600, 1800],
+      buckets: [60, 120, 300, 600, 1200, 1800],
       registers: [registry],
     });
 
     this.feeHistogram = new Histogram({
-      name: 'arb_bridge_across_fee_usd',
-      help: 'Across bridge fee in USD',
+      name: 'arb_bridge_stargate_fee_usd',
+      help: 'Stargate bridge fee in USD',
       labelNames: ['bridge_key'],
       buckets: [0.1, 0.5, 1, 5, 10, 50],
       registers: [registry],

@@ -1,17 +1,17 @@
 # Progress Arbibot 2
 
-**Обновлено:** 2026-05-19
+**Обновлено:** 2026-05-20
 
 ---
 
 ## Текущий статус
 
-**DEX план:** 35/35 + DEX-2-0-ADR done. **DEX-2 начат.**
+**DEX план:** 35/35 + DEX-2-0-ADR + DEX-2-1-BRIDGE-ACROSS + DEX-2-1-BRIDGE-STG + DEX-2-1-BRIDGE-NATIVE + DEX-2-2-PLAN done.
 **DEX Frontend P1+P2+P3:** done ✅
-**Текущий шаг:** DEX-2-1-BRIDGE-ACROSS (🔄 in_progress)
-**Следующие:** DEX-2-1-BRIDGE-STG, DEX-2-1-BRIDGE-NATIVE, DEX-2-2-PLAN
+**Текущий шаг:** DEX-2-2-PLAN ✅ (Multi-leg plan builder)
+**Следующие:** DEX-2-3-* (execution pipeline integration)
 
-**Build:** 21/21 ✅ | **Lint:** 28/28 ✅ (0 errors) | **Tests:** 303/303 ✅ (execution-orchestrator)
+**Build:** 21/21 ✅ | **Lint:** 28/28 ✅ (0 errors) | **Tests:** 361/361 ✅ (26 suites, execution-orchestrator)
 
 ---
 
@@ -32,6 +32,156 @@
 ---
 
 ## Последние события (2026-05)
+
+### 2026-05-20 (session 35) — DEX-2-2-PLAN → done ✅
+
+**Дата:** 2026-05-20
+**Задача:** DEX-2-2-PLAN — Multi-leg plan builder для cross-chain arbitrage
+**Статус:** `done` ✅
+**След. шаги:** DEX-2-3-*
+
+### Что реализовано
+1. **`CreateMultiLegPlanDto`** — DTO с валидацией: legs (min 2), bridgeLegs, slippageBps, deadlineSeconds
+2. **`MultiLegPlanBuilderService`** — доменный сервис:
+   - `buildMultiLegPlan()` — геометрическая валидация (chain path continuity, token flow)
+   - `optimizeLegOrder()` — ABC-sort для минимизации execution risk
+   - `estimateTotalGas()` — суммарная gas оценка по legs
+   - `validateBridgeAvailability()` — проверка bridge adapter через `BridgeAdapterFactoryService`
+3. **`PlansController`** — `POST /execution/plans/multi-leg` endpoint с audit логированием
+4. **DI интеграция** — `MultiLegPlanBuilderService` + `BridgeAdapterFactoryService` в `PlansModule`
+5. **24 unit-теста** — build (8), optimize (5), gas estimate (3), bridge validation (4), controller (4)
+
+### Созданные файлы
+- `apps/execution-orchestrator/src/plans/dto/create-multi-leg-plan.dto.ts`
+- `apps/execution-orchestrator/src/plans/multi-leg-plan-builder.service.ts`
+- `apps/execution-orchestrator/src/plans/multi-leg-plan-builder.service.spec.ts` (24 tests)
+
+### Изменённые файлы
+- `apps/execution-orchestrator/src/plans/plans.module.ts` — DI
+- `apps/execution-orchestrator/src/plans/plans.controller.ts` — POST endpoint
+- `apps/execution-orchestrator/src/legs/legs.service.ts` — bridge leg fix (`legIndex !== -1`)
+- `apps/execution-orchestrator/src/execution/bridge/native-bridge.adapter.ts` — lint fixes
+- `apps/execution-orchestrator/src/execution/bridge/across-bridge.adapter.ts` — lint fixes
+- `apps/execution-orchestrator/src/execution/bridge/stargate-bridge.adapter.ts` — lint fixes
+
+### Результаты
+- Build: 21/21 ✅
+- Tests: **26 suites, 361/361** ✅ (+24 Multi-leg plan builder tests)
+- Lint: 28/28 ✅ (0 errors)
+
+### Зарегистрированные bridge adapters (3):
+| bridgeKey | Adapter | Supported Chains |
+|-----------|---------|-----------------|
+| `across` | AcrossBridgeAdapter | ETH↔Arb, ETH↔Base |
+| `stargate` | StargateBridgeAdapter | ETH↔Arb, ETH↔Base, ETH↔BNB |
+| `native` | NativeBridgeAdapter | ETH↔Arb (Inbox), ETH↔Base (OP Stack), Base→ETH |
+
+---
+
+### 2026-05-20 (session 34) — DEX-2-1-BRIDGE-NATIVE → done ✅
+
+**Дата:** 2026-05-20
+**Задача:** DEX-2-1-BRIDGE-NATIVE — Native bridge adapter (Arbitrum Inbox + OP Stack bridges)
+**Статус:** `done` ✅
+**След. шаги:** DEX-2-2-PLAN
+
+### Что реализовано
+1. **Native bridge ABI** в `@arbibot/contracts-eth` — Arbitrum Inbox, L1StandardBridge, L2StandardBridge ABIs
+2. **Native bridge addresses** — Router адреса для mainnet (ETH↔Arbitrum, ETH↔Base), `isNativeBridgeSupported()` helper
+3. **`NativeBridgeAdapter`** — полная реализация `BridgeAdapter`:
+   - `submitBridgeTransfer` — chain pair routing → native ETH deposit / ERC20 bridge / L2 withdrawal
+   - `checkBridgeStatus` — stub (pending full on-chain message tracking)
+   - `estimateBridgeFee` / `estimateRelayTime` — L1→L2 ~10 min, L2→L1 ~7 days (OP stack challenge period)
+   - Prometheus metrics: `arb_bridge_native_submit_total`, `arb_bridge_native_relay_duration_seconds`, `arb_bridge_native_fee_usd`
+4. **DI интеграция** — `NativeBridgeAdapter` в `BridgeAdapterFactoryService` (bridgeKey: `native`) + `ExecutionModule`
+5. **21 unit-тест** — properties (4), relay time (2), fee estimate (4), status check (1), submit (10: success + error cases)
+
+### Созданные файлы
+- `packages/contracts-eth/src/abis/native-bridge.ts` — Arbitrum Inbox + OP StandardBridge ABIs
+- `apps/execution-orchestrator/src/execution/bridge/native-bridge.adapter.ts`
+- `apps/execution-orchestrator/src/execution/bridge/native-bridge.adapter.spec.ts` (21 tests)
+
+### Изменённые файлы
+- `packages/contracts-eth/src/addresses/bridge.ts` — native bridge addresses + `isNativeBridgeSupported`
+- `packages/contracts-eth/src/index.ts` — exports
+- `apps/execution-orchestrator/src/execution/bridge/bridge-adapter-factory.service.ts` — Native registration, bridgeKey `native-arb` → `native`
+- `apps/execution-orchestrator/src/execution/execution.module.ts` — DI
+
+### Результаты
+- Build: 21/21 ✅
+- Tests: **25 suites, 337/337** ✅ (+21 Native bridge tests)
+- Lint: 28/28 ✅ (0 errors)
+
+---
+
+### 2026-05-20 (session 33) — DEX-2-1-BRIDGE-STG → done ✅
+
+**Дата:** 2026-05-20
+**Задача:** DEX-2-1-BRIDGE-STG — Stargate V2 bridge adapter
+**Статус:** `done` ✅
+**След. шаги:** DEX-2-1-BRIDGE-NATIVE, DEX-2-2-PLAN
+
+### Что реализовано
+1. **Stargate V2 ABI + адреса** в `@arbibot/contracts-eth` — Router ABI, chain pair validation, addresses (mainnet + testnet)
+2. **`StargateBridgeAdapter`** — `BridgeAdapter` реализация: swap с LayerZero fee, slippage protection, gas policy check
+3. **DI интеграция** — `StargateBridgeAdapter` зарегистрирован в `BridgeAdapterFactoryService` и `ExecutionModule`
+4. **13 unit-тестов** — properties, estimateRelayTime, estimateBridgeFee, checkBridgeStatus, submitBridgeTransfer (success, error cases)
+
+### Созданные файлы
+- `packages/contracts-eth/src/abis/stargate-bridge.ts` — StargateRouterV2ABI
+- `apps/execution-orchestrator/src/execution/bridge/stargate-bridge.adapter.ts`
+- `apps/execution-orchestrator/src/execution/bridge/stargate-bridge.adapter.spec.ts` (13 tests)
+
+### Изменённые файлы
+- `packages/contracts-eth/src/addresses/bridge.ts` — Stargate addresses + `isStargateSupportedChainPair`
+- `packages/contracts-eth/src/index.ts` — exports
+- `apps/execution-orchestrator/src/execution/bridge/bridge-adapter-factory.service.ts` — Stargate registration
+- `apps/execution-orchestrator/src/execution/execution.module.ts` — DI
+
+### Результаты
+- Build: 21/21 ✅
+- Tests: **24 suites, 316/316** ✅ (+13 Stargate tests)
+- Lint: 28/28 ✅ (0 errors)
+
+---
+
+### 2026-05-20 (session 32) — DEX-2-1-BRIDGE-ACROSS integration → in_progress 🔄
+
+**Дата:** 2026-05-20
+**Задача:** DEX-2-1-BRIDGE-ACROSS — Интеграция Across bridge adapter в execution pipeline
+**Статус:** `in_progress` 🔄 (bridge pipeline integrated, pending E2E + formal review)
+**След. шаги:** DEX-2-1-BRIDGE-STG, DEX-2-2-PLAN
+
+### Что реализовано
+1. **`BridgeAdapterFactoryService`** — фабрика bridge-адаптеров по bridgeKey, интегрирована в `VenueFactoryService`
+2. **Bridge-aware execution flow** — `LegsService.executeLeg()` обрабатывает `legType=bridge`: создание `BridgeTransfer`, вызов `submitBridgeTransfer`, переход в `bridgePending`
+3. **`BridgeTransferPollingWorker`** — фоновый worker для polling bridge-статуса (`bridgePending → bridgeConfirming → filled`)
+4. **Bridge timeout detection** — автоматический переход в `failed` при превышении relay time
+5. **`legs.service.spec.ts`** — обновлены тесты для bridge leg scenario
+
+### Созданные файлы
+- `apps/execution-orchestrator/src/execution/bridge/bridge-adapter-factory.service.ts` (новый)
+- `apps/execution-orchestrator/src/execution/workers/bridge-transfer-polling.worker.ts` (новый)
+
+### Изменённые файлы
+- `apps/execution-orchestrator/src/execution/execution.module.ts` — DI: BridgeAdapterFactoryService, BridgeTransferPollingWorker
+- `apps/execution-orchestrator/src/execution/venue-factory.service.ts` — bridge key resolution через BridgeAdapterFactoryService
+- `apps/execution-orchestrator/src/legs/legs.service.ts` — bridge leg execution flow
+- `apps/execution-orchestrator/src/legs/legs.service.spec.ts` — bridge leg tests
+- `AGENTS.md` — актуализация (session 32, 303 tests)
+- `docs/progress.md` — актуализация
+
+### Результаты
+- Build: 21/21 ✅
+- Tests: 23 suites, **303/303** ✅
+- Lint: 28/28 ✅ (0 errors)
+
+### Открытые вопросы
+- CI зелёный на GitHub Actions не верифицирован
+- E2E testnet скрипт для Across bridge — pending
+- DEX-2-1-BRIDGE-STG (Stargate adapter) — planned
+
+---
 
 ### 2026-05-17 — Стабилизация DEX сервисов (коммит `48f3548`)
 **Статус:** done (без формального review — bugfix/stabilization)

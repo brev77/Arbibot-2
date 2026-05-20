@@ -25,7 +25,11 @@ import { DexHealthService } from './dex-health.service';
 import { DexHealthController } from './dex-health.controller';
 import { DexMetricsService } from './dex-metrics.service';
 import { AcrossBridgeAdapter } from './bridge/across-bridge.adapter';
+import { StargateBridgeAdapter } from './bridge/stargate-bridge.adapter';
+import { NativeBridgeAdapter } from './bridge/native-bridge.adapter';
 import { BridgeTransferService } from './bridge/bridge-transfer.service';
+import { BridgeAdapterFactoryService } from './bridge/bridge-adapter-factory.service';
+import { BridgeTransferPollingWorker } from './workers/bridge-transfer-polling.worker';
 
 @Module({
   imports: [
@@ -53,7 +57,11 @@ import { BridgeTransferService } from './bridge/bridge-transfer.service';
     DexHealthService,
     DexMetricsService,
     AcrossBridgeAdapter,
+    StargateBridgeAdapter,
+    NativeBridgeAdapter,
     BridgeTransferService,
+    BridgeAdapterFactoryService,
+    BridgeTransferPollingWorker,
   ],
   exports: [
     WalletManagerService,
@@ -74,7 +82,11 @@ import { BridgeTransferService } from './bridge/bridge-transfer.service';
     DexHealthService,
     DexMetricsService,
     AcrossBridgeAdapter,
+    StargateBridgeAdapter,
+    NativeBridgeAdapter,
     BridgeTransferService,
+    BridgeAdapterFactoryService,
+    BridgeTransferPollingWorker,
   ],
 })
 export class ExecutionModule {}

@@ -1,9 +1,38 @@
 # Session Summary — Arbibot 2
 
-**Дата:** 2026-05-19 (session 31)
-**DEX план:** 35/35 + DEX-2-0-ADR done — **DEX-2 начат**
+**Дата:** 2026-05-20 (session 35)
+**DEX план:** 35/35 + DEX-2-0-ADR + DEX-2-1-* + DEX-2-2-PLAN done ✅
 **DEX Frontend:** P1+P2+P3 done ✅
-**DEX-2:** `DEX-2-0-ADR` ✅ done → `DEX-2-1-BRIDGE-ACROSS` 🔄 in_progress
+**DEX-2:** `DEX-2-2-PLAN` ✅ done → `DEX-2-3-RECON-XCHAIN` 📋 planned
+**Build:** 21/21 ✅ | **Lint:** 28/28 ✅ | **Tests:** 361/361 ✅ (26 suites)
+
+---
+
+## Session 35 (2026-05-20) — DEX-2-2-PLAN → done ✅
+
+### Multi-leg plan builder для cross-chain arbitrage
+
+1. **`CreateMultiLegPlanDto`** — DTO с class-validator: legs (min 2), bridgeLegs, slippageBps, deadlineSeconds
+2. **`MultiLegPlanBuilderService`** — доменный сервис:
+   - `buildMultiLegPlan()` — геометрическая валидация (chain path continuity, token flow)
+   - `optimizeLegOrder()` — ABC-sort для минимизации execution risk
+   - `estimateTotalGas()` — суммарная gas оценка
+   - `validateBridgeAvailability()` — проверка bridge adapter
+3. **`PlansController`** — `POST /execution/plans/multi-leg` с audit
+4. **DI** — `MultiLegPlanBuilderService` + `BridgeAdapterFactoryService` в `PlansModule`
+5. **24 unit-теста** — build (8), optimize (5), gas (3), bridge (4), controller (4)
+
+### Созданные файлы
+- `apps/execution-orchestrator/src/plans/dto/create-multi-leg-plan.dto.ts`
+- `apps/execution-orchestrator/src/plans/multi-leg-plan-builder.service.ts`
+- `apps/execution-orchestrator/src/plans/multi-leg-plan-builder.service.spec.ts`
+
+### Результаты
+- Build: 21/21 ✅ | Tests: 26 suites, 361/361 ✅ | Lint: 28/28 ✅
+
+### Следующие шаги
+- DEX-2-3-RECON-XCHAIN (cross-chain reconciliation)
+- DEX-2-4-E2E (multi-chain e2e)
 
 ---
 
@@ -188,9 +217,9 @@
 
 ---
 
-## Текущий статус (актуально на 2026-05-19)
+## Текущий статус (актуально на 2026-05-20)
 
-**Build:** 21/21 ✅ | **Lint:** 28/28 ✅ | **Tests:** 303/303 ✅ | **DEX:** 35/35 + DEX-2-0-ADR done ✅ | **DEX Frontend:** P1+P2+P3 done ✅
+**Build:** 21/21 ✅ | **Lint:** 28/28 ✅ | **Tests:** 361/361 ✅ | **DEX:** 35/35 + DEX-2 (5/7 done) ✅ | **DEX Frontend:** P1+P2+P3 done ✅
 
 ### DEX-1 Complete — все сети и документация
 | Категория | Шагов | Статус |
@@ -211,15 +240,24 @@
 - `biswap-v2` — BNB (mainnet only)
 - `paper-dex` — симуляция для paper trading
 
+### Поддерживаемые bridge адаптеры
+- `across` — AcrossBridgeAdapter (ETH↔Arb, ETH↔Base)
+- `stargate` — StargateBridgeAdapter (ETH↔Arb, ETH↔Base, ETH↔BNB)
+- `native` — NativeBridgeAdapter (ETH↔Arb Inbox, ETH↔Base OP Stack, Base→ETH withdrawal)
+
 ## Следующие шаги (приоритизировано)
 1. ~~**DEX Frontend UI P1** — Execution Plans Table: DEX columns, chain icons~~ ✅ **done (session 28)**
 2. ~~**DEX Frontend UI P2** — Execution Plan Detail View (/execution/:id), on-chain tx card~~ ✅ **done (session 28)**
 3. ~~**DEX Frontend UI P3** — Settings DEX tab, operator actions (speed-up, cancel)~~ ✅ **done (session 29)**
 4. ~~**`DEX-2-0-ADR`** — Cross-chain ADR~~ ✅ **done (session 31)**
-5. **`DEX-2-1-BRIDGE-ACROSS`** — Across bridge adapter (🔄 in_progress)
-5. `DEX-DOC-RUNBOOK-BRIDGE` — Bridge runbook (planned, не блокирует)
-6. `DEX-DOC-ROLLBACK` — Rollback strategy (planned, не блокирует)
-7. CI verification на GitHub Actions
+5. ~~**`DEX-2-1-BRIDGE-ACROSS`** — Across bridge adapter~~ ✅ **done (session 32)**
+6. ~~**`DEX-2-1-BRIDGE-STG`** — Stargate adapter~~ ✅ **done (session 33)**
+7. ~~**`DEX-2-1-BRIDGE-NATIVE`** — Native L2 bridges~~ ✅ **done (session 34)**
+8. ~~**`DEX-2-2-PLAN`** — Multi-leg plan builder~~ ✅ **done (session 35)**
+9. **`DEX-2-3-RECON-XCHAIN`** — Cross-chain reconciliation (planned)
+10. **`DEX-2-4-E2E`** — Multi-chain e2e (planned)
+11. `DEX-DOC-RUNBOOK-BRIDGE` — Bridge runbook (planned)
+12. CI verification на GitHub Actions
 
 ## Открытые вопросы
 - CI зелёный на GitHub Actions не верифицирован

@@ -3,8 +3,8 @@
 > **🎯 ОСНОВНОЙ РАБОЧИЙ ДОКУМЕНТ**
 > Полные детали шагов — в файлах `dex/*.md`. Этот файл — навигация и прогресс.
 
-**Прогресс:** 35/35 + DEX-2-0-ADR → `done`. DEX-1 завершён. DEX-2-1-BRIDGE-ACROSS → `in_progress`.
-**Обновлено:** 2026-05-19 (session 31)
+**Прогресс:** 35/35 + DEX-2-0-ADR + DEX-2-1-BRIDGE-ACROSS + DEX-2-1-BRIDGE-STG + DEX-2-1-BRIDGE-NATIVE + DEX-2-2-PLAN → `done`. DEX-2 bridge adapters + multi-leg plan builder завершены.
+**Обновлено:** 2026-05-20 (session 35)
 
 ## Файлы плана
 
@@ -94,10 +94,10 @@
 | step_id | Суть | Статус |
 |---------|------|--------|
 | `DEX-2-0-ADR` | Cross-chain ADR | ✅ done |
-| `DEX-2-1-BRIDGE-ACROSS` | Across adapter | 🔄 in_progress |
-| `DEX-2-1-BRIDGE-STG` | Stargate adapter | 📋 planned |
-| `DEX-2-1-BRIDGE-NATIVE` | Native L2 bridges | 📋 planned |
-| `DEX-2-2-PLAN` | Multi-leg plan builder | 📋 planned |
+| `DEX-2-1-BRIDGE-ACROSS` | Across adapter | ✅ done |
+| `DEX-2-1-BRIDGE-STG` | Stargate adapter | ✅ done |
+| `DEX-2-1-BRIDGE-NATIVE` | Native L2 bridges | ✅ done |
+| `DEX-2-2-PLAN` | Multi-leg plan builder | ✅ done |
 | `DEX-2-3-RECON-XCHAIN` | Cross-chain recon | 📋 planned |
 | `DEX-2-4-E2E` | Multi-chain e2e | 📋 planned |
 

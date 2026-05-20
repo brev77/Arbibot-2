@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, type QueryDeepPartialEntity } from 'typeorm';
 import { BridgeTransferEntity } from '@arbibot/persistence';
 
-import type { BridgeAdapter, BridgeTransferParams, BridgeSubmitResult } from './bridge-adapter.interface';
+import type { BridgeAdapter, BridgeTransferParams } from './bridge-adapter.interface';
 
 /**
  * Bridge transfer lifecycle service.
