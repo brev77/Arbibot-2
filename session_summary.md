@@ -1,10 +1,35 @@
 # Session Summary — Arbibot 2
 
-**Дата:** 2026-05-20 (session 37)
+**Дата:** 2026-05-21 (session 37)
 **DEX план:** 35/35 + DEX-2-* (все 7 шагов) done ✅ — **DEX-2 полностью завершён**
 **DEX Frontend:** P1+P2+P3 done ✅
-**DEX-2:** `DEX-2-4-E2E` ✅ done → `DEX-DOC-RUNBOOK-BRIDGE`, `DEX-DOC-ROLLBACK` 📋 planned
-**Build:** 21/21 ✅ | **Lint:** 28/28 ✅ | **Tests:** 380+/380+ ✅ (27+ suites)
+**DEX-2:** Все шаги завершены ✅ → `DEX-DOC-RUNBOOK-BRIDGE`, `DEX-DOC-ROLLBACK` 📋 planned
+**Build:** 21/21 ✅ | **Lint:** 28/28 ✅ | **Tests:** 380/380 ✅ (27 suites)
+
+---
+
+## Session 37 (2026-05-21) — Финализация DEX-2: документация, верификация, коммит
+
+### Задача
+Финализация session 36 — документация, верификация, git commit.
+
+### Что сделано
+1. **Верификация** — Build 21/21 ✅, Lint 28/28 ✅, Tests 380/380 ✅ (27 suites)
+2. **npm script** `e2e:dex2-multichain` добавлен в root `package.json`
+3. **DEVELOPMENT_PLAN-DEX.md** — DEX-2-3 + DEX-2-4 отмечены done
+4. **Git commit** `a0e4ba7` — 10 files, +1499 lines (code from session 36)
+5. **Документация** — progress.md, session_summary.md актуализированы
+
+### Ключевые решения
+- Cross-chain reconciliation — single-writer в execution-orchestrator
+- Periodic worker с env `CROSS_CHAIN_RECON_ENABLED` (default: disabled)
+- Bridge incidents severity: warning (>2h stale), critical (>24h or mismatch)
+- E2E скрипт `e2e-dex2-multichain` покрывает полный chain: DEX→bridge→DEX→recon
+
+### Следующие шаги
+1. `DEX-DOC-RUNBOOK-BRIDGE` — Bridge runbook
+2. `DEX-DOC-ROLLBACK` — Rollback strategy
+3. CI verification на GitHub Actions
 
 ---
 

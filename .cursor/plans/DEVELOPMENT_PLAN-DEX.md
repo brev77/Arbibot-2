@@ -4,7 +4,7 @@
 > Полные детали шагов — в файлах `dex/*.md`. Этот файл — навигация и прогресс.
 
 **Прогресс:** 35/35 + DEX-2-0-ADR + DEX-2-1-BRIDGE-ACROSS + DEX-2-1-BRIDGE-STG + DEX-2-1-BRIDGE-NATIVE + DEX-2-2-PLAN + DEX-2-3-RECON-XCHAIN + DEX-2-4-E2E → `done`. DEX-2 cross-chain полностью завершён.
-**Обновлено:** 2026-05-20 (session 36)
+**Обновлено:** 2026-05-21 (session 37)
 
 ## Файлы плана
 

@@ -1,6 +1,6 @@
 # Progress Arbibot 2
 
-**Обновлено:** 2026-05-20
+**Обновлено:** 2026-05-21
 
 ---
 
@@ -8,10 +8,10 @@
 
 **DEX план:** 35/35 + DEX-2-* (ADR + bridges + plan + recon + e2e) done. **DEX-2 полностью завершён.**
 **DEX Frontend P1+P2+P3:** done ✅
-**Текущий шаг:** DEX-2-4-E2E ✅ (Multi-chain e2e)
-**Следующие:** DEX-DOC-RUNBOOK-BRIDGE, DEX-DOC-ROLLBACK
+**Текущий шаг:** Все DEX-1 + DEX-2 шаги завершены ✅
+**Следующие:** DEX-DOC-RUNBOOK-BRIDGE, DEX-DOC-ROLLBACK, CI verification
 
-**Build:** 21/21 ✅ | **Lint:** 28/28 ✅ (0 errors) | **Tests:** ~380+/361 ✅ (27+ suites, execution-orchestrator)
+**Build:** 21/21 ✅ | **Lint:** 28/28 ✅ (0 errors) | **Tests:** 380/380 ✅ (27 suites, execution-orchestrator)
 
 ---
 
@@ -32,6 +32,38 @@
 ---
 
 ## Последние события (2026-05)
+
+### 2026-05-21 (session 37) — Финализация DEX-2: документация, верификация, коммит
+
+**Дата:** 2026-05-21
+**Задача:** Финализация session 36 — документация, верификация, коммит
+**Статус:** `done` ✅
+**След. шаги:** DEX-DOC-RUNBOOK-BRIDGE, DEX-DOC-ROLLBACK
+
+### Что сделано
+1. **Верификация** — Build 21/21 ✅, Lint 28/28 ✅, Tests 380/380 ✅ (27 suites)
+2. **npm script** `e2e:dex2-multichain` добавлен в root `package.json`
+3. **DEVELOPMENT_PLAN-DEX.md** — DEX-2-3 + DEX-2-4 отмечены done
+4. **Git commit** `a0e4ba7` — 10 files, +1499 lines (code from session 36)
+5. **Документация** — progress.md, session_summary.md актуализированы
+
+### Изменённые файлы (документация)
+- `docs/progress.md` — header + session 37
+- `session_summary.md` — session 37 entry
+- `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` — обновлена дата
+
+### Принятые решения
+- Cross-chain reconciliation — single-writer в execution-orchestrator
+- Periodic worker с env `CROSS_CHAIN_RECON_ENABLED` (default: disabled)
+- Bridge incidents severity: warning (>2h stale), critical (>24h or mismatch)
+- E2E скрипт `e2e-dex2-multichain` покрывает полный chain: DEX→bridge→DEX→recon
+
+### Открытые вопросы
+- CI зелёный на GitHub Actions не верифицирован
+- DEX-DOC-RUNBOOK-BRIDGE, DEX-DOC-ROLLBACK — planned (не блокируют)
+- RpcProviderManager unit-тесты — частично покрыт
+
+---
 
 ### 2026-05-20 (session 36) — DEX-2-3-RECON-XCHAIN + DEX-2-4-E2E → done ✅
 
