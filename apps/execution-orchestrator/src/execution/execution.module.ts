@@ -30,13 +30,16 @@ import { NativeBridgeAdapter } from './bridge/native-bridge.adapter';
 import { BridgeTransferService } from './bridge/bridge-transfer.service';
 import { BridgeAdapterFactoryService } from './bridge/bridge-adapter-factory.service';
 import { BridgeTransferPollingWorker } from './workers/bridge-transfer-polling.worker';
+import { CrossChainReconciliationService } from './reconciliation/cross-chain-reconciliation.service';
+import { BridgeReconController } from './reconciliation/bridge-recon.controller';
+import { CrossChainReconWorker } from './workers/cross-chain-recon.worker';
 
 @Module({
   imports: [
     KeyVaultModule,
     TypeOrmModule.forFeature([WalletState, OnChainTransaction, BridgeTransferEntity]),
   ],
-  controllers: [RpcHealthController, DexHealthController],
+  controllers: [RpcHealthController, DexHealthController, BridgeReconController],
   providers: [
     WalletManagerService,
     DexFillTrackerService,
@@ -62,6 +65,8 @@ import { BridgeTransferPollingWorker } from './workers/bridge-transfer-polling.w
     BridgeTransferService,
     BridgeAdapterFactoryService,
     BridgeTransferPollingWorker,
+    CrossChainReconciliationService,
+    CrossChainReconWorker,
   ],
   exports: [
     WalletManagerService,
@@ -87,6 +92,8 @@ import { BridgeTransferPollingWorker } from './workers/bridge-transfer-polling.w
     BridgeTransferService,
     BridgeAdapterFactoryService,
     BridgeTransferPollingWorker,
+    CrossChainReconciliationService,
+    CrossChainReconWorker,
   ],
 })
 export class ExecutionModule {}

@@ -35,6 +35,7 @@
     "venue:load-test": "node tools/venue-load-test.mjs",
     "dex:load-test": "node tools/dex-load-test.mjs",
     "e2e:dex-testnet": "node tools/e2e-dex1-testnet.mjs",
+    "e2e:dex2-multichain": "node tools/e2e-dex2-multichain.mjs",
     "dev:risk": "npm run start:dev -w @arbibot/risk-service",
     "dev:opportunity": "npm run start:dev -w @arbibot/opportunity-service",
     "dev:capital": "npm run start:dev -w @arbibot/capital-service",

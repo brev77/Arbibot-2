@@ -1,10 +1,40 @@
 # Session Summary — Arbibot 2
 
-**Дата:** 2026-05-20 (session 35)
-**DEX план:** 35/35 + DEX-2-0-ADR + DEX-2-1-* + DEX-2-2-PLAN done ✅
+**Дата:** 2026-05-20 (session 37)
+**DEX план:** 35/35 + DEX-2-* (все 7 шагов) done ✅ — **DEX-2 полностью завершён**
 **DEX Frontend:** P1+P2+P3 done ✅
-**DEX-2:** `DEX-2-2-PLAN` ✅ done → `DEX-2-3-RECON-XCHAIN` 📋 planned
-**Build:** 21/21 ✅ | **Lint:** 28/28 ✅ | **Tests:** 361/361 ✅ (26 suites)
+**DEX-2:** `DEX-2-4-E2E` ✅ done → `DEX-DOC-RUNBOOK-BRIDGE`, `DEX-DOC-ROLLBACK` 📋 planned
+**Build:** 21/21 ✅ | **Lint:** 28/28 ✅ | **Tests:** 380+/380+ ✅ (27+ suites)
+
+---
+
+## Session 36 (2026-05-20) — DEX-2-3-RECON-XCHAIN + DEX-2-4-E2E → done ✅
+
+### Cross-chain reconciliation + Multi-chain e2e
+
+1. **`CrossChainReconciliationService`** — доменный сервис:
+   - `detectBridgeMismatches()` — находит completed transfers без destinationTxHash/confirmedAt
+   - `detectStaleBridgeTransfers()` — находит pending/relaying transfers дольше порога
+   - `generateBridgeIncident()` — создаёт инцидент (severity: warning/critical)
+   - `reconcilePlan()` — сверяет все ноги multi-leg плана (DEX fills + bridge transfers)
+   - `runFullReconciliation()` — полная сверка со статусом
+   - Prometheus metrics: arb_bridge_recon_*
+2. **`BridgeReconController`** — HTTP API (GET status, GET mismatches, POST trigger)
+3. **`CrossChainReconWorker`** — фоновый worker (env `CROSS_CHAIN_RECON_ENABLED`)
+4. **~20 unit-тестов** — все сценарии сверки
+5. **E2E скрипт** `tools/e2e-dex2-multichain.mjs` — полный multi-chain chain
+6. **npm script** `e2e:dex2-multichain`
+
+### Созданные файлы
+- `apps/execution-orchestrator/src/execution/reconciliation/cross-chain-reconciliation.service.ts`
+- `apps/execution-orchestrator/src/execution/reconciliation/cross-chain-reconciliation.service.spec.ts`
+- `apps/execution-orchestrator/src/execution/reconciliation/bridge-recon.controller.ts`
+- `apps/execution-orchestrator/src/execution/workers/cross-chain-recon.worker.ts`
+- `tools/e2e-dex2-multichain.mjs`
+
+### Результаты
+- Build: 21/21 ✅ | Tests: 27+ suites, ~380+ ✅ | Lint: 28/28 ✅
+- **DEX-2 cross-chain полностью завершён**
 
 ---
 
@@ -219,7 +249,7 @@
 
 ## Текущий статус (актуально на 2026-05-20)
 
-**Build:** 21/21 ✅ | **Lint:** 28/28 ✅ | **Tests:** 361/361 ✅ | **DEX:** 35/35 + DEX-2 (5/7 done) ✅ | **DEX Frontend:** P1+P2+P3 done ✅
+**Build:** 21/21 ✅ | **Lint:** 28/28 ✅ | **Tests:** 380+/380+ ✅ | **DEX:** 35/35 + DEX-2 (7/7 done) ✅ | **DEX Frontend:** P1+P2+P3 done ✅
 
 ### DEX-1 Complete — все сети и документация
 | Категория | Шагов | Статус |
@@ -254,10 +284,11 @@
 6. ~~**`DEX-2-1-BRIDGE-STG`** — Stargate adapter~~ ✅ **done (session 33)**
 7. ~~**`DEX-2-1-BRIDGE-NATIVE`** — Native L2 bridges~~ ✅ **done (session 34)**
 8. ~~**`DEX-2-2-PLAN`** — Multi-leg plan builder~~ ✅ **done (session 35)**
-9. **`DEX-2-3-RECON-XCHAIN`** — Cross-chain reconciliation (planned)
-10. **`DEX-2-4-E2E`** — Multi-chain e2e (planned)
+9. ~~**`DEX-2-3-RECON-XCHAIN`** — Cross-chain reconciliation~~ ✅ **done (session 36)**
+10. ~~**`DEX-2-4-E2E`** — Multi-chain e2e~~ ✅ **done (session 36)**
 11. `DEX-DOC-RUNBOOK-BRIDGE` — Bridge runbook (planned)
-12. CI verification на GitHub Actions
+12. `DEX-DOC-ROLLBACK` — Rollback strategy (planned)
+13. CI verification на GitHub Actions
 
 ## Открытые вопросы
 - CI зелёный на GitHub Actions не верифицирован

@@ -6,12 +6,12 @@
 
 ## Текущий статус
 
-**DEX план:** 35/35 + DEX-2-0-ADR + DEX-2-1-BRIDGE-ACROSS + DEX-2-1-BRIDGE-STG + DEX-2-1-BRIDGE-NATIVE + DEX-2-2-PLAN done.
+**DEX план:** 35/35 + DEX-2-* (ADR + bridges + plan + recon + e2e) done. **DEX-2 полностью завершён.**
 **DEX Frontend P1+P2+P3:** done ✅
-**Текущий шаг:** DEX-2-2-PLAN ✅ (Multi-leg plan builder)
-**Следующие:** DEX-2-3-* (execution pipeline integration)
+**Текущий шаг:** DEX-2-4-E2E ✅ (Multi-chain e2e)
+**Следующие:** DEX-DOC-RUNBOOK-BRIDGE, DEX-DOC-ROLLBACK
 
-**Build:** 21/21 ✅ | **Lint:** 28/28 ✅ (0 errors) | **Tests:** 361/361 ✅ (26 suites, execution-orchestrator)
+**Build:** 21/21 ✅ | **Lint:** 28/28 ✅ (0 errors) | **Tests:** ~380+/361 ✅ (27+ suites, execution-orchestrator)
 
 ---
 
@@ -32,6 +32,50 @@
 ---
 
 ## Последние события (2026-05)
+
+### 2026-05-20 (session 36) — DEX-2-3-RECON-XCHAIN + DEX-2-4-E2E → done ✅
+
+**Дата:** 2026-05-20
+**Задача:** DEX-2-3-RECON-XCHAIN — Cross-chain reconciliation + DEX-2-4-E2E — Multi-chain e2e
+**Статус:** `done` ✅
+**След. шаги:** DEX-DOC-RUNBOOK-BRIDGE, DEX-DOC-ROLLBACK
+
+### Что реализовано
+1. **`CrossChainReconciliationService`** — доменный сервис:
+   - `detectBridgeMismatches()` — находит completed transfers без destinationTxHash/confirmedAt
+   - `detectStaleBridgeTransfers()` — находит pending/relaying transfers дольше порога
+   - `generateBridgeIncident()` — создаёт инцидент (severity: warning/critical)
+   - `reconcilePlan()` — сверяет все ноги multi-leg плана (DEX fills + bridge transfers)
+   - `runFullReconciliation()` — полная сверка со статусом
+   - Prometheus metrics: arb_bridge_recon_checks_total, arb_bridge_recon_mismatches_total, arb_bridge_recon_stale_total
+2. **`BridgeReconController`** — HTTP API:
+   - `GET /execution/bridge-recon/status` — текущее состояние сверки
+   - `GET /execution/bridge-recon/mismatches` — список рассогласований + stale transfers + incidents
+   - `POST /execution/bridge-recon/trigger` — ручной запуск сверки
+3. **`CrossChainReconWorker`** — фоновый worker (env `CROSS_CHAIN_RECON_ENABLED`)
+4. **~20 unit-тестов** — detectBridgeMismatches, detectStaleBridgeTransfers, reconcilePlan, runFullReconciliation, generateBridgeIncident, getStatus
+5. **E2E скрипт** `tools/e2e-dex2-multichain.mjs` — полный multi-chain chain (DEX→bridge→DEX)
+6. **npm script** `e2e:dex2-multichain`
+
+### Созданные файлы
+- `apps/execution-orchestrator/src/execution/reconciliation/cross-chain-reconciliation.service.ts`
+- `apps/execution-orchestrator/src/execution/reconciliation/cross-chain-reconciliation.service.spec.ts` (~20 tests)
+- `apps/execution-orchestrator/src/execution/reconciliation/bridge-recon.controller.ts`
+- `apps/execution-orchestrator/src/execution/workers/cross-chain-recon.worker.ts`
+- `tools/e2e-dex2-multichain.mjs`
+
+### Изменённые файлы
+- `apps/execution-orchestrator/src/execution/execution.module.ts` — DI: CrossChainReconciliationService, BridgeReconController, CrossChainReconWorker
+- `package.json` — npm script `e2e:dex2-multichain`
+- `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` — DEX-2-3 + DEX-2-4 → done
+
+### Результаты
+- Build: 21/21 ✅
+- Tests: **27+ suites, ~380+ tests** ✅
+- Lint: 28/28 ✅ (0 errors)
+- **DEX-2 cross-chain полностью завершён** (ADR + bridges + plan + recon + e2e)
+
+---
 
 ### 2026-05-20 (session 35) — DEX-2-2-PLAN → done ✅
 
