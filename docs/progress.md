@@ -9,7 +9,7 @@
 **DEX план:** 35/35 + DEX-2-* (ADR + bridges + plan + recon + e2e) done. **DEX-2 полностью завершён.**
 **DEX Frontend P1+P2+P3:** done ✅
 **Текущий шаг:** Все DEX-1 + DEX-2 шаги завершены ✅
-**Следующие:** DEX-DOC-RUNBOOK-BRIDGE, DEX-DOC-ROLLBACK, CI verification
+**Все 46/46 DEX шагов завершены ✅** (DEX-1 + DEX-2 + DEX-DOC). Следующие: CI verification, стабилизация
 
 **Build:** 21/21 ✅ | **Lint:** 28/28 ✅ (0 errors) | **Tests:** 380/380 ✅ (27 suites, execution-orchestrator)
 
@@ -60,7 +60,7 @@
 
 ### Открытые вопросы
 - CI зелёный на GitHub Actions не верифицирован
-- DEX-DOC-RUNBOOK-BRIDGE, DEX-DOC-ROLLBACK — planned (не блокируют)
+- ~~DEX-DOC-RUNBOOK-BRIDGE, DEX-DOC-ROLLBACK~~ — ✅ **done** (session 38)
 - RpcProviderManager unit-тесты — частично покрыт
 
 ---

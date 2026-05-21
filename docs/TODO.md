@@ -16,13 +16,6 @@
 
 | Когда | Что | Заметки |
 |--------|-----|--------|
-| **DEX-2-0-ADR** | Написать cross-chain ADR — single-writer boundaries, idempotency, state machine расширения | Зависит от: DEX-1 done ✅. Шаг: `.cursor/plans/dex/dex-2-multichain.md`. Risk: `critical`. Оценка: 6h |
-| После DEX-2-0-ADR | **DEX-2-1-BRIDGE-ACROSS** — Across bridge adapter | Зависит от: DEX-2-0-ADR. Risk: `high`. Оценка: 16h |
-| После DEX-2-1-ACROSS | **DEX-2-1-BRIDGE-STG** — Stargate bridge adapter | Зависит от: DEX-2-1-BRIDGE-ACROSS. Risk: `high`. Оценка: 16h |
-| После DEX-2-1-STG | **DEX-2-1-BRIDGE-NATIVE** — Native L2 bridges | Зависит от: DEX-2-1-BRIDGE-STG. Risk: `high`. Оценка: 16h |
-| После bridge adapters | **DEX-2-2-PLAN** — Multi-leg plan builder (DEX→bridge→DEX) | Risk: `critical`. Оценка: 16h |
-| После DEX-2-2-PLAN | **DEX-2-3-RECON-XCHAIN** — Cross-chain reconciliation | Risk: `high`. Оценка: 12h |
-| После DEX-2-3 | **DEX-2-4-E2E** — Multi-chain E2E test | Risk: `critical`. Оценка: 20h |
 | CI verification | Убедиться, что все CI jobs зелёные на `main` | Локально: `npm run lint && npm run build && npm run test`. Чеклист: [`docs/ci-verification-checklist.md`](ci-verification-checklist.md). **2026-04-20:** полный прогон — успех |
 | Полный bus → Kafka | Публикация из `outbox_events` в топик с реальными строками | CI: job **`bus-smoke`** на `main`. Локально: **`npm run ci:bus-smoke`**; `SEED_OUTBOX=1` + **`DATABASE_URL`** — `npm run seed:outbox-smoke-events`. Полный `bus:publish`/`bus:consume` — вручную по [outbox-inbox.md](outbox-inbox.md). |
 
@@ -78,6 +71,8 @@
 | 2026-04-28 | **DEX план:** Обновлен DEVELOPMENT_PLAN-DEX.md с review notes для реализованных шагов. Информация о ревизии теперь хранится в плане, отдельный файл dex-code-review-summary.md удален |
 | 2026-04-28 | **Policy:** Все задачи по выполнению плана DEX вносить в `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` в соответствующие разделы `review_notes` / `review_action_items` / `review_blocks` |
 | 2026-04-28 | **Policy:** Задачи не из DEX плана вносить в `docs/TODO.md` (этот файл) |
+| 2026-05-21 | **DEX-2 cross-chain fully complete (session 37):** `DEX-2-0-ADR` → `DEX-2-4-E2E` — все 7 шагов `done`. 3 bridge adapter (Across, Stargate, Native L2), `MultiLegPlanBuilder`, `CrossChainReconciliationService` + worker, multi-chain E2E. 27 suites, 380/380 tests pass. Build 21/21 ✅, Lint 28/28 ✅ |
+| 2026-05-21 | **DEX-DOC complete (session 38):** `DEX-DOC-RUNBOOK-BRIDGE` + `DEX-DOC-ROLLBACK` → `done`. **Все 46/46 DEX шагов завершены.** Документация синхронизирована (progress.md, TODO.md, AGENTS.md) |
 
-*Последняя актуализация файла: 2026-05-19 (DEX-2 задачи, DEX Frontend P3 done, tech debt).*
+*Последняя актуализация файла: 2026-05-21 (session 38 — AGENTS.md + TODO sync).*
   +++++++ REPLACE
