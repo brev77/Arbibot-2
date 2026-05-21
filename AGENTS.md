@@ -37,13 +37,41 @@ The repo uses custom Cursor skills in `.cursor/skills/` for architecture validat
 
 The repo uses [graphify](https://github.com/safishamsi/graphify): `graphify-out/` is listed in `.gitignore` and is generated locally, not committed.
 
-**Current graph state (2026-04-18, code-only AST refresh):** **754** nodes, **634** edges, **230** communities — details in `graphify-out/GRAPH_REPORT.md` (276 TypeScript/TS source files scanned).
+**Current graph state (2026-05-21, code-only AST refresh):** **1694** nodes, **1691** edges, **417** communities — details in `graphify-out/GRAPH_REPORT.md` (498 TypeScript/TS source files scanned).
 
-- Install once: `python -m pip install graphifyy`, then from the repo root `python -m graphify cursor install` (writes [`.cursor/rules/graphify.mdc`](.cursor/rules/graphify.mdc)).
-- **Code-only refresh (AST, no LLM):** `python -c "from graphify.watch import _rebuild_code; from pathlib import Path; _rebuild_code(Path(\'.\'))"` — updates `graphify-out/graph.json`, `GRAPH_REPORT.md`, and cache; use after code edits for a quick graph sync. On Windows if `python` is not on `PATH`, use the same one-liner with **`py -3`** instead of `python`.
-- **Full graph (docs, markdown, images, semantic edges):** in Cursor run `/graphify .` (skill); after large doc changes use `/graphify . --update` per graphify docs.
-- **Focused questions:** `python -m graphify query "<question>" --graph graphify-out/graph.json`
-- For architecture questions, read `graphify-out/GRAPH_REPORT.md` first when that directory exists.
+**Full guide:** [`docs/graphify-guide.md`](docs/graphify-guide.md) — установка, команды, сценарии, интерпретация отчёта.
+
+#### npm-скрипты
+
+| Скрипт | Назначение |
+|--------|-----------|
+| `npm run graphify:rebuild` | AST-only rebuild графа (~30 сек) |
+| `npm run graphify:query -- "вопрос"` | Query к графу |
+| `npm run graphify:report` | Показать GRAPH_REPORT.md |
+
+#### Установка
+
+```bash
+pip install graphifyy
+python -m graphify cursor install   # создаёт .cursor/rules/graphify.mdc
+```
+
+#### Прямые команды
+
+- **Code-only refresh (AST, no LLM):** `py -3 -c "from graphify.watch import _rebuild_code; from pathlib import Path; _rebuild_code(Path('.'))"` — updates `graphify-out/graph.json`, `GRAPH_REPORT.md`, and cache. On Windows use **`py -3`** instead of `python`.
+- **Full graph (docs, markdown, images, semantic edges):** in Cursor run `/graphify .` (skill); after large doc changes use `/graphify . --update`.
+- **Focused questions:** `py -3 -m graphify query "<question>" --graph graphify-out/graph.json`
+
+#### CI integration
+
+GitHub Actions job `graphify-check`: runs after `build`, rebuilds graph, uploads `GRAPH_REPORT.md` as artifact (7-day retention, non-blocking).
+
+#### Когда использовать
+
+- Before architecture reviews and `/review-step`
+- After major refactors or shared-package changes
+- When validating `single-writer`, `reservation-first`, and shared-package boundaries
+- Before deployment: `npm run graphify:rebuild` + check report
 
 ### Overview
 
@@ -460,6 +488,7 @@ Operator session in dev: see `apps/web` middleware / `getOperatorSession` — `A
 5. **`e2e-phase3-paper-discovery`** — after `npm ci` + `npm run build`, runs `npm run ci:e2e-phase3-paper-discovery` / `bash tools/ci-e2e-phase3-paper-discovery.sh` (Postgres + **paper-trading-service** + **market-intake-service**, then `node tools/e2e-p3-paper-discovery.mjs`).
 6. **`e2e-phase4-tier-routing`** — after `npm ci` + `npm run build`, runs `npm run ci:e2e-phase4-tier-routing` (Postgres + **risk-service** + **config-service** + **market-intake** + `tools/e2e-phase4-tier-routing.mjs`).
 7. **`bus-smoke`** — after `npm ci`, runs `npm run ci:bus-smoke` (bridge build + optional Docker `--profile bus`; no full monorepo `npm run build` in this job).
+8. **`graphify-check`** — after `build`, rebuilds knowledge graph, uploads `GRAPH_REPORT.md` as artifact (non-blocking, 7-day retention).
 
 **Review gate (documentation, not a CI job):** [`docs/review-gate-cfg3-paper-discovery.md`](docs/review-gate-cfg3-paper-discovery.md) — required items completed 2026-04-19; optional full bus E2E deferred.
 

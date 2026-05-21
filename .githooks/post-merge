@@ -1,0 +1,4 @@
+#!/bin/bash
+# Auto-rebuild graphify knowledge graph after git pull
+(cd "$(git rev-parse --show-toplevel)" && \
+ py -3 -c "from graphify.watch import _rebuild_code; from pathlib import Path; _rebuild_code(Path('.'))" 2>/dev/null &) || true

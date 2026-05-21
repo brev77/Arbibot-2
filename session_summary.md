@@ -1,5 +1,54 @@
 # Session Summary
 
+## Session 39 — 2026-05-21: Feature-complete sync, Graphify integration, tsconfig update
+
+### What was done
+
+1. **Graphify integration (tooling)**
+   - `package.json` — npm scripts: `graphify:rebuild`, `graphify:query`, `graphify:report`, `prepare` (git hooks)
+   - `.githooks/post-commit` + `.githooks/post-merge` — automatic graph rebuild after git operations
+   - `.github/workflows/ci.yml` — `graphify-check` CI job (non-blocking, 7-day artifact)
+   - `.cursor/rules/graphify.mdc` — rewritten: automatic maintenance, mandatory usage during development
+   - `docs/graphify-guide.md` — full guide (new file)
+   - `docs/PROJECT_HANDBOOK.md` — Graphify section added
+   - `docs/services.md` — Graphify tooling section added
+
+2. **tsconfig update**
+   - `packages/tsconfig/nest.json` — `module: commonjs` → `node16`, `moduleResolution: node` → `node16`
+   - Verification: force build in progress
+
+3. **New files**
+   - `.githooks/post-commit` — graphify rebuild after commit
+   - `.githooks/post-merge` — graphify rebuild after pull
+   - `docs/deployment-guide.md` — deployment guide (new)
+   - `docs/graphify-guide.md` — graphify guide (new)
+
+4. **Documentation updates**
+   - `AGENTS.md` — graphify section rewritten with npm scripts, CI integration
+   - Current graph state updated: 1694 nodes, 1691 edges, 417 communities
+
+### Quality metrics (pre-change)
+
+- Build: 21/21 ✅
+- Lint: 28/28 ✅ (0 errors)
+- Tests: 392/392 ✅ (27 suites)
+- Migrations: 001–036
+
+### Risk assessment
+
+- **`packages/tsconfig/nest.json`** — `module: node16` potentially breaking for NestJS services that rely on `emitDecoratorMetadata` + CommonJS. Force build verification in progress.
+- If build fails: revert `module` to `commonjs` and `moduleResolution` to `node`.
+
+### Remaining open items
+
+| Priority | Item | Status |
+|----------|------|--------|
+| 🔴 High | CI green on GitHub Actions — not verified remotely | Open |
+| 🟡 Medium | Verify tsconfig `node16` doesn't break NestJS runtime | In progress |
+| 🟢 Low | Bus E2E: full scenario with real events | Backlog |
+
+---
+
 ## Session 38 — 2026-05-21: DEX Complete, Documentation Sync, Stabilization
 
 ### What was done

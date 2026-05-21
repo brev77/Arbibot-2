@@ -30,6 +30,25 @@
 
 - Префиксы сервисов для логов и метрик: см. `@arbibot/contracts` (`SERVICE_IDS` — расширяется по мере добавления приложений).
 
+## Tooling: Graphify (knowledge graph)
+
+**Graphify** строит knowledge graph репозитория для анализа зависимостей и границ сервисов.
+
+| Параметр | Значение |
+|----------|----------|
+| Пакет | `graphifyy` (pip) |
+| Выходные файлы | `graphify-out/graph.json`, `graphify-out/GRAPH_REPORT.md` |
+| Текущий размер | 1694 nodes, 1691 edges, 417 communities |
+| CI job | `graphify-check` (non-blocking, артефакт 7 дней) |
+| npm-скрипты | `npm run graphify:rebuild`, `npm run graphify:query`, `npm run graphify:report` |
+
+Типичные проверки:
+- Кто **пишет** данную сущность (single-writer validation)
+- Какие сервисы зависят от shared package (boundary check)
+- God nodes и community drift (refactoring candidates)
+
+Полное руководство: [docs/graphify-guide.md](graphify-guide.md).
+
 ## Phase 0 — см. также
 
 - [Security baseline](security-baseline.md) (P0-0.3-SEC)

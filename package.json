@@ -1,4 +1,5 @@
 {
+  "$schema": "https://json.schemastore.org/package.json",
   "name": "arbibot-2",
   "private": true,
   "packageManager": "npm@11.7.0",
@@ -57,7 +58,11 @@
     "db:backup": "bash tools/backup-postgres.sh",
     "verify:deployment": "bash tools/verify-deployment.sh",
     "verify:env": "bash tools/validate-env.sh",
-    "generate:tls": "bash tools/generate-tls-certs.sh"
+    "generate:tls": "bash tools/generate-tls-certs.sh",
+    "graphify:rebuild": "py -3 -c \"from graphify.watch import _rebuild_code; from pathlib import Path; _rebuild_code(Path('.'))\"",
+    "prepare": "git config core.hooksPath .githooks 2>/dev/null || true",
+    "graphify:query": "py -3 -m graphify query",
+    "graphify:report": "type graphify-out\\GRAPH_REPORT.md"
   },
   "dependencies": {
     "@radix-ui/react-switch": "^1.2.6",

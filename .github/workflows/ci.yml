@@ -187,3 +187,25 @@ jobs:
       - run: npm run build
       - name: Outbox-kafka-bridge smoke test + optional Redpanda compose
         run: bash tools/ci-bus-smoke.sh
+
+  graphify-check:
+    runs-on: ubuntu-latest
+    needs: build
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install graphify
+        run: pip install graphifyy
+      - name: Rebuild knowledge graph
+        run: python -c "from graphify.watch import _rebuild_code; from pathlib import Path; _rebuild_code(Path('.'))"
+      - name: Graph summary
+        run: cat graphify-out/GRAPH_REPORT.md
+      - name: Upload graph artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: graphify-report
+          path: graphify-out/GRAPH_REPORT.md
+          retention-days: 7

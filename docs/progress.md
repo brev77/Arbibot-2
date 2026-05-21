@@ -35,6 +35,34 @@
 
 ## Последние события (2026-05)
 
+### 2026-05-21 (session 39) — Graphify integration, tsconfig update, documentation sync
+
+**Дата:** 2026-05-21
+**Задача:** Feature-complete sync: Graphify tooling, tsconfig node16, документация
+**Статус:** `done` ✅
+**След. шаги:** Product decision for deployment
+
+### Что сделано
+1. **Graphify integration** — npm scripts (`graphify:rebuild`, `graphify:query`, `graphify:report`), git hooks (`.githooks/post-commit`, `.githooks/post-merge`), CI job `graphify-check`, документация
+2. **tsconfig update** — `packages/tsconfig/nest.json`: `module: commonjs` → `node16`, `moduleResolution: node` → `node16`
+3. **Новые файлы** — `.githooks/post-commit`, `.githooks/post-merge`, `docs/deployment-guide.md`, `docs/graphify-guide.md`
+4. **Документация** — AGENTS.md (graphify rewrite), PROJECT_HANDBOOK.md (graphify section), services.md (tooling section)
+
+### Изменённые файлы
+- `.cursor/rules/graphify.mdc` — rewritten: automatic maintenance, mandatory usage
+- `.github/workflows/ci.yml` — `graphify-check` job added
+- `AGENTS.md` — graphify section updated (1694 nodes, 1691 edges, 417 communities)
+- `docs/PROJECT_HANDBOOK.md` — Graphify section
+- `docs/services.md` — Graphify tooling section
+- `package.json` — npm scripts + `$schema` + `prepare` hook
+- `packages/tsconfig/nest.json` — module: node16
+- `session_summary.md` — session 39 entry
+
+### Риск
+- `tsconfig/nest.json` `module: node16` — потенциально breaking для NestJS (force build verification)
+
+---
+
 ### 2026-05-21 (session 37) — Финализация DEX-2: документация, верификация, коммит
 
 **Дата:** 2026-05-21

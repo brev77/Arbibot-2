@@ -20,6 +20,18 @@
 
 Cursor: навыки ревью и архитектуры — [.cursor/skills/](../.cursor/skills/) (см. [AGENTS.md](../AGENTS.md)).
 
+## Анализ кодовой базы (Graphify)
+
+**Graphify** — knowledge graph репозитория для проверки границ сервисов, single-writer и shared-package зависимостей.
+
+| Действие | Команда |
+|----------|---------|
+| Перестроить граф | `npm run graphify:rebuild` |
+| Query к графу | `npm run graphify:query -- "вопрос"` |
+| Показать отчёт | `npm run graphify:report` |
+
+Полное руководство: [docs/graphify-guide.md](graphify-guide.md).
+
 ## Дорожка «Оператор»
 
 | Шаг | Документ |
