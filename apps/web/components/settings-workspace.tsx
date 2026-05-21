@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { Button } from './ui/button';
 
@@ -710,7 +710,7 @@ export function SettingsWorkspace({
     return SENSITIVE_KEY.test(configKey) ? 'high' : 'medium';
   };
 
-  const configurations = listQuery.data ?? [];
+  const configurations = useMemo(() => listQuery.data ?? [], [listQuery.data]);
   const loading = listQuery.isLoading;
   const error =
     pageError ||

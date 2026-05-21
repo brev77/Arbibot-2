@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { useDexFiltersConfig, useUpdateDexFiltersConfig, usePreviewDexFilters, useDexFiltersMetrics } from '@/lib/use-dex-filters';
-import { DEFAULT_DEX_FILTERS_CONFIG } from '@arbibot/contracts';
+import { DEFAULT_DEX_FILTERS_CONFIG, type FiltersPreview, type FilterBreakdown, type RiskLevel } from '@arbibot/contracts';
 import { Loader2, Play, TrendingUp, AlertTriangle } from 'lucide-react';
 
 interface DexFiltersPanelProps {
@@ -22,7 +22,7 @@ export function DexFiltersPanel({ environment, tenantId }: DexFiltersPanelProps)
   
   const [localConfig, setLocalConfig] = useState(DEFAULT_DEX_FILTERS_CONFIG);
   const [isPreviewing, setIsPreviewing] = useState(false);
-  const [previewResult, setPreviewResult] = useState<any>(null);
+  const [previewResult, setPreviewResult] = useState<FiltersPreview | null>(null);
 
   // Update local config when remote config loads
   if (config && JSON.stringify(config) !== JSON.stringify(localConfig)) {
@@ -59,7 +59,7 @@ export function DexFiltersPanel({ environment, tenantId }: DexFiltersPanelProps)
     setLocalConfig(prev => ({ ...prev, enabled }));
   };
 
-  const handleUpdateFilter = (filterKey: keyof typeof localConfig.filters, updates: any) => {
+  const handleUpdateFilter = (filterKey: keyof typeof localConfig.filters, updates: Record<string, unknown>) => {
     setLocalConfig(prev => ({
       ...prev,
       filters: {
@@ -295,7 +295,7 @@ export function DexFiltersPanel({ environment, tenantId }: DexFiltersPanelProps)
             <div className="mt-4">
               <div className="text-sm font-medium text-muted-foreground mb-2">Breakdown</div>
               <div className="grid gap-2 md:grid-cols-4">
-                {Object.entries(previewResult.breakdown).map(([key, value]: [string, any]) => (
+                {Object.entries(previewResult.breakdown).map(([key, value]: [string, FilterBreakdown]) => (
                   <div key={key} className="flex items-center justify-between p-2 rounded bg-muted">
                     <span className="text-sm capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
                     <Badge variant="secondary">{value.count}</Badge>
@@ -339,7 +339,18 @@ export function DexFiltersPanel({ environment, tenantId }: DexFiltersPanelProps)
 }
 
 // Sub-components (simplified for brevity)
-function FilterToggle({ label, description, enabled, value, onToggle, onValueChange, suffix = '' }: any) {
+interface FilterToggleProps {
+  label: string;
+  description: string;
+  enabled: boolean;
+  value: number;
+  onToggle: (enabled: boolean) => void;
+  onValueChange: (value: number) => void;
+  suffix?: string;
+  prefix?: string;
+}
+
+function FilterToggle({ label, description, enabled, value, onToggle, onValueChange, suffix = '' }: FilterToggleProps) {
   return (
     <div className="flex items-center justify-between p-3 rounded-lg border">
       <div className="flex-1">
@@ -367,7 +378,19 @@ function FilterToggle({ label, description, enabled, value, onToggle, onValueCha
   );
 }
 
-function RangeFilter({ label, description, enabled, min, max, onToggle, onMinChange, onMaxChange }: any) {
+interface RangeFilterProps {
+  label: string;
+  description: string;
+  enabled: boolean;
+  min: number;
+  max: number;
+  onToggle: (enabled: boolean) => void;
+  onMinChange: (min: number) => void;
+  onMaxChange: (max: number) => void;
+  prefix?: string;
+}
+
+function RangeFilter({ label, description, enabled, min, max, onToggle, onMinChange, onMaxChange }: RangeFilterProps) {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
@@ -404,7 +427,16 @@ function RangeFilter({ label, description, enabled, min, max, onToggle, onMinCha
   );
 }
 
-function TagFilter({ label, description, enabled, tokens, onToggle, onTokensChange }: any) {
+interface TagFilterProps {
+  label: string;
+  description: string;
+  enabled: boolean;
+  tokens: string[];
+  onToggle: (enabled: boolean) => void;
+  onTokensChange: (tokens: string[]) => void;
+}
+
+function TagFilter({ label, description, enabled, tokens, onToggle, onTokensChange }: TagFilterProps) {
   const [inputValue, setInputValue] = useState('');
   const [tagList, setTagList] = useState<string[]>(tokens || []);
 
@@ -465,7 +497,16 @@ function TagFilter({ label, description, enabled, tokens, onToggle, onTokensChan
   );
 }
 
-function RiskFilter({ label, description, enabled, maxRiskLevel, onToggle, onRiskLevelChange }: any) {
+interface RiskFilterProps {
+  label: string;
+  description: string;
+  enabled: boolean;
+  maxRiskLevel: RiskLevel;
+  onToggle: (enabled: boolean) => void;
+  onRiskLevelChange: (level: RiskLevel) => void;
+}
+
+function RiskFilter({ label, description, enabled, maxRiskLevel, onToggle, onRiskLevelChange }: RiskFilterProps) {
   const riskLevels = ['low', 'medium', 'high'] as const;
   
   return (

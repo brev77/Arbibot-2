@@ -6,6 +6,27 @@ import { RpcProviderManager } from '../rpc/rpc-provider-manager.service';
 import { ChainId, Address } from '@arbibot/contracts-eth';
 
 /**
+ * Typed UniV2 pool contract (getReserves)
+ */
+interface UniV2PoolContract {
+  token0(): Promise<string>;
+  token1(): Promise<string>;
+  getReserves(): Promise<[bigint, bigint, number]>;
+  factory(): Promise<string>;
+}
+
+/**
+ * Typed UniV3 pool contract (slot0 + liquidity)
+ */
+interface UniV3PoolContract {
+  token0(): Promise<string>;
+  token1(): Promise<string>;
+  fee(): Promise<number>;
+  factory(): Promise<string>;
+  liquidity(): Promise<bigint>;
+}
+
+/**
  * Discovered DEX pool
  */
 export interface DiscoveredPool {
@@ -150,7 +171,7 @@ export class PoolDiscoveryService implements OnModuleInit, OnModuleDestroy {
         'function factory() view returns (address)',
       ];
 
-      const contract = new Contract(poolAddress, abi, provider) as any;
+      const contract = new Contract(poolAddress, abi, provider) as unknown as UniV2PoolContract;
       const [token0, token1, reserves, factory, blockNumber] = await Promise.all([
         contract.token0(),
         contract.token1(),
@@ -195,7 +216,7 @@ export class PoolDiscoveryService implements OnModuleInit, OnModuleDestroy {
         'function factory() view returns (address)',
       ];
 
-      const contract = new Contract(poolAddress, abi, provider) as any;
+      const contract = new Contract(poolAddress, abi, provider) as unknown as UniV3PoolContract;
       const [token0, token1, fee, factory, blockNumber] = await Promise.all([
         contract.token0(),
         contract.token1(),

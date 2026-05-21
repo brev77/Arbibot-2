@@ -1,10 +1,24 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { JsonRpcProvider, Contract, Wallet, TransactionReceipt } from 'ethers';
+import { JsonRpcProvider, Contract, Wallet, ContractTransactionReceipt, ContractTransactionResponse } from 'ethers';
 import { Counter, Gauge } from 'prom-client';
 import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
 import { ChainId, Address } from '@arbibot/contracts-eth';
 import { WalletManagerService } from '../wallet-manager.service';
 import { RpcProviderManager } from '../rpc/rpc-provider-manager.service';
+
+/**
+ * Typed ERC20 contract with write methods (connected to wallet)
+ */
+interface Erc20Contract {
+  approve(spender: string, amount: bigint): Promise<ContractTransactionResponse>;
+}
+
+/**
+ * Typed ERC20 contract with read methods (connected to provider)
+ */
+interface Erc20ReadContract {
+  allowance(owner: string, spender: string): Promise<bigint>;
+}
 
 /**
  * ERC20 approve/revoke result
@@ -101,13 +115,13 @@ export class TokenApproveService {
         tokenAddress,
         TokenApproveService.ERC20_ABI,
         selectedWallet.wallet,
-      ) as any;
+      ) as unknown as Erc20Contract;
 
       const tx = await tokenContract.approve(spender, amount);
       this.logger.log(`Approve tx sent: ${tx.hash} for ${tokenAddress} → ${spender}`);
 
       // Wait for confirmation (1 block)
-      const receipt: TransactionReceipt = await tx.wait(1);
+      const receipt: ContractTransactionReceipt | null = await tx.wait(1);
 
       const result: ApproveResult = {
         txHash: tx.hash,
@@ -184,7 +198,7 @@ export class TokenApproveService {
       params.tokenAddress,
       TokenApproveService.ERC20_ABI,
       provider,
-    ) as any;
+    ) as unknown as Erc20ReadContract;
 
     const allowance = await tokenContract.allowance(params.owner, params.spender);
     return BigInt(allowance);
@@ -223,12 +237,12 @@ export class TokenApproveService {
       tokenAddress,
       TokenApproveService.ERC20_ABI,
       wallet,
-    ) as any;
+    ) as unknown as Erc20Contract;
 
-    const tx = await tokenContract.approve(spender, 0);
+    const tx = await tokenContract.approve(spender, 0n);
     this.logger.log(`Revoke tx sent: ${tx.hash} for ${tokenAddress} → ${spender}`);
 
-    const receipt: TransactionReceipt = await tx.wait(1);
+    const receipt: ContractTransactionReceipt | null = await tx.wait(1);
 
     return {
       txHash: tx.hash,

@@ -285,7 +285,7 @@ describe('RpcProviderManager', () => {
 
       // Creating another service should not throw on duplicate metric registration
       expect(() => {
-        const module2 = Test.createTestingModule({
+        const _module2 = Test.createTestingModule({
           providers: [RpcProviderManager],
         });
         // Metrics are registered in constructor, not in onModuleInit

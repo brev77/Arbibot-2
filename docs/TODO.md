@@ -71,7 +71,7 @@
 | 2026-04-28 | **DEX план:** Обновлен DEVELOPMENT_PLAN-DEX.md с review notes для реализованных шагов. Информация о ревизии теперь хранится в плане, отдельный файл dex-code-review-summary.md удален |
 | 2026-04-28 | **Policy:** Все задачи по выполнению плана DEX вносить в `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` в соответствующие разделы `review_notes` / `review_action_items` / `review_blocks` |
 | 2026-04-28 | **Policy:** Задачи не из DEX плана вносить в `docs/TODO.md` (этот файл) |
-| 2026-05-21 | **DEX-2 cross-chain fully complete (session 37):** `DEX-2-0-ADR` → `DEX-2-4-E2E` — все 7 шагов `done`. 3 bridge adapter (Across, Stargate, Native L2), `MultiLegPlanBuilder`, `CrossChainReconciliationService` + worker, multi-chain E2E. 27 suites, 380/380 tests pass. Build 21/21 ✅, Lint 28/28 ✅ |
+| 2026-05-21 | **DEX-2 cross-chain fully complete (session 37):** `DEX-2-0-ADR` → `DEX-2-4-E2E` — все 7 шагов `done`. 3 bridge adapter (Across, Stargate, Native L2), `MultiLegPlanBuilder`, `CrossChainReconciliationService` + worker, multi-chain E2E. 27 suites, 392/392 tests pass. Build 21/21 ✅, Lint 28/28 ✅ |
 | 2026-05-21 | **DEX-DOC complete (session 38):** `DEX-DOC-RUNBOOK-BRIDGE` + `DEX-DOC-ROLLBACK` → `done`. **Все 46/46 DEX шагов завершены.** Документация синхронизирована (progress.md, TODO.md, AGENTS.md) |
 | 2026-05-21 | **RpcProviderManager tests expanded:** 11→22 тестов (init/destroy, primary-only, error handling, health check success/failure, metrics, edge cases). **27 suites, 392/392 tests pass.** |
 

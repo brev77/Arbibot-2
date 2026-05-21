@@ -11,7 +11,7 @@
 **Текущий шаг:** Все DEX-1 + DEX-2 шаги завершены ✅
 **Все 46/46 DEX шагов завершены ✅** (DEX-1 + DEX-2 + DEX-DOC). Следующие: CI verification, стабилизация
 
-**Build:** 21/21 ✅ | **Lint:** 28/28 ✅ (0 errors) | **Tests:** 380/380 ✅ (27 suites, execution-orchestrator)
+**Build:** 21/21 ✅ | **Lint:** 28/28 ✅ (0 errors) | **Tests:** 392/392 ✅ (27 suites, execution-orchestrator)
 
 ---
 
@@ -23,7 +23,7 @@
 ### Средний приоритет
 4. ~~**Pre-existing test issues**~~ — ✅ **ИСПРАВЛЕНЫ** (коммит `48f3548`, 2026-05-17)
 5. ~~**Недостающие unit-тесты: PoolDiscoveryService**~~ — ✅ **94 строки тестов добавлены** (`pool-discovery.service.spec.ts`)
-6. **Недостающие unit-тесты:** `RpcProviderManager` (частично покрыт)
+6. ~~**Недостающие unit-тесты:** `RpcProviderManager`~~ — ✅ **22 теста** (полное покрытие)
 
 ### Низкий приоритет
 6. **Bus E2E:** полный сценарий с реальными событиями — backlog
@@ -41,7 +41,7 @@
 **След. шаги:** DEX-DOC-RUNBOOK-BRIDGE, DEX-DOC-ROLLBACK
 
 ### Что сделано
-1. **Верификация** — Build 21/21 ✅, Lint 28/28 ✅, Tests 380/380 ✅ (27 suites)
+1. **Верификация** — Build 21/21 ✅, Lint 28/28 ✅, Tests 392/392 ✅ (27 suites)
 2. **npm script** `e2e:dex2-multichain` добавлен в root `package.json`
 3. **DEVELOPMENT_PLAN-DEX.md** — DEX-2-3 + DEX-2-4 отмечены done
 4. **Git commit** `a0e4ba7` — 10 files, +1499 lines (code from session 36)
@@ -61,7 +61,7 @@
 ### Открытые вопросы
 - CI зелёный на GitHub Actions не верифицирован
 - ~~DEX-DOC-RUNBOOK-BRIDGE, DEX-DOC-ROLLBACK~~ — ✅ **done** (session 38)
-- RpcProviderManager unit-тесты — частично покрыт
+- ~~RpcProviderManager unit-тесты~~ — ✅ **22 теста** (полное покрытие)
 
 ---
 
@@ -103,7 +103,7 @@
 
 ### Результаты
 - Build: 21/21 ✅
-- Tests: **27+ suites, ~380+ tests** ✅
+- Tests: **27 suites, 392/392** ✅
 - Lint: 28/28 ✅ (0 errors)
 - **DEX-2 cross-chain полностью завершён** (ADR + bridges + plan + recon + e2e)
 

@@ -8,6 +8,13 @@ import { Counter, Gauge } from 'prom-client';
 import { Address, ChainId } from '@arbibot/contracts-eth';
 
 /**
+ * Typed ERC20 contract for balance queries
+ */
+interface Erc20BalanceContract {
+  balanceOf(owner: string): Promise<bigint>;
+}
+
+/**
  * Wallet selection strategy
  */
 export enum WalletSelectionStrategy {
@@ -248,7 +255,7 @@ export class WalletManagerService implements OnModuleInit {
       const balanceOfAbi = [
         'function balanceOf(address owner) view returns (uint256)',
       ];
-      const contract = new Contract(tokenAddress, balanceOfAbi, provider) as any;
+      const contract = new Contract(tokenAddress, balanceOfAbi, provider) as unknown as Erc20BalanceContract;
       const balance = await contract.balanceOf(address);
       return BigInt(balance);
     } catch (error) {

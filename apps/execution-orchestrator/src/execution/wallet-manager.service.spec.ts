@@ -4,6 +4,8 @@ import { WalletManagerService } from './wallet-manager.service';
 import { KeyVaultService } from '@arbibot/nest-platform';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { WalletState } from '@arbibot/persistence';
+import { Provider } from 'ethers';
+import { Address, ChainId } from '@arbibot/contracts-eth';
 
 // Mock ethers
 jest.mock('ethers', () => ({
@@ -106,7 +108,7 @@ describe('WalletManagerService', () => {
     });
 
     it('should select a wallet for a chain', async () => {
-      const mockProvider = {} as any;
+      const mockProvider = {} as Provider;
 
       const result = await service.selectWallet(42161, mockProvider);
 
@@ -119,30 +121,27 @@ describe('WalletManagerService', () => {
     it('should throw when no wallets available for chain', async () => {
       keyVaultService.getWalletKeysByChain.mockReturnValue([]);
 
-      const mockProvider = {} as any;
+      const mockProvider = {} as Provider;
 
-      await expect(service.selectWallet(99999 as any, mockProvider)).rejects.toThrow( // eslint-disable-line @typescript-eslint/no-explicit-any
+      await expect(service.selectWallet(99999 as unknown as ChainId, mockProvider)).rejects.toThrow(
         'No active wallets available for chain 99999',
       );
     });
 
     it('should call decryptPrivateKey to get wallet instance', async () => {
-      const mockProvider = {} as any;
+      const mockProvider = {} as Provider;
 
       await service.selectWallet(42161, mockProvider);
 
-      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(keyVaultService.retrieveEncryptedKey).toHaveBeenCalled();
-      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(keyVaultService.decryptPrivateKey).toHaveBeenCalled();
     });
 
     it('should update key last used timestamp', async () => {
-      const mockProvider = {} as any;
+      const mockProvider = {} as Provider;
 
       await service.selectWallet(42161, mockProvider);
 
-      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(keyVaultService.updateKeyLastUsed).toHaveBeenCalled();
     });
   });
@@ -153,7 +152,7 @@ describe('WalletManagerService', () => {
     });
 
     it('should use round-robin by default', async () => {
-      const mockProvider = {} as any;
+      const mockProvider = {} as Provider;
 
       // First call should select key-1
       const result1 = await service.selectWallet(42161, mockProvider);
@@ -174,9 +173,9 @@ describe('WalletManagerService', () => {
 
   describe('getTokenBalance', () => {
     it('should return token balance for address', async () => {
-      const mockProvider = {} as any;
-      const address = '0x1234567890abcdef1234567890abcdef12345678' as any;
-      const tokenAddress = '0xtoken1234567890abcdef1234567890abcdef12' as any;
+      const mockProvider = {} as Provider;
+      const address = '0x1234567890abcdef1234567890abcdef12345678' as Address;
+      const tokenAddress = '0xtoken1234567890abcdef1234567890abcdef12' as Address;
 
       const balance = await service.getTokenBalance(mockProvider, address, tokenAddress);
 
@@ -186,9 +185,9 @@ describe('WalletManagerService', () => {
 
   describe('hasSufficientBalance', () => {
     it('should return true when balance is sufficient', async () => {
-      const mockProvider = {} as any;
-      const address = '0x1234567890abcdef1234567890abcdef12345678' as any;
-      const tokenAddress = '0xtoken1234567890abcdef1234567890abcdef12' as any;
+      const mockProvider = {} as Provider;
+      const address = '0x1234567890abcdef1234567890abcdef12345678' as Address;
+      const tokenAddress = '0xtoken1234567890abcdef1234567890abcdef12' as Address;
 
       const result = await service.hasSufficientBalance(
         mockProvider,
@@ -208,9 +207,9 @@ describe('WalletManagerService', () => {
         balanceOf: jest.fn().mockRejectedValue(new Error('RPC error')),
       }));
 
-      const mockProvider = {} as any;
-      const address = '0x1234567890abcdef1234567890abcdef12345678' as any;
-      const tokenAddress = '0xtoken1234567890abcdef1234567890abcdef12' as any;
+      const mockProvider = {} as Provider;
+      const address = '0x1234567890abcdef1234567890abcdef12345678' as Address;
+      const tokenAddress = '0xtoken1234567890abcdef1234567890abcdef12' as Address;
 
       const result = await service.hasSufficientBalance(
         mockProvider,

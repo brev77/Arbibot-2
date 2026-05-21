@@ -12,7 +12,7 @@
 2. **CI verification (local)**
    - Lint: 28/28 ✅ (0 errors, warnings only in `@arbibot/web` and `@arbibot/execution-orchestrator`)
    - Build: 21/21 ✅ (all packages, including Next.js web)
-   - Tests: 28/28 ✅ (execution-orchestrator: 27 suites, 380/380; risk-service: 6 suites, 22/22; etc.)
+   - Tests: 28/28 ✅ (execution-orchestrator: 27 suites, 392/392; risk-service: 6 suites, 22/22; etc.)
 
 3. **Git commit**
    - `95e741e` — docs: synchronize DEX completion status across progress.md, TODO.md, AGENTS.md (session 38)
@@ -34,7 +34,7 @@ All phases (0–5), CFG-1–3, PRIO-*, FE-ROUTE-* — complete.
 
 - Build: 21/21 ✅
 - Lint: 28/28 ✅ (0 errors)
-- Tests: 380/380 ✅ (execution-orchestrator)
+- Tests: 392/392 ✅ (27 suites, execution-orchestrator)
 - Migrations: 001–036
 
 ### Remaining open items
@@ -42,7 +42,7 @@ All phases (0–5), CFG-1–3, PRIO-*, FE-ROUTE-* — complete.
 | Priority | Item | Status |
 |----------|------|--------|
 | 🔴 High | CI green on GitHub Actions — not verified remotely | Open |
-| 🟡 Medium | RpcProviderManager unit tests — partially covered | Open |
+| 🟡 Medium | ~~RpcProviderManager unit tests — partially covered~~ | ✅ Done (22 tests) |
 | 🟢 Low | Bus E2E: full scenario with real events | Backlog |
 | 🟢 Low | No testnet fork integration tests for DEX adapters | Backlog |
 
