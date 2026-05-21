@@ -107,8 +107,8 @@
 |---------|------|--------|
 | `DEX-DOC-FE` | Frontend UI spec | ✅ done |
 | `DEX-DOC-RUNBOOK-TX` | Failed tx runbook | ✅ done |
-| `DEX-DOC-RUNBOOK-BRIDGE` | Bridge runbook | 📋 planned |
-| `DEX-DOC-ROLLBACK` | Rollback strategy | 📋 planned |
+| `DEX-DOC-RUNBOOK-BRIDGE` | Bridge runbook | ✅ done |
+| `DEX-DOC-ROLLBACK` | Rollback strategy | ✅ done |
 
 ## Схема шага (расширенная)
 
