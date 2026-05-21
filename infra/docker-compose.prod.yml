@@ -1,0 +1,527 @@
+# Arbibot 2 — Production Docker Compose
+#
+# Usage:
+#   docker compose -f infra/docker-compose.prod.yml up -d
+#
+# Prerequisites:
+#   - .env file with production values (copy from .env.production.example)
+#   - Images built or pulled from registry (see tools/docker-build-all.sh)
+#   - Canonical registry seeded (see tools/seed-canonical-registry.mjs)
+#
+# Includes:
+#   - PostgreSQL 16 with health check
+#   - Redis 7 with persistence
+#   - Redpanda (Kafka-compatible event bus)
+#   - 12 NestJS backend services with resource limits
+#   - Next.js operator dashboard
+#   - Prometheus + Grafana + Loki + Promtail (observability stack)
+#   - nginx reverse proxy (TLS termination)
+#
+# Network isolation:
+#   - arbibot-backend: services + data stores (no external access except via nginx)
+#   - arbibot-observability: metrics/logging infrastructure
+#   - Default bridge for nginx (publishes 80/443)
+#
+# Phase B additions:
+#   - PgBouncer: connection pooling in front of PostgreSQL
+#   - Alertmanager: alert routing and notification
+
+x-nest-common: &nest-common
+  restart: unless-stopped
+  networks:
+    - arbibot-backend
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  env_file: .env
+  logging:
+    driver: json-file
+    options:
+      max-size: "50m"
+      max-file: "5"
+  deploy:
+    resources:
+      limits:
+        memory: 512M
+        cpus: "0.5"
+      reservations:
+        memory: 128M
+        cpus: "0.1"
+
+services:
+  # ── Data Stores ──────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    networks:
+      - arbibot-backend
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-arbibot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-arbibot}
+    volumes:
+      - arbibot_pg_data:/var/lib/postgresql/data
+      - ./postgres/bootstrap-schema-migrations.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-arbibot} -d ${POSTGRES_DB:-arbibot}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2.0"
+        reservations:
+          memory: 512M
+          cpus: "0.5"
+    # No host port expose in production — access via network only
+
+  # ── Connection Pooler ────────────────────────────────────────────
+  pgbouncer:
+    image: edoburu/pgbouncer:1.23.0-p0
+    restart: unless-stopped
+    networks:
+      - arbibot-backend
+    environment:
+      DATABASE_URL: "postgres://${POSTGRES_USER:-arbibot}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-arbibot}"
+      PGBOUNCER_LISTEN_ADDR: "0.0.0.0"
+      PGBOUNCER_LISTEN_PORT: "6432"
+      PGBOUNCER_POOL_MODE: "transaction"
+      PGBOUNCER_MAX_CLIENT_CONN: "200"
+      PGBOUNCER_DEFAULT_POOL_SIZE: "25"
+      PGBOUNCER_MIN_POOL_SIZE: "5"
+      PGBOUNCER_RESERVE_POOL_SIZE: "10"
+      PGBOUNCER_SERVER_IDLE_TIMEOUT: "300"
+      PGBOUNCER_SERVER_CHECK_QUERY: "SELECT 1"
+      PGBOUNCER_AUTH_TYPE: "plain"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h localhost -p 6432 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks:
+      - arbibot-backend
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - arbibot_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.3.11
+    restart: unless-stopped
+    networks:
+      - arbibot-backend
+    command:
+      - redpanda
+      - start
+      - --kafka-addr
+      - internal://0.0.0.0:9092
+      - --advertise-kafka-addr
+      - internal://redpanda:9092
+      - --smp
+      - "1"
+      - --memory
+      - 1G
+      - --mode
+      - production
+      - --default-log-level=warn
+    volumes:
+      - arbibot_redpanda_data:/var/lib/redpanda/data
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "1.0"
+
+  # ── Backend Services ─────────────────────────────────────────────
+  risk-service:
+    <<: *nest-common
+    image: ${REGISTRY:-ghcr.io/brev77}/arbibot-risk-service:${IMAGE_TAG:-latest}
+    environment:
+      PORT: 3000
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3000/metrics || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  opportunity-service:
+    <<: *nest-common
+    image: ${REGISTRY:-ghcr.io/brev77}/arbibot-opportunity-service:${IMAGE_TAG:-latest}
+    environment:
+      PORT: 3010
+      RISK_SERVICE_URL: http://risk-service:3000
+    depends_on:
+      risk-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3010/metrics || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  capital-service:
+    <<: *nest-common
+    image: ${REGISTRY:-ghcr.io/brev77}/arbibot-capital-service:${IMAGE_TAG:-latest}
+    environment:
+      PORT: 3011
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3011/metrics || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  execution-orchestrator:
+    <<: *nest-common
+    image: ${REGISTRY:-ghcr.io/brev77}/arbibot-execution-orchestrator:${IMAGE_TAG:-latest}
+    environment:
+      PORT: 3012
+      CAPITAL_SERVICE_BASE_URL: http://capital-service:3011
+      RISK_SERVICE_BASE_URL: http://risk-service:3000
+      PORTFOLIO_SERVICE_URL: http://portfolio-service:3016
+    depends_on:
+      capital-service:
+        condition: service_healthy
+      risk-service:
+        condition: service_healthy
+      portfolio-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3012/metrics || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+
+  audit-service:
+    <<: *nest-common
+    image: ${REGISTRY:-ghcr.io/brev77}/arbibot-audit-service:${IMAGE_TAG:-latest}
+    environment:
+      PORT: 3013
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3013/metrics || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  canonical-market-service:
+    <<: *nest-common
+    image: ${REGISTRY:-ghcr.io/brev77}/arbibot-canonical-market-service:${IMAGE_TAG:-latest}
+    environment:
+      PORT: 3014
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3014/metrics || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  market-intake-service:
+    <<: *nest-common
+    image: ${REGISTRY:-ghcr.io/brev77}/arbibot-market-intake-service:${IMAGE_TAG:-latest}
+    environment:
+      PORT: 3015
+      CONFIG_SERVICE_URL: http://config-service:3019
+      RISK_SERVICE_URL: http://risk-service:3000
+    depends_on:
+      config-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3015/metrics || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  portfolio-service:
+    <<: *nest-common
+    image: ${REGISTRY:-ghcr.io/brev77}/arbibot-portfolio-service:${IMAGE_TAG:-latest}
+    environment:
+      PORT: 3016
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3016/metrics || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  reconciliation-service:
+    <<: *nest-common
+    image: ${REGISTRY:-ghcr.io/brev77}/arbibot-reconciliation-service:${IMAGE_TAG:-latest}
+    environment:
+      PORT: 3017
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3017/metrics || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  paper-trading-service:
+    <<: *nest-common
+    image: ${REGISTRY:-ghcr.io/brev77}/arbibot-paper-trading-service:${IMAGE_TAG:-latest}
+    environment:
+      PORT: 3018
+      CONFIG_SERVICE_URL: http://config-service:3019
+    depends_on:
+      config-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3018/metrics || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  config-service:
+    <<: *nest-common
+    image: ${REGISTRY:-ghcr.io/brev77}/arbibot-config-service:${IMAGE_TAG:-latest}
+    environment:
+      PORT: 3019
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3019/metrics || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  openclaw-gateway:
+    <<: *nest-common
+    image: ${REGISTRY:-ghcr.io/brev77}/arbibot-openclaw-gateway:${IMAGE_TAG:-latest}
+    environment:
+      PORT: 3020
+      EXECUTION_API_BASE: http://execution-orchestrator:3012
+      PORTFOLIO_API_BASE: http://portfolio-service:3016
+      RECONCILIATION_API_BASE: http://reconciliation-service:3017
+      AUDIT_API_BASE: http://audit-service:3013
+      OPERATOR_WEB_BFF_BASE: http://web:3000
+    depends_on:
+      execution-orchestrator:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3020/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ── Operator Dashboard ───────────────────────────────────────────
+  web:
+    image: ${REGISTRY:-ghcr.io/brev77}/arbibot-web:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    networks:
+      - arbibot-backend
+    env_file: .env
+    environment:
+      PORT: 3000
+      RISK_API_BASE: http://risk-service:3000
+      CONFIG_API_BASE: http://config-service:3019
+      OPPORTUNITY_API_BASE: http://opportunity-service:3010
+      CAPITAL_API_BASE: http://capital-service:3011
+      EXECUTION_API_BASE: http://execution-orchestrator:3012
+      AUDIT_API_BASE: http://audit-service:3013
+      PORTFOLIO_API_BASE: http://portfolio-service:3016
+      RECONCILIATION_API_BASE: http://reconciliation-service:3017
+      PAPER_API_BASE: http://paper-trading-service:3018
+      MARKET_INTAKE_API_BASE: http://market-intake-service:3015
+      OPENCLAW_GATEWAY_URL: http://openclaw-gateway:3020
+    depends_on:
+      risk-service:
+        condition: service_healthy
+      config-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+        reservations:
+          memory: 256M
+          cpus: "0.25"
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # ── Observability Stack ──────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    restart: unless-stopped
+    networks:
+      - arbibot-backend
+      - arbibot-observability
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.enable-lifecycle"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ./grafana/recording-rules:/etc/prometheus/recording-rules:ro
+      - arbibot_prometheus_data:/prometheus
+    depends_on:
+      alertmanager:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "0.5"
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    restart: unless-stopped
+    networks:
+      - arbibot-backend
+      - arbibot-observability
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+      - "--web.listen-address=:9093"
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - arbibot_alertmanager_data:/alertmanager
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: "0.1"
+
+  grafana:
+    image: grafana/grafana:11.5.0
+    restart: unless-stopped
+    networks:
+      - arbibot-backend
+      - arbibot-observability
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD in .env}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - arbibot_grafana_data:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.25"
+
+  loki:
+    image: grafana/loki:3.3.2
+    restart: unless-stopped
+    networks:
+      - arbibot-observability
+    command: "-config.file=/etc/loki/local-config.yaml"
+    volumes:
+      - ./loki/loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - arbibot_loki_data:/loki
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.25"
+
+  promtail:
+    image: grafana/promtail:3.3.2
+    restart: unless-stopped
+    networks:
+      - arbibot-observability
+    volumes:
+      - ./promtail/promtail-config.yaml:/etc/promtail/config.yml:ro
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    command: "-config.file=/etc/promtail/config.yml"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.1"
+
+  # ── TLS Termination (nginx) ──────────────────────────────────────
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    networks:
+      - arbibot-backend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      web:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:80/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+
+volumes:
+  arbibot_pg_data:
+  arbibot_redis_data:
+  arbibot_redpanda_data:
+  arbibot_prometheus_data:
+  arbibot_grafana_data:
+  arbibot_loki_data:
+  arbibot_alertmanager_data:
+
+networks:
+  arbibot-backend:
+    driver: bridge
+    internal: false
+  arbibot-observability:
+    driver: bridge
+    internal: true

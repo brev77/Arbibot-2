@@ -1,0 +1,12 @@
+# Place TLS certificates here:
+#   fullchain.pem — server certificate + chain
+#   privkey.pem   — private key
+#
+# DO NOT commit real certificates to git.
+# Use secrets manager or sealed-secrets in production.
+#
+# Generate self-signed for testing:
+#   openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+#     -keyout infra/nginx/ssl/privkey.pem \
+#     -out infra/nginx/ssl/fullchain.pem \
+#     -subj "/CN=localhost"

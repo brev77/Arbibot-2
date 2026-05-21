@@ -14,3 +14,8 @@ Thumbs.db
 
 # graphify (local knowledge graph artifacts; not committed)
 graphify-out/
+
+# Production / deployment artifacts
+backups/
+*.sql.gz
+infra/nginx/ssl/*.pem

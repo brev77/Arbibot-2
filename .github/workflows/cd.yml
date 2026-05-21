@@ -1,0 +1,151 @@
+name: CD — Build & Push Images
+
+on:
+  push:
+    branches: [main, master]
+    # Allow manual trigger for specific tags/branches
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag (default: latest)"
+        required: false
+        default: "latest"
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/arbibot
+
+jobs:
+  # ── Build all images in parallel ────────────────────────────────
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: risk-service
+            workspace: "@arbibot/risk-service"
+            entry: apps/risk-service/dist/main.js
+            port: "3000"
+          - service: opportunity-service
+            workspace: "@arbibot/opportunity-service"
+            entry: apps/opportunity-service/dist/main.js
+            port: "3010"
+          - service: capital-service
+            workspace: "@arbibot/capital-service"
+            entry: apps/capital-service/dist/main.js
+            port: "3011"
+          - service: execution-orchestrator
+            workspace: "@arbibot/execution-orchestrator"
+            entry: apps/execution-orchestrator/dist/main.js
+            port: "3012"
+          - service: audit-service
+            workspace: "@arbibot/audit-service"
+            entry: apps/audit-service/dist/main.js
+            port: "3013"
+          - service: canonical-market-service
+            workspace: "@arbibot/canonical-market-service"
+            entry: apps/canonical-market-service/dist/main.js
+            port: "3014"
+          - service: market-intake-service
+            workspace: "@arbibot/market-intake-service"
+            entry: apps/market-intake-service/dist/main.js
+            port: "3015"
+          - service: portfolio-service
+            workspace: "@arbibot/portfolio-service"
+            entry: apps/portfolio-service/dist/main.js
+            port: "3016"
+          - service: reconciliation-service
+            workspace: "@arbibot/reconciliation-service"
+            entry: apps/reconciliation-service/dist/main.js
+            port: "3017"
+          - service: paper-trading-service
+            workspace: "@arbibot/paper-trading-service"
+            entry: apps/paper-trading-service/dist/main.js
+            port: "3018"
+          - service: config-service
+            workspace: "@arbibot/config-service"
+            entry: apps/config-service/dist/main.js
+            port: "3019"
+          - service: openclaw-gateway
+            workspace: "@arbibot/openclaw-gateway"
+            entry: apps/openclaw-gateway/dist/main.js
+            port: "3020"
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.service }}
+          tags: |
+            type=raw,value=${{ github.event.inputs.tag || 'latest' }}
+            type=sha,prefix=
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/docker/Dockerfile.nest
+          build-args: |
+            SERVICE=${{ matrix.workspace }}
+            ENTRY=${{ matrix.entry }}
+            PORT=${{ matrix.port }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-web:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-web
+          tags: |
+            type=raw,value=${{ github.event.inputs.tag || 'latest' }}
+            type=sha,prefix=
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/docker/Dockerfile.web
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

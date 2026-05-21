@@ -1,0 +1,90 @@
+# Arbibot 2 — Prometheus Alert Rules
+# Place alongside prometheus.yml and add to rule_files
+
+groups:
+  # ── Service health ───────────────────────────────────────────
+  - name: service_health
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "Prometheus cannot reach {{ $labels.job }} on {{ $labels.instance }} for 2 minutes."
+
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High 5xx error rate on {{ $labels.job }}"
+          description: "Error rate is {{ $value | humanizePercentage }} on {{ $labels.job }}."
+
+  # ── Paper trading ────────────────────────────────────────────
+  - name: paper_trading
+    rules:
+      - alert: PaperDriftBpsHigh
+        expr: arb_paper_drift_bps_avg_5m > 50
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Paper drift is high ({{ $value }} bps)"
+          description: "Average paper drift over 5m exceeds 50 bps threshold."
+
+      - alert: PaperDriftBpsSustainedHigh
+        expr: arb_paper_drift_bps_max_15m > 30
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Sustained paper drift ({{ $value }} bps for 15m)"
+          description: "Paper drift has been above 30 bps for 15 minutes."
+
+  # ── DEX ──────────────────────────────────────────────────────
+  - name: dex_health
+    rules:
+      - alert: DEXUnhealthy
+        expr: arb_dex_health_status{status="unhealthy"} == 0
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "DEX infrastructure is unhealthy"
+          description: "DEX health check reports unhealthy status for more than 3 minutes."
+
+      - alert: DEXRPCDegraded
+        expr: arb_dex_health_status{status="degraded"} == 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "DEX RPC is degraded"
+          description: "DEX RPC latency or availability is degraded for 10 minutes."
+
+  # ── System resources ────────────────────────────────────────
+  - name: system_resources
+    rules:
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes / 1024 / 1024 > 400
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.job }} ({{ $value | printf \"%.0f\" }}MB)"
+          description: "Service {{ $labels.job }} is using {{ $value | printf \"%.0f\" }}MB resident memory."
+
+  # ── Intake throttling ───────────────────────────────────────
+  - name: intake
+    rules:
+      - alert: IntakeDegraded
+        expr: arb_intake_degradation_active == 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Market intake is in degraded mode"
+          description: "Market intake service has been in degraded/fallback mode for 5 minutes."

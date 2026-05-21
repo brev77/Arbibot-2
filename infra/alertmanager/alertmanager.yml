@@ -1,0 +1,115 @@
+# Arbibot 2 — Alertmanager Configuration
+#
+# Notification routing for Prometheus alerts.
+# Configure at least one receiver before deploying.
+#
+# Receivers supported: Slack, Email, PagerDuty, webhook, Telegram
+# See: https://prometheus.io/docs/alerting/latest/configuration/
+#
+# Templating:
+#   - Alert name: {{ .GroupLabels.alertname }}
+#   - Severity:   {{ .CommonLabels.severity }}
+#   - Summary:    {{ range .Alerts }}{{ .Annotations.summary }}{{ end }}
+#
+# Reload without restart:
+#   curl -X POST http://localhost:9093/-/reload
+
+global:
+  # How long to wait before sending notification again
+  repeat_interval: 4h
+  # How long to wait before sending a notification after first alert
+  group_wait: 30s
+  # How long to wait before sending notification about new alerts added to group
+  group_interval: 5m
+
+# ── Routes ──────────────────────────────────────────────────────
+route:
+  receiver: "default"
+  group_by: ["alertname", "severity", "job"]
+
+  routes:
+    # Critical alerts → immediate notification
+    - match:
+        severity: critical
+      receiver: "critical"
+      repeat_interval: 1h
+      group_wait: 15s
+
+    # Warning alerts → batched notification
+    - match:
+        severity: warning
+      receiver: "warnings"
+      repeat_interval: 4h
+      group_wait: 5m
+
+    # Paper trading specific
+    - match:
+        alertname: PaperDriftBpsSustainedHigh
+      receiver: "paper-trading"
+      repeat_interval: 30m
+
+    # DEX alerts
+    - match_re:
+        alertname: DEX.*
+      receiver: "dex"
+      repeat_interval: 15m
+
+    # Infrastructure alerts
+    - match_re:
+        alertname: (ServiceDown|HighMemoryUsage|HighErrorRate)
+      receiver: "infrastructure"
+      repeat_interval: 30m
+
+# ── Receivers ───────────────────────────────────────────────────
+receivers:
+  # Default: log to stdout (no external notifications)
+  - name: "default"
+    webhook_configs:
+      - url: "http://localhost:5001/alerts"
+        send_resolved: true
+
+  # Critical: configure Slack / PagerDuty / Telegram
+  - name: "critical"
+    # Slack example (uncomment and configure):
+    # slack_configs:
+    #   - channel: "#arbibot-critical"
+    #     api_url: "<SLACK_WEBHOOK_URL>"
+    #     title: "🔴 {{ .GroupLabels.alertname }}"
+    #     text: "{{ range .Alerts }}{{ .Annotations.summary }}\n{{ .Annotations.description }}{{ end }}"
+    #     send_resolved: true
+    webhook_configs:
+      - url: "http://localhost:5001/alerts/critical"
+        send_resolved: true
+
+  # Warnings
+  - name: "warnings"
+    webhook_configs:
+      - url: "http://localhost:5001/alerts/warnings"
+        send_resolved: true
+
+  # Paper trading alerts
+  - name: "paper-trading"
+    webhook_configs:
+      - url: "http://localhost:5001/alerts/paper"
+        send_resolved: true
+
+  # DEX alerts
+  - name: "dex"
+    webhook_configs:
+      - url: "http://localhost:5001/alerts/dex"
+        send_resolved: true
+
+  # Infrastructure
+  - name: "infrastructure"
+    webhook_configs:
+      - url: "http://localhost:5001/alerts/infra"
+        send_resolved: true
+
+# ── Inhibition rules ────────────────────────────────────────────
+# Suppress warning if critical alert is already firing for same job
+inhibit_rules:
+  - source_match:
+      severity: critical
+    target_match:
+      severity: warning
+    equal: ["alertname", "job"]

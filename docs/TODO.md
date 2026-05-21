@@ -75,5 +75,5 @@
 | 2026-05-21 | **DEX-DOC complete (session 38):** `DEX-DOC-RUNBOOK-BRIDGE` + `DEX-DOC-ROLLBACK` → `done`. **Все 46/46 DEX шагов завершены.** Документация синхронизирована (progress.md, TODO.md, AGENTS.md) |
 | 2026-05-21 | **RpcProviderManager tests expanded:** 11→22 тестов (init/destroy, primary-only, error handling, health check success/failure, metrics, edge cases). **27 suites, 392/392 tests pass.** |
 
-*Последняя актуализация файла: 2026-05-21 (session 38 — AGENTS.md + TODO sync).*
+*Последняя актуализация файла: 2026-05-21 (session 39 — feature-complete sync: .cursor/rules/arbibot-project.mdc, AGENTS.md, docs/progress.md, docs/TODO.md).*
   +++++++ REPLACE

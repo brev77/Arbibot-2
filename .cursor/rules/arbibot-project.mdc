@@ -1,21 +1,29 @@
 ---
-description: Arbibot 2 — актуальное состояние (Phase 0-4 complete, Phase 5 active), стек, архитектура, домен исполнения, фронтенд и правила кода
+description: Arbibot 2 — актуальное состояние (все фазы complete, DEX complete, проект feature-complete), стек, архитектура, домен исполнения, фронтенд и правила кода
 alwaysApply: true
 ---
 
 You are working in the Arbibot 2 monorepo.
 
-## Current Status (as of 2026-04-28)
+## Current Status (as of 2026-05-21)
+
+**Проект feature-complete.** Все формальные шаги обоих планов выполнены. Awaiting product decisions for deployment.
 
 ### Completed Phases
-- **Phase 0–2:** foundation + controlled execution (snapshot → risk → reserve → arm → execution, dashboards, messaging baseline, reconciliation)
-- **Phase 3:** paper trading engine (paper trades, promotion candidates, virtual capital, drift gauges, discovery pipeline, `/paper` UI)
-- **Phase 4:** wide-universe scaling with intake throttling (tier routing, degraded mode signals, route-scoring analytics, replay tools)
-- **Phase 5 (in progress):** OpenClaw-assisted operations (read-only API, incident management, approvals queue, safe-mode)
+- **Phase 0–2:** foundation + controlled execution (snapshot → risk → reserve → arm → execution, dashboards, messaging baseline, reconciliation) — **done**
+- **Phase 3:** paper trading engine (paper trades, promotion candidates, virtual capital, drift gauges, discovery pipeline, `/paper` UI) — **done**
+- **Phase 4:** wide-universe scaling with intake throttling (tier routing, degraded mode signals, route-scoring analytics, replay tools) — **done**
+- **Phase 5:** OpenClaw-assisted operations (read-only API, incident management, approvals queue, safe-mode) — **done**
+- **DEX-1 + DEX-2 + DEX-DOC:** 46/46 steps complete — **done**
+
+### Quality Metrics
+- Build: 21/21 ✅ | Lint: 28/28 ✅ (0 errors) | Tests: 392/392 ✅ (27 suites)
+- Migrations: 001–036
 
 ### Current Focus
-- Phase 5 OpenClaw — operator automation gateway
-- P2 prep — watchlist tiering, route scoring, partial fill playbooks, recalibration tools
+- CI verification на GitHub Actions (не верифицирован удалённо)
+- Product decision: testnet deployment → paper-first validation → mainnet minimal capital
+- Deployment prep по product decision
 
 ### Phase Reference
 Phase numbers match the canonical [.cursor/plans/DEVELOPMENT_PLAN.md](.cursor/plans/DEVELOPMENT_PLAN.md) and `!Arbibot_2_Architecture_v1_final_docs_settings.md` (§50.x):
@@ -24,7 +32,8 @@ Phase numbers match the canonical [.cursor/plans/DEVELOPMENT_PLAN.md](.cursor/pl
 - **Phase 2:** controlled execution — **done**
 - **Phase 3:** paper trading engine — **done**
 - **Phase 4:** wide-universe scaling — **done** (P4-4-TIER, P4-4-SCORE, P4-4-CH, P4-4-UI)
-- **Phase 5:** OpenClaw-assisted operations — **in progress** (P5-5-GW, P5-5-OAPI, P5-5-OCUI, P5-5-BRIEF **done**)
+- **Phase 5:** OpenClaw-assisted operations — **done** (P5-5-GW, P5-5-OAPI, P5-5-OCUI, P5-5-BRIEF)
+- **DEX-1/DEX-2/DEX-DOC:** — **done** (46/46 steps, see [.cursor/plans/DEVELOPMENT_PLAN-DEX.md](.cursor/plans/DEVELOPMENT_PLAN-DEX.md))
 
 ## Architecture Principles (must always respect)
 

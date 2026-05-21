@@ -1,0 +1,83 @@
+# Arbibot 2 — Prometheus configuration
+# Scrapes all backend services + Nest platform metrics
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+
+rule_files:
+  - /etc/prometheus/recording-rules/*.yml
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  # ── NestJS backend services ──────────────────────────────────
+  - job_name: "risk-service"
+    static_configs:
+      - targets: ["risk-service:3000"]
+    metrics_path: /metrics
+
+  - job_name: "opportunity-service"
+    static_configs:
+      - targets: ["opportunity-service:3010"]
+    metrics_path: /metrics
+
+  - job_name: "capital-service"
+    static_configs:
+      - targets: ["capital-service:3011"]
+    metrics_path: /metrics
+
+  - job_name: "execution-orchestrator"
+    static_configs:
+      - targets: ["execution-orchestrator:3012"]
+    metrics_path: /metrics
+
+  - job_name: "audit-service"
+    static_configs:
+      - targets: ["audit-service:3013"]
+    metrics_path: /metrics
+
+  - job_name: "canonical-market-service"
+    static_configs:
+      - targets: ["canonical-market-service:3014"]
+    metrics_path: /metrics
+
+  - job_name: "market-intake-service"
+    static_configs:
+      - targets: ["market-intake-service:3015"]
+    metrics_path: /metrics
+
+  - job_name: "portfolio-service"
+    static_configs:
+      - targets: ["portfolio-service:3016"]
+    metrics_path: /metrics
+
+  - job_name: "reconciliation-service"
+    static_configs:
+      - targets: ["reconciliation-service:3017"]
+    metrics_path: /metrics
+
+  - job_name: "paper-trading-service"
+    static_configs:
+      - targets: ["paper-trading-service:3018"]
+    metrics_path: /metrics
+
+  - job_name: "config-service"
+    static_configs:
+      - targets: ["config-service:3019"]
+    metrics_path: /metrics
+
+  - job_name: "openclaw-gateway"
+    static_configs:
+      - targets: ["openclaw-gateway:3020"]
+    metrics_path: /metrics
+
+  # ── Infrastructure ───────────────────────────────────────────
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]

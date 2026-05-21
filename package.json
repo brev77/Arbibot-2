@@ -50,7 +50,14 @@
     "dev:web": "npm run dev -w @arbibot/web",
     "dev:openclaw": "npm run start:dev -w @arbibot/openclaw-gateway",
     "bus:publish": "npm run build -w @arbibot/outbox-kafka-bridge && npm run start:publish -w @arbibot/outbox-kafka-bridge",
-    "bus:consume": "npm run build -w @arbibot/outbox-kafka-bridge && npm run start:consume -w @arbibot/outbox-kafka-bridge"
+    "bus:consume": "npm run build -w @arbibot/outbox-kafka-bridge && npm run start:consume -w @arbibot/outbox-kafka-bridge",
+    "docker:build": "bash tools/docker-build-all.sh",
+    "docker:push": "bash tools/docker-build-all.sh --push",
+    "db:seed-canonical": "node tools/seed-canonical-registry.mjs",
+    "db:backup": "bash tools/backup-postgres.sh",
+    "verify:deployment": "bash tools/verify-deployment.sh",
+    "verify:env": "bash tools/validate-env.sh",
+    "generate:tls": "bash tools/generate-tls-certs.sh"
   },
   "dependencies": {
     "@radix-ui/react-switch": "^1.2.6",
