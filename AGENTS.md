@@ -92,9 +92,9 @@ There is **no** `core-backend/` or `operator-frontend/` directory; older docs or
   - Пакет `@arbibot/contracts-eth` создан (ABI UniV2/V3/Sushi + ERC20, адреса Arbitrum/Base/BNB, типы ChainId/Address)
   - DEX план v1.1, миграция DEX-1-0-MIGRATIONS перенумерована в `033`
 - `FE-SETTINGS-POLICY-WORKSPACE` → `implemented`, awaiting `/review-step` → `done`
-- CI зелёный на GitHub Actions не верифицирован (локально lint 28/28 ✅, build 21/21 ✅, tests 380/380 ✅)
+- CI зелёный на GitHub Actions не верифицирован (локально lint 28/28 ✅, build 21/21 ✅, tests 392/392 ✅)
 - ~~Недостающие unit-тесты: `PoolDiscoveryService`~~ — ✅ **94 строки тестов добавлены** (коммит `48f3548`)
-- Недостающие unit-тесты: `RpcProviderManager` (частично покрыт)
+- ~~Недостающие unit-тесты: `RpcProviderManager`~~ — ✅ **22 теста** (покрытие: init/destroy, primary-only, error handling, health check, metrics, edge cases)
 - Migration **020** rollback path repaired via **`024`**; применяйте миграции по порядку на чистых БД
 
 ### DEX Code Review & Filters (2026-04-28)
