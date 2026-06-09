@@ -13,15 +13,15 @@ export const operatorKeys = {
   paperDriftSamples: (instrumentKey: string | undefined, limit: number) =>
     ['operator', 'paper', 'drift-samples', instrumentKey ?? 'all', limit] as const,
 
-  openclawPlans: (limit: number) =>
-    ['operator', 'openclaw', 'plans', limit] as const,
-  openclawDashboard: ['operator', 'openclaw', 'dashboard'] as const,
-  openclawIncidentBriefs: ['operator', 'openclaw', 'incident-briefs'] as const,
-  openclawApprovalsQueue: (limit: number) =>
-    ['operator', 'openclaw', 'approvals-queue', limit] as const,
-  openclawSafeMode: ['operator', 'openclaw', 'safe-mode'] as const,
-  openclawSessions: ['operator', 'openclaw', 'sessions'] as const,
-  openclawPositions: ['operator', 'openclaw', 'positions'] as const,
+  hermesPlans: (limit: number) =>
+    ['operator', 'hermes', 'plans', limit] as const,
+  hermesDashboard: ['operator', 'hermes', 'dashboard'] as const,
+  hermesIncidentBriefs: ['operator', 'hermes', 'incident-briefs'] as const,
+  hermesApprovalsQueue: (limit: number) =>
+    ['operator', 'hermes', 'approvals-queue', limit] as const,
+  hermesSafeMode: ['operator', 'hermes', 'safe-mode'] as const,
+  hermesSessions: ['operator', 'hermes', 'sessions'] as const,
+  hermesPositions: ['operator', 'hermes', 'positions'] as const,
 
   /* DEX-related keys */
   executionPlanDetail: (id: string) => ['operator', 'execution', 'plans', id] as const,

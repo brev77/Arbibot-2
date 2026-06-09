@@ -570,6 +570,46 @@
 
 ---
 
+## 2026-06-09 (session 40) — Plan 3: OpenClaw → Hermes (H3-A-0..H3-A-4)
+
+**Дата:** 2026-06-09
+**Задача:** DEVELOPMENT_PLAN3 — Переименование OpenClaw → Hermes (Фаза A, шаги 0–4)
+**Статус:** `in_progress` 🔄 (5/17 шагов выполнено)
+**След. шаги:** H3-A-5-INFRA, H3-A-6-DOCS, H3-A-7-META, H3-A-8-VERIFY
+
+### Что сделано
+1. **H3-A-0-ADR** — ADR создан (`docs/adr-hermes-rename.md`): обоснование переименования, маппинг имён, целевой профиль
+2. **H3-A-1-DIRS** — `apps/openclaw-gateway/` → `apps/hermes-gateway/` (git mv)
+3. **H3-A-2-FILES** — ~15 файлов переименованы:
+   - Backend: все .ts/.spec.ts в hermes-gateway (hermes-*.ts命名)
+   - Frontend: `openclaw-types.ts` → `hermes-types.ts`, `openclaw-bff.ts` → `hermes-bff.ts`, workspace, page, BFF route
+   - Components: `openclaw/` → `hermes/`
+4. **H3-A-3-BACKEND** — ~21 файлов в `apps/hermes-gateway/src/`: OpenClaw→Hermes, openclaw→hermes, OPENCLAW→HERMES
+5. **H3-A-4-FRONTEND** — ~12 файлов в `apps/web/`: hermes-types, hermes-bff, operator-query-keys, workspace, nav, middleware, BFF route, page
+
+### Изменённые файлы (ключевые)
+- `docs/adr-hermes-rename.md` (новый)
+- `apps/hermes-gateway/` — весь backend (renamed + content replaced)
+- `apps/web/lib/hermes-types.ts`, `hermes-bff.ts`, `operator-query-keys.ts`
+- `apps/web/components/hermes/hermes-workspace.tsx`, `operator-nav.tsx`, `safe-mode-banner.tsx`
+- `apps/web/app/(operator)/hermes/page.tsx`
+- `apps/web/app/api/operator/hermes/v1/[[...path]]/route.ts`
+- `apps/web/middleware.ts`, `apps/web/lib/operator-role.ts`
+
+### Принятые решения
+- Переименование «как есть» — без изменения логики, только имена
+- Все casings заменены: PascalCase, camelCase, UPPER, kebab-case, HTTP headers, API paths, env vars
+- UI route: `/openclaw` → `/hermes`
+
+### Открытые вопросы
+- H3-A-5-INFRA: `.env.example`, `package.json`, `docker-compose.dev.yml`, CI — не обновлены
+- H3-A-6-DOCS: 6 docs rename (`openclaw-*.md` → `hermes-*.md`) + 17 docs update
+- H3-A-7-META: AGENTS.md, README, .cursorrules — bulk openclaw→hermes
+- H3-A-8-VERIFY: npm ci + build + lint + test — не запущен
+- Build не верифицирован — возможны ошибки из-за пропущенных ссылок в infra/docs/meta
+
+---
+
 ## 2026-05-06 (session 10) — DEX-1-2-RECON-ONCHAIN → implemented
 
 **Дата:** 2026-05-06 20:25

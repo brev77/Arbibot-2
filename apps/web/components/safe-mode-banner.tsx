@@ -5,17 +5,17 @@ import type { ReactNode } from 'react';
 
 import { fetchOperatorBffJson } from '@/lib/operator-client-api';
 import { operatorKeys } from '@/lib/operator-query-keys';
-import type { OpenclawSafeModeStatus } from '@/lib/openclaw-types';
+import type { HermesSafeModeStatus } from '@/lib/hermes-types';
 
 /**
- * Shows when OpenClaw safe mode is enabled (polls gateway via BFF).
+ * Shows when Hermes safe mode is enabled (polls gateway via BFF).
  */
 export function SafeModeBanner(): ReactNode {
   const q = useQuery({
-    queryKey: operatorKeys.openclawSafeMode,
+    queryKey: operatorKeys.hermesSafeMode,
     queryFn: () =>
-      fetchOperatorBffJson<OpenclawSafeModeStatus>(
-        '/openclaw/v1/safe-mode/status',
+      fetchOperatorBffJson<HermesSafeModeStatus>(
+        '/hermes/v1/safe-mode/status',
       ),
     refetchInterval: 20_000,
     retry: false,

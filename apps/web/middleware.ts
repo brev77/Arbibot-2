@@ -78,7 +78,7 @@ export const config = {
     '/paper/:path*',
     '/incidents/:path*',
     '/runbooks/:path*',
-    '/openclaw/:path*',
+    '/hermes/:path*',
     '/settings',
     '/settings/:path*',
   ],

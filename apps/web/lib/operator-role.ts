@@ -63,7 +63,7 @@ export function minimumRoleForPathname(pathname: string): OperatorRole | null {
   if (bff !== null) {
     return bff;
   }
-  if (pathname.startsWith('/settings') || pathname.startsWith('/openclaw')) {
+  if (pathname.startsWith('/settings') || pathname.startsWith('/hermes')) {
     return 'admin';
   }
   if (

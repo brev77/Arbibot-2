@@ -13,7 +13,7 @@ const links = [
   { href: '/paper', label: 'Paper', minRole: 'operator' },
   { href: '/incidents', label: 'Incidents', minRole: 'operator' },
   { href: '/runbooks', label: 'Runbooks', minRole: 'operator' },
-  { href: '/openclaw', label: 'OpenClaw', minRole: 'admin' },
+  { href: '/hermes', label: 'Hermes', minRole: 'admin' },
   { href: '/settings', label: 'Settings', minRole: 'admin' },
 ] as const;
 
