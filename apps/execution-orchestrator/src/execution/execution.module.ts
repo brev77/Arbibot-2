@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { KeyVaultModule } from '@arbibot/nest-platform';
-import { BridgeTransferEntity, OnChainTransaction, WalletState } from '@arbibot/persistence';
+import { BridgeTransferEntity, ExecutionLegEntity, ExecutionPlanEntity, OnChainTransaction, WalletState } from '@arbibot/persistence';
 
 import { WalletManagerService } from './wallet-manager.service';
 import { DexFillTrackerService } from './dex-fill-tracker.service';
@@ -37,7 +37,7 @@ import { CrossChainReconWorker } from './workers/cross-chain-recon.worker';
 @Module({
   imports: [
     KeyVaultModule,
-    TypeOrmModule.forFeature([WalletState, OnChainTransaction, BridgeTransferEntity]),
+    TypeOrmModule.forFeature([WalletState, OnChainTransaction, BridgeTransferEntity, ExecutionLegEntity, ExecutionPlanEntity]),
   ],
   controllers: [RpcHealthController, DexHealthController, BridgeReconController],
   providers: [

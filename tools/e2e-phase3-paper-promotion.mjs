@@ -120,7 +120,6 @@ async function main() {
     {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
         'x-operator-id': 'e2e-test',
       },
     },
@@ -145,7 +144,6 @@ async function main() {
   const tradeApprove = await jsonFetch(`${PAPER_URL}/paper/trades/${tradeId}/approve`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
       'x-operator-id': 'e2e-test',
     },
   });
@@ -164,7 +162,6 @@ async function main() {
   const tradeReject = await jsonFetch(`${PAPER_URL}/paper/trades/${tradeId2}/reject`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
       'x-operator-id': 'e2e-test',
     },
   });
@@ -174,7 +171,6 @@ async function main() {
   const tradeCancel = await jsonFetch(`${PAPER_URL}/paper/trades/${tradeId}/cancel`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
       'x-operator-id': 'e2e-test',
     },
   });
