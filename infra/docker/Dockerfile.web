@@ -28,6 +28,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # These are baked into the client bundle; server-side BFF vars come from runtime env.
 ARG NEXT_PUBLIC_APP_NAME=Arbibot
 
+# Build shared packages that @arbibot/web depends on at build time
+RUN npm run build -w @arbibot/contracts
+
 RUN npm run build -w @arbibot/web
 
 # ── Stage 3: Production runner ──────────────────────────────────────

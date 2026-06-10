@@ -60,7 +60,7 @@
     "verify:env": "bash tools/validate-env.sh",
     "generate:tls": "bash tools/generate-tls-certs.sh",
     "graphify:rebuild": "py -3 -c \"from graphify.watch import _rebuild_code; from pathlib import Path; _rebuild_code(Path('.'))\"",
-    "prepare": "git config core.hooksPath .githooks 2>/dev/null || true",
+    "prepare": "git config core.hooksPath .githooks || exit 0",
     "graphify:query": "py -3 -m graphify query",
     "graphify:report": "type graphify-out\\GRAPH_REPORT.md"
   },
