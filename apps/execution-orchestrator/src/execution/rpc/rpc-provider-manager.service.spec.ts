@@ -40,6 +40,10 @@ describe('RpcProviderManager', () => {
     service = module.get<RpcProviderManager>(RpcProviderManager);
   });
 
+  afterEach(() => {
+    service.onModuleDestroy();
+  });
+
   afterAll(() => {
     process.env = originalEnv;
   });

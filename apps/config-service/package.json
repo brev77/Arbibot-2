@@ -43,15 +43,17 @@
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
-      "^.+\\.(t|j)s$": [
+      "^.+\\.ts$": [
         "ts-jest",
         {
           "tsconfig": "<rootDir>/../tsconfig.spec.json"
         }
       ]
     },
-    "collectCoverageFrom": ["**/*.(t|j)s"],
+    "collectCoverageFrom": ["**/*.ts"],
     "coverageDirectory": "../coverage",
+    "testPathIgnorePatterns": ["/dist/", "/node_modules/"],
+    "modulePathIgnorePatterns": ["<rootDir>/../dist"],
     "testEnvironment": "node"
   }
 }
