@@ -4,11 +4,7 @@ import { Counter } from 'prom-client';
 import { DataSource, Repository } from 'typeorm';
 import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
 
-import {
-  BridgeTransferEntity,
-  ExecutionLegEntity,
-  ExecutionPlanEntity,
-} from '@arbibot/persistence';
+import { BridgeTransferEntity, ExecutionLegEntity, ExecutionPlanEntity } from '@arbibot/persistence';
 
 import { BridgeTransferService } from '../bridge/bridge-transfer.service';
 
@@ -113,16 +109,19 @@ export class CrossChainReconciliationService {
   private mismatchesCounter!: Counter<string>;
   private staleCounter!: Counter<string>;
 
+  private readonly legRepo: Repository<ExecutionLegEntity>;
+  private readonly planRepo: Repository<ExecutionPlanEntity>;
+
   constructor(
     @InjectRepository(BridgeTransferEntity)
     private readonly bridgeTransferRepo: Repository<BridgeTransferEntity>,
-    @InjectRepository(ExecutionLegEntity)
-    private readonly legRepo: Repository<ExecutionLegEntity>,
-    @InjectRepository(ExecutionPlanEntity)
-    private readonly planRepo: Repository<ExecutionPlanEntity>,
     private readonly bridgeTransferService: BridgeTransferService,
     private readonly dataSource: DataSource,
   ) {
+    // Use DataSource.getRepository() for entities registered in other modules
+    // to avoid duplicate TypeOrmModule.forFeature registrations
+    this.legRepo = dataSource.getRepository(ExecutionLegEntity);
+    this.planRepo = dataSource.getRepository(ExecutionPlanEntity);
     this.initializeMetrics();
   }
 

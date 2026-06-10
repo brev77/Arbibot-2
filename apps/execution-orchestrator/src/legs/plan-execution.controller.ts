@@ -1,6 +1,5 @@
 import {
   Controller,
-  Get,
   HttpCode,
   HttpStatus,
   Param,
@@ -20,13 +19,5 @@ export class PlanExecutionController {
     @Param('planId', new ParseUUIDPipe({ version: '4' })) planId: string,
   ) {
     return this.legs.beginExecution(planId);
-  }
-
-  @Get(':planId/legs')
-  async list(
-    @Param('planId', new ParseUUIDPipe({ version: '4' })) planId: string,
-  ) {
-    const items = await this.legs.listForPlan(planId);
-    return { items };
   }
 }
