@@ -1,14 +1,14 @@
 import { SafeModeService } from './safe-mode.service';
 
 describe('SafeModeService', () => {
-  const prevMemory = process.env.OPENCLAW_SAFE_MODE_USE_MEMORY_ONLY;
+  const prevMemory = process.env.HERMES_SAFE_MODE_USE_MEMORY_ONLY;
 
   beforeEach(() => {
-    process.env.OPENCLAW_SAFE_MODE_USE_MEMORY_ONLY = 'true';
+    process.env.HERMES_SAFE_MODE_USE_MEMORY_ONLY = 'true';
   });
 
   afterEach(() => {
-    process.env.OPENCLAW_SAFE_MODE_USE_MEMORY_ONLY = prevMemory;
+    process.env.HERMES_SAFE_MODE_USE_MEMORY_ONLY = prevMemory;
   });
 
   it('toggles enabled flag', async () => {

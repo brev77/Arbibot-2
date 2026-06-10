@@ -1,5 +1,46 @@
 # Session Summary
 
+## Session 41 — 2026-06-11: Plan 3 — OpenClaw → Hermes — COMPLETE (17/17) ✅
+
+### What was done
+
+1. **Phase A completion (H3-A-5..H3-A-8)** — Infra, docs, meta, verify
+   - Build 22/22 ✅, Lint 29/29 ✅, Tests 29/29 ✅
+
+2. **Phase B: MCP Server (H3-B-0..H3-B-3)**
+   - ADR MCP architecture (`docs/adr-hermes-mcp-server.md`)
+   - `packages/hermes-mcp-server/` — 14 MCP tools → Hermes Gateway HTTP API
+   - 18 unit tests, turbo integration
+
+3. **Phase C: Agent Integration (H3-C-0..H3-C-3)**
+   - ADR Agent integration (`docs/adr-hermes-agent-integration.md`)
+   - `tools/hermes-agent/` — config (hermes-config.yaml, mcp-config.json)
+   - 6 Arbibot skills (investigate-incident, risk-summary, reconciliation-check, force-hedge-preview, daily-report, safe-mode-check)
+   - AGENTS.md + .cursorrules updated
+
+### Key decisions
+
+- MCP Server: stdio transport, 14 tools proxying to Hermes Gateway HTTP API
+- Agent: external Python process (NousResearch), MCP via stdio
+- Skills: markdown-based, 6 Arbibot-specific operational skills
+- No new migrations — Plan 3 is metadata/tooling only
+
+### Changed files (key)
+
+- `packages/hermes-mcp-server/` — full package (14 tools + 18 tests)
+- `tools/hermes-agent/` — agent config + 6 skills
+- `docs/adr-hermes-mcp-server.md`, `docs/adr-hermes-agent-integration.md` (new)
+- `AGENTS.md` — Hermes Agent + MCP Server section
+- `.cursorrules` — Phase 5 done, Hermes Agent line
+- `.cursor/plans/DEVELOPMENT_PLAN3.md` — 17/17 done
+
+### Open items
+
+- CI green on GitHub Actions — not verified remotely
+- Hermes Agent requires NousResearch runtime (external dependency)
+
+---
+
 ## Session 40 — 2026-06-09: Plan 3 — OpenClaw → Hermes Rename (Phase A, steps 0–4)
 
 ### What was done

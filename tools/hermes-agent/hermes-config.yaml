@@ -1,0 +1,112 @@
+# Hermes Agent Configuration
+# See: docs/adr-hermes-agent-integration.md
+#
+# Copy to hermes-config.local.yaml and fill in secrets.
+# Never commit secrets to git.
+
+agent:
+  name: arbibot-hermes-agent
+  description: "Arbibot 2 operator assistant via Telegram/Discord"
+
+  # LLM Provider — choose one
+  provider: ${HERMES_LLM_PROVIDER:nousresearch}
+  model: ${HERMES_LLM_MODEL:hermes-3-llama-3.1-405b}
+  api_key: ${HERMES_LLM_API_KEY}  # pragma: allowlist secret
+
+  # MCP Server connection
+  mcp:
+    transport: stdio
+    command: node
+    args:
+      - ${HERMES_MCP_SERVER_PATH:../../packages/hermes-mcp-server/dist/index.js}
+    env:
+      HERMES_GATEWAY_URL: ${HERMES_GATEWAY_URL:http://localhost:3020}
+      HERMES_API_KEY: ${HERMES_API_KEY}  # pragma: allowlist secret
+
+  # Memory & context
+  memory:
+    backend: sqlite
+    path: ${HERMES_MEMORY_PATH:./hermes-memory.db}
+    session_ttl_minutes: 60
+
+# Messaging platforms
+messaging:
+  telegram:
+    enabled: ${HERMES_TELEGRAM_ENABLED:false}
+    token: ${TELEGRAM_BOT_TOKEN}
+    allowed_users:
+      - ${OPERATOR_TELEGRAM_ID}
+    commands:
+      - /status    → skill:status_check
+      - /plans     → skill:plan_review
+      - /positions → skill:position_overview
+      - /incidents → skill:incident_management
+      - /safe      → skill:safe_mode_control
+      - /approve   → skill:approval_handler
+
+  discord:
+    enabled: ${HERMES_DISCORD_ENABLED:false}
+    token: ${DISCORD_BOT_TOKEN}
+    application_id: ${DISCORD_APP_ID}
+    guild_id: ${DISCORD_GUILD_ID}
+    alerts_channel_id: ${DISCORD_ALERTS_CHANNEL_ID}
+    reports_channel_id: ${DISCORD_REPORTS_CHANNEL_ID}
+
+# Notification routing
+notifications:
+  critical:
+    - telegram
+    - discord
+  info:
+    - telegram
+  cron_reports:
+    - discord
+
+# Security — mutation approval
+security:
+  # Read-only tools execute immediately
+  # Mutation tools require explicit operator approval
+  approval_required:
+    - arm_plan
+    - execute_plan
+    - enable_safe_mode
+    - disable_safe_mode
+    - resolve_incident
+    - close_position
+  approval_timeout_minutes: 5
+
+# Cron scheduling
+cron:
+  enabled: ${HERMES_CRON_ENABLED:false}
+  timezone: UTC
+  jobs:
+    - name: status_heartbeat
+      schedule: "*/15 * * * *"
+      skill: status_check
+      notify: [telegram]
+      silent: true  # only notify on anomaly
+
+    - name: reconciliation_report
+      schedule: "0 */6 * * *"
+      skill: incident_management
+      notify: [telegram, discord]
+      prompt: "Summarize open incidents and reconciliation mismatches"
+
+    - name: daily_risk_summary
+      schedule: "0 9 * * *"
+      skill: position_overview
+      notify: [discord]
+      prompt: "Generate daily portfolio risk summary"
+
+    - name: approval_queue_check
+      schedule: "*/5 * * * *"
+      skill: approval_handler
+      notify: [telegram]
+      prompt: "Check pending approvals and notify"
+      silent: true  # only notify if queue non-empty
+
+# Logging
+logging:
+  level: ${HERMES_LOG_LEVEL:info}
+  format: json
+  file: ${HERMES_LOG_FILE:./hermes-agent.log}

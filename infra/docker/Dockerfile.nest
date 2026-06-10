@@ -23,7 +23,7 @@
 #   reconciliation-service:  --build-arg SERVICE=@arbibot/reconciliation-service  --build-arg ENTRY=apps/reconciliation-service/dist/main.js  --build-arg PORT=3017
 #   paper-trading-service:   --build-arg SERVICE=@arbibot/paper-trading-service   --build-arg ENTRY=apps/paper-trading-service/dist/main.js   --build-arg PORT=3018
 #   config-service:          --build-arg SERVICE=@arbibot/config-service          --build-arg ENTRY=apps/config-service/dist/main.js          --build-arg PORT=3019
-#   openclaw-gateway:        --build-arg SERVICE=@arbibot/openclaw-gateway        --build-arg ENTRY=apps/openclaw-gateway/dist/main.js        --build-arg PORT=3020
+#   hermes-gateway:        --build-arg SERVICE=@arbibot/hermes-gateway        --build-arg ENTRY=apps/hermes-gateway/dist/main.js        --build-arg PORT=3020
 
 ARG SERVICE=@arbibot/risk-service
 

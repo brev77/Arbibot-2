@@ -1096,3 +1096,33 @@ Parsing error: packages/contracts-eth/src/index.spec.ts was not found by the pro
 ### Открытые вопросы
 - CI зелёный на GitHub Actions не верифицирован
 - DEX-2-1-BRIDGE-ACROSS — завершить интеграцию Across adapter
+
+
+## 2026-06-11 (session 41) — Plan 3: OpenClaw → Hermes — COMPLETE (17/17) ✅
+
+**Дата:** 2026-06-11
+**Задача:** DEVELOPMENT_PLAN3 — Завершение Плана 3 (H3-A-5..H3-C-3)
+**Статус:** done ✅
+**След. шаги:** Product decision for deployment
+
+### Что сделано
+1. **H3-A-5..H3-A-8** — Infra/docs/meta/verify (Phase A complete)
+2. **H3-B-0..H3-B-3** — MCP Server (14 tools, 18 tests, Phase B complete)
+3. **H3-C-0..H3-C-3** — Agent integration (config, 6 skills, meta update, Phase C complete)
+
+### Изменённые файлы (session 41)
+- AGENTS.md — Hermes Agent + MCP Server section
+- .cursorrules — Phase 5 done, Hermes Agent line added
+- packages/hermes-mcp-server/ — 14 MCP tools
+- tools/hermes-agent/ — Agent config + 6 skills
+- docs/adr-hermes-mcp-server.md, docs/adr-hermes-agent-integration.md
+
+### Принятые решения
+- MCP Server: stdio transport, 14 tools → Hermes Gateway HTTP API
+- Agent: external Python process (NousResearch)
+- Skills: markdown-based, 6 Arbibot-specific operational skills
+- No new migrations — Plan 3 is metadata/tooling only
+
+### Открытые вопросы
+- CI зелёный на GitHub Actions не верифицирован
+- Hermes Agent requires NousResearch runtime

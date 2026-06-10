@@ -272,6 +272,24 @@ There is **no** `core-backend/` or `operator-frontend/` directory; older docs or
 
 **HERMES:** сводка функций, запретов и Phase 5 — [`docs/HERMES-reference.md`](docs/HERMES-reference.md); границы API — [`docs/HERMES-operator-boundaries.md`](docs/HERMES-operator-boundaries.md).
 
+### Hermes Agent + MCP Server (Plan 3)
+
+- **MCP Server:** `packages/hermes-mcp-server/` (`@arbibot/hermes-mcp-server`) — TypeScript MCP server exposing 14 tools via stdio transport → Hermes Gateway HTTP API
+- **Agent config:** `tools/hermes-agent/` — Hermes Agent (NousResearch) YAML config + MCP connection config
+  - `hermes-config.yaml` — LLM provider, messaging (Telegram/Discord), cron, skills path
+  - `mcp-config.json` — MCP server stdio connection (command, args, env)
+- **Skills:** `tools/hermes-agent/skills/` — 6 Arbibot-specific skills (markdown):
+  - `investigate-incident` — автоанализ инцидента → рекомендация
+  - `risk-summary` — сводка risk decisions за период
+  - `reconciliation-check` — mismatches → отчёт → рекомендации
+  - `force-hedge-preview` — NL impact preview перед force hedge
+  - `daily-report` — ежедневный отчёт (cron)
+  - `safe-mode-check` — проверка + рекомендация safe-mode
+- **MCP Tools (14):** list_plans, get_plan, arm_plan, execute_plan, list_positions, close_position, list_incidents, resolve_incident, list_incident_briefs, get_safe_mode_status, enable_safe_mode, disable_safe_mode, get_approvals_queue, get_dashboard_summary
+- **ADR:** [`docs/adr-hermes-agent-integration.md`](docs/adr-hermes-agent-integration.md)
+- **Env vars:** `HERMES_MCP_PORT` (default 4000), `HERMES_AGENT_API_KEY`
+- **Plan:** [`.cursor/plans/DEVELOPMENT_PLAN3.md`](.cursor/plans/DEVELOPMENT_PLAN3.md) — 17 steps (A: rename, B: MCP server, C: agent integration)
+
 **Первичный запуск (paper → live):** по замыслу владельцев продукта **paper trading** на стадии первого вывода в эксплуатацию — **обязательный** сквозной тест всего стека (данные → возможности → риск → капитал → виртуальное исполнение → observability/UI) и накопление статистики **без** реальных потерь; после приёмки включается **live с минимальным капиталом**. Это зафиксировано в `DEVELOPMENT_PLAN.md` (раздел «Операционная последовательность первичного запуска»), в архитектурном и фронтенд-спек-документах в корне репозитория.
 
 ### Infrastructure
@@ -354,6 +372,7 @@ Shared libraries live under [`packages/`](packages/), especially:
 - `@arbibot/nest-database`
 - `@arbibot/nest-platform`
 - `@arbibot/outbox-kafka-bridge`
+- `@arbibot/hermes-mcp-server` — MCP Server для Hermes Agent (14 tools → gateway)
 
 ### Frontend (`apps/web`)
 

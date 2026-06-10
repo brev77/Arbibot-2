@@ -67,9 +67,9 @@ jobs:
             workspace: "@arbibot/config-service"
             entry: apps/config-service/dist/main.js
             port: "3019"
-          - service: openclaw-gateway
-            workspace: "@arbibot/openclaw-gateway"
-            entry: apps/openclaw-gateway/dist/main.js
+          - service: hermes-gateway
+            workspace: "@arbibot/hermes-gateway"
+            entry: apps/hermes-gateway/dist/main.js
             port: "3020"
 
     permissions:

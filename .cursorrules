@@ -13,7 +13,8 @@ You are working in the Arbibot 2 monorepo.
     - **Phase 0–2:** foundation + controlled execution (snapshot → risk → reserve → arm → execution, dashboards, messaging baseline, reconciliation) — **done**
     - **Phase 3:** paper trading engine (paper trades, promotion candidates, virtual capital, drift gauges, discovery pipeline, `/paper` UI) — **done**
     - **Phase 4:** wide-universe scaling with intake throttling (tier routing, degraded mode signals, route-scoring analytics, replay tools) — **done**
-    - **Phase 5:** HERMES-assisted operations (read-only API, incident management, approvals queue, safe-mode) — **in progress**
+    - **Phase 5:** HERMES-assisted operations (read-only API, incident management, approvals queue, safe-mode) — **done**
+    - **Hermes Agent + MCP Server:** AI-assisted ops via MCP tools (14 tools → gateway) + NousResearch agent with 6 Arbibot skills — **done** (Plan 3)
   - **Phase numbers match the canonical** [.cursor/plans/DEVELOPMENT_PLAN.md](.cursor/plans/DEVELOPMENT_PLAN.md) **and** `!Arbibot_2_Architecture_v1_final_docs_settings.md` (§50.x).
   - **Later phases (do NOT implement unless explicitly requested):**
     - Phase 6+ features are not defined and should NOT be implemented

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://modelcontextprotocol.io/schema/mcp-config.json",
+  "mcpServers": {
+    "hermes-arbibot": {
+      "command": "node",
+      "args": ["../../packages/hermes-mcp-server/dist/index.js"],
+      "env": {
+        "HERMES_GATEWAY_URL": "http://localhost:3020",
+        "HERMES_API_KEY": "CHANGE_ME"
+      }
+    }
+  }
+}

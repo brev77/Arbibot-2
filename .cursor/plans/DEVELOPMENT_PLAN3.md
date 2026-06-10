@@ -1,6 +1,6 @@
-﻿# Arbibot 2 — План 3: OpenClaw → Hermes
+# Arbibot 2 — План 3: OpenClaw → Hermes
 
-**Прогресс:** 8/17 | **Обновлено:** 2026-06-09 | **Детали шагов:** `.cursor/plans/hermes/`
+**Прогресс:** 17/17 | **Обновлено:** 2026-06-11 | **Детали шагов:** `.cursor/plans/hermes/`
 
 ## Контекст
 
@@ -50,25 +50,25 @@
 | `H3-A-5-INFRA` | Env/docker/tools/CI (~7 файлов) | done | `hermes/H3-A-5-INFRA.md` |
 | `H3-A-6-DOCS` | Docs: 6 rename + 17 update | done | `hermes/H3-A-6-DOCS.md` |
 | `H3-A-7-META` | AGENTS.md, README, .cursorrules | done | `hermes/H3-A-7-META.md` |
-| `H3-A-8-VERIFY` | npm ci + build + lint + test | planned | `hermes/H3-A-8-VERIFY.md` |
+| `H3-A-8-VERIFY` | npm ci + build + lint + test | done | `hermes/H3-A-8-VERIFY.md` |
 
 ### Фаза B: MCP Server (4 шага)
 
 | step_id | Суть | status | details |
 |---------|------|--------|---------|
-| `H3-B-0-ADR-MCP` | ADR: MCP architecture | planned | `hermes/H3-B-0-ADR-MCP.md` |
-| `H3-B-1-PACKAGE` | Skeleton `packages/hermes-mcp-server/` | planned | `hermes/H3-B-1-PACKAGE.md` |
-| `H3-B-2-TOOLS` | MCP tools (14 tools → gateway) | planned | `hermes/H3-B-2-TOOLS.md` |
-| `H3-B-3-TESTS` | Тесты + turbo integration | planned | `hermes/H3-B-3-TESTS.md` |
+| `H3-B-0-ADR-MCP` | ADR: MCP architecture | done | `hermes/H3-B-0-ADR-MCP.md` |
+| `H3-B-1-PACKAGE` | Skeleton `packages/hermes-mcp-server/` | done | `hermes/H3-B-1-PACKAGE.md` |
+| `H3-B-2-TOOLS` | MCP tools (14 tools → gateway) | done | `hermes/H3-B-2-TOOLS.md` |
+| `H3-B-3-TESTS` | Тесты + turbo integration | done | `hermes/H3-B-3-TESTS.md` |
 
 ### Фаза C: Agent Integration (4 шага)
 
 | step_id | Суть | status | details |
 |---------|------|--------|---------|
-| `H3-C-0-ADR-AGENT` | ADR: Agent integration | planned | `hermes/H3-C-0-ADR-AGENT.md` |
-| `H3-C-1-CONFIG` | Agent config (provider, MCP) | planned | `hermes/H3-C-1-CONFIG.md` |
-| `H3-C-2-SKILLS` | 6 Arbibot skills | planned | `hermes/H3-C-2-SKILLS.md` |
-| `H3-C-3-META-UPDATE` | AGENTS.md + .cursorrules update | planned | `hermes/H3-C-3-META-UPDATE.md` |
+| `H3-C-0-ADR-AGENT` | ADR: Agent integration | done | `hermes/H3-C-0-ADR-AGENT.md` |
+| `H3-C-1-CONFIG` | Agent config (provider, MCP) | done | `hermes/H3-C-1-CONFIG.md` |
+| `H3-C-2-SKILLS` | 6 Arbibot skills | done | `hermes/H3-C-2-SKILLS.md` |
+| `H3-C-3-META-UPDATE` | AGENTS.md + .cursorrules update | done | `hermes/H3-C-3-META-UPDATE.md` |
 
 ## Dependency Graph
 
