@@ -101,10 +101,17 @@ describe('CrossChainReconciliationService', () => {
       providers: [
         CrossChainReconciliationService,
         { provide: getRepositoryToken(BridgeTransferEntity), useValue: bridgeTransferRepo },
-        { provide: getRepositoryToken(ExecutionLegEntity), useValue: legRepo },
-        { provide: getRepositoryToken(ExecutionPlanEntity), useValue: planRepo },
         { provide: BridgeTransferService, useValue: bridgeTransferService },
-        { provide: DataSource, useValue: {} },
+        {
+          provide: DataSource,
+          useValue: {
+            getRepository: jest.fn().mockImplementation((entity: unknown) => {
+              if (entity === ExecutionLegEntity) return legRepo;
+              if (entity === ExecutionPlanEntity) return planRepo;
+              return {};
+            }),
+          },
+        },
       ],
     }).compile();
 
