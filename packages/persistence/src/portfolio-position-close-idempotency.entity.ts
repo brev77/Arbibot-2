@@ -1,4 +1,4 @@
-import {
+﻿import {
   CreateDateColumn,
   Entity,
   JoinColumn,
@@ -8,7 +8,7 @@ import {
 
 import { PortfolioPositionEntity } from './portfolio-position.entity';
 
-/** Idempotency for operator POST /positions/:id/close (OpenClaw / manual). */
+/** Idempotency for operator POST /positions/:id/close (HERMES / manual). */
 @Entity({ name: 'portfolio_position_close_idempotency' })
 export class PortfolioPositionCloseIdempotencyEntity {
   @PrimaryColumn({ name: 'position_id', type: 'uuid' })

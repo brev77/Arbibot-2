@@ -1,4 +1,4 @@
-# Arbibot 2 — Security Hardening Guide
+﻿# Arbibot 2 — Security Hardening Guide
 
 **Версия:** 1.0  
 **Обновлено:** 2026-05-21  
@@ -20,7 +20,7 @@
 | TLS termination | ✅ | nginx (`infra/nginx/nginx.conf`) |
 | Non-root containers | ✅ | Dockerfile.nest/Dockerfile.web (UID 1001) |
 | Network isolation | ✅ | `arbibot-backend` + `arbibot-observability` |
-| API key auth (OpenClaw) | ✅ | `x-openclaw-api-key` header |
+| API key auth (HERMES) | ✅ | `x-HERMES-api-key` header |
 | AES-256-GCM key encryption | ✅ | `KeyVaultService` |
 | RBAC roles | ✅ | viewer/operator/admin |
 | Two-step approval | ✅ | `DestructiveOperatorAction` |
@@ -73,8 +73,8 @@
 POSTGRES_PASSWORD
 GRAFANA_ADMIN_PASSWORD
 RISK_POLICY_JOB_TRIGGER_TOKEN
-OPENCLAW_API_KEYS
-OPENCLAW_BFF_API_KEY
+HERMES_API_KEYS
+HERMES_BFF_API_KEY
 PRIVATE_KEY_ENCRYPTION_KEY
 ```
 
@@ -98,7 +98,7 @@ PRIVATE_KEY_ENCRYPTION_KEY
 
 **Задачи:**
 - [ ] DB password rotation (zero-downtime)
-- [ ] API key rotation (OpenClaw, inter-service)
+- [ ] API key rotation (HERMES, inter-service)
 - [ ] TLS certificate renewal (Let's Encrypt auto-renew)
 - [ ] Wallet key rotation procedure
 - [ ] Encryption key rotation (KeyVaultService)

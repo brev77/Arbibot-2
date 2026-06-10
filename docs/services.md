@@ -1,4 +1,4 @@
-# Карта сервисов первой волны (P0-0.1-SVCMAP)
+﻿# Карта сервисов первой волны (P0-0.1-SVCMAP)
 
 Согласовано с архитектурой Arbibot 2: sync REST — первичный контракт для команд и чтения; асинхронные события — факты домена и интеграция; фоновые воркеры — BullMQ/Temporal (позже).
 
@@ -52,8 +52,8 @@
 ## Phase 0 — см. также
 
 - [Security baseline](security-baseline.md) (P0-0.3-SEC)
-- [OpenClaw и границы Operator API](openclaw-operator-boundaries.md) (P0-0.3-OC)
-- [OpenClaw — справка по функциям и границам](openclaw-reference.md)
+- [HERMES и границы Operator API](HERMES-operator-boundaries.md) (P0-0.3-OC)
+- [HERMES — справка по функциям и границам](HERMES-reference.md)
 
 ## Первичный запуск: paper → live
 

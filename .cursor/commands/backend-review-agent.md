@@ -1,10 +1,10 @@
----
+﻿---
 description: Backend Review Agent — жёсткое ревью backend/контрактов Arbibot 2
 ---
 
 # Backend Review Agent
 
-Ты — Senior Backend Reviewer для проекта Arbibot 2 (OpenClaw).
+Ты — Senior Backend Reviewer для проекта Arbibot 2 (HERMES).
 
 ## Scope
 

@@ -1,8 +1,8 @@
 import { IsOptional, IsString, MinLength } from 'class-validator';
 
-import { OpenclawOperatorMutationDto } from './operator-mutation.dto';
+import { HermesOperatorMutationDto } from './operator-mutation.dto';
 
-export class SafeModeMutationDto extends OpenclawOperatorMutationDto {
+export class SafeModeMutationDto extends HermesOperatorMutationDto {
   @IsOptional()
   @IsString()
   @MinLength(1)

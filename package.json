@@ -49,7 +49,7 @@
     "dev:paper": "npm run start:dev -w @arbibot/paper-trading-service",
     "dev:config": "npm run start:dev -w @arbibot/config-service",
     "dev:web": "npm run dev -w @arbibot/web",
-    "dev:openclaw": "npm run start:dev -w @arbibot/openclaw-gateway",
+    "dev:hermes": "npm run start:dev -w @arbibot/hermes-gateway",
     "bus:publish": "npm run build -w @arbibot/outbox-kafka-bridge && npm run start:publish -w @arbibot/outbox-kafka-bridge",
     "bus:consume": "npm run build -w @arbibot/outbox-kafka-bridge && npm run start:consume -w @arbibot/outbox-kafka-bridge",
     "docker:build": "bash tools/docker-build-all.sh",

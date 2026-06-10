@@ -1,6 +1,6 @@
-# Arbibot 2
+﻿# Arbibot 2
 
-Монорепозиторий высокопроизводительной системы крипто-арбитража: canonical market → intake рынка → возможности → риск → капитал → оркестрация исполнения → портфель и сверка. Закрыты **Phase 0–2** (controlled execution); **Phase 3** (paper): trades / promotion / drift / discovery, виртуальный capital, BFF-мутации, E2E + CI; **Phase 4** (масштаб и политика): tier routing и throttling в **market-intake**, writers watchlist/scoring в **risk-service**, degraded UI, replay route scoring и ADR gate для аналитики/ClickHouse — см. [.cursor/plans/DEVELOPMENT_PLAN.md](.cursor/plans/DEVELOPMENT_PLAN.md); **Phase 5**: **openclaw-gateway** и operator UI **`/openclaw`**. Технический контур: snapshot → opportunity → risk → reserve → **arm**, полный цикл ног до `plan.completed` (`npm run e2e:phase2-controlled-execution`, в CI — `npm run ci:e2e-phase2`), **portfolio** / **reconciliation** / UI `/incidents`, HTTP lab-venue, in-DB relay для `RiskDecisionIssued` и `PaperPromotionCandidateRequested`, Kafka bridge для `SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, `PlanCompleted`. Профили риска и policy jobs — [`docs/phase2-risk-policy-roadmap.md`](docs/phase2-risk-policy-roadmap.md); **config-service** и **`/settings`** — [`docs/cfg-3-staged-rollout.md`](docs/cfg-3-staged-rollout.md).
+Монорепозиторий высокопроизводительной системы крипто-арбитража: canonical market → intake рынка → возможности → риск → капитал → оркестрация исполнения → портфель и сверка. Закрыты **Phase 0–2** (controlled execution); **Phase 3** (paper): trades / promotion / drift / discovery, виртуальный capital, BFF-мутации, E2E + CI; **Phase 4** (масштаб и политика): tier routing и throttling в **market-intake**, writers watchlist/scoring в **risk-service**, degraded UI, replay route scoring и ADR gate для аналитики/ClickHouse — см. [.cursor/plans/DEVELOPMENT_PLAN.md](.cursor/plans/DEVELOPMENT_PLAN.md); **Phase 5**: **HERMES-gateway** и operator UI **`/HERMES`**. Технический контур: snapshot → opportunity → risk → reserve → **arm**, полный цикл ног до `plan.completed` (`npm run e2e:phase2-controlled-execution`, в CI — `npm run ci:e2e-phase2`), **portfolio** / **reconciliation** / UI `/incidents`, HTTP lab-venue, in-DB relay для `RiskDecisionIssued` и `PaperPromotionCandidateRequested`, Kafka bridge для `SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, `PlanCompleted`. Профили риска и policy jobs — [`docs/phase2-risk-policy-roadmap.md`](docs/phase2-risk-policy-roadmap.md); **config-service** и **`/settings`** — [`docs/cfg-3-staged-rollout.md`](docs/cfg-3-staged-rollout.md).
 
 **Первичный запуск (канон):** перед выставлением реальных средств система **сначала** выводится в режим **paper trading** — сквозной операционный тест всей связки и сбор статистики; затем **live с минимальным капиталом**. Подробнее: [.cursor/plans/DEVELOPMENT_PLAN.md](.cursor/plans/DEVELOPMENT_PLAN.md) («Операционная последовательность первичного запуска»), `!Arbibot_2_Architecture_v1_final_docs_settings.md` (разделы 13 и 50.5).
 
@@ -71,15 +71,15 @@ npm ci
 | `apps/canonical-market-service` | Канонический реестр площадок / инструментов / маршрутов: `POST /market/resolve-instrument`, `POST /market/resolve-route` |
 | `apps/market-intake-service` | Ingest snapshots: `POST /snapshots/ingest`, `GET /snapshots`, freshness, outbox `SnapshotUpdated` |
 | `apps/paper-trading-service` | Paper trading: trades, promotion, drift, discovery candidates; виртуальный capital (`021`); effective config **`paper.discovery`**; single-writer HTTP API; миграции **`016`–`018`**, **`021`–`023`** |
-| `apps/openclaw-gateway` | Phase 5: шлюз Operator/OpenClaw API (`/openclaw/v1/*`), мутации с audit и rate limit; порт **3020**; см. [`apps/openclaw-gateway/README.md`](apps/openclaw-gateway/README.md) |
-| `apps/web` | Operator UI (Next.js): **`/dashboard`**, **`/paper`**, **`/tokens`**, **`/settings`**, **`/openclaw`**, BFF под `app/api/operator/`; **RBAC** — `middleware.ts` (`arbibot_role` / `ARBIBOT_DEV_ROLE`); конвенции: [`apps/web/STACK-CONVENTIONS.md`](apps/web/STACK-CONVENTIONS.md) |
+| `apps/HERMES-gateway` | Phase 5: шлюз Operator/HERMES API (`/HERMES/v1/*`), мутации с audit и rate limit; порт **3020**; см. [`apps/HERMES-gateway/README.md`](apps/HERMES-gateway/README.md) |
+| `apps/web` | Operator UI (Next.js): **`/dashboard`**, **`/paper`**, **`/tokens`**, **`/settings`**, **`/HERMES`**, BFF под `app/api/operator/`; **RBAC** — `middleware.ts` (`arbibot_role` / `ARBIBOT_DEV_ROLE`); конвенции: [`apps/web/STACK-CONVENTIONS.md`](apps/web/STACK-CONVENTIONS.md) |
 | `packages/persistence` | Сущности TypeORM, outbox/inbox, TTL-хелперы, paper и policy configuration |
 | `packages/contracts` | HTTP-константы маршрутов, имена событий, типы payload и event envelopes, paper schemas |
 | `packages/messaging` | `tryClaimInboxMessage`, `fetchLockedOutboxBatch(..., eventTypes)` |
 | `packages/outbox-kafka-bridge` | Публикация `SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, `PlanCompleted` в Kafka/Redpanda и smoke-consumer с inbox claim |
 | `packages/nest-database` / `nest-platform` | БД, Redis helper, correlation id, логи, **Prometheus `/metrics`**, `getArbibotMetricsRegistry()`, audit HTTP client |
 | `infra/postgres/migrations` | SQL **`001` … `031`**: ядро, риск, canonical/intake, execution/portfolio/reconciliation, paper + outbox, policy config/scopes, playbooks, watchlist/scoring history, intake seed, paper quality, portfolio close idempotency — см. каталог |
-| `docs/` | Runbooks и ADR: [`docs/outbox-inbox.md`](docs/outbox-inbox.md), [`docs/observability-tracing.md`](docs/observability-tracing.md), [`docs/phase2-risk-policy-roadmap.md`](docs/phase2-risk-policy-roadmap.md), [`docs/phase4-prep-bridge.md`](docs/phase4-prep-bridge.md), [`docs/route-scoring-replay.md`](docs/route-scoring-replay.md), [`docs/adr-phase4-clickhouse-gate.md`](docs/adr-phase4-clickhouse-gate.md), [`docs/openclaw-gateway-runbook.md`](docs/openclaw-gateway-runbook.md), [`docs/ci-verification-checklist.md`](docs/ci-verification-checklist.md), [`docs/TODO.md`](docs/TODO.md) |
+| `docs/` | Runbooks и ADR: [`docs/outbox-inbox.md`](docs/outbox-inbox.md), [`docs/observability-tracing.md`](docs/observability-tracing.md), [`docs/phase2-risk-policy-roadmap.md`](docs/phase2-risk-policy-roadmap.md), [`docs/phase4-prep-bridge.md`](docs/phase4-prep-bridge.md), [`docs/route-scoring-replay.md`](docs/route-scoring-replay.md), [`docs/adr-phase4-clickhouse-gate.md`](docs/adr-phase4-clickhouse-gate.md), [`docs/HERMES-gateway-runbook.md`](docs/HERMES-gateway-runbook.md), [`docs/ci-verification-checklist.md`](docs/ci-verification-checklist.md), [`docs/TODO.md`](docs/TODO.md) |
 | `.cursor/plans/DEVELOPMENT_PLAN.md` | Пошаговый план разработки и статусы |
 | [`AGENTS.md`](AGENTS.md) | Кратко для агентов/разработчиков: workspaces, graphify, e2e, CI |
 
@@ -131,7 +131,7 @@ npm ci
 | `npm run dev:reconciliation` | Reconciliation service |
 | `npm run dev:paper` | Paper trading service |
 | `npm run dev:config` | Config service (policy configurations) |
-| `npm run dev:openclaw` | OpenClaw gateway (порт **3020**) |
+| `npm run dev:HERMES` | HERMES gateway (порт **3020**) |
 | `npm run dev:web` | Next.js dev server |
 | `npm run bus:publish` | Собрать и запустить publisher outbox → Kafka/Redpanda (`SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, `PlanCompleted`) |
 | `npm run bus:consume` | Собрать и запустить smoke-consumer с inbox claim |
@@ -153,7 +153,7 @@ npm ci
 | Reconciliation | 3017 |
 | Paper trading | 3018 |
 | Config | 3019 |
-| OpenClaw gateway | 3020 (`OPENCLAW_GATEWAY_PORT`) |
+| HERMES gateway | 3020 (`HERMES_GATEWAY_PORT`) |
 | Web (Next dev) | 3000* |
 | Redpanda / Kafka API (dev, `bus` profile) | 19092 |
 

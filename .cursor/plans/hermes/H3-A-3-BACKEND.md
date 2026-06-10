@@ -1,4 +1,4 @@
-# H3-A-3-BACKEND — Замена содержимого backend
+﻿# H3-A-3-BACKEND — Замена содержимого backend
 
 | Поле | Значение |
 |------|----------|
@@ -18,25 +18,25 @@ Root: `package.json`, `README.md`, `nest-cli.json`
 ## Маппинг замен
 | Было | Стало |
 |------|-------|
-| `OpenclawModule` | `HermesModule` |
-| `OpenclawController` | `HermesController` |
-| `OpenclawAuthGuard` | `HermesAuthGuard` |
-| `OpenclawMutationController` | `HermesMutationController` |
-| `OpenclawMutationService` | `HermesMutationService` |
-| `OpenclawMutationRateLimitGuard` | `HermesMutationRateLimitGuard` |
-| `OpenclawRateLimitService` | `HermesRateLimitService` |
-| `OpenclawUpstreamService` | `HermesUpstreamService` |
-| `OPENCLAW_API_KEYS` | `HERMES_API_KEYS` |
-| `OPENCLAW_GATEWAY_PORT` | `HERMES_GATEWAY_PORT` |
-| `OPENCLAW_SAFE_MODE_*` | `HERMES_SAFE_MODE_*` |
-| `OPENCLAW_MUTATION_RATE_LIMIT_*` | `HERMES_MUTATION_RATE_LIMIT_*` |
-| `x-openclaw-api-key` | `x-hermes-api-key` |
-| `/openclaw/v1/` | `/hermes/v1/` |
-| `'openclaw-gateway'` | `'hermes-gateway'` |
-| `@arbibot/openclaw-gateway` | `@arbibot/hermes-gateway` |
+| `HERMESModule` | `HermesModule` |
+| `HERMESController` | `HermesController` |
+| `HERMESAuthGuard` | `HermesAuthGuard` |
+| `HERMESMutationController` | `HermesMutationController` |
+| `HERMESMutationService` | `HermesMutationService` |
+| `HERMESMutationRateLimitGuard` | `HermesMutationRateLimitGuard` |
+| `HERMESRateLimitService` | `HermesRateLimitService` |
+| `HERMESUpstreamService` | `HermesUpstreamService` |
+| `HERMES_API_KEYS` | `HERMES_API_KEYS` |
+| `HERMES_GATEWAY_PORT` | `HERMES_GATEWAY_PORT` |
+| `HERMES_SAFE_MODE_*` | `HERMES_SAFE_MODE_*` |
+| `HERMES_MUTATION_RATE_LIMIT_*` | `HERMES_MUTATION_RATE_LIMIT_*` |
+| `x-HERMES-api-key` | `x-hermes-api-key` |
+| `/HERMES/v1/` | `/hermes/v1/` |
+| `'HERMES-gateway'` | `'hermes-gateway'` |
+| `@arbibot/HERMES-gateway` | `@arbibot/hermes-gateway` |
 
 ## Edge Cases
-- `nest-cli.json`: `src/openclaw/` → `src/hermes/`
+- `nest-cli.json`: `src/HERMES/` → `src/hermes/`
 - `dist/` удалить перед пересборкой
 
 ## Test Commands

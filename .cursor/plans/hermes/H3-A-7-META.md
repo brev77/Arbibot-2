@@ -1,4 +1,4 @@
-# H3-A-7-META — Обновление метаданных
+﻿# H3-A-7-META — Обновление метаданных
 
 | Поле | Значение |
 |------|----------|
@@ -13,15 +13,15 @@
 ## Файлы
 - `AGENTS.md` — service table, env vars, dev command, BFF route, UI route, docs links, Phase 5 descriptions (~20+ строк)
 - `README.md` — service table, npm script, port table, docs links
-- `.cursorrules` — упоминания openclaw
+- `.cursorrules` — упоминания HERMES
 - `.cursor/plans/DEVELOPMENT_PLAN.md` — Phase 5 step descriptions
-- `.cursor/skills/*/SKILL.md` — если упоминают openclaw
-- `.cursor/commands/*.md` — если упоминают openclaw
+- `.cursor/skills/*/SKILL.md` — если упоминают HERMES
+- `.cursor/commands/*.md` — если упоминают HERMES
 - `!Arbibot_2_Architecture_v1_final_docs_settings.md` — если содержит упоминания
 - `!Arbibot_2_Frontend_Spec_settings.md` — если содержит упоминания
 
 ## Также обновить
-- `apps/portfolio-service/src/positions/positions.controller.ts` — комментарий "OpenClaw / manual"
+- `apps/portfolio-service/src/positions/positions.controller.ts` — комментарий "HERMES / manual"
 - `packages/persistence/src/portfolio-position-close-idempotency.entity.ts` — комментарий
 
 ## Edge Cases
@@ -30,7 +30,7 @@
 
 ## Test Commands
 ```bash
-findstr /i "openclaw" AGENTS.md README.md .cursorrules  # → 0 результатов
+findstr /i "HERMES" AGENTS.md README.md .cursorrules  # → 0 результатов
 ```
 
 ## Rollback

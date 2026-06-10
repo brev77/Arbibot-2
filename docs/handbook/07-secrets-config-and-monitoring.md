@@ -1,4 +1,4 @@
-# 07 — Секреты, настройка системы, мониторинг
+﻿# 07 — Секреты, настройка системы, мониторинг
 
 Под «ботом» здесь имеется в виду **торговый контур Arbibot 2** (политики, лимиты, флаги окружения), а не отдельный чат-бот.
 
@@ -13,7 +13,7 @@
 Категории переменных (полный перечень и комментарии — только в `.env.example`):
 
 - Подключения: **`DATABASE_URL`**, **`REDIS_URL`**, при bus — **`KAFKA_BROKERS`** / топик.
-- Ключи и токены доступа: например **`OPENCLAW_API_KEYS`**, **`OPENCLAW_BFF_API_KEY`**, **`RISK_POLICY_JOB_TRIGGER_TOKEN`**, **`PAPER_DISCOVERY_RUN_TOKEN`** — включайте по мере использования фич.
+- Ключи и токены доступа: например **`HERMES_API_KEYS`**, **`HERMES_BFF_API_KEY`**, **`RISK_POLICY_JOB_TRIGGER_TOKEN`**, **`PAPER_DISCOVERY_RUN_TOKEN`** — включайте по мере использования фич.
 - Прод-браузер: **`CORS_ORIGINS`** (явный список origin для Nest).
 - Будущие пароли к внешним venue — только через секреты окружения, не в репозиторий.
 
@@ -48,9 +48,9 @@
 
 После миграций **канонические таблицы** заполняются **вручную**; без этого resolve-эндпоинты неполезны. См. *Seed note* в [README.md](../../README.md).
 
-### Слой D — OpenClaw и BFF
+### Слой D — HERMES и BFF
 
-Переменные **`OPENCLAW_*`**, **`OPERATOR_WEB_BFF_BASE`** и смежные — в хвосте `.env.example` и в [apps/openclaw-gateway/README.md](../../apps/openclaw-gateway/README.md).
+Переменные **`HERMES_*`**, **`OPERATOR_WEB_BFF_BASE`** и смежные — в хвосте `.env.example` и в [apps/HERMES-gateway/README.md](../../apps/HERMES-gateway/README.md).
 
 ## 3. За какими данными следить (операторский чеклист)
 

@@ -1,4 +1,4 @@
----
+﻿---
 name: backend-review-agent
 description: >
   Use when the user requests a backend code review, PR review for NestJS/Fastify services,
@@ -71,7 +71,7 @@ description: >
 - Reconciliation Service
 - Config Service
 - Audit Service
-- OpenClaw Gateway
+- HERMES Gateway
 
 ## DEX-specific backend checks (для шагов `DEX-*`)
 

@@ -1,4 +1,4 @@
-# H3-A-6-DOCS — Переименование + обновление документации
+﻿# H3-A-6-DOCS — Переименование + обновление документации
 
 | Поле | Значение |
 |------|----------|
@@ -13,19 +13,19 @@
 ## Переименование (6 файлов)
 | Было | Стало |
 |------|-------|
-| `docs/openclaw-gateway-runbook.md` | `docs/hermes-gateway-runbook.md` |
-| `docs/openclaw-operator-api-spec.md` | `docs/hermes-operator-api-spec.md` |
-| `docs/openclaw-operator-boundaries.md` | `docs/hermes-operator-boundaries.md` |
-| `docs/openclaw-reference.md` | `docs/hermes-reference.md` |
-| `docs/openclaw-safe-mode-runbook.md` | `docs/hermes-safe-mode-runbook.md` |
-| `docs/openclaw-ui-design.md` | `docs/hermes-ui-design.md` |
+| `docs/HERMES-gateway-runbook.md` | `docs/hermes-gateway-runbook.md` |
+| `docs/HERMES-operator-api-spec.md` | `docs/hermes-operator-api-spec.md` |
+| `docs/HERMES-operator-boundaries.md` | `docs/hermes-operator-boundaries.md` |
+| `docs/HERMES-reference.md` | `docs/hermes-reference.md` |
+| `docs/HERMES-safe-mode-runbook.md` | `docs/hermes-safe-mode-runbook.md` |
+| `docs/HERMES-ui-design.md` | `docs/hermes-ui-design.md` |
 
 ## Обновление упоминаний (17 файлов)
 `ci-verification-checklist.md`, `deployment-checklist.md`, `deployment-guide.md`, `deployment-readiness-assessment.md`, `dex-runbook-failed-tx.md`, `disaster-recovery-plan.md`, `grafana-dashboard-verification.md`, `handbook/05-operator-runbooks.md`, `handbook/07-secrets-config-and-monitoring.md`, `key-rotation-runbook.md`, `operator-approval-flow.md`, `operator-ui-complete-guide.md`, `progress.md`, `review-handoff-2026-04-20.md`, `security-hardening-guide.md`, `services.md`, `TODO.md`
 
 ## Test Commands
 ```bash
-findstr /s /i "openclaw" docs\*.md  # → 0 результатов
+findstr /s /i "HERMES" docs\*.md  # → 0 результатов
 ```
 
 ## Rollback

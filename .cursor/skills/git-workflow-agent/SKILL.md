@@ -1,4 +1,4 @@
----
+﻿---
 name: git-workflow-agent
 description: >
   Use when managing Git operations in Arbibot 2 monorepo: committing changes, branching,
@@ -80,7 +80,7 @@ docs(DEX-DOC-1): add DEX on-chain transaction tracking documentation
 | `intake` | `apps/market-intake-service` |
 | `config` | `apps/config-service` |
 | `audit` | `apps/audit-service` |
-| `openclaw` | `apps/openclaw-gateway` |
+| `HERMES` | `apps/HERMES-gateway` |
 | `canonical` | `apps/canonical-market-service` |
 | `reconciliation` | `apps/reconciliation-service` |
 | `web` | `apps/web` |

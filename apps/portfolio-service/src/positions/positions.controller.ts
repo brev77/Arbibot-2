@@ -1,4 +1,4 @@
-import {
+﻿import {
   Body,
   Controller,
   Get,
@@ -41,7 +41,7 @@ export class PositionsController {
     await this.service.confirmFill(body);
   }
 
-  /** Operator-initiated close (quantity → 0). Used by OpenClaw and manual flows. */
+  /** Operator-initiated close (quantity → 0). Used by HERMES and manual flows. */
   @Post('positions/:id/close')
   @HttpCode(HttpStatus.OK)
   async close(

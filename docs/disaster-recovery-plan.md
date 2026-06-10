@@ -1,4 +1,4 @@
-# Arbibot 2 — Disaster Recovery Plan
+﻿# Arbibot 2 — Disaster Recovery Plan
 
 **Версия:** 1.0  
 **Дата:** 2026-05-21  
@@ -131,8 +131,8 @@ bash tools/verify-deployment.sh
 # 1. Rotate все секреты (параллельно):
 #    - POSTGRES_PASSWORD
 #    - GRAFANA_ADMIN_PASSWORD
-#    - OPENCLAW_API_KEYS
-#    - OPENCLAW_BFF_API_KEY
+#    - HERMES_API_KEYS
+#    - HERMES_BFF_API_KEY
 #    - RISK_POLICY_JOB_TRIGGER_TOKEN
 #    - PRIVATE_KEY_ENCRYPTION_KEY
 

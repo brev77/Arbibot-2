@@ -1,18 +1,18 @@
-# OpenClaw gateway — deployment & monitoring
+﻿# HERMES gateway — deployment & monitoring
 
-**Related:** [`docs/openclaw-operator-api-spec.md`](openclaw-operator-api-spec.md), [`apps/openclaw-gateway/README.md`](../apps/openclaw-gateway/README.md)
+**Related:** [`docs/HERMES-operator-api-spec.md`](HERMES-operator-api-spec.md), [`apps/HERMES-gateway/README.md`](../apps/HERMES-gateway/README.md)
 
 ## Deployment
 
-1. Run `openclaw-gateway` as its own process (port **3020** by default).
-2. Set `OPENCLAW_API_KEYS` to one or more comma-separated secrets; rotate by overlap (add new key, deploy clients, remove old key).
+1. Run `HERMES-gateway` as its own process (port **3020** by default).
+2. Set `HERMES_API_KEYS` to one or more comma-separated secrets; rotate by overlap (add new key, deploy clients, remove old key).
 3. Point upstream env vars at reachable HTTP bases for execution, portfolio, reconciliation, and the operator **`apps/web`** instance (`OPERATOR_WEB_BFF_BASE`) for dashboard summary.
-4. For **`apps/web`**, set `OPENCLAW_GATEWAY_URL` and `OPENCLAW_BFF_API_KEY` so the BFF route `/api/operator/openclaw/v1/*` can authenticate to the gateway. Never expose these keys to client bundles.
+4. For **`apps/web`**, set `HERMES_GATEWAY_URL` and `HERMES_BFF_API_KEY` so the BFF route `/api/operator/HERMES/v1/*` can authenticate to the gateway. Never expose these keys to client bundles.
 
 ## Security
 
-- Prefer mTLS or private network between gateway and upstreams in production; API key is a baseline for OpenClaw callers.
-- Reject requests when `OPENCLAW_API_KEYS` is empty (gateway refuses OpenClaw routes until configured).
+- Prefer mTLS or private network between gateway and upstreams in production; API key is a baseline for HERMES callers.
+- Reject requests when `HERMES_API_KEYS` is empty (gateway refuses HERMES routes until configured).
 - Dashboard summary goes through the same operator BFF URL as operators; avoid granting the gateway broader privileges than operator read paths.
 
 ## Monitoring

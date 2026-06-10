@@ -7,7 +7,7 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/main.js",
     "start:dev": "tsc -p tsconfig.build.json && concurrently -k -n tsc,node -c auto \"tsc -p tsconfig.build.json --watch --preserveWatchOutput\" \"node --watch dist/main.js\"",
-    "test": "jest --passWithNoTests",
+    "test": "jest --runInBand --passWithNoTests",
     "test:watch": "jest --watch"
   },
   "dependencies": {
@@ -35,11 +35,13 @@
     "moduleFileExtensions": ["js", "json", "ts"],
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
-    "transform": { "^.+\\.ts$": "ts-jest" },
     "collectCoverageFrom": ["**/*.ts"],
     "coverageDirectory": "../coverage",
     "testPathIgnorePatterns": ["/dist/", "/node_modules/"],
     "modulePathIgnorePatterns": ["<rootDir>/../dist"],
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "transform": {
+      "^.+\\.ts$": ["ts-jest", { "diagnostics": { "ignoreCodes": [151002] } }]
+    }
   }
 }

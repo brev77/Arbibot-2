@@ -1,4 +1,4 @@
-# DEX Runbook: Failed, Stuck & Reverted On-Chain Transactions
+﻿# DEX Runbook: Failed, Stuck & Reverted On-Chain Transactions
 
 **Step:** `DEX-DOC-RUNBOOK-TX`  
 **Risk level:** `medium`  
@@ -304,7 +304,7 @@ Reconciliation runs periodically and creates incidents for mismatches:
 
 ```bash
 # Check for DEX reconciliation incidents
-curl -s http://localhost:3020/openclaw/v1/incidents | jq '.[] | select(.type == "dex")'
+curl -s http://localhost:3020/HERMES/v1/incidents | jq '.[] | select(.type == "dex")'
 ```
 
 ---

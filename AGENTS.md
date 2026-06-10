@@ -1,4 +1,4 @@
-
+﻿
 # Arbibot 2
 
 ## Cursor / agent instructions
@@ -96,7 +96,7 @@ There is **no** `core-backend/` or `operator-frontend/` directory; older docs or
 - **Phase 0–2** (foundation + controlled execution): **done** ✅
 - **Phase 3** (paper trading engine): **done** ✅
 - **Phase 4** (wide-universe scaling — all formal `P4-4-*` steps `done`): **done** ✅
-- **Phase 5** (OpenClaw-assisted operations — all formal `P5-5-*` steps `done`): **done** ✅
+- **Phase 5** (HERMES-assisted operations — all formal `P5-5-*` steps `done`): **done** ✅
 - **DEX-1 + DEX-2 + DEX-DOC** (46/46 steps): **done** ✅
 - **Phase 2.2 short-term slice:** risk-service — token/route profile services, **`adaptiveRisk`** on `POST /evaluate-risk`, read APIs **`GET /policy/watchlist/tiers`**, **`GET /policy/route-scoring-history/:routeKey`**, **policy writer jobs** (`WatchlistTieringWriterService` / `RouteScoringWriterService`, optional `RISK_POLICY_JOBS_ENABLED`, **`POST /policy/jobs/watchlist-tiering`**, **`POST /policy/jobs/route-scoring`** with `x-arbibot-job-trigger` + `RISK_POLICY_JOB_TRIGGER_TOKEN`); docs **`docs/watchlist-tiering-logic.md`**, **`docs/route-scoring-logic.md`**; smoke **`npm run e2e:phase2-watchlist-route-scoring`**; CI — **`e2e-phase2-watchlist-route-scoring`** job, **`tools/ci-e2e-phase2-watchlist-route-scoring.sh`**, Grafana **`arbibot-risk-policy-writers.json`** with writer metrics; execution-orchestrator — **`playbook_config`** + `PartialFillPlaybookService`; paper-trading — promotion **`qualityTier`** / **`qualityScore`**, drift samples optional **`routeKey`**; **`tools/recalibration/`**; docs **`partial-fill-playbooks.md`**, **`recalibration-spec.md`**, **`paper-promotion-criteria.md`**; observability — histogram bucket reference in **`docs/observability-tracing.md`**; operator UI — **`/settings`** → «Watchlist tiers» + «Route scoring history», BFF **`GET /api/operator/settings/watchlist-tiers`**, **`GET /api/operator/settings/route-scoring/[routeKey]`**, offline export **`tools/export-route-scoring-history.mjs`**, **`npm run export:route-scoring-history`**
 - **Last major update (2026-05-21, session 38):** DEX **fully complete** — all 46/46 steps `done` (DEX-1 + DEX-2 + DEX-DOC); 3 bridge adapters (Across, Stargate, Native L2); `MultiLegPlanBuilder`; `CrossChainReconciliationService` + worker; multi-chain E2E (`tools/e2e-dex2-multichain.mjs`); bridge runbook (`docs/dex-runbook-bridge.md`); rollback strategy (`docs/dex-rollback-strategy.md`); **27 suites, 392/392 tests pass**; Build 21/21 ✅, Lint 28/28 ✅
@@ -245,32 +245,32 @@ There is **no** `core-backend/` or `operator-frontend/` directory; older docs or
   - `docs/adr-phase4-intake-throttling.md` — ADR for throttling architecture
   - `docs/phase4-ui-degraded-signals.md` — degraded signals design
   - `docs/paper-promotion-quality-criteria.md` — promotion quality criteria
-  - `docs/openclaw-operator-api-spec.md` — OpenClaw API specification
+  - `docs/HERMES-operator-api-spec.md` — HERMES API specification
 - **Grafana:**
   - `infra/grafana/dashboards/arbibot-risk-policy-writers.json` — intake panels added
   - `infra/grafana/README.md` — updated with intake metrics
 - **P2 prep:**
   - `tools/recalibration/main.py` — stub Python CLI, JSON output only
   - `tools/recalibration/README.md` — recalibration spec
-- **Phase 5 OpenClaw (`P5-5-GW` done):**
-  - `apps/openclaw-gateway/` — Nest+Fastify, port 3020; **`OpenclawAuthGuard`** + **`GET /openclaw/v1/plans`**, **`plans/:id`** (plan+legs), **`positions`**, **`incidents`**, **`dashboard/summary`**
+- **Phase 5 HERMES (`P5-5-GW` done):**
+  - `apps/HERMES-gateway/` — Nest+Fastify, port 3020; **`HERMESAuthGuard`** + **`GET /HERMES/v1/plans`**, **`plans/:id`** (plan+legs), **`positions`**, **`incidents`**, **`dashboard/summary`**
   - `GET /health` — basic health; `GET /health/operator-bff` — BFF probe when `OPERATOR_WEB_BFF_BASE` set
-  - `apps/web`: **`GET /api/operator/openclaw/v1/*`** BFF → gateway (`OPENCLAW_GATEWAY_URL`, `OPENCLAW_BFF_API_KEY`); **`/openclaw`** page shows read-only summary + sample plans when configured
-  - `npm run dev:openclaw` — dev command; Jest tests: `openclaw-auth.guard.spec.ts`
-  - Docs: [`apps/openclaw-gateway/README.md`](apps/openclaw-gateway/README.md), [`docs/openclaw-gateway-runbook.md`](docs/openclaw-gateway-runbook.md)
+  - `apps/web`: **`GET /api/operator/HERMES/v1/*`** BFF → gateway (`HERMES_GATEWAY_URL`, `HERMES_BFF_API_KEY`); **`/HERMES`** page shows read-only summary + sample plans when configured
+  - `npm run dev:HERMES` — dev command; Jest tests: `HERMES-auth.guard.spec.ts`
+  - Docs: [`apps/HERMES-gateway/README.md`](apps/HERMES-gateway/README.md), [`docs/HERMES-gateway-runbook.md`](docs/HERMES-gateway-runbook.md)
 - **Env vars:**
   - `MARKET_INTAKE_API_BASE` — for web BFF
   - `INTAKE_THROTTLING_ENABLED` — feature flag
   - `INTAKE_POLICY_CACHE_MS` — policy cache TTL
-  - `OPENCLAW_GATEWAY_PORT` — OpenClaw port (default 3020)
-  - `OPENCLAW_API_KEYS` — comma-separated keys for `x-openclaw-api-key` on **`openclaw-gateway`**
-  - `OPENCLAW_GATEWAY_URL` + `OPENCLAW_BFF_API_KEY` — **`apps/web`** server-only BFF to gateway
+  - `HERMES_GATEWAY_PORT` — HERMES port (default 3020)
+  - `HERMES_API_KEYS` — comma-separated keys for `x-HERMES-api-key` on **`HERMES-gateway`**
+  - `HERMES_GATEWAY_URL` + `HERMES_BFF_API_KEY` — **`apps/web`** server-only BFF to gateway
   - `EXECUTION_API_BASE`, `PORTFOLIO_API_BASE`, `RECONCILIATION_API_BASE` — gateway upstream defaults
-  - `OPERATOR_WEB_BFF_BASE` — for OpenClaw gateway read-through + health probe
+  - `OPERATOR_WEB_BFF_BASE` — for HERMES gateway read-through + health probe
 
 **Operational backlog (what / when):** [`docs/TODO.md`](docs/TODO.md) — живой список рядом с каноном [.cursor/plans/DEVELOPMENT_PLAN.md](.cursor/plans/DEVELOPMENT_PLAN.md).
 
-**OpenClaw:** сводка функций, запретов и Phase 5 — [`docs/openclaw-reference.md`](docs/openclaw-reference.md); границы API — [`docs/openclaw-operator-boundaries.md`](docs/openclaw-operator-boundaries.md).
+**HERMES:** сводка функций, запретов и Phase 5 — [`docs/HERMES-reference.md`](docs/HERMES-reference.md); границы API — [`docs/HERMES-operator-boundaries.md`](docs/HERMES-operator-boundaries.md).
 
 **Первичный запуск (paper → live):** по замыслу владельцев продукта **paper trading** на стадии первого вывода в эксплуатацию — **обязательный** сквозной тест всего стека (данные → возможности → риск → капитал → виртуальное исполнение → observability/UI) и накопление статистики **без** реальных потерь; после приёмки включается **live с минимальным капиталом**. Это зафиксировано в `DEVELOPMENT_PLAN.md` (раздел «Операционная последовательность первичного запуска»), в архитектурном и фронтенд-спек-документах в корне репозитория.
 
@@ -337,13 +337,13 @@ Copy [`.env.example`](.env.example) to `.env` and adjust URLs. Typical Nest env:
 | audit-service | 3013 |
 | canonical-market-service | 3014 |
 | market-intake-service | 3015 |
-| openclaw-gateway | 3020 (`OPENCLAW_GATEWAY_PORT`) |
+| HERMES-gateway | 3020 (`HERMES_GATEWAY_PORT`) |
 | portfolio-service | 3016 |
 | reconciliation-service | 3017 |
 | paper-trading-service | 3018 |
 | config-service | 3019 |
 
-Each service: `npm run start:dev -w @arbibot/<name>` or use root scripts in [`package.json`](package.json): `dev:risk`, `dev:opportunity`, `dev:capital`, `dev:execution`, `dev:audit`, `dev:canonical`, `dev:intake`, `dev:portfolio`, `dev:reconciliation`, `dev:paper`, **`dev:config`**, **`dev:openclaw`**, `dev:web`.
+Each service: `npm run start:dev -w @arbibot/<name>` or use root scripts in [`package.json`](package.json): `dev:risk`, `dev:opportunity`, `dev:capital`, `dev:execution`, `dev:audit`, `dev:canonical`, `dev:intake`, `dev:portfolio`, `dev:reconciliation`, `dev:paper`, **`dev:config`**, **`dev:HERMES`**, `dev:web`.
 
 Shared libraries live under [`packages/`](packages/), especially:
 
@@ -380,10 +380,10 @@ Shared libraries live under [`packages/`](packages/), especially:
   - `/api/operator/health/degradation` (read-only: **GET** → market-intake `GET /health/degradation` — returns `{ degraded, fallbackMode, degradationReasons }`)
 - **Health (DEX):**
   - `/api/operator/health/dex` (read-only: **GET** → execution-orchestrator `GET /health/dex` — composite DEX health: RPC, wallet, gas, pool discovery)
-- **OpenClaw (Phase 5 read-through + mutations):**
-  - `/api/operator/openclaw/v1/[[...path]]` (**GET** / **POST** / **PATCH** → `OPENCLAW_GATEWAY_URL/openclaw/v1/...` with server `OPENCLAW_BFF_API_KEY`; proxies reads + mutations; **POST/PATCH** require operator session and inject `operatorId`)
+- **HERMES (Phase 5 read-through + mutations):**
+  - `/api/operator/HERMES/v1/[[...path]]` (**GET** / **POST** / **PATCH** → `HERMES_GATEWAY_URL/HERMES/v1/...` with server `HERMES_BFF_API_KEY`; proxies reads + mutations; **POST/PATCH** require operator session and inject `operatorId`)
 
-- UI routes: `/dashboard`, `/portfolio`, `/opportunities`, `/execution`, `/tokens`, `/paper`, `/incidents`, `/runbooks`, `/openclaw`, **`/settings`** (policy configurations via config-service BFF). Phase 3 slice: `/paper` and `/tokens` include paper trades, promotion candidates, drift samples, discovery candidates with proper mutation flows and operator safety.
+- UI routes: `/dashboard`, `/portfolio`, `/opportunities`, `/execution`, `/tokens`, `/paper`, `/incidents`, `/runbooks`, `/HERMES`, **`/settings`** (policy configurations via config-service BFF). Phase 3 slice: `/paper` and `/tokens` include paper trades, promotion candidates, drift samples, discovery candidates with proper mutation flows and operator safety.
 
 Operator session in dev: see `apps/web` middleware / `getOperatorSession` — `ARBIBOT_DEV_ROLE` or `arbibot_role` cookie.
 
@@ -507,4 +507,4 @@ Operator session in dev: see `apps/web` middleware / `getOperatorSession` — `A
 - **`docs/phase4-ui-degraded-signals.md`** — Phase 4 degraded UI signals design (market-intake health, operator dashboard, banner)
 - **`docs/intake-policy-config-keys.md`** — config JSON keys `intake.throttling` / `intake.routing.tiers` (Phase 4)
 - **`docs/paper-promotion-quality-criteria.md`** — Paper promotion quality criteria (P2 prep)
-- **`docs/openclaw-operator-api-spec.md`** — OpenClaw operator API specification (Phase 5 gateway)
+- **`docs/HERMES-operator-api-spec.md`** — HERMES operator API specification (Phase 5 gateway)

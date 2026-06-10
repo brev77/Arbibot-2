@@ -1,6 +1,6 @@
-# CI verification checklist (post-merge)
+﻿# CI verification checklist (post-merge)
 
-Use after merging OpenClaw / intake / bus changes to `main`.
+Use after merging HERMES / intake / bus changes to `main`.
 
 ## GitHub Actions
 

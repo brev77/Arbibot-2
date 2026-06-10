@@ -1,6 +1,6 @@
-# Arbibot 2 — План 3: OpenClaw → Hermes
+﻿# Arbibot 2 — План 3: OpenClaw → Hermes
 
-**Прогресс:** 5/17 | **Обновлено:** 2026-06-09 | **Детали шагов:** `.cursor/plans/hermes/`
+**Прогресс:** 8/17 | **Обновлено:** 2026-06-09 | **Детали шагов:** `.cursor/plans/hermes/`
 
 ## Контекст
 
@@ -47,9 +47,9 @@
 | `H3-A-2-FILES` | git mv файлов (~15) | done | `hermes/H3-A-2-FILES.md` |
 | `H3-A-3-BACKEND` | Замена содержимого backend (~21 файл) | done | `hermes/H3-A-3-BACKEND.md` |
 | `H3-A-4-FRONTEND` | Замена содержимого frontend (~12 файлов) | done | `hermes/H3-A-4-FRONTEND.md` |
-| `H3-A-5-INFRA` | Env/docker/tools/CI (~7 файлов) | planned | `hermes/H3-A-5-INFRA.md` |
-| `H3-A-6-DOCS` | Docs: 6 rename + 17 update | planned | `hermes/H3-A-6-DOCS.md` |
-| `H3-A-7-META` | AGENTS.md, README, .cursorrules | planned | `hermes/H3-A-7-META.md` |
+| `H3-A-5-INFRA` | Env/docker/tools/CI (~7 файлов) | done | `hermes/H3-A-5-INFRA.md` |
+| `H3-A-6-DOCS` | Docs: 6 rename + 17 update | done | `hermes/H3-A-6-DOCS.md` |
+| `H3-A-7-META` | AGENTS.md, README, .cursorrules | done | `hermes/H3-A-7-META.md` |
 | `H3-A-8-VERIFY` | npm ci + build + lint + test | planned | `hermes/H3-A-8-VERIFY.md` |
 
 ### Фаза B: MCP Server (4 шага)

@@ -1,8 +1,8 @@
-**Arbibot 2**
+﻿**Arbibot 2**
 
 **Полная архитектура проекта**
 
-Версия 0.8 · финальная документация: все материалы прошлых версий сохранены и дополнены OpenClaw-интеграцией, стеком, фронтенд-спецификацией и реализационным слоем · без кода
+Версия 0.8 · финальная документация: все материалы прошлых версий сохранены и дополнены HERMES-интеграцией, стеком, фронтенд-спецификацией и реализационным слоем · без кода
 
 Документ описывает Arbibot 2 не как шаг к MVP, а как полную целевую архитектуру системы: от сбора рыночных данных и поиска возможностей до исполнения, риск-контроля, владения состоянием, консистентности портфеля, paper trading и операторского контура.
 
@@ -1093,55 +1093,55 @@ Policy partial fill должна быть параметром ExecutionPlan, а
 * Этот документ уже можно использовать как базу для распределения задач между backend, integration, platform и operator tooling потоками.
 * Следующий уровень детализации после этой версии — уже проектные артефакты уровня engineering docs: SQL schema, OpenAPI / AsyncAPI, sequence diagrams и task-level backlog по спринтам.
 
-# 42. OpenClaw как внешний operator и automation layer
+# 42. HERMES как внешний operator и automation layer
 
-OpenClaw должен встраиваться в Arbibot 2 не как источник истины для портфеля, резервов и execution state, а как внешний self-hosted agent layer для операторского доступа, workflows, наблюдаемости и автоматизации процедур ([OpenClaw docs](https://docs.openclaw.ai), [getting started](https://github.com/openclaw/openclaw/blob/main/docs/start/getting-started.md)).
+HERMES должен встраиваться в Arbibot 2 не как источник истины для портфеля, резервов и execution state, а как внешний self-hosted agent layer для операторского доступа, workflows, наблюдаемости и автоматизации процедур ([HERMES docs](https://docs.HERMES.ai), [getting started](https://github.com/HERMES/HERMES/blob/main/docs/start/getting-started.md)).
 
-* OpenClaw представляет собой self-hosted gateway, который может работать на отдельной машине или сервере и подключать Telegram, WhatsApp, Discord, iMessage и другие каналы к агентному контуру ([OpenClaw docs](https://docs.openclaw.ai)).
-* OpenClaw имеет browser dashboard / Control UI, sessions, memory/skills и multi-agent routing, поэтому его разумно использовать как операторскую и automation-надстройку, а не как замену доменных сервисов Arbibot 2 ([OpenClaw docs](https://docs.openclaw.ai)).
-* Для запуска OpenClaw рекомендуются Node 24 или Node 22 LTS, onboarding через openclaw onboard –install-daemon и локальный Control UI по адресу http://127.0.0.1:18789/ на хосте gateway ([OpenClaw docs](https://docs.openclaw.ai), [getting started](https://github.com/openclaw/openclaw/blob/main/docs/start/getting-started.md)).
+* HERMES представляет собой self-hosted gateway, который может работать на отдельной машине или сервере и подключать Telegram, WhatsApp, Discord, iMessage и другие каналы к агентному контуру ([HERMES docs](https://docs.HERMES.ai)).
+* HERMES имеет browser dashboard / Control UI, sessions, memory/skills и multi-agent routing, поэтому его разумно использовать как операторскую и automation-надстройку, а не как замену доменных сервисов Arbibot 2 ([HERMES docs](https://docs.HERMES.ai)).
+* Для запуска HERMES рекомендуются Node 24 или Node 22 LTS, onboarding через HERMES onboard –install-daemon и локальный Control UI по адресу http://127.0.0.1:18789/ на хосте gateway ([HERMES docs](https://docs.HERMES.ai), [getting started](https://github.com/HERMES/HERMES/blob/main/docs/start/getting-started.md)).
 
-# 43. Принципы встраивания OpenClaw в проект
+# 43. Принципы встраивания HERMES в проект
 
-* OpenClaw не владеет капиталом, позициями, reservations, execution state и risk decisions. Он может инициировать workflows и запросы, но authoritative state остается внутри Arbibot 2.
-* OpenClaw должен обращаться к Arbibot 2 только через явные API, operator endpoints, read-only dashboards и строго ограниченные action endpoints.
-* Любая команда, пришедшая из OpenClaw, должна проходить ту же авторизацию, аудитную запись и policy validation, что и команда, пришедшая из web UI или operator console.
-* OpenClaw должен использоваться для orchestrated workflows: incident intake, runbook assistance, report generation, querying dashboards, безопасное переключение режимов, а не для прямой записи в БД.
+* HERMES не владеет капиталом, позициями, reservations, execution state и risk decisions. Он может инициировать workflows и запросы, но authoritative state остается внутри Arbibot 2.
+* HERMES должен обращаться к Arbibot 2 только через явные API, operator endpoints, read-only dashboards и строго ограниченные action endpoints.
+* Любая команда, пришедшая из HERMES, должна проходить ту же авторизацию, аудитную запись и policy validation, что и команда, пришедшая из web UI или operator console.
+* HERMES должен использоваться для orchestrated workflows: incident intake, runbook assistance, report generation, querying dashboards, безопасное переключение режимов, а не для прямой записи в БД.
 
-# 44. Точки интеграции OpenClaw с модулями Arbibot 2
+# 44. Точки интеграции HERMES с модулями Arbibot 2
 
 ## 44.1 Control plane
 
-* OpenClaw может запрашивать текущую конфигурацию, feature flags, rollout status и режимы работы.
-* OpenClaw может инициировать безопасные control plane команды: перевести систему в safe mode, выключить paper trading, запросить rotate secrets, но только через approve-required actions.
+* HERMES может запрашивать текущую конфигурацию, feature flags, rollout status и режимы работы.
+* HERMES может инициировать безопасные control plane команды: перевести систему в safe mode, выключить paper trading, запросить rotate secrets, но только через approve-required actions.
 
 ## 44.2 Observability and audit
 
-* OpenClaw может читать audit trail, alert feed, traces, execution timelines и operator summaries.
-* OpenClaw может агрегировать инциденты и превращать их в operator-ready brief, но не переписывать audit log.
+* HERMES может читать audit trail, alert feed, traces, execution timelines и operator summaries.
+* HERMES может агрегировать инциденты и превращать их в operator-ready brief, но не переписывать audit log.
 
 ## 44.3 Operator experience
 
-* OpenClaw может быть внешним conversational интерфейсом к операторскому контуру, позволяя спрашивать про позиции, execution failures, token status и состояние маршрутов из мессенджеров.
-* OpenClaw может инициировать pre-filled runbooks и incident checklists.
+* HERMES может быть внешним conversational интерфейсом к операторскому контуру, позволяя спрашивать про позиции, execution failures, token status и состояние маршрутов из мессенджеров.
+* HERMES может инициировать pre-filled runbooks и incident checklists.
 
 ## 44.4 Paper trading
 
-* OpenClaw может запускать workflow анализа новых токенов, собирать paper summaries, предлагать кандидатов на live review и рассылать operator digests.
+* HERMES может запускать workflow анализа новых токенов, собирать paper summaries, предлагать кандидатов на live review и рассылать operator digests.
 
 ## 44.5 Reconciliation и runbooks
 
-* OpenClaw может сопровождать оператора по шагам reconciliation, failover recovery и postmortem preparation.
-* OpenClaw не должен сам принимать окончательное решение по manual review cases без явного operator approval.
+* HERMES может сопровождать оператора по шагам reconciliation, failover recovery и postmortem preparation.
+* HERMES не должен сам принимать окончательное решение по manual review cases без явного operator approval.
 
-# 45. OpenClaw integration architecture
+# 45. HERMES integration architecture
 
 ## 45.1 Отдельный integration boundary
 
-Для OpenClaw должен существовать выделенный integration boundary:
+Для HERMES должен существовать выделенный integration boundary:
 
-* OpenClaw Gateway Layer
-* OpenClaw Skills / Agent Workflows Layer
+* HERMES Gateway Layer
+* HERMES Skills / Agent Workflows Layer
 * Arbibot Operator API Layer
 * Arbibot Read Models and Action Endpoints
 
@@ -1158,7 +1158,7 @@ OpenClaw должен встраиваться в Arbibot 2 не как исто
 * POST /operator/runbook/start
 * POST /operator/report/generate
 
-## 45.3 What OpenClaw must not do
+## 45.3 What HERMES must not do
 
 * Не писать напрямую в risk\_decisions
 * Не писать напрямую в capital\_reservations
@@ -1166,9 +1166,9 @@ OpenClaw должен встраиваться в Arbibot 2 не как исто
 * Не писать напрямую в portfolio\_positions
 * Не обходить control plane approvals
 
-# 46. OpenClaw sessions, channels и use cases
+# 46. HERMES sessions, channels и use cases
 
-OpenClaw sessions должны быть привязаны к operator persona, channel type и permission scope, потому что сам gateway строится вокруг сессий, многоагентной маршрутизации и channel connectivity ([OpenClaw docs](https://docs.openclaw.ai)).
+HERMES sessions должны быть привязаны к operator persona, channel type и permission scope, потому что сам gateway строится вокруг сессий, многоагентной маршрутизации и channel connectivity ([HERMES docs](https://docs.HERMES.ai)).
 
 ## 46.1 Базовые use cases
 
@@ -1185,39 +1185,39 @@ OpenClaw sessions должны быть привязаны к operator persona, 
 * Отдельные skill sets для read-only workflows и action workflows.
 * Отдельные approval policies для destructive или sensitive actions.
 
-# 47. Security model для OpenClaw integration
+# 47. Security model для HERMES integration
 
-* OpenClaw gateway должен быть self-hosted в отдельной доверенной зоне, а не на том же хосте, где хранится весь critical state Arbibot.
-* Доступ OpenClaw к Arbibot API должен быть ограничен сервисным токеном с минимальными правами.
+* HERMES gateway должен быть self-hosted в отдельной доверенной зоне, а не на том же хосте, где хранится весь critical state Arbibot.
+* Доступ HERMES к Arbibot API должен быть ограничен сервисным токеном с минимальными правами.
 * Action endpoints должны требовать signed approvals, role-based authorization и audit logging.
-* Для production commands через OpenClaw рекомендуется two-step flow: запрос команды → preview эффекта → operator confirmation → execution.
+* Для production commands через HERMES рекомендуется two-step flow: запрос команды → preview эффекта → operator confirmation → execution.
 
-# 48. Operational scenarios с OpenClaw
+# 48. Operational scenarios с HERMES
 
 ## 48.1 Incident summary
 
-* OpenClaw получает alert event из alerting feed.
+* HERMES получает alert event из alerting feed.
 * Запрашивает related execution timeline и route diagnostics.
 * Формирует короткий incident brief для оператора.
 * При необходимости запускает runbook walkthrough.
 
 ## 48.2 Paper trading digest
 
-* OpenClaw получает daily paper summary.
+* HERMES получает daily paper summary.
 * Формирует shortlist токенов для candidate-live review.
 * Прикладывает risk notes, route quality и drift between paper and live.
 
 ## 48.3 Safe mode command
 
 * Оператор пишет команду в поддерживаемый канал.
-* OpenClaw запрашивает текущий system status и impact preview.
+* HERMES запрашивает текущий system status и impact preview.
 * После подтверждения вызывает POST /operator/safe-mode.
 * Команда фиксируется в audit trail.
 
 # 49. Финализация документационного пакета
 
 * Основная архитектура сохранена и продолжена без удаления элементов.
-* OpenClaw встроен как отдельный self-hosted operator и automation layer, а не как источник истины для торговой системы ([OpenClaw docs](https://docs.openclaw.ai)).
+* HERMES встроен как отдельный self-hosted operator и automation layer, а не как источник истины для торговой системы ([HERMES docs](https://docs.HERMES.ai)).
 * Для проекта дополнительно существуют отдельный документ по стеку и отдельная фронтенд-спецификация.
 * Следующий шаг после этой финализации — перейти к engineering assets: SQL schema, OpenAPI / AsyncAPI и task-level sprint plan.
 
@@ -1228,7 +1228,7 @@ OpenClaw sessions должны быть привязаны к operator persona, 
 ## 50.1 Цели дорожной карты
 
 * Дать команде последовательность внедрения без разрыва между архитектурой и реализацией.
-* Удержать paper trading, operator tooling и OpenClaw integration в общем плане, а не как поздние дополнения.
+* Удержать paper trading, operator tooling и HERMES integration в общем плане, а не как поздние дополнения.
 * Развести foundation, controlled execution, wide coverage и operator automation по стадиям зрелости.
 
 ## 50.2 Phase 0 — подготовка и архитектурная фиксация
@@ -1242,7 +1242,7 @@ OpenClaw sessions должны быть привязаны к operator persona, 
 * SQL schema draft;
 * OpenAPI / AsyncAPI draft;
 * operator action approval model;
-* security baseline для OpenClaw integration.
+* security baseline для HERMES integration.
 
 Definition of done:
 
@@ -1331,24 +1331,24 @@ Definition of done:
 * degradation одного сегмента не ломает весь monitoring contour;
 * operator видит coverage, throttling и degraded zones явно.
 
-## 50.7 Phase 5 — OpenClaw-assisted operations
+## 50.7 Phase 5 — HERMES-assisted operations
 
-Цель: встроить OpenClaw в production workflows как безопасный operator layer.
+Цель: встроить HERMES в production workflows как безопасный operator layer.
 
 В эту фазу входят:
 
-* OpenClaw Gateway deployment;
-* Operator API для OpenClaw;
-* OpenClaw panel во фронтенде;
+* HERMES Gateway deployment;
+* Operator API для HERMES;
+* HERMES panel во фронтенде;
 * incident briefing flows;
 * report generation workflows;
-* approval queue для OpenClaw-triggered actions.
+* approval queue для HERMES-triggered actions.
 
 Definition of done:
 
-* OpenClaw умеет читать operator read models;
-* OpenClaw умеет запускать approve-required workflows;
-* ни одна команда из OpenClaw не обходит control plane policy.
+* HERMES умеет читать operator read models;
+* HERMES умеет запускать approve-required workflows;
+* ни одна команда из HERMES не обходит control plane policy.
 
 ## 50.8 Кросс-функциональные потоки работ
 
@@ -1357,12 +1357,12 @@ Definition of done:
 * Domain backend
 * Execution / integrations
 * Platform / observability / security
-* Frontend / operator tooling / OpenClaw surface
+* Frontend / operator tooling / HERMES surface
 
 ## 50.9 Риски дорожной карты
 
 * Преждевременный переход к широкому universe без закрытия reconciliation и reservation hygiene.
-* Слишком раннее подключение OpenClaw к action endpoints без approval model.
+* Слишком раннее подключение HERMES к action endpoints без approval model.
 * Попытка строить live breadth раньше, чем paper trading станет надежным фильтром.
 * Перекос в backend без operator surface и runbooks.
 
@@ -1395,7 +1395,7 @@ Definition of done:
 
 * wide-universe scaling
 * route quality models
-* OpenClaw workflows
+* HERMES workflows
 * operator automation and digests
 
 # 52. Гибкая система настроек и policy-конфигурации
@@ -1418,7 +1418,7 @@ Arbibot 2 должен быть управляем не только кодом 
 * настройки risk и execution policy;
 * настройки paper trading;
 * настройки token lifecycle и token admission;
-* настройки OpenClaw operator workflows.
+* настройки HERMES operator workflows.
 
 # 53. Настройка минимального расхождения цен для арбитража
 
@@ -1576,13 +1576,13 @@ Arbibot 2 должен быть управляем не только кодом 
 * paper\_min\_route\_stability\_for\_promotion
 * paper\_drift\_alert\_enabled
 
-## 56.6 Настройки OpenClaw
+## 56.6 Настройки HERMES
 
-* openclaw\_readonly\_mode
-* openclaw\_action\_approvals\_required
-* openclaw\_channels\_enabled
-* openclaw\_incident\_briefing\_enabled
-* openclaw\_daily\_digest\_enabled
+* HERMES\_readonly\_mode
+* HERMES\_action\_approvals\_required
+* HERMES\_channels\_enabled
+* HERMES\_incident\_briefing\_enabled
+* HERMES\_daily\_digest\_enabled
 
 # 57. Архитектура хранения настроек
 
@@ -1598,7 +1598,7 @@ Arbibot 2 должен быть управляем не только кодом 
 * NetworkConfig
 * ArbitrageClassConfig
 * PaperTradingConfig
-* OpenClawConfig
+* HERMESConfig
 
 ## 57.2 Для каждой настройки нужно хранить
 

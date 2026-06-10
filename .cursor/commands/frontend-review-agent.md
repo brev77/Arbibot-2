@@ -1,4 +1,4 @@
----
+﻿---
 description: Frontend Review Agent — ревью operator dashboard / Arbibot 2 frontend
 ---
 
@@ -42,7 +42,7 @@ description: Frontend Review Agent — ревью operator dashboard / Arbibot 2
 - /paper (первичный запуск: приёмка оператора в paper до live — `DEVELOPMENT_PLAN.md`)
 - /incidents
 - /runbooks
-- /openclaw
+- /HERMES
 - /settings
 
 ## Mandatory frontend rules

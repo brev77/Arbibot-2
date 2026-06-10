@@ -1,4 +1,4 @@
-> **📋 АРХИВ — ВСЕ ШАГИ ВЫПОЛНЕНЫ (status: `done`)**
+﻿> **📋 АРХИВ — ВСЕ ШАГИ ВЫПОЛНЕНЫ (status: `done`)**
 >
 > Этот документ закрыт. Все фазы 0–5, CFG-1–3, PRIO-* и FE-ROUTE-* шаги выполнены.
 > **Основной рабочий документ:** [`DEVELOPMENT_PLAN-DEX.md`](./DEVELOPMENT_PLAN-DEX.md)
@@ -77,7 +77,7 @@ flowchart LR
 
 **review_required:** доминирующий слой ревью (код Nest → `backend`, Next/UI → `frontend`, ADR/контракты без основного кода → `architecture`).
 
-**Легенда кросс-потоков (§50.8):** в каждой фазе параллельно ведутся: доменный backend · execution/интеграции · платформа/observability/security · фронт/OpenClaw.
+**Легенда кросс-потоков (§50.8):** в каждой фазе параллельно ведутся: доменный backend · execution/интеграции · платформа/observability/security · фронт/HERMES.
 
 ---
 
@@ -300,7 +300,7 @@ flowchart LR
 - **status:** `done`
 - **Зафиксировано (2026-04-10):** см. цепочку review для `P0-0.2-SM`.
 
-### 0.3 Безопасность и OpenClaw (baseline)
+### 0.3 Безопасность и HERMES (baseline)
 
 #### `P0-0.3-SEC` — Security baseline
 
@@ -316,18 +316,18 @@ flowchart LR
 - **Зафиксировано (2026-04-11):** черновик [`docs/security-baseline.md`](../../docs/security-baseline.md) (mTLS, сервисная идентичность, сегментация, ротация секретов, ссылки на dev-практики).
 - **Ревью (2026-04-12):** документ baseline актуален; корневой lint/build/test монорепо — успех на момент закрытия; `review_passed` → `done`.
 
-#### `P0-0.3-OC` — OpenClaw не SoT; границы Operator API
+#### `P0-0.3-OC` — HERMES не SoT; границы Operator API
 
 - **step_id:** `P0-0.3-OC`
 - **phase:** `0`
 - **service:** `docs`
-- **goal:** Черновик: OpenClaw не источник истины; границы Operator API (§49, Phase 5).
+- **goal:** Черновик: HERMES не источник истины; границы Operator API (§49, Phase 5).
 - **acceptance_criteria:**
-  - Краткий ADR или раздел: что читает/пишет OpenClaw; запрет обхода policy control plane.
+  - Краткий ADR или раздел: что читает/пишет HERMES; запрет обхода policy control plane.
 - **changed_areas:** `docs/`
 - **review_required:** `architecture`
 - **status:** `done`
-- **Зафиксировано (2026-04-11):** черновик [`docs/openclaw-operator-boundaries.md`](../../docs/openclaw-operator-boundaries.md) (OpenClaw не SoT, read/write только через Operator API и RBAC/approval).
+- **Зафиксировано (2026-04-11):** черновик [`docs/HERMES-operator-boundaries.md`](../../docs/HERMES-operator-boundaries.md) (HERMES не SoT, read/write только через Operator API и RBAC/approval).
 - **Ревью (2026-04-12):** границы согласованы с текущим operator UI; корневой lint/build/test — успех; `review_passed` → `done`.
 
 ### 0.4 Инфраструктура и репозиторий
@@ -599,7 +599,7 @@ flowchart LR
 - **step_id:** `P1-1.3-STUBS`
 - **phase:** `1`
 - **service:** `apps/web`
-- **goal:** Заглушки `/portfolio`, `/opportunities`, `/execution`, `/tokens`, `/paper`, `/incidents`, `/runbooks`, `/openclaw`, `/settings`.
+- **goal:** Заглушки `/portfolio`, `/opportunities`, `/execution`, `/tokens`, `/paper`, `/incidents`, `/runbooks`, `/HERMES`, `/settings`.
 - **acceptance_criteria:**
   - Каждый роут из спеки §4 открывается (placeholder UI); навигация из layout.
 - **changed_areas:** `apps/web/app/...`
@@ -974,38 +974,38 @@ flowchart LR
 
 ---
 
-## Phase 5 — OpenClaw-assisted operations
+## Phase 5 — HERMES-assisted operations
 
 **Цель (§50.7):** безопасная автоматизация оператора.
 
-#### `P5-5-GW` — OpenClaw Gateway
+#### `P5-5-GW` — HERMES Gateway
 
 - **step_id:** `P5-5-GW`
 - **phase:** `5`
-- **service:** `openclaw-gateway`
-- **goal:** Self-hosted gateway, интеграция по стеку OpenClaw layer.
+- **service:** `HERMES-gateway`
+- **goal:** Self-hosted gateway, интеграция по стеку HERMES layer.
 - **acceptance_criteria:**
   - Развёртывание документировано; безопасное подключение к Operator API.
 - **changed_areas:** `infra/`, gateway сервис
 - **review_required:** `architecture`
 - **status:** `done`
-- **Зафиксировано (2026-04-20):** `GET /openclaw/v1/plans` (cursor `limit`/`cursor`), `GET /openclaw/v1/plans/:id` (plan + legs), `GET /openclaw/v1/positions`, `GET /openclaw/v1/incidents` (reconciliation mismatches), `GET /openclaw/v1/dashboard/summary` (operator BFF); **`OpenclawAuthGuard`** — `x-openclaw-api-key` + `OPENCLAW_API_KEYS`; **`OpenclawUpstreamService`** — upstream `fetch` с `x-correlation-id`; **`apps/web`** BFF **`GET /api/operator/openclaw/v1/[[...path]]`** + env `OPENCLAW_GATEWAY_URL`, `OPENCLAW_BFF_API_KEY`; read-only **`/openclaw`** UI; документы [`apps/openclaw-gateway/README.md`](../../apps/openclaw-gateway/README.md), [`docs/openclaw-gateway-runbook.md`](../../docs/openclaw-gateway-runbook.md).
-- **Ревью (2026-04-20):** architecture + backend checklist (read-only proxy, no domain writes, API key gate); корневой `npm run lint` / `build` / `test` для `@arbibot/openclaw-gateway` — успех; `review_passed` → `done`.
+- **Зафиксировано (2026-04-20):** `GET /HERMES/v1/plans` (cursor `limit`/`cursor`), `GET /HERMES/v1/plans/:id` (plan + legs), `GET /HERMES/v1/positions`, `GET /HERMES/v1/incidents` (reconciliation mismatches), `GET /HERMES/v1/dashboard/summary` (operator BFF); **`HERMESAuthGuard`** — `x-HERMES-api-key` + `HERMES_API_KEYS`; **`HERMESUpstreamService`** — upstream `fetch` с `x-correlation-id`; **`apps/web`** BFF **`GET /api/operator/HERMES/v1/[[...path]]`** + env `HERMES_GATEWAY_URL`, `HERMES_BFF_API_KEY`; read-only **`/HERMES`** UI; документы [`apps/HERMES-gateway/README.md`](../../apps/HERMES-gateway/README.md), [`docs/HERMES-gateway-runbook.md`](../../docs/HERMES-gateway-runbook.md).
+- **Ревью (2026-04-20):** architecture + backend checklist (read-only proxy, no domain writes, API key gate); корневой `npm run lint` / `build` / `test` для `@arbibot/HERMES-gateway` — успех; `review_passed` → `done`.
 
-#### `P5-5-OAPI` — Operator API для OpenClaw
+#### `P5-5-OAPI` — Operator API для HERMES
 
 - **step_id:** `P5-5-OAPI`
 - **phase:** `5`
 - **service:** `operator-api`
-- **goal:** Read models, approve-required actions для OpenClaw.
+- **goal:** Read models, approve-required actions для HERMES.
 - **acceptance_criteria:**
   - Только approve-required мутации; аудит вызовов.
 - **changed_areas:** новый API слой
 - **review_required:** `backend`
 - **status:** `done`
-- **Зафиксировано (2026-04-20):** `POST /openclaw/v1/plans/:id/arm`, `POST .../execute` (begin-execution), `POST .../positions/:id/close` → **501** до API portfolio, `POST .../incidents/:id/resolve` → `PATCH` reconciliation; `POST .../safe-mode/enable|disable`; audit через `AuditClientService`; rate limit per API key (`OpenclawRateLimitService`); BFF `POST`/`PATCH` на `/api/operator/openclaw/v1/*` с merge `operatorId` из сессии; env `AUDIT_API_BASE`, `OPENCLAW_MUTATION_RATE_LIMIT_*`.
+- **Зафиксировано (2026-04-20):** `POST /HERMES/v1/plans/:id/arm`, `POST .../execute` (begin-execution), `POST .../positions/:id/close` → **501** до API portfolio, `POST .../incidents/:id/resolve` → `PATCH` reconciliation; `POST .../safe-mode/enable|disable`; audit через `AuditClientService`; rate limit per API key (`HERMESRateLimitService`); BFF `POST`/`PATCH` на `/api/operator/HERMES/v1/*` с merge `operatorId` из сессии; env `AUDIT_API_BASE`, `HERMES_MUTATION_RATE_LIMIT_*`.
 
-#### `P5-5-OCUI` — UI `/openclaw`
+#### `P5-5-OCUI` — UI `/HERMES`
 
 - **step_id:** `P5-5-OCUI`
 - **phase:** `5`
@@ -1016,22 +1016,22 @@ flowchart LR
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
 - **status:** `done`
-- **Зафиксировано (2026-04-20):** `OpenclawWorkspace` — plans, dashboard, briefs, approvals queue, sessions placeholder, safe mode controls; `SafeModeBanner` в operator layout; React Query keys `openclaw*` в `operator-query-keys.ts`. **2026-04-20:** секция portfolio positions + close через gateway.
+- **Зафиксировано (2026-04-20):** `HERMESWorkspace` — plans, dashboard, briefs, approvals queue, sessions placeholder, safe mode controls; `SafeModeBanner` в operator layout; React Query keys `HERMES*` в `operator-query-keys.ts`. **2026-04-20:** секция portfolio positions + close через gateway.
 
 #### `P5-5-BRIEF` — Incident briefs и safe mode
 
 - **step_id:** `P5-5-BRIEF`
 - **phase:** `5`
-- **service:** `openclaw-gateway` / `operator-api`
+- **service:** `HERMES-gateway` / `operator-api`
 - **goal:** Briefs, safe mode и сценарии §48.
 - **acceptance_criteria:**
   - Сценарии описаны и покрыты тестами/ручным чеклистом; policy не обходится.
 - **changed_areas:** gateway, docs
 - **review_required:** `architecture`
 - **status:** `done`
-- **Зафиксировано (2026-04-20):** `GET /openclaw/v1/incident-briefs`, `GET .../safe-mode/status`, in-process `SafeModeService` + runbook [`docs/openclaw-safe-mode-runbook.md`](../../docs/openclaw-safe-mode-runbook.md); unit tests `safe-mode.service.spec.ts`, `incident-briefs.service.spec.ts`.
+- **Зафиксировано (2026-04-20):** `GET /HERMES/v1/incident-briefs`, `GET .../safe-mode/status`, in-process `SafeModeService` + runbook [`docs/HERMES-safe-mode-runbook.md`](../../docs/HERMES-safe-mode-runbook.md); unit tests `safe-mode.service.spec.ts`, `incident-briefs.service.spec.ts`.
 
-**Definition of Done (§50.7):** OpenClaw читает read models и запускает только approve-required workflows; policy control plane не обходится.
+**Definition of Done (§50.7):** HERMES читает read models и запускает только approve-required workflows; policy control plane не обходится.
 
 ---
 
@@ -1552,16 +1552,16 @@ flowchart LR
 - **status:** `done`
 - **Ревью (2026-04-12):** см. канон `P2-2.3-INCRB`; корневой lint/build/test — успех.
 
-#### `FE-ROUTE-openclaw` — `/openclaw`
+#### `FE-ROUTE-HERMES` — `/HERMES`
 
-- **step_id:** `FE-ROUTE-openclaw`
+- **step_id:** `FE-ROUTE-HERMES`
 - **phase:** `5`
 - **service:** `apps/web`
-- **goal:** Роут `/openclaw` §4. Канон: `P1-1.3-STUBS`, `P5-5-OCUI`.
+- **goal:** Роут `/HERMES` §4. Канон: `P1-1.3-STUBS`, `P5-5-OCUI`.
 - **acceptance_criteria:**
   - Экраны §5.8 подключены к gateway/Operator API.
   - Текущий checkpoint в репо: route доступен как placeholder из `P1-1.3-STUBS`; функциональный UI — только после канона **`P5-5-OCUI`** (Phase 5).
-  - Зафиксировано (2026-04-17): маршрут `/openclaw` и placeholder-страница закрывают критерий «роут §4» в объёме stub; интеграция с gateway/Operator API — **`P5-5-OCUI`**.
+  - Зафиксировано (2026-04-17): маршрут `/HERMES` и placeholder-страница закрывают критерий «роут §4» в объёме stub; интеграция с gateway/Operator API — **`P5-5-OCUI`**.
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
 - **status:** `done`
@@ -1616,7 +1616,7 @@ flowchart LR
 | /paper | operator | approve/reject trade (single-step approval) |
 | /incidents | operator | mark resolved (two-step approval required) |
 | /runbooks | operator | run playbook (two-step approval required) |
-| /openclaw | admin | gateway mutations and approvals (минимальная роль — **`admin`**, см. `apps/web/lib/operator-role.ts`) |
+| /HERMES | admin | gateway mutations and approvals (минимальная роль — **`admin`**, см. `apps/web/lib/operator-role.ts`) |
 | /settings | admin | policy configurations and sensitive keys (BFF + `DestructiveOperatorAction`; минимальная роль — **`admin`**, см. `apps/web/lib/operator-role.ts`) |
 
 **Role hierarchy:** `viewer` < `operator` < `admin` (future)
@@ -1707,4 +1707,4 @@ flowchart LR
   - Auto-invalidation при мутациях (React Query `invalidateQueries`)
 
 
-*Последнее обновление: **2026-04-22** — **Дополнение:** шаг **`FE-SETTINGS-POLICY-WORKSPACE`** → **`implemented`** (вкладки `/settings`, URL context для effective, реестр policy-ключей + Zod, формы intake/paper, каталог расширений, `docs/policy-config-keys-catalog.md`, `docs/opportunity-filters-config-keys.md`, задел `opportunity-filters-policy.client` в opportunity-service; RBAC-матрица: `/settings` → **`admin`**). **2026-04-21** — Phase 4: шаги **`P4-4-TIER`**, **`P4-4-TIER-ROUTING-E2E`**, **`P4-4-SCORE`**, **`P4-4-CH`**, **`P4-4-UI`** → **`done`** (intake tier routing + throttle, CI `e2e-phase4-tier-routing`, route-scoring replay runbook + `replay:route-scoring-export`, ADR gate ClickHouse + analytics path latency в observability, degraded UI). **2026-04-19** — краткосрочный пакет Phase 2.2 / operator tools: adaptive risk (`adaptiveRisk` на evaluate), `GET /policy/watchlist/tiers` + `GET /policy/route-scoring-history/:routeKey`, миграции **`024`–`028`** (в т.ч. `playbook_config`, watchlist/scoring tables, paper drift `route_key`), partial-fill playbook сервис + `docs/partial-fill-playbooks.md`, paper promotion `qualityTier`/`qualityScore`, `tools/recalibration` + `docs/recalibration-spec.md`, исправления **`020`** / **`024`** rollback. **Ранее 2026-04-17 — Док-синхрон (Architecture Guard):** `P1-1.1-OIB` / `PRIO-P0-OIB` — allowlist in-DB relay (`RiskDecisionIssued`, `PaperPromotionCandidateRequested`, дедуп **`018`**); исторический bullet Kafka-bridge сведён к актуальному allowlist; **`FE-ROUTE-openclaw`** → **`done`** (stub до **`P5-5-OCUI`**); **`FE-ROUTE-incidents`** — BFF/RBAC и backlog two-step для опасных мутаций. Phase 3: шаги **`P3-3-PAPER` / `P3-3-PAPER-UI` / `P3-3-TOKENS` / `P3-3-DISC`** → **`done`** (backend и frontend review пройдены; узкий slice: paper-service, outbox+relay, read-only UI, drift metric + doc alert v0); миграция **`018`** (дедуп `paper-enqueue` в outbox); relay paper HTTP вне длинной транзакции; state machines корректны, idempotency реализована. Ранее **2026-04-16** — **Phase 2.1:** шаги **`P2-2.1-VEN` / `EPL` / `FILL` / `PORT` / `RECON`** и матрица **`PRIO-P0-EPL`** — **`done`**; `HttpVenueAdapter` + `lab-venue-stand.mjs`, GitHub Actions **`e2e-phase2`**, `npm run ci:e2e-phase2` (`tools/ci-e2e-phase2.sh`); venue terminal/transient + `EXECUTION_BEGIN_LEG_COUNT`, `npm run e2e:phase2-controlled-execution`, миграция `014` / `routeKey` / `resolveInstrumentKeyForPlan`, settlement (обязательный portfolio URL при включённом режиме), BFF `/api/operator` RBAC, portfolio decimal precision, `/incidents` `investigating`→`resolved`, алерт `ReconciliationOpenMismatches`; **freeze `P2-2.2-*` снят по процессу** после `done` по `P2-2.1-*` (см. `docs/TODO.md`). Ранее (2026-04-13): Phase 1 DoD, partial fill, settlement, portfolio, reconciliation `PATCH`, bus `LegFilled`/`PlanCompleted`. **Дополнение 2026-04-16:** `PRIO-P0-RECON` / **`P2-2.2-*`** / **`PRIO-P1-ALERT`** / **FE-ROUTE** (dashboard, portfolio, opportunities, settings) → `done`; HTTP venue **408** transient; lab **x-correlation-id** echo; smoke-consumer логирует **entityType**; миграция **`015`**, профили риска + метрика **`arb_execution_leg_partial_fill_commits_total`**; [`docs/reconciliation-p0-procedures.md`](../../docs/reconciliation-p0-procedures.md), SLO **v0** в observability.*
+*Последнее обновление: **2026-04-22** — **Дополнение:** шаг **`FE-SETTINGS-POLICY-WORKSPACE`** → **`implemented`** (вкладки `/settings`, URL context для effective, реестр policy-ключей + Zod, формы intake/paper, каталог расширений, `docs/policy-config-keys-catalog.md`, `docs/opportunity-filters-config-keys.md`, задел `opportunity-filters-policy.client` в opportunity-service; RBAC-матрица: `/settings` → **`admin`**). **2026-04-21** — Phase 4: шаги **`P4-4-TIER`**, **`P4-4-TIER-ROUTING-E2E`**, **`P4-4-SCORE`**, **`P4-4-CH`**, **`P4-4-UI`** → **`done`** (intake tier routing + throttle, CI `e2e-phase4-tier-routing`, route-scoring replay runbook + `replay:route-scoring-export`, ADR gate ClickHouse + analytics path latency в observability, degraded UI). **2026-04-19** — краткосрочный пакет Phase 2.2 / operator tools: adaptive risk (`adaptiveRisk` на evaluate), `GET /policy/watchlist/tiers` + `GET /policy/route-scoring-history/:routeKey`, миграции **`024`–`028`** (в т.ч. `playbook_config`, watchlist/scoring tables, paper drift `route_key`), partial-fill playbook сервис + `docs/partial-fill-playbooks.md`, paper promotion `qualityTier`/`qualityScore`, `tools/recalibration` + `docs/recalibration-spec.md`, исправления **`020`** / **`024`** rollback. **Ранее 2026-04-17 — Док-синхрон (Architecture Guard):** `P1-1.1-OIB` / `PRIO-P0-OIB` — allowlist in-DB relay (`RiskDecisionIssued`, `PaperPromotionCandidateRequested`, дедуп **`018`**); исторический bullet Kafka-bridge сведён к актуальному allowlist; **`FE-ROUTE-HERMES`** → **`done`** (stub до **`P5-5-OCUI`**); **`FE-ROUTE-incidents`** — BFF/RBAC и backlog two-step для опасных мутаций. Phase 3: шаги **`P3-3-PAPER` / `P3-3-PAPER-UI` / `P3-3-TOKENS` / `P3-3-DISC`** → **`done`** (backend и frontend review пройдены; узкий slice: paper-service, outbox+relay, read-only UI, drift metric + doc alert v0); миграция **`018`** (дедуп `paper-enqueue` в outbox); relay paper HTTP вне длинной транзакции; state machines корректны, idempotency реализована. Ранее **2026-04-16** — **Phase 2.1:** шаги **`P2-2.1-VEN` / `EPL` / `FILL` / `PORT` / `RECON`** и матрица **`PRIO-P0-EPL`** — **`done`**; `HttpVenueAdapter` + `lab-venue-stand.mjs`, GitHub Actions **`e2e-phase2`**, `npm run ci:e2e-phase2` (`tools/ci-e2e-phase2.sh`); venue terminal/transient + `EXECUTION_BEGIN_LEG_COUNT`, `npm run e2e:phase2-controlled-execution`, миграция `014` / `routeKey` / `resolveInstrumentKeyForPlan`, settlement (обязательный portfolio URL при включённом режиме), BFF `/api/operator` RBAC, portfolio decimal precision, `/incidents` `investigating`→`resolved`, алерт `ReconciliationOpenMismatches`; **freeze `P2-2.2-*` снят по процессу** после `done` по `P2-2.1-*` (см. `docs/TODO.md`). Ранее (2026-04-13): Phase 1 DoD, partial fill, settlement, portfolio, reconciliation `PATCH`, bus `LegFilled`/`PlanCompleted`. **Дополнение 2026-04-16:** `PRIO-P0-RECON` / **`P2-2.2-*`** / **`PRIO-P1-ALERT`** / **FE-ROUTE** (dashboard, portfolio, opportunities, settings) → `done`; HTTP venue **408** transient; lab **x-correlation-id** echo; smoke-consumer логирует **entityType**; миграция **`015`**, профили риска + метрика **`arb_execution_leg_partial_fill_commits_total`**; [`docs/reconciliation-p0-procedures.md`](../../docs/reconciliation-p0-procedures.md), SLO **v0** в observability.*

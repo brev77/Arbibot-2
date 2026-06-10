@@ -1,19 +1,19 @@
-# Arbibot 2 — рекомендуемый стек
+﻿# Arbibot 2 — рекомендуемый стек
 
-Этот документ не заменяет основную архитектуру, а предлагает практический стек для реализации Arbibot 2 и его OpenClaw-интеграции.
+Этот документ не заменяет основную архитектуру, а предлагает практический стек для реализации Arbibot 2 и его HERMES-интеграции.
 
 ## Принципы выбора стека
 
 * Сильная поддержка TypeScript и Python
 * Предсказуемая работа с event-driven и stateful контурами
 * Хорошая наблюдаемость и контейнеризация
-* Простая интеграция с OpenClaw как self-hosted gateway ([OpenClaw docs](https://docs.openclaw.ai))
+* Простая интеграция с HERMES как self-hosted gateway ([HERMES docs](https://docs.HERMES.ai))
 
 ## Backend
 
 * Основной язык orchestration и API: TypeScript
 * Для heavy analytics, research jobs, simulation, recalibration: Python
-* Runtime: Node 24 LTS-class для TypeScript сервисов, совместимо с рекомендациями OpenClaw ([OpenClaw docs](https://docs.openclaw.ai), [getting started](https://github.com/openclaw/openclaw/blob/main/docs/start/getting-started.md))
+* Runtime: Node 24 LTS-class для TypeScript сервисов, совместимо с рекомендациями HERMES ([HERMES docs](https://docs.HERMES.ai), [getting started](https://github.com/HERMES/HERMES/blob/main/docs/start/getting-started.md))
 * API framework: NestJS или Fastify
 * Background workers: Temporal или BullMQ
 
@@ -64,12 +64,12 @@
 * Secrets: Vault или managed secret store
 * Infra-as-code: Terraform
 
-## OpenClaw layer
+## HERMES layer
 
-* OpenClaw Gateway как отдельный self-hosted service ([OpenClaw docs](https://docs.openclaw.ai))
-* Onboarding и daemonized setup через openclaw onboard –install-daemon ([getting started](https://github.com/openclaw/openclaw/blob/main/docs/start/getting-started.md))
-* Browser dashboard / Control UI для agent workflows ([OpenClaw docs](https://docs.openclaw.ai), [getting started](https://github.com/openclaw/openclaw/blob/main/docs/start/getting-started.md))
-* Отдельный Arbibot Operator API для OpenClaw skills
+* HERMES Gateway как отдельный self-hosted service ([HERMES docs](https://docs.HERMES.ai))
+* Onboarding и daemonized setup через HERMES onboard –install-daemon ([getting started](https://github.com/HERMES/HERMES/blob/main/docs/start/getting-started.md))
+* Browser dashboard / Control UI для agent workflows ([HERMES docs](https://docs.HERMES.ai), [getting started](https://github.com/HERMES/HERMES/blob/main/docs/start/getting-started.md))
+* Отдельный Arbibot Operator API для HERMES skills
 
 ## Стек по стадиям
 
@@ -87,7 +87,7 @@
 * Kafka / Redpanda
 * OpenTelemetry
 * Object storage replay layer
-* OpenClaw integration layer
+* HERMES integration layer
 
 ### Stage 3
 
@@ -122,10 +122,10 @@
 * token quality pipelines
 * **Первичный запуск:** стек paper и наблюдаемости должен позволять полноценную **операционную приёмку** всей связки до live (см. `.cursor/plans/DEVELOPMENT_PLAN.md`, раздел «Операционная последовательность первичного запуска»); paper здесь — не только analytics, но и **end-to-end dry-run** продукта.
 
-### Фаза D — OpenClaw and automation stack
+### Фаза D — HERMES and automation stack
 
-* dedicated OpenClaw Gateway host or service
-* Operator API for OpenClaw
+* dedicated HERMES Gateway host or service
+* Operator API for HERMES
 * approvals and action policy integration
 * incident briefing workflows
 
@@ -154,7 +154,7 @@
 * venue and network settings
 * token tier settings
 * execution and risk policy settings
-* OpenClaw settings
+* HERMES settings
 
 ### Что оставить в env
 

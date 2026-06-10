@@ -1,4 +1,4 @@
-# Review handoff — production sprint (2026-04-20)
+﻿# Review handoff — production sprint (2026-04-20)
 
 Formal **review_passed** record for steps closed in the short-term production plan (local CI parity + hygiene).
 
@@ -25,4 +25,4 @@ Formal **review_passed** record for steps closed in the short-term production pl
 
 - Run `npm run db:verify-migrations` on each environment after `npm run db:migrate`.
 - GitHub Actions: confirm all jobs green on `main` after push.
-- Multi-instance: apply Redis env for `openclaw-gateway` per [`docs/openclaw-safe-mode-runbook.md`](openclaw-safe-mode-runbook.md).
+- Multi-instance: apply Redis env for `HERMES-gateway` per [`docs/HERMES-safe-mode-runbook.md`](HERMES-safe-mode-runbook.md).

@@ -1,8 +1,8 @@
-# OpenClaw в Arbibot 2 — справка по функциям и границам
+﻿# HERMES в Arbibot 2 — справка по функциям и границам
 
-Краткая сводка по проекту: **что OpenClaw делает**, **чего не делает**, **как встраивается**. Канон деталей — `!Arbibot_2_Architecture_v1_final_docs_settings.md` (§42–§48), границы API — [openclaw-operator-boundaries.md](openclaw-operator-boundaries.md), дорожная карта — [.cursor/plans/DEVELOPMENT_PLAN.md](../.cursor/plans/DEVELOPMENT_PLAN.md) (Phase 5, шаги `P5-5-*`).
+Краткая сводка по проекту: **что HERMES делает**, **чего не делает**, **как встраивается**. Канон деталей — `!Arbibot_2_Architecture_v1_final_docs_settings.md` (§42–§48), границы API — [HERMES-operator-boundaries.md](HERMES-operator-boundaries.md), дорожная карта — [.cursor/plans/DEVELOPMENT_PLAN.md](../.cursor/plans/DEVELOPMENT_PLAN.md) (Phase 5, шаги `P5-5-*`).
 
-**Состояние реализации:** интеграция OpenClaw запланирована на **Phase 5**; в репозитории есть baseline-документы и заглушка UI [`/openclaw`](../apps/web/app/(operator)/openclaw/page.tsx) (роль `admin`). Отдельного сервиса `openclaw-gateway` / полноценного Operator API для агента пока нет.
+**Состояние реализации:** интеграция HERMES запланирована на **Phase 5**; в репозитории есть baseline-документы и заглушка UI [`/HERMES`](../apps/web/app/(operator)/HERMES/page.tsx) (роль `admin`). Отдельного сервиса `HERMES-gateway` / полноценного Operator API для агента пока нет.
 
 ---
 
@@ -10,10 +10,10 @@
 
 | Аспект | Содержание |
 |--------|------------|
-| **Назначение** | Внешний **self-hosted** слой агента и автоматизации оператора: каналы (мессенджеры и т.д.), сессии, skills, Control UI — см. [OpenClaw docs](https://docs.openclaw.ai). |
-| **Не SoT** | OpenClaw **не** источник истины для портфеля, резервов, планов исполнения и risk decisions; **не** пишет напрямую в доменные таблицы PostgreSQL. |
+| **Назначение** | Внешний **self-hosted** слой агента и автоматизации оператора: каналы (мессенджеры и т.д.), сессии, skills, Control UI — см. [HERMES docs](https://docs.HERMES.ai). |
+| **Не SoT** | HERMES **не** источник истины для портфеля, резервов, планов исполнения и risk decisions; **не** пишет напрямую в доменные таблицы PostgreSQL. |
 | **Доступ** | Только через **явный Operator API** / тот же gateway/BFF и RBAC, что и у оператора; мутации — с audit, idempotency, `correlation_id` и **approve-required** где политика требует. |
-| **Слои (целевая архитектура)** | OpenClaw Gateway → Skills / workflows → **Arbibot Operator API** → read models и ограниченные action endpoints (§45.1 архитектуры). |
+| **Слои (целевая архитектура)** | HERMES Gateway → Skills / workflows → **Arbibot Operator API** → read models и ограниченные action endpoints (§45.1 архитектуры). |
 
 ---
 
@@ -55,10 +55,10 @@
 
 ---
 
-## Что OpenClaw не должен делать (§45.3)
+## Что HERMES не должен делать (§45.3)
 
 - Не писать напрямую в доменные сущности: `risk_decisions`, `capital_reservations`, `execution_plans`, `portfolio_positions` (и аналоги).
-- Не обходить **control plane approvals** и не получать сервисный токен шире роли `admin` на dashboard без отдельного ADR и согласования (см. [openclaw-operator-boundaries.md](openclaw-operator-boundaries.md)).
+- Не обходить **control plane approvals** и не получать сервисный токен шире роли `admin` на dashboard без отдельного ADR и согласования (см. [HERMES-operator-boundaries.md](HERMES-operator-boundaries.md)).
 
 ---
 
@@ -71,15 +71,15 @@
 
 ---
 
-## UI оператора (`/openclaw`, §5.8 фронт-спеки)
+## UI оператора (`/HERMES`, §5.8 фронт-спеки)
 
-Целевые вкладки: **Status** (gateway, каналы), **Sessions**, **Approvals** (очередь pending/approved/rejected), **Briefs** (ссылки в `/incidents`). Индикатор OpenClaw в top-nav: Connected / Degraded / Down.
+Целевые вкладки: **Status** (gateway, каналы), **Sessions**, **Approvals** (очередь pending/approved/rejected), **Briefs** (ссылки в `/incidents`). Индикатор HERMES в top-nav: Connected / Degraded / Down.
 
 ---
 
 ## Настройки (архитектура §56.6)
 
-Параметры уровня policy (имена из спеки): `openclaw_readonly_mode`, `openclaw_action_approvals_required`, `openclaw_channels_enabled`, `openclaw_incident_briefing_enabled`, `openclaw_daily_digest_enabled`, агрегат `OpenClawConfig`.
+Параметры уровня policy (имена из спеки): `HERMES_readonly_mode`, `HERMES_action_approvals_required`, `HERMES_channels_enabled`, `HERMES_incident_briefing_enabled`, `HERMES_daily_digest_enabled`, агрегат `HERMESConfig`.
 
 ---
 
@@ -87,9 +87,9 @@
 
 | Документ | Тема |
 |----------|------|
-| [openclaw-operator-boundaries.md](openclaw-operator-boundaries.md) | SoT, чтение/запись, RBAC, связь с UI |
-| [operator-approval-flow.md](operator-approval-flow.md) | OpenClaw не обходит approval |
+| [HERMES-operator-boundaries.md](HERMES-operator-boundaries.md) | SoT, чтение/запись, RBAC, связь с UI |
+| [operator-approval-flow.md](operator-approval-flow.md) | HERMES не обходит approval |
 | `!Arbibot_2_Architecture_v1_final_docs_settings.md` §42–§48 | Полная модель интеграции и сценарии |
-| `!Arbibot_2_Frontend_Spec_settings.md` §5.8, §18.7 | Экран `/openclaw`, настройки |
-| `!Arbibot_2_Tech_Stack_Proposal_settings.md` | OpenClaw layer, фаза D стека |
+| `!Arbibot_2_Frontend_Spec_settings.md` §5.8, §18.7 | Экран `/HERMES`, настройки |
+| `!Arbibot_2_Tech_Stack_Proposal_settings.md` | HERMES layer, фаза D стека |
 | [DEVELOPMENT_PLAN.md](../.cursor/plans/DEVELOPMENT_PLAN.md) | `P0-0.3-OC`, Phase 5 `P5-5-GW`, `OAPI`, `OCUI`, `BRIEF` |

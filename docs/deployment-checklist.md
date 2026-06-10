@@ -1,4 +1,4 @@
-# Arbibot 2 — Deployment Checklist
+﻿# Arbibot 2 — Deployment Checklist
 
 **Версия:** 1.0  
 **Обновлено:** 2026-05-21  
@@ -21,7 +21,7 @@
 - [ ] Все `<CHANGE_ME_USE_VAULT>` заменены на реальные значения
 - [ ] `POSTGRES_PASSWORD` — 32+ символов
 - [ ] `GRAFANA_ADMIN_PASSWORD` — 32+ символов
-- [ ] `OPENCLAW_API_KEYS` — уникальные ключи
+- [ ] `HERMES_API_KEYS` — уникальные ключи
 - [ ] `DEX_LIVE_ENABLED=false` (paper trading!)
 - [ ] `DEX_LIVE_KILL_SWITCH=true` (safety!)
 - [ ] `CORS_ORIGINS` — конкретные домены (не `*`)
@@ -105,7 +105,7 @@ npm run verify:deployment
 - [ ] `/dashboard` — загружается, показывает данные
 - [ ] `/paper` — paper trading раздел доступен
 - [ ] `/settings` — конфигурации читаются
-- [ ] `/openclaw` — OpenClaw gateway отвечает
+- [ ] `/HERMES` — HERMES gateway отвечает
 - [ ] HTTPS работает (редирект с HTTP)
 
 ### 3. Functional Smoke Tests

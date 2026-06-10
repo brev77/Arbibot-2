@@ -1,4 +1,4 @@
-# Arbibot 2 — Руководство по деплою (Paper Trading)
+﻿# Arbibot 2 — Руководство по деплою (Paper Trading)
 
 **Версия:** 1.0  
 **Дата:** 2026-05-21  
@@ -42,7 +42,7 @@
 |-----------|-----------|--------|
 | Data stores | postgres, redis, redpanda | 3 |
 | Connection pooler | pgbouncer | 1 |
-| Backend services | risk, opportunity, capital, execution, audit, canonical, intake, portfolio, reconciliation, paper, config, openclaw | 12 |
+| Backend services | risk, opportunity, capital, execution, audit, canonical, intake, portfolio, reconciliation, paper, config, HERMES | 12 |
 | Frontend | web (Next.js) | 1 |
 | Observability | prometheus, grafana, loki, promtail, alertmanager | 5 |
 
@@ -136,8 +136,8 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 | `POSTGRES_PASSWORD` | 32+ chars | `openssl rand -hex 32` |
 | `GRAFANA_ADMIN_PASSWORD` | 32+ chars | `openssl rand -hex 32` |
 | `RISK_POLICY_JOB_TRIGGER_TOKEN` | 32+ chars | `openssl rand -hex 32` |
-| `OPENCLAW_API_KEYS` | 32+ chars | `openssl rand -hex 32` |
-| `OPENCLAW_BFF_API_KEY` | 32+ chars | `openssl rand -hex 32` |
+| `HERMES_API_KEYS` | 32+ chars | `openssl rand -hex 32` |
+| `HERMES_BFF_API_KEY` | 32+ chars | `openssl rand -hex 32` |
 
 ### Шаг 3: Настроить CORS
 
@@ -246,7 +246,7 @@ docker images | grep arbibot
 - `arbibot-reconciliation-service`
 - `arbibot-paper-trading-service`
 - `arbibot-config-service`
-- `arbibot-openclaw-gateway`
+- `arbibot-HERMES-gateway`
 - `arbibot-web`
 
 ---
@@ -334,7 +334,7 @@ docker compose -f infra/docker-compose.prod.yml up -d \
   paper-trading-service \
   reconciliation-service \
   execution-orchestrator \
-  openclaw-gateway
+  HERMES-gateway
 
 # Подождать health checks (30 сек):
 sleep 30
@@ -624,7 +624,7 @@ docker compose -f infra/docker-compose.prod.yml up -d \
 docker compose -f infra/docker-compose.prod.yml up -d \
   capital-service opportunity-service market-intake-service \
   paper-trading-service reconciliation-service \
-  execution-orchestrator openclaw-gateway \
+  execution-orchestrator HERMES-gateway \
   canonical-market-service portfolio-service
 
 # Frontend + proxy:
@@ -839,7 +839,7 @@ Internet
 │  reconciliation-service  :3017           │
 │  paper-trading-service   :3018           │
 │  config-service          :3019           │
-│  openclaw-gateway        :3020           │
+│  HERMES-gateway        :3020           │
 └───────┬──────────┬──────────┬────────────┘
         │          │          │
    ┌────▼──┐  ┌───▼───┐  ┌──▼───────┐
@@ -910,7 +910,7 @@ sleep 30
 docker compose -f infra/docker-compose.prod.yml up -d \
   capital-service opportunity-service market-intake-service \
   paper-trading-service reconciliation-service \
-  execution-orchestrator openclaw-gateway
+  execution-orchestrator HERMES-gateway
 sleep 30
 docker compose -f infra/docker-compose.prod.yml up -d \
   web prometheus grafana loki promtail alertmanager nginx

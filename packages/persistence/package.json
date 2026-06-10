@@ -6,7 +6,7 @@
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" --config ../../eslint.config.mjs",
     "build": "tsc -p tsconfig.build.json",
-    "test": "jest"
+    "test": "jest --runInBand"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

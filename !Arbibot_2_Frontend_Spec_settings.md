@@ -1,8 +1,8 @@
-# Arbibot 2 — фронтенд: подробная спецификация
+﻿# Arbibot 2 — фронтенд: подробная спецификация
 
 Версия: 0.1 (для v0.8 архитектуры)
 
-Этот документ описывает целевой фронтенд Arbibot 2 как unified operator surface для: - live trading, - paper trading, - token lifecycle, - observability, - incident handling, - OpenClaw‑assisted workflows.[file:3]
+Этот документ описывает целевой фронтенд Arbibot 2 как unified operator surface для: - live trading, - paper trading, - token lifecycle, - observability, - incident handling, - HERMES‑assisted workflows.[file:3]
 
 **Первичный запуск (канон):** оператор **сначала** работает в paper-контуре как в основном режиме приёмки — просматривает те же разделы (`/paper`, фильтр Environment: Paper), валидирует дашборды, алерты и сценарии; после накопления статистики и sign-off переходит к live с **минимальным капиталом**, сохраняя сравнение paper vs live. Paper на старте проекта — не «опция», а **обязательный этап** сквозного теста UI+backend связки.
 
@@ -23,7 +23,7 @@
    * логически (фильтры env, отдельные дашборды).[file:3][file:2]
 4. Сделать любой ExecutionPlan и инцидент drill‑down‑friendly:
    * человекочитаемый timeline,
-   * связанный audit trail и OpenClaw‑briefs.[file:3][file:2]
+   * связанный audit trail и HERMES‑briefs.[file:3][file:2]
 
 ## 2. Технический стек фронтенда
 
@@ -54,13 +54,13 @@
   + Paper (/paper)
   + Incidents (/incidents)
   + Runbooks (/runbooks)
-  + OpenClaw (/openclaw)
+  + HERMES (/HERMES)
   + Settings (/settings)[file:3]
 * Правый блок:
   + Dropdown Environment: Live, Paper, All.
   + Dropdown Time range: Last 15m, 1h, 24h, 7d, Custom.
   + Indicator Risk mode: Normal, Elevated, Frozen (ASSUMPTION, основано на Risk and trust engine).[file:2]
-  + Indicator OpenClaw: Connected, Degraded, Down.[file:1][file:3]
+  + Indicator HERMES: Connected, Degraded, Down.[file:1][file:3]
   + User меню (ФИО, роль, Logout).
 
 ### 3.2 Глобальная панель фильтров (left filters)
@@ -91,7 +91,7 @@
 * /incidents
 * /runbooks
 * /settings
-* /openclaw
+* /HERMES
 
 ## 5. Детальная структура разделов
 
@@ -131,7 +131,7 @@
      + список активных инцидентов с severity.[file:3]
    * Card Route health (ASSUMPTION):
      + список деградировавших маршрутов (из route\_profiles).[file:2]
-   * Card OpenClaw briefs:
+   * Card HERMES briefs:
      + последние 3 incident briefs и suggestions.[file:3]
 
 #### Вкладки
@@ -426,7 +426,7 @@ UI для TokenProfile и governance токенов.[file:2][file:3]
   + короткий summary (1–3 предложения, как требует UX принцип),[file:3]
   + таймлайн событий (QueryTimeline + audit\_log),[file:2]
   + привязанные runbooks (кнопки запуска),
-  + связанные OpenClaw incident briefs (если есть).[file:3]
+  + связанные HERMES incident briefs (если есть).[file:3]
 
 #### History
 
@@ -453,9 +453,9 @@ UI для TokenProfile и governance токенов.[file:2][file:3]
 * stuck reservations,
 * расхождениям system.state vs venue state.[file:2][file:3]
 
-### 5.8 /openclaw — панель OpenClaw
+### 5.8 /HERMES — панель HERMES
 
-Информация по OpenClaw Gateway и связанным workflow.[file:1][file:3]
+Информация по HERMES Gateway и связанным workflow.[file:1][file:3]
 
 #### Tabs
 
@@ -473,7 +473,7 @@ UI для TokenProfile и governance токенов.[file:2][file:3]
 
 #### Sessions
 
-* Таблица последних OpenClaw сессий:
+* Таблица последних HERMES сессий:
   + id,
   + operator,
   + created\_at,
@@ -504,7 +504,7 @@ UI для TokenProfile и governance токенов.[file:2][file:3]
 * Роли и разрешения (view‑only / operator / admin).
 * Feature flags:
   + включение/выключение paper layers,
-  + OpenClaw integration.[file:3][file:1]
+  + HERMES integration.[file:3][file:1]
 * Настройки тем (dark/light).
 
 ## 6. UX‑принципы и паттерны
@@ -572,7 +572,7 @@ UI для TokenProfile и governance токенов.[file:2][file:3]
 * GET /ui/token-lifecycle
 * GET /ui/paper-summary
 * GET /ui/incidents
-* GET /ui/openclaw-status[file:3]
+* GET /ui/HERMES-status[file:3]
 
 (ASSUMPTION: все эти эндпоинты принимают общие query‑параметры фильтров: env, time range, venues, strategies, mode.)
 
@@ -588,7 +588,7 @@ NB: это не финальные JSON‑схемы, а структура дл
 * execution\_highlights: последние N ExecutionPlan.
 * active\_incidents: короткий список.
 * route\_health: деградации маршрутов.
-* openclaw\_briefs: последние краткие summaries.[file:2][file:3]
+* HERMES\_briefs: последние краткие summaries.[file:2][file:3]
 
 #### PortfolioSummary
 
@@ -597,7 +597,7 @@ NB: это не финальные JSON‑схемы, а структура дл
 * limits: лимиты и использование.
 * history: PnL по времени.[file:2][file:3]
 
-… (аналогично описать Opportunities, ExecutionPlans, TokenLifecycle, PaperSummary, Incidents, OpenClawStatus на backend‑стороне.)
+… (аналогично описать Opportunities, ExecutionPlans, TokenLifecycle, PaperSummary, Incidents, HERMESStatus на backend‑стороне.)
 
 ## 9. Приоритеты реализации (P0–P2)
 
@@ -620,7 +620,7 @@ NB: это не финальные JSON‑схемы, а структура дл
 
 ### P2
 
-* /openclaw — панель OpenClaw.
+* /HERMES — панель HERMES.
 * /settings — admin settings и rollout surfaces.
 * Усиленная аналитика и дополнительные графики.[file:3][file:1]
 
@@ -642,7 +642,7 @@ NB: это не финальные JSON‑схемы, а структура дл
 3. Финальный набор статусов для:
    * incidents,
    * runbooks,
-   * approvals (OpenClaw).[file:2][file:3]
+   * approvals (HERMES).[file:2][file:3]
 4. Поддержка светлой темы (низкий приоритет).
 
 ## 18. Страница Settings и конфигурационный UX
@@ -657,7 +657,7 @@ NB: это не финальные JSON‑схемы, а структура дл
 * Risk and Execution
 * Paper Trading
 * Token Lifecycle
-* OpenClaw
+* HERMES
 * Audit History
 * Approval Queue
 
@@ -690,7 +690,7 @@ NB: это не финальные JSON‑схемы, а структура дл
 * token candidate rules
 * drift alert settings
 
-### 18.7 OpenClaw Settings
+### 18.7 HERMES Settings
 
 * readonly mode
 * action approvals required

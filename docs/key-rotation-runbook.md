@@ -1,4 +1,4 @@
-# Key Rotation Runbook
+﻿# Key Rotation Runbook
 
 ## Область применения
 
@@ -61,7 +61,7 @@ const encrypted = await keyVaultService.encryptPrivateKey(
 1. Немедленно установить статус скомпрометированного ключа `revoked`
 2. Вызвать `clearWalletCache()`
 3. Активировать новый ключ (Шаг 2–3)
-4. Создать incident в OpenClaw (`POST /openclaw/v1/incidents`)
+4. Создать incident в HERMES (`POST /HERMES/v1/incidents`)
 5. Записать audit entry
 
 ## Откат

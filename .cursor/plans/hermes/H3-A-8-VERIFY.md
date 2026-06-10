@@ -1,4 +1,4 @@
-# H3-A-8-VERIFY — Верификация: npm ci + build + lint + test
+﻿# H3-A-8-VERIFY — Верификация: npm ci + build + lint + test
 
 | Поле | Значение |
 |------|----------|
@@ -15,13 +15,13 @@
 2. `npm run build` — 21/21 пакетов
 3. `npm run lint` — 28/28 пакетов, 0 errors
 4. `npm run test` — 392/392 тестов, 27 suites
-5. `findstr /s /i "openclaw"` — 0 результатов в source
+5. `findstr /s /i "HERMES"` — 0 результатов в source
 
 ## Критерии успеха
 - Build: 21/21 ✅
 - Lint: 28/28 ✅
 - Tests: 392/392 ✅
-- Нет упоминаний `openclaw` в source (кроме dist/, .next/, node_modules/)
+- Нет упоминаний `HERMES` в source (кроме dist/, .next/, node_modules/)
 
 ## Edge Cases
 - `package-lock.json` содержит старый workspace name — регенерировать
@@ -33,7 +33,7 @@ npm ci
 npm run build
 npm run lint
 npm run test
-findstr /s /i /m "openclaw" apps\*.ts apps\*.tsx packages\persistence\src\*.ts
+findstr /s /i /m "HERMES" apps\*.ts apps\*.tsx packages\persistence\src\*.ts
 ```
 
 ## Rollback

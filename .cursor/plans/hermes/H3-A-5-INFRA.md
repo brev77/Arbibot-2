@@ -1,4 +1,4 @@
-# H3-A-5-INFRA — Обновление env/infrastructure
+﻿# H3-A-5-INFRA — Обновление env/infrastructure
 
 | Поле | Значение |
 |------|----------|
@@ -11,14 +11,14 @@
 Обновлённые конфигурационные файлы
 
 ## Файлы (~9)
-- `.env.example` — все `OPENCLAW_*` → `HERMES_*` (~17 строк)
+- `.env.example` — все `HERMES_*` → `HERMES_*` (~17 строк)
 - `infra/docker-compose.prod.yml` — сервис, образ, env vars (строки 324-342, 363)
 - `infra/docker-compose.dev.yml` — если содержит упоминания
 - `infra/prometheus/prometheus.yml` — scrape target
 - `tools/docker-build-all.sh` — workspace, entry point (строка 45)
 - `tools/validate-env.sh` — env var проверки
 - `tools/verify-deployment.sh` — health check URL
-- `package.json` (root) — `"dev:openclaw"` → `"dev:hermes"`, workspace ref
+- `package.json` (root) — `"dev:HERMES"` → `"dev:hermes"`, workspace ref
 - `.github/workflows/ci.yml` — проверить env vars
 
 ## Edge Cases

@@ -1,4 +1,4 @@
-# H3-A-4-FRONTEND — Замена содержимого frontend
+﻿# H3-A-4-FRONTEND — Замена содержимого frontend
 
 | Поле | Значение |
 |------|----------|
@@ -25,16 +25,16 @@
 ## Маппинг замен
 | Было | Стало |
 |------|-------|
-| `OpenclawDashboardSummary` | `HermesDashboardSummary` |
-| `OpenclawPlan` | `HermesPlan` |
-| `OpenclawWorkspace` | `HermesWorkspace` |
-| `openclawPlans` | `hermesPlans` |
-| `openclawDashboard` | `hermesDashboard` |
-| `OPENCLAW_GATEWAY_URL` | `HERMES_GATEWAY_URL` |
-| `OPENCLAW_BFF_API_KEY` | `HERMES_BFF_API_KEY` |
-| `OPENCLAW_GATEWAY_API_KEY` | `HERMES_GATEWAY_API_KEY` |
-| `openclaw-bff` | `hermes-bff` |
-| `openclaw-types` | `hermes-types` |
+| `HERMESDashboardSummary` | `HermesDashboardSummary` |
+| `HERMESPlan` | `HermesPlan` |
+| `HERMESWorkspace` | `HermesWorkspace` |
+| `HERMESPlans` | `hermesPlans` |
+| `HERMESDashboard` | `hermesDashboard` |
+| `HERMES_GATEWAY_URL` | `HERMES_GATEWAY_URL` |
+| `HERMES_BFF_API_KEY` | `HERMES_BFF_API_KEY` |
+| `HERMES_GATEWAY_API_KEY` | `HERMES_GATEWAY_API_KEY` |
+| `HERMES-bff` | `hermes-bff` |
+| `HERMES-types` | `hermes-types` |
 
 ## Edge Cases
 - `.next/` удалить перед пересборкой

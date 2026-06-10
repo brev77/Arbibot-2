@@ -1,4 +1,4 @@
----
+﻿---
 name: frontend-review-agent
 description: >
   Use when the user requests a frontend code review, operator dashboard PR review, Next.js/React
@@ -55,7 +55,7 @@ description: >
 - /paper (primary launch: operator E2E acceptance in paper before live minimal capital)
 - /incidents
 - /runbooks
-- /openclaw
+- /HERMES
 - /settings
 
 ## Mandatory frontend rules

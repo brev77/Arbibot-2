@@ -1,4 +1,4 @@
-# Оценка готовности к деплою — Arbibot 2
+﻿# Оценка готовности к деплою — Arbibot 2
 
 **Дата оценки:** 2026-05-21 (обновлено: Phase C Prep)  
 **Статус проекта:** Feature-complete (Phase 0–5 + DEX-1/2/DOC)  
@@ -14,7 +14,7 @@
 - **Миграции БД:** 36 миграций (001–036) покрывают все домены
 - **Архитектурные принципы:** single-writer, reservation-first, outbox/inbox, idempotency — реализованы
 - **E2E тесты:** 6 CI job'ов покрывают Phase 1–4 + bus-smoke
-- **Операторский UI:** все 10 маршрутов (`/dashboard`, `/portfolio`, `/opportunities`, `/execution`, `/tokens`, `/paper`, `/incidents`, `/runbooks`, `/openclaw`, `/settings`)
+- **Операторский UI:** все 10 маршрутов (`/dashboard`, `/portfolio`, `/opportunities`, `/execution`, `/tokens`, `/paper`, `/incidents`, `/runbooks`, `/HERMES`, `/settings`)
 - **DEX:** 3 bridge adapter (Across, Stargate, Native L2), MultiLegPlanBuilder, cross-chain reconciliation
 - **13 сервисов** + shared packages + Next.js dashboard
 
@@ -59,7 +59,7 @@
 - `.env.production.example` — шаблон production переменных
 - Network isolation: `arbibot-backend` + `arbibot-observability`
 - Resource limits: memory/CPU на каждый сервис
-- Health checks: `/metrics` (Nest), `/api/health` (Next.js), `/health` (OpenClaw)
+- Health checks: `/metrics` (Nest), `/api/health` (Next.js), `/health` (HERMES)
 
 ### Для масштабирования за пределы docker compose (Phase D)
 - Kubernetes manifests (Deployment, Service, Ingress, ConfigMap, Secret)
@@ -72,7 +72,7 @@
 ### Готово (Paper Trading)
 - `docs/security-baseline.md` — черновик требований
 - **`docs/security-hardening-guide.md`** — полный Phase C security roadmap
-- API-ключи для OpenClaw gateway
+- API-ключи для HERMES gateway
 - KeyVaultService (AES-256-GCM) для wallet ключей
 - RBAC роли (viewer/operator/admin)
 - Two-step approval для деструктивных действий
@@ -127,10 +127,10 @@
 ## 6. Документация — ✅ EXCELLENT (100%)
 
 ### Готово
-- **Runbooks:** DEX (Arbitrum/Base/BNB/testnet/mainnet/paper), bridge, rollback, failed-tx, intake degradation, key rotation, OpenClaw safe-mode, reconciliation P0
+- **Runbooks:** DEX (Arbitrum/Base/BNB/testnet/mainnet/paper), bridge, rollback, failed-tx, intake degradation, key rotation, HERMES safe-mode, reconciliation P0
 - **ADR:** Phase 4 intake throttling, ClickHouse gate, DEX structure, DEX-2 cross-chain
 - **Architecture docs:** state machines, async events, reservation-first, outbox-inbox
-- **Operator guides:** approval flow, UI guide, OpenClaw reference
+- **Operator guides:** approval flow, UI guide, HERMES reference
 - **Config catalogs:** policy keys, DEX filters, intake policy, paper discovery
 - **Project handbook:** `docs/PROJECT_HANDBOOK.md`
 - **Deployment docs:**
@@ -152,7 +152,7 @@
 ### Готово
 - Paper → Live последовательность определена
 - Reconciliation P0 procedures
-- Safe-mode для OpenClaw
+- Safe-mode для HERMES
 - DEX rollback strategy
 - Settlement post-commit procedures
 - Kill switch для DEX live

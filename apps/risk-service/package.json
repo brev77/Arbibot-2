@@ -7,7 +7,7 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/main.js",
     "start:dev": "tsc -p tsconfig.build.json && concurrently -k -n tsc,node -c auto \"tsc -p tsconfig.build.json --watch --preserveWatchOutput\" \"node --watch dist/main.js\"",
-    "test": "node ../../node_modules/jest/bin/jest.js",
+    "test": "node ../../node_modules/jest/bin/jest.js --runInBand",
     "test:watch": "node ../../node_modules/jest/bin/jest.js --watch"
   },
   "dependencies": {

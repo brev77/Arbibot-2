@@ -1,4 +1,4 @@
-# H3-A-1-DIRS — Переименование директорий
+﻿# H3-A-1-DIRS — Переименование директорий
 
 | Поле | Значение |
 |------|----------|
@@ -8,18 +8,18 @@
 | **status** | planned |
 
 ## Outputs
-- `apps/hermes-gateway/` (из `apps/openclaw-gateway/`)
-- `apps/hermes-gateway/src/hermes/` (из `src/openclaw/`)
-- `apps/web/app/(operator)/hermes/` (из `openclaw/`)
-- `apps/web/app/api/operator/hermes/` (из `openclaw/`)
-- `apps/web/components/hermes/` (из `openclaw/`)
+- `apps/hermes-gateway/` (из `apps/HERMES-gateway/`)
+- `apps/hermes-gateway/src/hermes/` (из `src/HERMES/`)
+- `apps/web/app/(operator)/hermes/` (из `HERMES/`)
+- `apps/web/app/api/operator/hermes/` (из `HERMES/`)
+- `apps/web/components/hermes/` (из `HERMES/`)
 
 ## Порядок
-1. `git mv apps/openclaw-gateway apps/hermes-gateway`
-2. `git mv apps/hermes-gateway/src/openclaw apps/hermes-gateway/src/hermes`
-3. `git mv "apps/web/app/(operator)/openclaw" "apps/web/app/(operator)/hermes"`
-4. `git mv "apps/web/app/api/operator/openclaw" "apps/web/app/api/operator/hermes"`
-5. `git mv apps/web/components/openclaw apps/web/components/hermes`
+1. `git mv apps/HERMES-gateway apps/hermes-gateway`
+2. `git mv apps/hermes-gateway/src/HERMES apps/hermes-gateway/src/hermes`
+3. `git mv "apps/web/app/(operator)/HERMES" "apps/web/app/(operator)/hermes"`
+4. `git mv "apps/web/app/api/operator/HERMES" "apps/web/app/api/operator/hermes"`
+5. `git mv apps/web/components/HERMES apps/web/components/hermes`
 6. Удалить `apps/hermes-gateway/dist/` и `apps/web/.next/`
 
 ## Edge Cases

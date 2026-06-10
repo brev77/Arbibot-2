@@ -1,4 +1,4 @@
----
+﻿---
 description: Arbibot 2 стек, архитектура, домен исполнения, фронтенд и правила кода
 alwaysApply: true
 ---
@@ -8,16 +8,16 @@ You are working in the Arbibot 2 monorepo.
   Context:
   - Arbibot 2 is a high-throughput crypto arbitrage system with:
     - Market Intake → Canonical Market → Opportunity → Risk → Capital → Execution Orchestrator → Portfolio → Reconciliation → Control Plane.
-    - Operator dashboard (Next.js) for /dashboard, /portfolio, /opportunities, /execution, /tokens, /paper, /incidents, /runbooks, /openclaw, /settings.
+    - Operator dashboard (Next.js) for /dashboard, /portfolio, /opportunities, /execution, /tokens, /paper, /incidents, /runbooks, /HERMES, /settings.
   - **Current Status (as of 2026-04-28):**
     - **Phase 0–2:** foundation + controlled execution (snapshot → risk → reserve → arm → execution, dashboards, messaging baseline, reconciliation) — **done**
     - **Phase 3:** paper trading engine (paper trades, promotion candidates, virtual capital, drift gauges, discovery pipeline, `/paper` UI) — **done**
     - **Phase 4:** wide-universe scaling with intake throttling (tier routing, degraded mode signals, route-scoring analytics, replay tools) — **done**
-    - **Phase 5:** OpenClaw-assisted operations (read-only API, incident management, approvals queue, safe-mode) — **in progress**
+    - **Phase 5:** HERMES-assisted operations (read-only API, incident management, approvals queue, safe-mode) — **in progress**
   - **Phase numbers match the canonical** [.cursor/plans/DEVELOPMENT_PLAN.md](.cursor/plans/DEVELOPMENT_PLAN.md) **and** `!Arbibot_2_Architecture_v1_final_docs_settings.md` (§50.x).
   - **Later phases (do NOT implement unless explicitly requested):**
     - Phase 6+ features are not defined and should NOT be implemented
-    - Additional OpenClaw features beyond current scope should NOT be implemented
+    - Additional HERMES features beyond current scope should NOT be implemented
 
 Architecture principles (must always respect):
 - Single-writer principle for core entities (ArbitrageOpportunity, RiskDecision, ExecutionPlan, CapitalReservation, PortfolioPosition, PaperTrade).
@@ -87,7 +87,7 @@ Frontend constraints:
   - /paper
   - /incidents
   - /runbooks
-  - /openclaw
+  - /HERMES
   - /settings
 - Use:
   - shadcn/ui components.
@@ -177,7 +177,7 @@ Before providing an answer, ensure:
 
 ### Known Limitations
 - Phase 6+ features are NOT defined and should NOT be implemented
-- Additional OpenClaw features beyond current scope should NOT be implemented
+- Additional HERMES features beyond current scope should NOT be implemented
 - Some operator UI mutations (force hedge/unwind) require full impact preview — still backlog
 
 ## Additional Resources
