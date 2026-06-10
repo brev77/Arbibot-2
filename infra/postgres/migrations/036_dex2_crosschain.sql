@@ -69,8 +69,3 @@ ALTER TABLE on_chain_transactions
 COMMENT ON COLUMN on_chain_transactions.bridge_transfer_id IS 'Reference to bridge transfer (for bridge source/destination TXs)';
 COMMENT ON COLUMN on_chain_transactions.tx_role IS 'TX role for bridge operations: source | destination | claim';
 
--- ───────────────────────────────────────────────────────────────────────
--- 4. Schema migration tracking
--- ───────────────────────────────────────────────────────────────────────
-
-INSERT INTO schema_migrations (version) VALUES ('036');
