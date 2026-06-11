@@ -162,7 +162,7 @@ async function setupMarketData() {
   info(`Market snapshots in database: ${snapshots[0].count}`);
   
   // Insert test snapshots if needed (using correct market_snapshots columns)
-  if (snapshots[0].count === 0) {
+    if (parseInt(snapshots[0].count, 10) === 0) {
     info('No snapshots found, inserting test data...');
 
     await queryDB(`
