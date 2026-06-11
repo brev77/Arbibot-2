@@ -56,7 +56,7 @@ export class PaperCapitalService {
   async expireReservation(id: string): Promise<PaperCapitalReservationEntity | null> {
     const reservation = await this.repo.findOne({
       where: { id },
-      lock: { mode: 'pessimistic_write' },
+      
     });
 
     if (reservation === null) {
