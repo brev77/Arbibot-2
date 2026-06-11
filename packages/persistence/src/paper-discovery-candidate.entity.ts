@@ -22,7 +22,7 @@ import {
 @Index(['token_key', 'route_key'])
 @Index(['status'])
 @Index(['created_at'])
-@Index('is_eligible', { where: 'is_eligible = true' })
+@Index(['is_eligible'], { where: 'is_eligible = true' })
 export class PaperDiscoveryCandidateEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
