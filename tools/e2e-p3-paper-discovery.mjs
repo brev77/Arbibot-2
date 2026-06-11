@@ -273,7 +273,7 @@ async function verifyDiscoveryMetrics() {
     // Check for discovery metrics
     const hasCandidatesMetric = metricsText.includes('arb_paper_discovery_candidates_total');
     const hasEligibleMetric = metricsText.includes('arb_paper_discovery_eligible_total');
-    const hasEnqueuedMetric = metricsText.includes('arb_paper_discovery_enqueued_total');
+    const hasProcessedMetric = metricsText.includes('arb_paper_discovery_processed_total');
     const hasLatencyMetric = metricsText.includes('arb_paper_discovery_latency_ms');
     
     if (hasCandidatesMetric) {
@@ -288,7 +288,7 @@ async function verifyDiscoveryMetrics() {
       error('Discovery eligible metric NOT found');
     }
     
-    if (hasEnqueuedMetric) {
+    if (hasProcessedMetric) {
       success('Discovery enqueued metric found');
     } else {
       error('Discovery enqueued metric NOT found');
@@ -307,8 +307,8 @@ async function verifyDiscoveryMetrics() {
     const eligibleTotalMatch = metricsText.match(
       /arb_paper_discovery_eligible_total\s+(\d+)/
     );
-    const enqueuedTotalMatch = metricsText.match(
-      /arb_paper_discovery_enqueued_total\s+(\d+)/
+    const processedTotalMatch = metricsText.match(
+      /arb_paper_discovery_processed_total\s+(\d+)/
     );
     
     if (candidatesTotalMatch) {
@@ -319,11 +319,11 @@ async function verifyDiscoveryMetrics() {
       info(`Eligible candidates: ${eligibleTotalMatch[1]}`);
     }
     
-    if (enqueuedTotalMatch) {
-      info(`Enqueued candidates: ${enqueuedTotalMatch[1]}`);
+    if (processedTotalMatch) {
+      info(`Processed candidates: ${processedTotalMatch[1]}`);
     }
     
-    return hasCandidatesMetric && hasEligibleMetric && hasEnqueuedMetric;
+    return hasCandidatesMetric && hasEligibleMetric && hasProcessedMetric;
   } catch (err) {
     error(`Failed to verify discovery metrics: ${err.message}`);
     return false;
