@@ -20,7 +20,7 @@ import {
  */
 @Entity('paper_discovery_candidates')
 @Index(['token_key', 'route_key'])
-@Index('status')
+@Index(['status'])
 @Index(['created_at'])
 @Index('is_eligible', { where: 'is_eligible = true' })
 export class PaperDiscoveryCandidateEntity {
