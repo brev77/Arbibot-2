@@ -16,25 +16,45 @@ export PAPER_DISCOVERY_RUN_TOKEN="${PAPER_DISCOVERY_RUN_TOKEN:-ci-paper-discover
 npm run db:migrate
 
 PIDS=()
+LOG_FILES=()
+
+dump_logs() {
+  echo "=== Dumping server logs on failure ===" >&2
+  for f in "${LOG_FILES[@]}"; do
+    if [ -f "$f" ]; then
+      echo "--- tail $(basename "$f") ---" >&2
+      tail -n 100 "$f" >&2 || true
+    fi
+  done
+  cleanup
+}
+
 cleanup() {
   set +e
   for pid in "${PIDS[@]:-}"; do
     kill "$pid" 2>/dev/null || true
   done
 }
-trap cleanup EXIT
+trap dump_logs EXIT
 
 PORT=3018 DATABASE_URL="$DATABASE_URL" NODE_ENV="${NODE_ENV:-production}" \
+  AUDIT_CLIENT_ENABLED=false \
   node "$ROOT/apps/paper-trading-service/dist/main.js" >>"/tmp/arbibot-e2e-phase3-paper.log" 2>&1 &
 PIDS+=($!)
 
 PORT=3010 DATABASE_URL="$DATABASE_URL" NODE_ENV="${NODE_ENV:-production}" \
+  AUDIT_CLIENT_ENABLED=false \
   PAPER_TRADING_SERVICE_URL="$PAPER_TRADING_SERVICE_URL" \
   OUTBOX_RELAY_POLL_MS="$OUTBOX_RELAY_POLL_MS" \
   PAPER_DISCOVERY_POLL_MS="$PAPER_DISCOVERY_POLL_MS" \
   PAPER_DISCOVERY_RUN_TOKEN="$PAPER_DISCOVERY_RUN_TOKEN" \
   node "$ROOT/apps/opportunity-service/dist/main.js" >>"/tmp/arbibot-e2e-phase3-opportunity.log" 2>&1 &
 PIDS+=($!)
+
+LOG_FILES=(
+  /tmp/arbibot-e2e-phase3-paper.log
+  /tmp/arbibot-e2e-phase3-opportunity.log
+)
 
 for port in 3018 3010; do
   for _ in $(seq 1 120); do

@@ -16,16 +16,30 @@ export INTAKE_THROTTLING_ENABLED="${INTAKE_THROTTLING_ENABLED:-true}"
 npm run db:migrate
 
 PIDS=()
+LOG_FILES=()
+
+dump_logs() {
+  echo "=== Dumping server logs on failure ===" >&2
+  for f in "${LOG_FILES[@]}"; do
+    if [ -f "$f" ]; then
+      echo "--- tail $(basename "$f") ---" >&2
+      tail -n 100 "$f" >&2 || true
+    fi
+  done
+  cleanup
+}
+
 cleanup() {
   set +e
   for pid in "${PIDS[@]:-}"; do
     kill "$pid" 2>/dev/null || true
   done
 }
-trap cleanup EXIT
+trap dump_logs EXIT
 
 # risk-service :3000
 PORT=3000 DATABASE_URL="$DATABASE_URL" NODE_ENV="${NODE_ENV:-production}" \
+  AUDIT_CLIENT_ENABLED=false \
   node "$ROOT/apps/risk-service/dist/main.js" >>"/tmp/arbibot-e2e-phase4-risk.log" 2>&1 &
 PIDS+=($!)
 
@@ -34,6 +48,12 @@ PORT=3019 DATABASE_URL="$DATABASE_URL" NODE_ENV="${NODE_ENV:-production}" \
   AUDIT_CLIENT_ENABLED=false \
   node "$ROOT/apps/config-service/dist/main.js" >>"/tmp/arbibot-e2e-phase4-config.log" 2>&1 &
 PIDS+=($!)
+
+LOG_FILES=(
+  /tmp/arbibot-e2e-phase4-risk.log
+  /tmp/arbibot-e2e-phase4-config.log
+  /tmp/arbibot-e2e-phase4-intake.log
+)
 
 for _ in $(seq 1 120); do
   if curl -sf "http://127.0.0.1:3000/metrics" >/dev/null && curl -sf "http://127.0.0.1:3019/metrics" >/dev/null; then

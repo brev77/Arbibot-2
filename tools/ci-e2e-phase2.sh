@@ -19,6 +19,19 @@ node "$ROOT/tools/lab-venue-stand.mjs" &
 LAB_PID=$!
 
 PIDS=()
+LOG_FILES=()
+
+dump_logs() {
+  echo "=== Dumping server logs on failure ===" >&2
+  for f in "${LOG_FILES[@]}"; do
+    if [ -f "$f" ]; then
+      echo "--- tail $(basename "$f") ---" >&2
+      tail -n 100 "$f" >&2 || true
+    fi
+  done
+  cleanup
+}
+
 cleanup() {
   set +e
   kill "$LAB_PID" 2>/dev/null || true
@@ -26,7 +39,7 @@ cleanup() {
     kill "$pid" 2>/dev/null || true
   done
 }
-trap cleanup EXIT
+trap dump_logs EXIT
 
 for _ in $(seq 1 60); do
   if curl -sf "http://127.0.0.1:${LAB_PORT}/health" >/dev/null; then
@@ -56,10 +69,19 @@ start_svc intake 3015 node "$ROOT/apps/market-intake-service/dist/main.js"
 
 PORT=3012 DATABASE_URL="$DATABASE_URL" RISK_SERVICE_URL="$RISK_SERVICE_URL" \
   NODE_ENV="${NODE_ENV:-production}" \
+  AUDIT_CLIENT_ENABLED=false \
   VENUE_HTTP_BASE_URL="http://127.0.0.1:${LAB_PORT}" \
   PRIVATE_KEY_ENCRYPTION_KEY="${PRIVATE_KEY_ENCRYPTION_KEY:-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}" \
   node "$ROOT/apps/execution-orchestrator/dist/main.js" >>"/tmp/arbibot-e2e-execution.log" 2>&1 &
 PIDS+=($!)
+
+LOG_FILES=(
+  /tmp/arbibot-e2e-risk.log
+  /tmp/arbibot-e2e-opportunity.log
+  /tmp/arbibot-e2e-capital.log
+  /tmp/arbibot-e2e-intake.log
+  /tmp/arbibot-e2e-execution.log
+)
 
 for port in 3000 3010 3011 3012 3015; do
   for _ in $(seq 1 120); do

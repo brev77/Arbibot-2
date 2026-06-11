@@ -21,21 +21,41 @@ export PAPER_DISCOVERY_PAPER_ONLY_ROUTES="${PAPER_DISCOVERY_PAPER_ONLY_ROUTES:-b
 npm run db:migrate
 
 PIDS=()
+LOG_FILES=()
+
+dump_logs() {
+  echo "=== Dumping server logs on failure ===" >&2
+  for f in "${LOG_FILES[@]}"; do
+    if [ -f "$f" ]; then
+      echo "--- tail $(basename "$f") ---" >&2
+      tail -n 100 "$f" >&2 || true
+    fi
+  done
+  cleanup
+}
+
 cleanup() {
   set +e
   for pid in "${PIDS[@]:-}"; do
     kill "$pid" 2>/dev/null || true
   done
 }
-trap cleanup EXIT
+trap dump_logs EXIT
 
 PORT=3018 DATABASE_URL="$DATABASE_URL" NODE_ENV="${NODE_ENV:-production}" \
+  AUDIT_CLIENT_ENABLED=false \
   node "$ROOT/apps/paper-trading-service/dist/main.js" >>"/tmp/arbibot-e2e-phase3-paper-discovery-paper.log" 2>&1 &
 PIDS+=($!)
 
 PORT=3015 DATABASE_URL="$DATABASE_URL" NODE_ENV="${NODE_ENV:-production}" \
+  AUDIT_CLIENT_ENABLED=false \
   node "$ROOT/apps/market-intake-service/dist/main.js" >>"/tmp/arbibot-e2e-phase3-paper-discovery-intake.log" 2>&1 &
 PIDS+=($!)
+
+LOG_FILES=(
+  /tmp/arbibot-e2e-phase3-paper-discovery-paper.log
+  /tmp/arbibot-e2e-phase3-paper-discovery-intake.log
+)
 
 for port in 3018 3015; do
   for _ in $(seq 1 120); do

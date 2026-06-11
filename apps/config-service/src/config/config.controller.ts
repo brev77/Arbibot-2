@@ -8,6 +8,7 @@ import {
   Put,
   Query,
   HttpStatus,
+  NotFoundException,
 } from '@nestjs/common';
 import { FastifyReply } from 'fastify';
 
@@ -58,7 +59,7 @@ export class ConfigController {
       tenantId,
     );
     if (!config) {
-      throw new Error(`Configuration not found: ${configKey}`);
+      throw new NotFoundException(`Configuration not found: ${configKey}`);
     }
     return config;
   }
@@ -79,7 +80,7 @@ export class ConfigController {
       scopeValue || null,
     );
     if (!config) {
-      throw new Error(`Configuration not found: ${configKey}`);
+      throw new NotFoundException(`Configuration not found: ${configKey}`);
     }
     return config;
   }
