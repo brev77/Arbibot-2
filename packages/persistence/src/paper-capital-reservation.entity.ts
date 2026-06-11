@@ -14,8 +14,8 @@ import { PaperTradeEntity } from './paper-trade.entity';
 export type PaperCapitalReservationState = 'active' | 'expired';
 
 @Entity('paper_capital_reservations')
-@Index(['instrumentKey', 'state'], { where: 'state = :state' })
-@Index(['expiresAt'], { where: 'state = :state' })
+@Index(['instrumentKey', 'state'], { where: "state = 'active'" })
+@Index(['expiresAt'], { where: "state = 'active'" })
 @Index(['tradeId'], { where: 'tradeId IS NOT NULL' })
 export class PaperCapitalReservationEntity {
   @PrimaryGeneratedColumn('uuid')
