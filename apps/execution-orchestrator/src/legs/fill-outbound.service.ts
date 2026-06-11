@@ -62,14 +62,19 @@ export class FillOutboundService {
   constructor(private readonly plans: PlansService) {}
 
   async afterLegFullyFilled(args: LegFilledSettlementArgs): Promise<void> {
+    // Always mark plan completed when all legs are filled — this must not be
+    // gated by the optional settlement flag, otherwise plans stay in
+    // "executing" forever when settlement is disabled.
+    const { completed, plan } =
+      await this.plans.tryMarkPlanCompletedWhenAllLegsFilled(args.planId);
+
+    // Settlement (portfolio confirm + capital release) is optional and
+    // gated separately by EXECUTION_SETTLEMENT_ENABLED.
     if (process.env.EXECUTION_SETTLEMENT_ENABLED !== 'true') {
       return;
     }
 
     await this.confirmPortfolio(args);
-
-    const { completed, plan } =
-      await this.plans.tryMarkPlanCompletedWhenAllLegsFilled(args.planId);
 
     if (
       completed &&

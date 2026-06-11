@@ -161,17 +161,23 @@ async function setupMarketData() {
   
   info(`Market snapshots in database: ${snapshots[0].count}`);
   
-  // Insert test snapshots if needed
+  // Insert test snapshots if needed (using correct market_snapshots columns)
   if (snapshots[0].count === 0) {
     info('No snapshots found, inserting test data...');
-    
+
     await queryDB(`
-      INSERT INTO market_snapshots (id, instrument_key, route_key, bid_price, ask_price, timestamp, is_stale)
-      VALUES 
-        ('test-snapshot-1', 'BTC', 'btc-eth-uniswap', '45000.00', '45100.00', NOW(), false),
-        ('test-snapshot-2', 'ETH', 'eth-usdc-curve', '3000.00', '3005.00', NOW(), false)
+      INSERT INTO market_snapshots (
+        id, venue_code, venue_symbol, bid, ask, payload,
+        observed_at, received_at, stale_after_seconds, entity_version
+      ) VALUES
+        (gen_random_uuid(), 'test-venue', 'BTC-PERP', '45000.00', '45100.00',
+         '{"instrumentKey":"BTC","routeKey":"btc-eth-uniswap"}'::jsonb,
+         NOW(), NOW(), NULL, 1),
+        (gen_random_uuid(), 'test-venue', 'ETH-PERP', '3000.00', '3005.00',
+         '{"instrumentKey":"ETH","routeKey":"eth-usdc-curve"}'::jsonb,
+         NOW(), NOW(), NULL, 1)
     `);
-    
+
     success('Test snapshots inserted');
   } else {
     success('Market snapshots already exist');

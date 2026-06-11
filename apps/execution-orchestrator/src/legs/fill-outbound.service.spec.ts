@@ -13,11 +13,11 @@ describe('FillOutboundService', () => {
     process.env = originalEnv;
   });
 
-  it('does nothing when settlement is disabled', async () => {
+  it('marks plan completed when all legs filled, even when settlement is disabled', async () => {
     process.env.EXECUTION_SETTLEMENT_ENABLED = 'false';
     delete process.env.PORTFOLIO_SERVICE_URL;
     delete process.env.PORTFOLIO_API_BASE;
-    const tryMark = jest.fn();
+    const tryMark = jest.fn().mockResolvedValue({ completed: true, plan: null });
     const svc = new FillOutboundService({ tryMarkPlanCompletedWhenAllLegsFilled: tryMark } as unknown as PlansService);
     await svc.afterLegFullyFilled({
       planId: '00000000-0000-4000-8000-000000000001',
@@ -27,7 +27,7 @@ describe('FillOutboundService', () => {
       instrumentKey: 'k',
       correlationId: null,
     });
-    expect(tryMark).not.toHaveBeenCalled();
+    expect(tryMark).toHaveBeenCalledWith('00000000-0000-4000-8000-000000000001');
   });
 
   it('throws when settlement is enabled but portfolio base URL is missing', async () => {
@@ -35,7 +35,7 @@ describe('FillOutboundService', () => {
     delete process.env.PORTFOLIO_SERVICE_URL;
     delete process.env.PORTFOLIO_API_BASE;
     const svc = new FillOutboundService({
-      tryMarkPlanCompletedWhenAllLegsFilled: jest.fn(),
+      tryMarkPlanCompletedWhenAllLegsFilled: jest.fn().mockResolvedValue({ completed: false, plan: null }),
     } as unknown as PlansService);
     await expect(
       svc.afterLegFullyFilled({

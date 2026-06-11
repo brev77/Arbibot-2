@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 
 import { typeOrmRootForEntities } from '@arbibot/nest-database';
 import {
+  PaperCapitalReservationEntity,
+  PaperDiscoveryCandidateEntity,
   PaperDriftSampleEntity,
   PaperPromotionCandidateEntity,
   PaperTradeEntity,
@@ -13,6 +15,8 @@ import {
       PaperTradeEntity,
       PaperPromotionCandidateEntity,
       PaperDriftSampleEntity,
+      PaperCapitalReservationEntity,
+      PaperDiscoveryCandidateEntity,
     ]),
   ],
 })

@@ -97,7 +97,7 @@ async function main() {
     bid: 1,
     ask: 2,
   });
-  assert(hot1.status === 200, `hot ingest expected 200, got ${hot1.status}`);
+  assert(hot1.status === 201, `hot ingest expected 201, got ${hot1.status}`);
 
   // Warm tier (SOL): second ingest within warmSampleIntervalMs -> 429 (same sampling key i:SOL).
   const warmBody = {
@@ -109,7 +109,7 @@ async function main() {
     ask: 2,
   };
   const w1 = await postIngest(warmBody);
-  assert(w1.status === 200, `warm first ingest expected 200, got ${w1.status}`);
+  assert(w1.status === 201, `warm first ingest expected 201, got ${w1.status}`);
 
   const w2 = await postIngest({
     ...warmBody,

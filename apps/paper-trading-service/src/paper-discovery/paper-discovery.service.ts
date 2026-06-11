@@ -510,8 +510,37 @@ export class PaperDiscoveryService {
         throw new Error(`Market intake returned ${response.status}`);
       }
 
-      const data = (await response.json()) as { items: MarketSnapshot[] };
-      return data.items || [];
+      const data = (await response.json()) as {
+        items: Array<{
+          id: string;
+          venueCode: string;
+          venueSymbol: string;
+          instrumentKey: string | null;
+          routeKey: string | null;
+          bid: number | null;
+          ask: number | null;
+          observedAt: string;
+          isStale: boolean;
+        }>;
+      };
+
+      return (data.items || [])
+        .filter(
+          (item) =>
+            item.instrumentKey !== null &&
+            item.routeKey !== null &&
+            item.bid !== null &&
+            item.ask !== null,
+        )
+        .map((item) => ({
+          id: item.id,
+          instrumentKey: item.instrumentKey!,
+          routeKey: item.routeKey!,
+          bidPrice: String(item.bid),
+          askPrice: String(item.ask),
+          timestamp: new Date(item.observedAt),
+          isStale: item.isStale,
+        }));
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(`Failed to fetch fresh snapshots: ${msg}`);
