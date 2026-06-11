@@ -31,7 +31,7 @@ See [Grafana provisioning](https://grafana.com/docs/grafana/latest/administratio
 | `arb_intake_policy_fallback_total` | — | Config/risk policy bundle refresh failed |
 | `arb_intake_routing_count` | `tier` | Throttle evaluation by resolved tier |
 | `arb_intake_policy_cache_hit_total` / `arb_intake_policy_cache_miss_total` | `layer` | Policy bundle cache |
-| `arb_openclaw_safe_mode_redis_errors_total` | `operation` (`connection`, `get`, `set`) | Redis errors in OpenClaw safe mode ([`docs/openclaw-safe-mode-runbook.md`](../../docs/openclaw-safe-mode-runbook.md)) |
+| `arb_hermes_safe_mode_redis_errors_total` | `operation` (`connection`, `get`, `set`) | Redis errors in HERMES safe mode ([`docs/hermes-safe-mode-runbook.md`](../../docs/hermes-safe-mode-runbook.md)) |
 
 See dashboard `dashboards/arbibot-risk-policy-writers.json` for PromQL examples (includes **market intake** panels next to risk policy writers).
 

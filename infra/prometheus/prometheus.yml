@@ -67,9 +67,9 @@ scrape_configs:
       - targets: ["config-service:3019"]
     metrics_path: /metrics
 
-  - job_name: "openclaw-gateway"
+  - job_name: "hermes-gateway"
     static_configs:
-      - targets: ["openclaw-gateway:3020"]
+      - targets: ["hermes-gateway:3020"]
     metrics_path: /metrics
 
   # ── Infrastructure ───────────────────────────────────────────

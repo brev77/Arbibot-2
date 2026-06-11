@@ -493,7 +493,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "up{job=~\"risk-service|opportunity-service|capital-service|execution-orchestrator|audit-service|canonical-market-service|market-intake-service|portfolio-service|reconciliation-service|paper-trading-service|config-service|openclaw-gateway\"}",
+"expr": "up{job=~\"risk-service|opportunity-service|capital-service|execution-orchestrator|audit-service|canonical-market-service|market-intake-service|portfolio-service|reconciliation-service|paper-trading-service|config-service|hermes-gateway\"}",
           "legendFormat": "{{job}}",
           "refId": "A"
         }

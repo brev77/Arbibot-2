@@ -42,7 +42,7 @@ declare -A SERVICES=(
   [reconciliation-service]="@arbibot/reconciliation-service apps/reconciliation-service/dist/main.js 3017"
   [paper-trading-service]="@arbibot/paper-trading-service apps/paper-trading-service/dist/main.js 3018"
   [config-service]="@arbibot/config-service apps/config-service/dist/main.js 3019"
-  [openclaw-gateway]="@arbibot/openclaw-gateway apps/openclaw-gateway/dist/main.js 3020"
+  [hermes-gateway]="@arbibot/hermes-gateway apps/hermes-gateway/dist/main.js 3020"
 )
 
 echo "=== Building Arbibot 2 images (${REGISTRY}, tag=${TAG}) ==="

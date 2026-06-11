@@ -321,9 +321,9 @@ services:
       retries: 3
       start_period: 30s
 
-  openclaw-gateway:
+  hermes-gateway:
     <<: *nest-common
-    image: ${REGISTRY:-ghcr.io/brev77}/arbibot-openclaw-gateway:${IMAGE_TAG:-latest}
+    image: ${REGISTRY:-ghcr.io/brev77}/arbibot-hermes-gateway:${IMAGE_TAG:-latest}
     environment:
       PORT: 3020
       EXECUTION_API_BASE: http://execution-orchestrator:3012
@@ -360,7 +360,7 @@ services:
       RECONCILIATION_API_BASE: http://reconciliation-service:3017
       PAPER_API_BASE: http://paper-trading-service:3018
       MARKET_INTAKE_API_BASE: http://market-intake-service:3015
-      OPENCLAW_GATEWAY_URL: http://openclaw-gateway:3020
+      HERMES_GATEWAY_URL: http://hermes-gateway:3020
     depends_on:
       risk-service:
         condition: service_healthy
