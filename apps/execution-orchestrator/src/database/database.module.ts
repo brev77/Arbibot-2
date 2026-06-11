@@ -7,6 +7,7 @@ import {
   ExecutionPlanEntity,
   OutboxEventEntity,
   OnChainTransaction,
+  WalletState,
 } from '@arbibot/persistence';
 
 @Module({
@@ -17,6 +18,7 @@ import {
       ExecutionLegFillIdempotencyEntity,
       OutboxEventEntity,
       OnChainTransaction,
+      WalletState,
     ]),
   ],
 })

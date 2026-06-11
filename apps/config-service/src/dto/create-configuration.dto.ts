@@ -51,6 +51,11 @@ export class CreateConfigurationDto {
   @IsEnum(ConfigurationStatus)
   @IsOptional()
   status?: ConfigurationStatus;
+
+  /** Operator ID for audit trail — extracted by controller via @Body('operatorId'). */
+  @IsString()
+  @IsOptional()
+  operatorId?: string;
 }
 
 // DTOs for scoped queries

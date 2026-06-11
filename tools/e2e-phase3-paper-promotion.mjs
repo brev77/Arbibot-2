@@ -113,6 +113,20 @@ async function main() {
   assert(found, 'promotion candidate not visible in paper after relay (timeout ~20s)');
   assert(candidateId !== null, 'candidate id should be set');
 
+  // Test: move promotion candidate to under_review first (state machine requires queued → under_review → promoted)
+  console.log('Moving promotion candidate to under_review...');
+  await jsonFetch(`${PAPER_URL}/paper/promotion-candidates/${candidateId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-operator-id': 'e2e-test',
+    },
+    body: JSON.stringify({
+      status: 'under_review',
+      expectedVersion: 1,
+    }),
+  });
+
   // Test: approve promotion candidate
   console.log('Testing approve promotion candidate...');
   const approveResult = await jsonFetch(

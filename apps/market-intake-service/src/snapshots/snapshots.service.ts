@@ -339,6 +339,68 @@ export class SnapshotsService {
     throw new Error('Ingest retry budget exhausted');
   }
 
+  /**
+   * Find fresh (non-stale) snapshots for the discovery pipeline.
+   * A snapshot is stale when staleAfterSeconds > 0
+   * and (observedAt + staleAfterSeconds * 1000) < now.
+   */
+  async findFresh(limit = 100): Promise<{
+    items: Array<{
+      id: string;
+      venueCode: string;
+      venueSymbol: string;
+      instrumentKey: string | null;
+      routeKey: string | null;
+      bid: number | null;
+      ask: number | null;
+      observedAt: string;
+      isStale: boolean;
+    }>;
+    total: number;
+  }> {
+    const repo = this.dataSource.getRepository(MarketSnapshotEntity);
+    const now = Date.now();
+
+    // Fetch recent snapshots — filter stale ones in-code because
+    // staleAfterSeconds is a per-row threshold, not a static column.
+    const rows = await repo.find({
+      order: { observedAt: 'DESC' },
+      take: Math.min(limit * 3, 1000),
+    });
+
+    const fresh = rows
+      .filter((row) => {
+        if (row.staleAfterSeconds === null || row.staleAfterSeconds <= 0) {
+          return true;
+        }
+        const deadline =
+          row.observedAt.getTime() + row.staleAfterSeconds * 1000;
+        return now <= deadline;
+      })
+      .slice(0, limit);
+
+    return {
+      items: fresh.map((row) => ({
+        id: row.id,
+        venueCode: row.venueCode,
+        venueSymbol: row.venueSymbol,
+        instrumentKey:
+          typeof row.payload?.instrumentKey === 'string'
+            ? row.payload.instrumentKey
+            : null,
+        routeKey:
+          typeof row.payload?.routeKey === 'string'
+            ? row.payload.routeKey
+            : null,
+        bid: row.bid !== null ? Number(row.bid) : null,
+        ask: row.ask !== null ? Number(row.ask) : null,
+        observedAt: row.observedAt.toISOString(),
+        isStale: false,
+      })),
+      total: fresh.length,
+    };
+  }
+
   async getOne(
     venueCode: string,
     venueSymbol: string,

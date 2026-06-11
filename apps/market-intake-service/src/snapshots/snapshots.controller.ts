@@ -11,11 +11,23 @@ import {
 import type { FastifyReply } from 'fastify';
 
 import { IngestMarketSnapshotDto } from './dto/ingest-market-snapshot.dto';
+import { GetFreshSnapshotsDto } from './dto/get-fresh-snapshots.dto';
 import { SnapshotsService } from './snapshots.service';
 
 @Controller('snapshots')
 export class SnapshotsController {
   constructor(private readonly snapshots: SnapshotsService) {}
+
+  /**
+   * GET /snapshots/fresh?limit=100
+   * Returns fresh (non-stale) snapshots for discovery pipelines.
+   * Must be registered BEFORE the generic @Get() to avoid route shadowing.
+   */
+  @Get('fresh')
+  async getFresh(@Query() dto: GetFreshSnapshotsDto) {
+    const limit = dto.limit ?? 100;
+    return this.snapshots.findFresh(limit);
+  }
 
   @Post('ingest')
   async ingest(

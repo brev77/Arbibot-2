@@ -502,8 +502,7 @@ export class PaperDiscoveryService {
     }
 
     try {
-      const url = new URL('/snapshots', marketIntakeUrl);
-      url.searchParams.set('freshness.isStale', 'false');
+      const url = new URL('/snapshots/fresh', marketIntakeUrl);
       url.searchParams.set('limit', '100');
 
       const response = await fetch(url.toString());
