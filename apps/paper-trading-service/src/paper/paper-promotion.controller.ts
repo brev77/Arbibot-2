@@ -11,6 +11,7 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
+import { FastifyRequest } from 'fastify';
 
 import {
   PaperPromotionService,
@@ -79,9 +80,9 @@ export class PaperPromotionController {
   @HttpCode(HttpStatus.OK)
   async approve(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
-    @Req() req: Request,
+    @Req() req: FastifyRequest,
   ) {
-    const operatorId = (req.headers.get('x-operator-id') as string) ?? 'unknown';
+    const operatorId = (req.headers['x-operator-id'] as string) ?? 'unknown';
     const row = await this.service.approve(id, operatorId);
     return promoView(row);
   }
@@ -90,9 +91,9 @@ export class PaperPromotionController {
   @HttpCode(HttpStatus.OK)
   async reject(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
-    @Req() req: Request,
+    @Req() req: FastifyRequest,
   ) {
-    const operatorId = (req.headers.get('x-operator-id') as string) ?? 'unknown';
+    const operatorId = (req.headers['x-operator-id'] as string) ?? 'unknown';
     const row = await this.service.reject(id, operatorId);
     return promoView(row);
   }

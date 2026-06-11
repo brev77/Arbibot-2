@@ -1,4 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
@@ -299,7 +305,7 @@ export class ConfigurationsService {
     const isSensitive = dto.isSensitive ?? SENSITIVE_KEYS_PATTERN.test(dto.configKey);
 
     if (isSensitive && !dto.approveReason) {
-      throw new Error(
+      throw new BadRequestException(
         `Config key '${dto.configKey}' is sensitive and requires approve_reason`,
       );
     }
@@ -397,14 +403,14 @@ export class ConfigurationsService {
 
     const existing = await this.getByKey(configKey, scopeType, scopeValue);
     if (!existing) {
-      throw new Error(
+      throw new NotFoundException(
         `Configuration not found: ${configKey} [${scopeType}:${scopeValue || 'global'}]`,
       );
     }
 
     const isSensitive = dto.isSensitive ?? SENSITIVE_KEYS_PATTERN.test(configKey);
     if (isSensitive && !dto.approveReason) {
-      throw new Error(
+      throw new BadRequestException(
         `Config key '${configKey}' is sensitive and requires approve_reason`,
       );
     }
@@ -499,13 +505,13 @@ export class ConfigurationsService {
       fromScopeType === toScopeType &&
       fromScopeValue === toScopeValue
     ) {
-      throw new Error(
+      throw new BadRequestException(
         'Promotion requires different source and target scopes',
       );
     }
 
     if (SENSITIVE_KEYS_PATTERN.test(configKey) && !dto.approveReason) {
-      throw new Error(
+      throw new BadRequestException(
         `Config key '${configKey}' is sensitive and requires approve_reason for promotion`,
       );
     }
@@ -533,7 +539,7 @@ export class ConfigurationsService {
       fromScopeValue,
     );
     if (!source) {
-      throw new Error(
+      throw new NotFoundException(
         `Source configuration not found: ${configKey} [${fromScopeType}:${fromScopeValue ?? 'global'}]`,
       );
     }
@@ -544,7 +550,7 @@ export class ConfigurationsService {
       toScopeValue,
     );
     if (targetExisting) {
-      throw new Error(
+      throw new ConflictException(
         `Target scope already has an active configuration for '${configKey}'. Update or rollback the target scope first.`,
       );
     }
@@ -643,7 +649,7 @@ export class ConfigurationsService {
     operatorId: string,
   ): Promise<ConfigurationResponseDto> {
     if (dto.status !== ConfigurationStatus.ACTIVE) {
-      throw new Error(
+      throw new BadRequestException(
         'Only activation (status=active) is supported via this endpoint; create drafts with POST.',
       );
     }
@@ -652,7 +658,7 @@ export class ConfigurationsService {
     const scopeValue = dto.scopeValue ?? null;
 
     if (SENSITIVE_KEYS_PATTERN.test(configKey) && !dto.approveReason) {
-      throw new Error(
+      throw new BadRequestException(
         `Config key '${configKey}' is sensitive and requires approve_reason for activation`,
       );
     }
@@ -669,7 +675,7 @@ export class ConfigurationsService {
     );
 
     if (!latestRows || latestRows.length === 0) {
-      throw new Error(
+      throw new NotFoundException(
         `Configuration not found: ${configKey} [${scopeType}:${scopeValue ?? 'global'}]`,
       );
     }
@@ -757,7 +763,7 @@ export class ConfigurationsService {
     // Check if key is sensitive
     const isSensitive = dto.isSensitive ?? SENSITIVE_KEYS_PATTERN.test(configKey);
     if (isSensitive && !dto.approveReason) {
-      throw new Error(
+      throw new BadRequestException(
         `Config key '${configKey}' is sensitive and requires approve_reason for rollback`,
       );
     }
@@ -769,7 +775,7 @@ export class ConfigurationsService {
     );
 
     if (!result || result.length === 0) {
-      throw new Error(
+      throw new NotFoundException(
         `Rollback failed for ${configKey} to version ${dto.toVersion}`,
       );
     }

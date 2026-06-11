@@ -88,6 +88,32 @@ async function upsertConfig(configKey, configValue) {
     },
   );
   if (!res.ok) {
+    // PUT may 404 if migration seeded the row but view scope differs;
+    // fall back to POST (create) in that case.
+    if (res.status === 404) {
+      console.log(
+        `PUT ${configKey} returned 404, falling back to POST (create)`,
+      );
+      const {
+        res: postRes,
+        body: postBody,
+      } = await jsonFetch(`${BASE}/policy/configurations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          configKey,
+          configValue,
+          operatorId: OPERATOR_ID,
+        }),
+      });
+      if (!postRes.ok) {
+        throw new Error(
+          `POST configurations ${configKey} (fallback): ${postRes.status} ${JSON.stringify(postBody)}`,
+        );
+      }
+      console.log(`Created ${configKey} ok (fallback from PUT 404)`);
+      return;
+    }
     throw new Error(
       `PUT configurations ${configKey}: ${res.status} ${JSON.stringify(body)}`,
     );
