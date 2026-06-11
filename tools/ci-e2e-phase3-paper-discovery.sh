@@ -59,13 +59,15 @@ LOG_FILES=(
 
 for port in 3018 3015; do
   for _ in $(seq 1 120); do
-    if curl -sf "http://127.0.0.1:${port}/metrics" >/dev/null; then
+    if curl -sf "http://127.0.0.1:${port}/health" >/dev/null 2>&1 || \
+       curl -sf "http://127.0.0.1:${port}/metrics" >/dev/null 2>&1; then
       break
     fi
     sleep 0.5
   done
-  if ! curl -sf "http://127.0.0.1:${port}/metrics" >/dev/null; then
-    echo "service on port ${port} did not expose /metrics in time" >&2
+  if ! curl -sf "http://127.0.0.1:${port}/health" >/dev/null 2>&1 && \
+     ! curl -sf "http://127.0.0.1:${port}/metrics" >/dev/null 2>&1; then
+    echo "service on port ${port} did not expose /health or /metrics in time" >&2
     for f in /tmp/arbibot-e2e-phase3-paper-discovery-*.log; do
       echo "--- tail ${f} ---" >&2
       tail -n 60 "$f" >&2 || true

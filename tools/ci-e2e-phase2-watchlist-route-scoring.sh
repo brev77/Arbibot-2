@@ -46,13 +46,15 @@ LOG_FILES=(
 )
 
 for _ in $(seq 1 120); do
-  if curl -sf "http://127.0.0.1:3000/metrics" >/dev/null; then
+  if curl -sf "http://127.0.0.1:3000/health" >/dev/null 2>&1 || \
+     curl -sf "http://127.0.0.1:3000/metrics" >/dev/null 2>&1; then
     break
   fi
   sleep 0.5
 done
-if ! curl -sf "http://127.0.0.1:3000/metrics" >/dev/null; then
-  echo "risk-service on port 3000 did not expose /metrics in time" >&2
+if ! curl -sf "http://127.0.0.1:3000/health" >/dev/null 2>&1 && \
+   ! curl -sf "http://127.0.0.1:3000/metrics" >/dev/null 2>&1; then
+  echo "risk-service on port 3000 did not expose /health or /metrics in time" >&2
   if [[ -f /tmp/arbibot-e2e-phase2-watchlist-route-scoring-risk.log ]]; then
     echo "--- tail risk log ---" >&2
     tail -n 80 /tmp/arbibot-e2e-phase2-watchlist-route-scoring-risk.log >&2 || true

@@ -56,18 +56,21 @@ LOG_FILES=(
 )
 
 for _ in $(seq 1 120); do
-  if curl -sf "http://127.0.0.1:3000/metrics" >/dev/null && curl -sf "http://127.0.0.1:3019/metrics" >/dev/null; then
+  if (curl -sf "http://127.0.0.1:3000/health" >/dev/null 2>&1 || curl -sf "http://127.0.0.1:3000/metrics" >/dev/null 2>&1) && \
+     (curl -sf "http://127.0.0.1:3019/health" >/dev/null 2>&1 || curl -sf "http://127.0.0.1:3019/metrics" >/dev/null 2>&1); then
     break
   fi
   sleep 0.5
 done
-if ! curl -sf "http://127.0.0.1:3000/metrics" >/dev/null; then
-  echo "risk-service /metrics not ready" >&2
+if ! curl -sf "http://127.0.0.1:3000/health" >/dev/null 2>&1 && \
+   ! curl -sf "http://127.0.0.1:3000/metrics" >/dev/null 2>&1; then
+  echo "risk-service /health or /metrics not ready" >&2
   tail -n 80 /tmp/arbibot-e2e-phase4-risk.log >&2 || true
   exit 1
 fi
-if ! curl -sf "http://127.0.0.1:3019/metrics" >/dev/null; then
-  echo "config-service /metrics not ready" >&2
+if ! curl -sf "http://127.0.0.1:3019/health" >/dev/null 2>&1 && \
+   ! curl -sf "http://127.0.0.1:3019/metrics" >/dev/null 2>&1; then
+  echo "config-service /health or /metrics not ready" >&2
   tail -n 80 /tmp/arbibot-e2e-phase4-config.log >&2 || true
   exit 1
 fi
@@ -84,13 +87,15 @@ PORT=3015 DATABASE_URL="$DATABASE_URL" NODE_ENV="${NODE_ENV:-production}" \
 PIDS+=($!)
 
 for _ in $(seq 1 120); do
-  if curl -sf "http://127.0.0.1:3015/metrics" >/dev/null; then
+  if curl -sf "http://127.0.0.1:3015/health" >/dev/null 2>&1 || \
+     curl -sf "http://127.0.0.1:3015/metrics" >/dev/null 2>&1; then
     break
   fi
   sleep 0.5
 done
-if ! curl -sf "http://127.0.0.1:3015/metrics" >/dev/null; then
-  echo "market-intake /metrics not ready" >&2
+if ! curl -sf "http://127.0.0.1:3015/health" >/dev/null 2>&1 && \
+   ! curl -sf "http://127.0.0.1:3015/metrics" >/dev/null 2>&1; then
+  echo "market-intake /health or /metrics not ready" >&2
   tail -n 80 /tmp/arbibot-e2e-phase4-intake.log >&2 || true
   exit 1
 fi

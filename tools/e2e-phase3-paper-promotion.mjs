@@ -15,19 +15,21 @@ const OPP_URL = (process.env.OPPORTUNITY_SERVICE_URL ?? 'http://127.0.0.1:3010')
 const PAPER_URL = (process.env.PAPER_TRADING_SERVICE_URL ?? 'http://127.0.0.1:3018').replace(/\/$/, '');
 
 async function waitForMetricsReady(baseUrl, label, maxAttempts = 120) {
-  const metricsUrl = `${baseUrl}/metrics`;
+  const probes = [`${baseUrl}/health`, `${baseUrl}/metrics`];
   for (let i = 0; i < maxAttempts; i += 1) {
-    try {
-      const res = await fetch(metricsUrl, { method: 'GET' });
-      if (res.ok) {
-        return;
+    for (const url of probes) {
+      try {
+        const res = await fetch(url, { method: 'GET' });
+        if (res.ok) {
+          return;
+        }
+      } catch {
+        /* retry next probe */
       }
-    } catch {
-      /* retry */
     }
     await sleep(500);
   }
-  throw new Error(`${label} did not expose /metrics in time (${metricsUrl})`);
+  throw new Error(`${label} did not expose /health or /metrics in time`);
 }
 
 async function jsonFetch(url, init) {

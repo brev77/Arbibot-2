@@ -98,25 +98,27 @@ async function httpFetch(url, options = {}) {
   }
 }
 
-// Wait for service health
+// Wait for service health — tries /health (NestJS controller) first, falls back to /metrics (Fastify direct)
 async function waitForService(url, serviceName, maxAttempts = 30, intervalMs = 2000) {
   info(`Waiting for ${serviceName}...`);
   
   for (let i = 0; i < maxAttempts; i++) {
-    try {
-      const response = await fetch(url + '/metrics', { method: 'GET' });
-      if (response.ok) {
-        success(`${serviceName} is healthy`);
-        return true;
+    for (const probePath of ['/health', '/metrics']) {
+      try {
+        const response = await fetch(url + probePath, { method: 'GET' });
+        if (response.ok) {
+          success(`${serviceName} is healthy (via ${probePath})`);
+          return true;
+        }
+      } catch (err) {
+        // Service not ready yet, try next probe
       }
-    } catch (err) {
-      // Service not ready yet, continue waiting
     }
     
     await new Promise(resolve => setTimeout(resolve, intervalMs));
   }
   
-  error(`${serviceName} did not expose /metrics after ${maxAttempts} attempts`);
+  error(`${serviceName} did not expose /health or /metrics after ${maxAttempts} attempts`);
   return false;
 }
 
