@@ -27,7 +27,7 @@
     "reflect-metadata": "^0.2.2",
     "ts-jest": "^29.4.9",
     "typeorm": "^0.3.27",
-    "typescript": "~5.9.3"
+    "typescript": "~6.0.3"
   },
   "jest": {
     "moduleFileExtensions": ["js", "json", "ts"],
