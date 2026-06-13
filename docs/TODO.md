@@ -74,6 +74,6 @@
 | 2026-05-21 | **DEX-2 cross-chain fully complete (session 37):** `DEX-2-0-ADR` → `DEX-2-4-E2E` — все 7 шагов `done`. 3 bridge adapter (Across, Stargate, Native L2), `MultiLegPlanBuilder`, `CrossChainReconciliationService` + worker, multi-chain E2E. 27 suites, 392/392 tests pass. Build 21/21 ✅, Lint 28/28 ✅ |
 | 2026-05-21 | **DEX-DOC complete (session 38):** `DEX-DOC-RUNBOOK-BRIDGE` + `DEX-DOC-ROLLBACK` → `done`. **Все 46/46 DEX шагов завершены.** Документация синхронизирована (progress.md, TODO.md, AGENTS.md) |
 | 2026-05-21 | **RpcProviderManager tests expanded:** 11→22 тестов (init/destroy, primary-only, error handling, health check success/failure, metrics, edge cases). **27 suites, 392/392 tests pass.** |
+| 2026-05-21 | **Pre-deploy review gate:** создан [`docs/pre-deploy-review.md`](pre-deploy-review.md) — consolidated pre-deploy чеклист (10 разделов, PAPER-READY vs LIVE-READY режимы, findings F1–F5, gate-sequence stages 0–7, методология верификации, sign-off). 5 findings: F1 (backend без auth guard, network-isolation only), F2 (`OPENCLAW_*` → `HERMES_*` в `tools/validate-env.sh`), F3 (`tools/verify-deployment.sh` проверяет прямые порты не публикуемые в prod), F4 (`ARBIBOT_DEV_ROLE` env-fallback активен в prod), F5 (`deployment-readiness-assessment.md` маркировка PAPER vs LIVE). Cross-link добавлен в [`docs/deployment-readiness-assessment.md`](deployment-readiness-assessment.md). F1–F4 заведены как backlog (отдельная задача). |
 
-*Последняя актуализация файла: 2026-05-21 (session 39 — feature-complete sync: .cursor/rules/arbibot-project.mdc, AGENTS.md, docs/progress.md, docs/TODO.md).*
-  +++++++ REPLACE
+*Последняя актуализация файла: 2026-05-21 (session 40 — pre-deploy review gate: docs/pre-deploy-review.md + findings F1–F5).*

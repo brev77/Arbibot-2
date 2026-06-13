@@ -72,16 +72,26 @@ if [[ ! -f "${ENV_FILE}" ]]; then
   exit 1
 fi
 
-# Parse env file (skip comments and empty lines)
+# Parse env file (skip comments and empty lines; only VAR=value lines parsed)
 declare -A ENV_VARS
-while IFS='=' read -r key value; do
-  # Skip comments and empty lines
-  [[ "$key" =~ ^#.*$ ]] && continue
-  [[ -z "$key" ]] && continue
-  # Trim whitespace
-  key=$(echo "$key" | xargs)
-  value=$(echo "$value" | xargs)
-  ENV_VARS["$key"]="$value"
+while IFS= read -r line || [[ -n "$line" ]]; do
+  # Strip trailing CR (Windows CRLF compatibility)
+  line="${line%$'\r'}"
+  # Skip blank lines and comments
+  [[ -z "${line// /}" ]] && continue
+  [[ "$line" =~ ^[[:space:]]*# ]] && continue
+  # Match strict VAR=value (key must be a valid env identifier)
+  if [[ "$line" =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+    key="${BASH_REMATCH[1]}"
+    value="${BASH_REMATCH[2]}"
+    # Strip optional surrounding quotes (single or double)
+    if [[ "${value:0:1}" == '"' && "${value: -1}" == '"' ]]; then
+      value="${value:1:-1}"
+    elif [[ "${value:0:1}" == "'" && "${value: -1}" == "'" ]]; then
+      value="${value:1:-1}"
+    fi
+    ENV_VARS["$key"]="$value"
+  fi
 done < "${ENV_FILE}"
 
 # ── 1. Required secrets ────────────────────────────────────────
@@ -91,8 +101,8 @@ SECRET_VARS=(
   "POSTGRES_PASSWORD"
   "GRAFANA_ADMIN_PASSWORD"
   "RISK_POLICY_JOB_TRIGGER_TOKEN"
-  "OPENCLAW_API_KEYS"
-  "OPENCLAW_BFF_API_KEY"
+  "HERMES_API_KEYS"
+  "HERMES_BFF_API_KEY"
 )
 
 for var in "${SECRET_VARS[@]}"; do
@@ -253,22 +263,28 @@ else
   log_fail "${PLACEHOLDER_COUNT} variables still have <CHANGE_ME> placeholders"
 fi
 
+# Check for ARBIBOT_DEV_ROLE in production env (F4: bypasses RBAC)
+if [[ -n "${ENV_VARS[ARBIBOT_DEV_ROLE]:-}" ]]; then
+  log_fail "ARBIBOT_DEV_ROLE is set — env-fallback bypasses RBAC (see F4 in docs/pre-deploy-review.md). Remove from production .env."
+fi
+
 # Check CORS origins
 CORS="${ENV_VARS[CORS_ORIGINS]:-}"
-if [[ "${CORS}" == *"localhost"* && "${CORS}" != *"localhost"* ]]; then
-  log_warn "CORS_ORIGINS includes localhost — remove for production"
-elif [[ -n "${CORS}" && "${CORS}" != *"*"* ]]; then
-  log_pass "CORS_ORIGINS — specific origins set"
-elif [[ "${CORS}" == *"*"* ]]; then
+if [[ "${CORS}" == *"*"* ]]; then
   log_fail "CORS_ORIGINS='*' — wildcard CORS is insecure for production"
+elif [[ "${CORS}" == *"localhost"* ]]; then
+  log_warn "CORS_ORIGINS includes localhost — remove for production"
+elif [[ -n "${CORS}" ]]; then
+  log_pass "CORS_ORIGINS — specific origins set"
+else
+  log_warn "CORS_ORIGINS — not set (defaults may not be safe for production)"
 fi
 
 # ── 8. Optional but recommended ────────────────────────────────
 log_section "Optional (Recommended)"
 
 OPT_VARS=(
-  "ARBIBOT_DEV_ROLE"
-  "OPENCLAW_GATEWAY_URL"
+  "HERMES_GATEWAY_URL"
   "PAPER_TRADING_SERVICE_URL"
 )
 

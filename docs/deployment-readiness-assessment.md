@@ -4,6 +4,8 @@
 **Статус проекта:** Feature-complete (Phase 0–5 + DEX-1/2/DOC)  
 **Сводная оценка:** **100/100** — ✅ READY для Paper Trading Deploy
 
+> ⚠️ **Важно:** эта оценка — **PAPER-READY**, не LIVE-READY. Перед включением live capital обязательно прогоните consolidated gate [`docs/pre-deploy-review.md`](pre-deploy-review.md) с проверкой всех `[LIVE-ONLY]` пунктов и findings F1–F5 (backend auth guard, env-валидатор `HERMES_*`, изолированный verify-deployment, `ARBIBOT_DEV_ROLE` в prod, явная маркировка PAPER/LIVE в этом документе).
+
 ---
 
 ## 1. Код и функциональность — ✅ GO (100%)

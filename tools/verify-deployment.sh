@@ -8,6 +8,11 @@
 #   bash tools/verify-deployment.sh
 #   BASE_URL=https://operator.example.com bash tools/verify-deployment.sh
 #   SKIP_SERVICES="redpanda,promtail" bash tools/verify-deployment.sh
+#   VERIFY_MODE=isolated bash tools/verify-deployment.sh  # prod: only nginx + docker exec
+#
+# VERIFY_MODE:
+#   direct     (default) — curl backend services on published ports (dev/local)
+#   isolated   (prod)    — skip direct backend port checks; use nginx /health + docker exec
 #
 # Exit codes:
 #   0 — all checks passed
@@ -21,11 +26,13 @@ BASE_URL="${BASE_URL:-http://localhost}"
 SKIP_SERVICES="${SKIP_SERVICES:-}"
 TIMEOUT="${CURL_TIMEOUT:-10}"
 VERBOSE="${VERBOSE:-0}"
+VERIFY_MODE="${VERIFY_MODE:-direct}"  # direct (default) | isolated (prod)
 
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 PASS=0
@@ -48,6 +55,10 @@ log_warn() {
   WARN=$((WARN + 1))
   WARNINGS+=("$1")
   echo -e "  ${YELLOW}⚠${NC} $1"
+}
+
+log_info() {
+  echo -e "  ${BLUE}ℹ${NC} $1"
 }
 
 log_section() {
@@ -137,7 +148,7 @@ CONTAINERS=(
   "reconciliation-service"
   "paper-trading-service"
   "config-service"
-  "openclaw-gateway"
+  "hermes-gateway"
   "web"
   "nginx"
   "prometheus"
@@ -154,20 +165,29 @@ done
 # ── 2. HTTP health checks ────────────────────────────────────
 log_section "HTTP Health Checks"
 
-# nginx / TLS termination
+# nginx / TLS termination (always reachable, published port in isolated mode)
 check_http "nginx-HTTP" "${BASE_URL}/health" 200
 
-# Backend services (via Docker network or published ports)
-# These check /metrics endpoint which is the HEALTHCHECK target
-check_http "risk-service" "${BASE_URL}:3000/metrics" 200 || true
-check_http "config-service" "${BASE_URL}:3019/metrics" 200 || true
-check_http "opportunity-service" "${BASE_URL}:3010/metrics" 200 || true
-check_http "execution-orchestrator" "${BASE_URL}:3012/metrics" 200 || true
-check_http "paper-trading-service" "${BASE_URL}:3018/metrics" 200 || true
-check_http "openclaw-gateway" "${BASE_URL}:3020/health" 200 || true
+if [[ "${VERIFY_MODE}" == "isolated" ]]; then
+  log_warn "VERIFY_MODE=isolated — skipping direct backend port checks (prod network isolation)"
+  log_info "Use 'docker exec <svc> curl -sf localhost:<port>/metrics' for in-network verification"
+else
+  # Direct backend port checks (dev/local where ports are published)
+  check_http "risk-service" "${BASE_URL}:3000/metrics" 200 || true
+  check_http "config-service" "${BASE_URL}:3019/metrics" 200 || true
+  check_http "opportunity-service" "${BASE_URL}:3010/metrics" 200 || true
+  check_http "execution-orchestrator" "${BASE_URL}:3012/metrics" 200 || true
+  check_http "paper-trading-service" "${BASE_URL}:3018/metrics" 200 || true
+  check_http "hermes-gateway" "${BASE_URL}:3020/health" 200 || true
+  check_http "canonical-market-service" "${BASE_URL}:3014/metrics" 200 || true
+  check_http "market-intake-service" "${BASE_URL}:3015/metrics" 200 || true
+  check_http "portfolio-service" "${BASE_URL}:3016/metrics" 200 || true
+  check_http "reconciliation-service" "${BASE_URL}:3017/metrics" 200 || true
+  check_http "audit-service" "${BASE_URL}:3013/metrics" 200 || true
+fi
 
-# Web dashboard health
-check_http "web-health" "${BASE_URL}:3000/api/health" 200 || true
+# Web dashboard health (always checked — nginx-routed)
+check_http "web-health" "${BASE_URL}/api/health" 200 || true
 
 # ── 3. Database connectivity ─────────────────────────────────
 log_section "Database"
@@ -248,9 +268,14 @@ fi
 # ── 8. Canonical registry ───────────────────────────────────
 log_section "Application Data"
 
-# Check if canonical registry is seeded (via web BFF or direct)
-SEED_CHECK=$(curl -sk --max-time "${TIMEOUT}" \
-  "${BASE_URL}:3014/canonical/instruments" 2>/dev/null || echo "")
+# Check if canonical registry is seeded
+# In isolated mode, use web BFF route; in direct mode, hit canonical-market-service directly
+if [[ "${VERIFY_MODE}" == "isolated" ]]; then
+  SEED_URL="${BASE_URL}/api/operator/canonical/instruments"
+else
+  SEED_URL="${BASE_URL}:3014/canonical/instruments"
+fi
+SEED_CHECK=$(curl -sk --max-time "${TIMEOUT}" "${SEED_URL}" 2>/dev/null || echo "")
 if [[ -n "${SEED_CHECK}" && "${SEED_CHECK}" != "" ]]; then
   log_pass "Canonical registry — seeded"
 else
