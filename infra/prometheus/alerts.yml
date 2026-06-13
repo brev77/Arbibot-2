@@ -2,7 +2,6 @@
 # Place alongside prometheus.yml and add to rule_files
 
 groups:
-  # ── Service health ───────────────────────────────────────────
   - name: service_health
     rules:
       - alert: ServiceDown
@@ -21,9 +20,8 @@ groups:
           severity: warning
         annotations:
           summary: "High 5xx error rate on {{ $labels.job }}"
-          description: "Error rate is {{ $value | humanizePercentage }} on {{ $labels.job }}."
+          description: "Error rate is {{ $value }} on {{ $labels.job }}."
 
-  # ── Paper trading ────────────────────────────────────────────
   - name: paper_trading
     rules:
       - alert: PaperDriftBpsHigh
@@ -44,7 +42,6 @@ groups:
           summary: "Sustained paper drift ({{ $value }} bps for 15m)"
           description: "Paper drift has been above 30 bps for 15 minutes."
 
-  # ── DEX ──────────────────────────────────────────────────────
   - name: dex_health
     rules:
       - alert: DEXUnhealthy
@@ -65,7 +62,6 @@ groups:
           summary: "DEX RPC is degraded"
           description: "DEX RPC latency or availability is degraded for 10 minutes."
 
-  # ── System resources ────────────────────────────────────────
   - name: system_resources
     rules:
       - alert: HighMemoryUsage
@@ -74,10 +70,9 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "High memory usage on {{ $labels.job }} ({{ $value | printf \"%.0f\" }}MB)"
-          description: "Service {{ $labels.job }} is using {{ $value | printf \"%.0f\" }}MB resident memory."
+          summary: "High memory usage on {{ $labels.job }}"
+          description: "Service {{ $labels.job }} is using {{ $value }} MB resident memory."
 
-  # ── Intake throttling ───────────────────────────────────────
   - name: intake
     rules:
       - alert: IntakeDegraded
@@ -88,3 +83,56 @@ groups:
         annotations:
           summary: "Market intake is in degraded mode"
           description: "Market intake service has been in degraded/fallback mode for 5 minutes."
+
+  - name: reconciliation
+    rules:
+      - alert: ReconciliationMismatches
+        expr: increase(arb_reconciliation_mismatches_total[15m]) > 5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Reconciliation mismatches detected ({{ $value }} in 15m)"
+          description: "Reconciliation service has detected {{ $value }} mismatches in the last 15 minutes. Run recon P0 procedure."
+
+  - name: capital_execution
+    rules:
+      - alert: CapitalExhaustion
+        expr: arb_capital_available_usd < 1000
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Available capital below $1000 ({{ $value }} USD)"
+          description: "Capital service reports available capital under $1000 USD for 5 minutes. New reservations may fail."
+
+      - alert: ExecutionPlanStuck
+        expr: max by (state) (time() - arb_execution_plan_state_changed_timestamp_seconds{state=~"armed|executing"}) > 600
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Execution plan stuck in {{ $labels.state }} state"
+          description: "An execution plan has been in {{ $labels.state }} state for more than 10 minutes without progress."
+
+  - name: messaging
+    rules:
+      - alert: OutboxRelayBacklog
+        expr: arb_outbox_relay_pending_total > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Outbox relay backlog is high ({{ $value }} pending)"
+          description: "Outbox relay has more than 100 pending events for 5 minutes. Check relay worker and Kafka/Redpanda connectivity."
+
+  - name: infrastructure
+    rules:
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}) < 0.15
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low disk space on {{ $labels.instance }}"
+          description: "Disk space is below 15% on {{ $labels.instance }} ({{ $value }} free)."

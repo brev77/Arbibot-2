@@ -1,0 +1,126 @@
+# Gitleaks configuration for Arbibot 2
+# Docs: https://github.com/gitleaks/gitleaks#configuration
+
+title = "Arbibot 2 — Secret Scanning"
+
+[extend]
+# Start from the default ruleset bundled with gitleaks
+useDefault = true
+
+# ----- Global allowlist (false positives we accept) -----
+[allowlist]
+description = "Global allowlist — examples, placeholders, env templates"
+paths = [
+  '''package-lock\.json''',
+  '''pnpm-lock\.yaml''',
+  '''yarn\.lock''',
+  '''.*\.svg''',
+  '''.*\.png''',
+  '''.*\.jpg''',
+  '''.*\.gif''',
+  '''graphify-out/.*''',
+  '''node_modules/.*''',
+  '''.git/.*''',
+]
+regexes = [
+  # Placeholders in env examples
+  '''<CHANGE_ME_USE_VAULT>''',
+  '''<your-.*-here>''',
+  '''<REPLACE_ME>''',
+  '''change-me.*''',
+  '''example.*key.*''',
+  # Compose / k8s templates
+  '''\$\{.*_PASSWORD\}''',
+  '''\$\{.*_KEY\}''',
+  '''\$\{.*_SECRET\}''',
+  # Inline docs / comments
+  '''# .*example.*''',
+  # Postgres connection string placeholders
+  '''postgresql://user:password@''',
+  # Public test mnemonic (well-known test vector)
+  '''test test test test test test test test test test test junk''',
+  # Hex zero address / zero key
+  '''0x0{40}''',
+  # Generic placeholder strings
+  '''YOUR_.*_HERE''',
+  '''REPLACE_.*_HERE''',
+]
+commits = []
+
+# ----- Custom rules for Arbibot-specific patterns -----
+
+# Detect Arbibot-specific env var assignments that look like real secrets
+[[rules]]
+id = "arbibot-env-secret"
+description = "Arbibot ENV secret assignment"
+regex = '''(?i)(DATABASE_URL|REDIS_URL|HERMES_API_KEYS|HERMES_API_KEY|JWT_SECRET|OPERATOR_SESSION_SECRET|BRIDGE_.*_API_KEY|DEX_PRIVATE_KEY|WALLET_.*_KEY|GRPC_.*_TOKEN|SLACK_WEBHOOK|TELEGRAM_BOT_TOKEN|GRAFANA_ADMIN_PASSWORD|POSTGRES_PASSWORD|VAULT_TOKEN|VAULT_APPROLE_SECRET_ID)\s*=\s*['"]?[A-Za-z0-9+/=_\-]{16,}['"]?'''
+tags = ["arbibot", "env", "secret"]
+[rules.allowlist]
+regexes = [
+  '''<CHANGE_ME_USE_VAULT>''',
+  '''\$\{.*\}''',
+  '''change-me.*''',
+  '''example.*''',
+]
+
+# Detect private keys (Ethereum / generic)
+[[rules]]
+id = "ethereum-private-key"
+description = "Ethereum-style 64-hex private key"
+regex = '''(?i)0x[0-9a-f]{64}'''
+tags = ["ethereum", "private-key"]
+[rules.allowlist]
+regexes = [
+  '''0x0{64}''',
+  # Hex zero / hardcoded test key (revoked, public in docs)
+  '''0x[0-9a-f]*0{32,}''',
+]
+
+# Detect AWS access keys
+[[rules]]
+id = "aws-access-key"
+description = "AWS Access Key ID"
+regex = '''AKIA[0-9A-Z]{16}'''
+tags = ["aws"]
+
+# Detect AWS secret access keys (40-char base64 after context)
+[[rules]]
+id = "aws-secret-key"
+description = "AWS Secret Access Key"
+regex = '''(?i)aws(.{0,20})?(secret|sk)[^a-z0-9]{0,10}[A-Za-z0-9/+=]{40}'''
+tags = ["aws"]
+
+# Detect Slack webhooks
+[[rules]]
+id = "slack-webhook"
+description = "Slack webhook URL"
+regex = '''https://hooks\.slack\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/[A-Za-z0-9]+'''
+tags = ["slack"]
+
+# Detect Telegram bot tokens
+[[rules]]
+id = "telegram-bot-token"
+description = "Telegram bot token"
+regex = '''[0-9]+:[A-Za-z0-9_-]{35}'''
+tags = ["telegram"]
+
+# Detect generic API keys in code (assignments with `apiKey`, `api_key`)
+[[rules]]
+id = "generic-api-key-assignment"
+description = "Generic API key assignment"
+regex = '''(?i)(api[_-]?key|apikey)\s*[:=]\s*['"]?[A-Za-z0-9_\-]{32,}['"]?'''
+tags = ["api-key"]
+[rules.allowlist]
+paths = [
+  '''.*\.spec\.ts''',
+  '''.*\.spec\.tsx''',
+  '''.*\.test\.ts''',
+  '''docs/.*''',
+]
+regexes = [
+  '''process\.env\..*''',
+  '''configService\.get''',
+]
+
+# ----- Configuration tuning -----
+# (Global allowlist description set above; no further overrides needed.)

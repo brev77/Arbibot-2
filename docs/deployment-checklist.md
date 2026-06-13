@@ -12,7 +12,7 @@
 - [ ] `npm run build` — 21/21 пакетов собирается без ошибок
 - [ ] `npm run lint` — 28/28 пакетов проходит без ошибок
 - [ ] `npm run test` — 392/392 тестов проходит (27 suites)
-- [ ] `npm run db:verify-migrations:all` — все миграции 001–036 применены
+- [ ] `npm run db:verify-migrations:all` — все миграции 001–037 применены (включая `037_fix_get_effective_config_value.sql`)
 - [ ] Нет незакоммиченных изменений в production ветке
 
 ### 2. Environment
@@ -74,7 +74,7 @@ docker compose -f infra/docker-compose.prod.yml up -d
 docker exec $(docker ps -q -f name=postgres) \
   psql -U arbibot -c "SELECT count(*) FROM schema_migrations;"
 ```
-- [ ] 36 миграций применено
+- [ ] 37 миграций применено (schema_migrations count = 37)
 
 ### Step 5: Canonical Registry Seeding
 ```bash

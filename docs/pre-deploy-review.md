@@ -2,7 +2,7 @@
 
 > **Single consolidated pre-deploy gate.** Этот документ консолидирует чеклист из 10 разделов (база/контракты/бизнес-потоки/API security/data security/execution safety/observability/frontend/приоритеты/порядок запуска) и отображает каждый пункт на конкретные артефакты, команды и находки этого репозитория. Он **не дублирует** существующие runbook-документы, а ссылается на них как на авторитетные источники.
 
-**Версия документа:** 1.0 (2026-05-21)
+**Версия документа:** 1.1 (2026-06-13) — corrections pass по итогам аудита: N1 (nginx 80→80+443), N2 (network isolation nuance), N3 (миграции 036→037), sync alert-каталога 8.3 с `alerts.yml`, усиление F4/F3 бонусами реализации.
 **Scope:** paper-first deployment → (после приёмки) live minimal capital.
 **Связанные каноны:**
 - [`docs/deployment-checklist.md`](deployment-checklist.md) — поэтапный деплой.
@@ -35,14 +35,16 @@
 
 ### 🔴 F1. Backend NestJS-сервисы не имеют auth guard
 
-**Где:** `apps/*/src/main.ts` (risk, opportunity, capital, execution, audit, canonical, intake, portfolio, reconciliation, paper, config) вызывают только `applyArbibotHttpSecurity` (helmet + rate-limit + CORS). Ни один сервис не регистрирует `AuthGuard` глобально. Аутентификация держится **исключительно на network isolation** в `infra/docker-compose.prod.yml` (публикуется только `nginx:80`, остальные сервисы в сети `arbibot-backend`, без `ports:`).
+**Где:** `apps/*/src/main.ts` (risk, opportunity, capital, execution, audit, canonical, intake, portfolio, reconciliation, paper, config) вызывают только `applyArbibotHttpSecurity` (helmet + rate-limit + CORS). Ни один сервис не регистрирует `AuthGuard` глобально. Аутентификация держится **исключительно на network isolation** в `infra/docker-compose.prod.yml` (публикуется только `nginx:80`/`443` — TLS termination, остальные сервисы в сети `arbibot-backend`, без `ports:`).
 
 **Исключения (имеют guard):** `apps/hermes-gateway` (`HermesAuthGuard` — проверка `x-hermes-api-key`).
 
 **Риск:** Любая утечка сети/портов (docker inspect, override, debug-port, sidecar) → полный unauthenticated доступ к `/execution/plans/:id/arm`, `/capital/reserve`, `/policy/jobs/*`. Для trading-системы это unacceptable для live.
 
 **Remediation:**
-- `[PAPER]` — подтверждение, что `infra/docker-compose.prod.yml` публикует **только** `nginx:80`, все backend-сервисы без `ports:`, firewall deny-all извне.
+- `[PAPER]` — подтверждение, что `infra/docker-compose.prod.yml` публикует **только** `nginx:80`/`443` (TLS termination), все backend-сервисы без `ports:`, firewall deny-all извне.
+
+> **⚠️ N2 — нюанс изоляции (synced с `docker-compose.prod.yml:521-527`, 2026-06-13):** сеть `arbibot-backend` **не** помечена `internal: true` (`internal: false`). Изоляция держится **только** на отсутствии `ports:` у backend-сервисов и на firewall-политике хоста, **а не** на docker network enforcement. `arbibot-observability`, напротив, имеет `internal: true`. **Следствие для review:** любой случайный `ports:` в override-файле, debug-port или проброс через sidecar обнажит unauthenticated-сервисы — это нужно явно проверять в review каждого override/compose-изменения.
 - `[LIVE-ONLY]` — добавить service-to-service auth guard (HMAC или mTLS на Fastify hook); завести отдельную задачу (см. раздел 10 этого документа, «Post-paper backlog»).
 
 **Связанные документы:** [`docs/security-baseline.md`](security-baseline.md) (mTLS — целевое состояние, но «не в scope»).
@@ -68,7 +70,9 @@
 
 **Статус:** Исправлено — добавлен режим `VERIFY_MODE=isolated` (default: `direct` для dev/local). В isolated-режиме проверяются только nginx `/health` + web BFF + `docker exec` для in-network checks.
 
-**Где:** `tools/verify-deployment.sh` строки 162–170 делают `curl http://${BASE_URL}:3000/metrics`, `:3010`, `:3012`, `:3018`, `:3019`, `:3020`. В `infra/docker-compose.prod.yml` эти порты **не публикуются** наружу (только `nginx:80`), потому в изолированном prod-деплое эти проверки возвращают `000` / FAIL, маскируя реальные проблемы.
+> **✅ Бонус (сильнее обещанного):** для canonical registry в isolated-режиме используется BFF-маршрут `/api/operator/canonical/instruments` (`verify-deployment.sh:273-277`), а не прямой порт canonical-market-service — это предотвращает ложный FAIL даже когда сервис не опубликован наружу.
+
+**Где:** `tools/verify-deployment.sh` строки 162–170 делают `curl http://${BASE_URL}:3000/metrics`, `:3010`, `:3012`, `:3018`, `:3019`, `:3020`. В `infra/docker-compose.prod.yml` эти порты **не публикуются** наружу (только `nginx:80`/`443`), потому в изолированном prod-деплое эти проверки возвращали `000` / FAIL, маскируя реальные проблемы.
 
 **Риск:** Шум в verifications → оператор начинает игнорировать FAIL, пропуская реальные поломки.
 
@@ -88,7 +92,9 @@ Dev-default `'operator'` отключается в prod (`NODE_ENV !== 'producti
 
 **Remediation:**
 - `[PAPER + LIVE]` — подтвердить, что `.env` продакшена **не содержит** `ARBIBOT_DEV_ROLE` (проверка через `validate-env.sh` после исправления F2).
-- `[LIVE-ONLY]` — сделать env-fallback noop в production (отдельная задача).
+
+  > **✅ Бонус (сильнее обещанного, synced с `tools/validate-env.sh:266-269`, 2026-06-13):** `validate-env.sh` не просто предупреждает о `ARBIBOT_DEV_ROLE`, а **блокирует deploy** (`log_fail` → `FAIL += 1` → `exit 1`, см. строки 318-321). Дополнительно `.env.production.example:59-63` явно комментирует переменную с предупреждением и ссылкой на F4.
+- `[LIVE-ONLY]` — сделать env-fallback noop в production (отдельная задача, см. F4 в разделе 11).
 
 ---
 
@@ -117,8 +123,8 @@ Dev-default `'operator'` отключается в prod (`NODE_ENV !== 'producti
 | 1.1 | `npm run lint` | Turbo lint — 0 errors (28/28 packages green по AGENTS.md) | Не деплоить. Пофиксить lint. |
 | 1.2 | `npm run build` | Turbo build — 21/21 packages green | Проверить `tsconfig.build.json`, `dist/main.js` под `apps/*/dist/`. |
 | 1.3 | `npm run test` | Turbo test — 392/392 tests, 27 suites green | Изолировать падающий suite, прогнать локально `-w @arbibot/<pkg>`. |
-| 1.4 | `npm run db:migrate` | Миграции 001–036 применены без ошибок | Проверить `DATABASE_URL`, `infra/postgres/migrations/`. |
-| 1.5 | `npm run db:verify-migrations:all` | Все 36 строк в `schema_migrations` | Если номер < 36 — повторить 1.4. |
+| 1.4 | `npm run db:migrate` | Миграции 001–037 применены без ошибок (включая `037_fix_get_effective_config_value.sql`) | Проверить `DATABASE_URL`, `infra/postgres/migrations/`. |
+| 1.5 | `npm run db:verify-migrations:all` | Все 37 строк в `schema_migrations` | Если номер < 37 — повторить 1.4. |
 
 ### Дополнительные проверки
 
@@ -247,7 +253,7 @@ npm run seed:outbox-smoke-events:all
 | Все `/api/operator/*` покрыты matcher | `apps/web/middleware.ts:68` | matcher включает `/api/operator/:path*` |
 | Insufficient role → 403 | middleware | `OPERATOR_INSUFFICIENT_ROLE` JSON |
 
-**Подтвердить (F4):** `.env` продакшена НЕ содержит `ARBIBOT_DEV_ROLE`.
+**Подтвердить (F4):** `.env` продакшена НЕ содержит `ARBIBOT_DEV_ROLE` — это **автоматически блокируется** `validate-env.sh` (exit 1 при наличии, см. bonus в F1/F4 раздела 1).
 
 ### 4.2 Destructive operator actions
 
@@ -283,7 +289,7 @@ npm run seed:outbox-smoke-events:all
 
 | Режим | Проверка |
 |-------|----------|
-| `[PAPER]` | `infra/docker-compose.prod.yml`: только `nginx:80` в `ports:`, все backend-сервисы без `ports:`, сеть `arbibot-backend` изолирована. |
+| `[PAPER]` | `infra/docker-compose.prod.yml`: только `nginx:80`/`443` в `ports:` (TLS termination), все backend-сервисы без `ports:`. **⚠️ N2 нюанс изоляции:** `arbibot-backend` **не** имеет `internal: true` (`docker-compose.prod.yml:521-524`), `arbibot-observability` — имеет (`internal: true`). Защита backend держится на отсутствии `ports:` + firewall хоста, **не** на docker network enforcement — проверять override-файлы и sidecars на отсутствие случайно добавленных `ports:`. |
 | `[LIVE-ONLY]` | Service-to-service auth guard или mTLS (отдельная задача). |
 
 ### 4.6 Audit logging
@@ -442,7 +448,7 @@ ENV_FILE=infra/.env npm run verify:env
 | `arb_paper_drift_bps_current` | gauge | paper drift |
 | `arb_dex_swap_total` | counter | DEX swap success rate |
 | `arb_dex_rpc_latency_seconds` | histogram | DEX RPC latency |
-| `arb_HERMES_safe_mode_redis_errors_total` | counter | Hermes safe-mode |
+| `arb_hermes_safe_mode_redis_errors_total` | counter | Hermes safe-mode |
 
 ### 8.2 Логи и tracing
 
@@ -457,20 +463,22 @@ ENV_FILE=infra/.env npm run verify:env
 
 ### 8.3 Alerts
 
-| Alert | Severity | Когда page |
-|-------|----------|------------|
-| `ArbibotHttp5xxRate` | page | 5xx rate > threshold |
-| `ArbibotHttpLatencyP99` | ticket | SLO breach |
-| `OutboxRelayLag` | page | oldest unprocessed outbox row возраст |
-| `KafkaPublishFailures` | page | bridge errors |
-| `ReconciliationOpenMismatches` | ticket | open mismatches count |
-| `IntakeDegradationStale` | page/ticket | degraded mode stuck |
-| `PaperDriftBpsHigh` | ticket | drift > 50 bps |
-| `PaperDriftBpsSustainedHigh` | warning | drift > 30 bps 15m |
-| `ArbibotServiceUptime` | page | service down 1m |
-| DEX SLO alerts | ticket/page | signature/broadcast/confirmation/swap rate |
+> **Примечание (synced с `infra/prometheus/alerts.yml`, 2026-06-13):** ниже — **реально существующие** alert-правила (8 шт.). Имена в ранних версиях этого документа (`ArbibotHttp5xxRate`, `ArbibotServiceUptime`, `IntakeDegradationStale`) были целевыми/каталожными и не совпадали с реализацией — каталог приведён в соответствие.
 
-**Файлы:** `infra/prometheus/`, `infra/alertmanager/`, `docs/observability-tracing.md` (alert catalog).
+| Alert | Severity | Когда срабатывает | Expr (кратко) |
+|-------|----------|-------------------|---------------|
+| `ServiceDown` | critical | target down 2m | `up == 0` |
+| `HighErrorRate` | warning | 5xx rate > 5% за 5m | `rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05` |
+| `PaperDriftBpsHigh` | warning | paper drift avg > 50 bps за 5m | `arb_paper_drift_bps_avg_5m > 50` |
+| `PaperDriftBpsSustainedHigh` | critical | paper drift max > 30 bps за 15m | `arb_paper_drift_bps_max_15m > 30` |
+| `DEXUnhealthy` | critical | DEX health = unhealthy 3m | `arb_dex_health_status{status="unhealthy"} == 0` |
+| `DEXRPCDegraded` | warning | DEX RPC degraded 10m | `arb_dex_health_status{status="degraded"} == 0.5` |
+| `HighMemoryUsage` | warning | RSS > 400 MB за 10m | `process_resident_memory_bytes / 1024 / 1024 > 400` |
+| `IntakeDegraded` | warning | intake degradation active 5m | `arb_intake_degradation_active == 1` |
+
+**Backlog (alerts не реализованы, целевые для будущего — см. F6 в разделе 11):** `ArbibotHttpLatencyP99` (SLO breach), `OutboxRelayLag` (oldest unprocessed outbox row), `KafkaPublishFailures` (bridge errors), `ReconciliationOpenMismatches` (open mismatches count).
+
+**Файлы:** `infra/prometheus/alerts.yml`, `infra/alertmanager/`, `docs/observability-tracing.md` (alert catalog).
 
 ### 8.4 Grafana dashboards
 
@@ -579,7 +587,7 @@ ENV_FILE=infra/.env npm run verify:env
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │ STAGE 1 — Schema gate                                           │
-│   npm run db:migrate             → 001–036 applied               │
+│   npm run db:migrate             → 001–037 applied               │
 │   npm run db:verify-migrations:all → all rows in schema_migrations│
 └─────────────────────────────────────────────────────────────────┘
                               │
@@ -650,9 +658,10 @@ ENV_FILE=infra/.env npm run verify:env
 | F1 | Backend service-to-service auth guard (mTLS или HMAC) для live |
 | F2 | ✅ `tools/validate-env.sh`: `OPENCLAW_*` → `HERMES_*` rename — **RESOLVED** |
 | F2.1 | ✅ `.env.production.example`: `OPENCLAW_*` → `HERMES_*` sync — **RESOLVED** |
-| F3 | ✅ `tools/verify-deployment.sh`: режим `VERIFY_MODE=isolated` для prod — **RESOLVED** |
-| F4 | `ARBIBOT_DEV_ROLE` env-fallback → noop в production |
+| F3 | ✅ `tools/verify-deployment.sh`: режим `VERIFY_MODE=isolated` для prod — **RESOLVED** (+ BFF-fallback для canonical registry) |
+| F4 | ✅ `tools/validate-env.sh`: блокирует deploy при `ARBIBOT_DEV_ROLE` (exit 1) — **RESOLVED (сильнее обещанного)**; `ARBIBOT_DEV_ROLE` env-fallback → noop в production — **backlog** |
 | F5 | `deployment-readiness-assessment.md`: явная маркировка PAPER vs LIVE |
+| F6 | Alert-каталог: добавить `ArbibotHttpLatencyP99`, `OutboxRelayLag`, `KafkaPublishFailures`, `ReconciliationOpenMismatches` в `infra/prometheus/alerts.yml` (целевые backlog-alerts, см. 8.3) |
 
 ---
 

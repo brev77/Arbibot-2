@@ -32,12 +32,14 @@ export async function getOperatorSession(): Promise<OperatorSession | null> {
     return { role: cookieRole, source: 'cookie', operatorId };
   }
 
-  const envRole = normalizeRole(process.env.ARBIBOT_DEV_ROLE);
-  if (envRole !== null) {
-    return { role: envRole, source: 'env', operatorId };
-  }
-
+  // F4: ARBIBOT_DEV_ROLE is a no-op in production (defense-in-depth).
+  // Even if the env var is accidentally set in a prod environment, we must not
+  // grant a role from it. Cookie-based auth is the only source in production.
   if (process.env.NODE_ENV !== 'production') {
+    const envRole = normalizeRole(process.env.ARBIBOT_DEV_ROLE);
+    if (envRole !== null) {
+      return { role: envRole, source: 'env', operatorId };
+    }
     return { role: 'operator', source: 'dev-default', operatorId };
   }
 

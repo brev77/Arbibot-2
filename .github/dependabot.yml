@@ -1,0 +1,270 @@
+# Dependabot configuration for Arbibot 2 monorepo
+# Docs: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
+version: 2
+
+updates:
+  # Root package.json (workspaces root, turbo, eslint, typescript)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Moscow"
+    open-pull-requests-limit: 10
+    target-branch: "main"
+    labels:
+      - "dependencies"
+      - "npm"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    groups:
+      # Group minor/patch updates of @types/* to reduce PR noise
+      types:
+        patterns:
+          - "@types/*"
+        update-types:
+          - "minor"
+          - "patch"
+      # Group NestJS ecosystem updates
+      nestjs:
+        patterns:
+          - "@nestjs/*"
+          - "nest*"
+        update-types:
+          - "minor"
+          - "patch"
+      # Group Fastify ecosystem
+      fastify:
+        patterns:
+          - "@fastify/*"
+          - "fastify"
+        update-types:
+          - "minor"
+          - "patch"
+      # Group TypeORM + pg ecosystem
+      typeorm:
+        patterns:
+          - "typeorm"
+          - "pg"
+          - "pg-*"
+        update-types:
+          - "minor"
+          - "patch"
+      # Group testing tooling
+      testing:
+        patterns:
+          - "jest"
+          - "@types/jest"
+          - "ts-jest"
+          - "supertest"
+          - "@types/supertest"
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      # Major version bumps require manual review (security advisory still opens PR)
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+      # Node engine pinned to LTS — do not auto-bump
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # TypeScript major bumps require full lint/test review
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+
+  # Per-app package.json (catch workspace-local deps that root scan misses)
+  - package-ecosystem: "npm"
+    directory: "/apps/audit-service"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "npm", "backend"]
+    commit-message:
+      prefix: "deps(audit)"
+  - package-ecosystem: "npm"
+    directory: "/apps/canonical-market-service"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "npm", "backend"]
+    commit-message:
+      prefix: "deps(canonical)"
+  - package-ecosystem: "npm"
+    directory: "/apps/capital-service"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "npm", "backend"]
+    commit-message:
+      prefix: "deps(capital)"
+  - package-ecosystem: "npm"
+    directory: "/apps/config-service"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "npm", "backend"]
+    commit-message:
+      prefix: "deps(config)"
+  - package-ecosystem: "npm"
+    directory: "/apps/execution-orchestrator"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "npm", "backend", "dex"]
+    commit-message:
+      prefix: "deps(execution)"
+  - package-ecosystem: "npm"
+    directory: "/apps/hermes-gateway"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "npm", "backend", "hermes"]
+    commit-message:
+      prefix: "deps(hermes)"
+  - package-ecosystem: "npm"
+    directory: "/apps/market-intake-service"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "npm", "backend"]
+    commit-message:
+      prefix: "deps(intake)"
+  - package-ecosystem: "npm"
+    directory: "/apps/opportunity-service"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "npm", "backend"]
+    commit-message:
+      prefix: "deps(opportunity)"
+  - package-ecosystem: "npm"
+    directory: "/apps/paper-trading-service"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "npm", "backend", "paper"]
+    commit-message:
+      prefix: "deps(paper)"
+  - package-ecosystem: "npm"
+    directory: "/apps/portfolio-service"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "npm", "backend"]
+    commit-message:
+      prefix: "deps(portfolio)"
+  - package-ecosystem: "npm"
+    directory: "/apps/reconciliation-service"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "npm", "backend"]
+    commit-message:
+      prefix: "deps(recon)"
+  - package-ecosystem: "npm"
+    directory: "/apps/risk-service"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "npm", "backend"]
+    commit-message:
+      prefix: "deps(risk)"
+  - package-ecosystem: "npm"
+    directory: "/apps/web"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "npm", "frontend"]
+    commit-message:
+      prefix: "deps(web)"
+
+  # Shared packages
+  - package-ecosystem: "npm"
+    directory: "/packages/contracts"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 2
+    labels: ["dependencies", "npm", "shared"]
+    commit-message:
+      prefix: "deps(contracts)"
+  - package-ecosystem: "npm"
+    directory: "/packages/contracts-eth"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 2
+    labels: ["dependencies", "npm", "shared", "dex"]
+    commit-message:
+      prefix: "deps(contracts-eth)"
+  - package-ecosystem: "npm"
+    directory: "/packages/hermes-mcp-server"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 2
+    labels: ["dependencies", "npm", "shared", "hermes"]
+    commit-message:
+      prefix: "deps(mcp)"
+  - package-ecosystem: "npm"
+    directory: "/packages/messaging"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 2
+    labels: ["dependencies", "npm", "shared"]
+    commit-message:
+      prefix: "deps(messaging)"
+  - package-ecosystem: "npm"
+    directory: "/packages/nest-database"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 2
+    labels: ["dependencies", "npm", "shared"]
+    commit-message:
+      prefix: "deps(nest-db)"
+  - package-ecosystem: "npm"
+    directory: "/packages/nest-platform"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 2
+    labels: ["dependencies", "npm", "shared"]
+    commit-message:
+      prefix: "deps(platform)"
+  - package-ecosystem: "npm"
+    directory: "/packages/outbox-kafka-bridge"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 2
+    labels: ["dependencies", "npm", "shared"]
+    commit-message:
+      prefix: "deps(outbox-bridge)"
+  - package-ecosystem: "npm"
+    directory: "/packages/persistence"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 2
+    labels: ["dependencies", "npm", "shared"]
+    commit-message:
+      prefix: "deps(persistence)"
+
+  # GitHub Actions — keep workflows up to date
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "github-actions"]
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+
+  # Docker base images — track updates
+  - package-ecosystem: "docker"
+    directory: "/infra/docker"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "docker"]
+    commit-message:
+      prefix: "deps(docker)"

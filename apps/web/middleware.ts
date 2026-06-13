@@ -13,11 +13,14 @@ function roleFromRequest(request: NextRequest): OperatorRole | null {
   if (cookieRole !== null) {
     return cookieRole;
   }
-  const envRole = normalizeRole(process.env.ARBIBOT_DEV_ROLE);
-  if (envRole !== null) {
-    return envRole;
-  }
+  // F4: ARBIBOT_DEV_ROLE is a no-op in production (defense-in-depth).
+  // Even if the env var is accidentally set in a prod environment, we must not
+  // grant a role from it. Cookie-based auth is the only source in production.
   if (process.env.NODE_ENV !== 'production') {
+    const envRole = normalizeRole(process.env.ARBIBOT_DEV_ROLE);
+    if (envRole !== null) {
+      return envRole;
+    }
     return 'operator';
   }
   return null;

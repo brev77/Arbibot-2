@@ -29,3 +29,4 @@ export {
   EncryptedKey,
   WalletKey,
 } from './vault';
+export * from './service-auth';
