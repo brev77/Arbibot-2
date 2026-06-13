@@ -37,6 +37,7 @@
     "dex:load-test": "node tools/dex-load-test.mjs",
     "e2e:dex-testnet": "node tools/e2e-dex1-testnet.mjs",
     "e2e:dex2-multichain": "node tools/e2e-dex2-multichain.mjs",
+    "drill:1": "node tools/drill-1-paper-incident.mjs",
     "dev:risk": "npm run start:dev -w @arbibot/risk-service",
     "dev:opportunity": "npm run start:dev -w @arbibot/opportunity-service",
     "dev:capital": "npm run start:dev -w @arbibot/capital-service",
