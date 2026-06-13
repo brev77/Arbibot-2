@@ -29,7 +29,7 @@
   },
   "devDependencies": {
     "@arbibot/tsconfig": "*",
-    "@types/node": "^22.19.0",
+    "@types/node": "^25.9.3",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "eslint": "^9.39.2",
