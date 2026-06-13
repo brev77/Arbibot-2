@@ -21,6 +21,23 @@
 
 ---
 
+## Drills (регулярные репетиции процедур)
+
+**Цель:** проверить, что on-call процедуры, runbooks, и автоматика действительно работают в ограниченных условиях. Каждый drill имеет явный триггер (когда запускать) и критерий успеха.
+
+| Триггер | Что | Критерий успеха | Runbook |
+|---------|-----|-----------------|---------|
+| После 1-й недели в paper | **Drill: Paper incident (drift high)** | Alert `PaperDriftBpsHigh` срабатывает < 10m; operator открывает `/incidents`, эскалирует в investigating, закрывает resolved за < 30m | [`docs/incident-response-playbook.md`](incident-response-playbook.md), [`docs/paper-promotion-criteria.md`](paper-promotion-criteria.md) |
+| Перед каждым live rollout | **Drill: DEX kill-switch** | Включить `DEX_LIVE_KILL_SWITCH=true`, убедиться что live DEX операции блокируются (paper не затрагивается); выключить и проверить восстановление | [`docs/dex-rollback-strategy.md`](dex-rollback-strategy.md), [`docs/dex-runbook-failed-tx.md`](dex-runbook-failed-tx.md) |
+| Каждые 2 недели (staging) | **Drill: Key rotation** | Запустить [`docs/key-rotation-runbook.md`](key-rotation-runbook.md); Vault ключи ротированы, backend сервисы продолжают работать; метрики не падают | [`docs/key-rotation-runbook.md`](key-rotation-runbook.md), [`docs/vault-integration-guide.md`](vault-integration-guide.md) |
+| После первой 5xx волны на staging | **Drill: SLO burn alert** | Trigger real or simulated 5xx spike; убедиться, что `SLOFastBurnCritical` / `SLOSlowBurnCritical` активируются и Alertmanager дублирует в PagerDuty/Slack | [`docs/observability-tracing.md`](observability-tracing.md), [`infra/alertmanager/`](../infra/alertmanager/) |
+| Перед live с реальным капиталом | **Drill: Reconciliation P0** | Искусственно создать mismatch (update portfolio.manual_override); reconciliation service детектирует < 15m; operator проходит P0 procedure | [`docs/reconciliation-p0-procedures.md`](reconciliation-p0-procedures.md) |
+| Перед live | **Drill: Disaster recovery (DB restore)** | `pg_dump` snapshot → drop database → restore → verify migrations → smoke test (paper trading). RTO/PO измеряются | [`docs/disaster-recovery-plan.md`](disaster-recovery-plan.md), [`tools/backup-postgres.sh`](../tools/backup-postgres.sh) |
+| Ежемесячно (staging) | **Drill: Bridge stuck (cross-chain)** | Имитировать stale bridge transfer (timeout); reconciliation service создаёт incident; operator выполняет `docs/dex-runbook-bridge.md` | [`docs/dex-runbook-bridge.md`](dex-runbook-bridge.md), [`docs/adr-dex2-crosschain.md`](adr-dex2-crosschain.md) |
+
+
+---
+
 ## В очереди (бэклог из плана / техдолг)
 
 | Когда | Что | Связь с планом |
@@ -76,4 +93,6 @@
 | 2026-05-21 | **RpcProviderManager tests expanded:** 11→22 тестов (init/destroy, primary-only, error handling, health check success/failure, metrics, edge cases). **27 suites, 392/392 tests pass.** |
 | 2026-05-21 | **Pre-deploy review gate:** создан [`docs/pre-deploy-review.md`](pre-deploy-review.md) — consolidated pre-deploy чеклист (10 разделов, PAPER-READY vs LIVE-READY режимы, findings F1–F5, gate-sequence stages 0–7, методология верификации, sign-off). 5 findings: F1 (backend без auth guard, network-isolation only), F2 (`OPENCLAW_*` → `HERMES_*` в `tools/validate-env.sh`), F3 (`tools/verify-deployment.sh` проверяет прямые порты не публикуемые в prod), F4 (`ARBIBOT_DEV_ROLE` env-fallback активен в prod), F5 (`deployment-readiness-assessment.md` маркировка PAPER vs LIVE). Cross-link добавлен в [`docs/deployment-readiness-assessment.md`](deployment-readiness-assessment.md). F1–F4 заведены как backlog (отдельная задача). |
 
-*Последняя актуализация файла: 2026-05-21 (session 40 — pre-deploy review gate: docs/pre-deploy-review.md + findings F1–F5).*
+| 2026-06-13 | **Pre-deploy readiness hardening (session 41):** operator destructive actions — `paper-promotion-table.tsx` (Approve/Reject) и `paper-trades-table.tsx` (Approve/Reject/Cancel) обёрнуты в `DestructiveOperatorAction` (impact preview + typed-phrase confirm); SLO multi-window multi-burn-rate alerts (4 rules в `infra/prometheus/alerts.yml`, по Google SRE Workbook §5); drills-секция добавлена в этот файл с триггерами/критериями/runbooks. Lint 28/28 ✅, build 21/21 ✅ (после верификации). |
+
+*Последняя актуализация файла: 2026-06-13 (session 41 — pre-deploy hardening: DestructiveOperatorAction для paper mutations, SLO burn-rate alerts, drills).*

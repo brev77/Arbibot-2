@@ -10,7 +10,7 @@ import type { ReactNode } from 'react';
 import { useCallback, useMemo, useState } from 'react';
 
 import type { PaperTradeListItem } from '@/lib/paper-types';
-import { Button } from './ui/button';
+import { DestructiveOperatorAction } from './destructive-operator-action';
 
 type Props = {
   readonly items: readonly PaperTradeListItem[];
@@ -36,15 +36,14 @@ export function PaperTradesTable({ items, onRefresh }: Props): ReactNode {
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          throw new Error((errorData as { error?: string }).error || `Failed to ${action} paper trade`);
+          throw new Error(
+            (errorData as { error?: string }).error || `Failed to ${action} paper trade`,
+          );
         }
 
         if (onRefresh) {
           onRefresh();
         }
-      } catch (error) {
-        console.error(`Failed to ${action} paper trade ${id}:`, error);
-        alert(error instanceof Error ? error.message : `Failed to ${action} paper trade`);
       } finally {
         setActionLoading(null);
       }
@@ -75,7 +74,9 @@ export function PaperTradesTable({ items, onRefresh }: Props): ReactNode {
             canceled: 'text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-900/30',
           };
           return (
-            <span className={`px-2 py-0.5 rounded text-xs uppercase ${stateColors[state] || 'text-slate-600 bg-slate-100'}`}>
+            <span
+              className={`px-2 py-0.5 rounded text-xs uppercase ${stateColors[state] || 'text-slate-600 bg-slate-100'}`}
+            >
               {state}
             </span>
           );
@@ -116,42 +117,45 @@ export function PaperTradesTable({ items, onRefresh }: Props): ReactNode {
             <div className="flex gap-2">
               {state === 'draft' && (
                 <>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      void handleAction(row.id, 'approve');
+                  <DestructiveOperatorAction
+                    level="high"
+                    actionLabel="Approve"
+                    requireTypedConfirmPhrase="APPROVE"
+                    impactPreview={{
+                      affectedResources: `Paper trade ${row.id} (${row.instrumentKey})`,
+                      potentialConsequences:
+                        'Activates paper trade and reserves virtual capital. Trade will be settled against the paper portfolio and tracked in drift gauges.',
+                      mitigation:
+                        'Cancellable while active via the Cancel action. Virtual capital is released on cancel/settle.',
                     }}
+                    onConfirm={() => handleAction(row.id, 'approve')}
                     disabled={isLoading}
-                  >
-                    Approve
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      void handleAction(row.id, 'reject');
+                  />
+                  <DestructiveOperatorAction
+                    level="medium"
+                    actionLabel="Reject"
+                    impactPreview={{
+                      affectedResources: `Paper trade ${row.id} (${row.instrumentKey})`,
+                      potentialConsequences:
+                        'Marks paper trade as rejected. No virtual capital reserved. Cannot be re-activated.',
                     }}
+                    onConfirm={() => handleAction(row.id, 'reject')}
                     disabled={isLoading}
-                  >
-                    Reject
-                  </Button>
+                  />
                 </>
               )}
               {state === 'active' && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    void handleAction(row.id, 'cancel');
+                <DestructiveOperatorAction
+                  level="medium"
+                  actionLabel="Cancel"
+                  impactPreview={{
+                    affectedResources: `Paper trade ${row.id} (${row.instrumentKey})`,
+                    potentialConsequences:
+                      'Cancels active paper trade and releases the associated virtual capital reservation.',
                   }}
+                  onConfirm={() => handleAction(row.id, 'cancel')}
                   disabled={isLoading}
-                >
-                  Cancel
-                </Button>
+                />
               )}
             </div>
           );
@@ -174,7 +178,10 @@ export function PaperTradesTable({ items, onRefresh }: Props): ReactNode {
           {table.getHeaderGroups().map((hg) => (
             <tr key={hg.id} className="border-b border-slate-800 html.theme-light:border-slate-200">
               {hg.headers.map((h) => (
-                <th key={h.id} className="p-3 font-medium text-slate-400 html.theme-light:text-slate-600">
+                <th
+                  key={h.id}
+                  className="p-3 font-medium text-slate-400 html.theme-light:text-slate-600"
+                >
                   {h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}
                 </th>
               ))}

@@ -136,3 +136,114 @@ groups:
         annotations:
           summary: "Low disk space on {{ $labels.instance }}"
           description: "Disk space is below 15% on {{ $labels.instance }} ({{ $value }} free)."
+
+  # ───────────────────────────────────────────────────────────────────
+  # SLO Multi-Window Multi-Burn-Rate Alerts
+  # Based on Google SRE Workbook §5 (https://sre.google/workbook/alerting-on-slos/)
+  # SLO target: 99.9% monthly availability over 30-day window
+  # Page-level (severity=critical): 2% budget in 1h — 14.4× burn rate
+  # Page-level (severity=critical): 5% budget in 6h — 6× burn rate
+  # Ticket-level (severity=warning): 10% budget in 3d — 1× burn rate
+  # ───────────────────────────────────────────────────────────────────
+  - name: slo_burn_rate
+    rules:
+      # Page: fast burn, 2% budget consumed in 1h (14.4× burn)
+      - alert: SLOFastBurnCritical
+        expr: |
+          (
+            sum(rate(http_requests_total{status=~"5.."}[5m])) by (job)
+            /
+            sum(rate(http_requests_total[5m])) by (job)
+            > (14.4 * 0.001)
+          )
+          and
+          (
+            sum(rate(http_requests_total{status=~"5.."}[1h])) by (job)
+            /
+            sum(rate(http_requests_total[1h])) by (job)
+            > (14.4 * 0.001)
+          )
+        for: 2m
+        labels:
+          severity: critical
+          slo: availability
+          burn_window: fast
+        annotations:
+          summary: "SLO fast burn rate on {{ $labels.job }} (page)"
+          description: "Service {{ $labels.job }} is consuming 2% of the 30-day error budget in 1 hour. Burn rate >14.4× the SLO (99.9%). Page immediately."
+
+      # Page: slow burn, 5% budget consumed in 6h (6× burn)
+      - alert: SLOSlowBurnCritical
+        expr: |
+          (
+            sum(rate(http_requests_total{status=~"5.."}[30m])) by (job)
+            /
+            sum(rate(http_requests_total[30m])) by (job)
+            > (6 * 0.001)
+          )
+          and
+          (
+            sum(rate(http_requests_total{status=~"5.."}[6h])) by (job)
+            /
+            sum(rate(http_requests_total[6h])) by (job)
+            > (6 * 0.001)
+          )
+        for: 15m
+        labels:
+          severity: critical
+          slo: availability
+          burn_window: slow
+        annotations:
+          summary: "SLO slow burn rate on {{ $labels.job }} (page)"
+          description: "Service {{ $labels.job }} is consuming 5% of the 30-day error budget in 6 hours. Burn rate >6× the SLO (99.9%). Page."
+
+      # Ticket: medium burn, 10% budget consumed in 3d (1× burn)
+      - alert: SLOMediumBurnWarning
+        expr: |
+          (
+            sum(rate(http_requests_total{status=~"5.."}[2h])) by (job)
+            /
+            sum(rate(http_requests_total[2h])) by (job)
+            > (1 * 0.001)
+          )
+          and
+          (
+            sum(rate(http_requests_total{status=~"5.."}[1d])) by (job)
+            /
+            sum(rate(http_requests_total[1d])) by (job)
+            > (1 * 0.001)
+          )
+        for: 1h
+        labels:
+          severity: warning
+          slo: availability
+          burn_window: medium
+        annotations:
+          summary: "SLO medium burn rate on {{ $labels.job }} (ticket)"
+          description: "Service {{ $labels.job }} is consuming 10% of the 30-day error budget in 3 days. On-track SLO violation. Investigate in business hours."
+
+      # Latency SLO: p99 < 500ms for 99.9% requests (Tier 1 from observability-tracing.md)
+      # Using histogram_quantile for p99 latency
+      - alert: SLOLatencyFastBurn
+        expr: |
+          (
+            sum(rate(http_request_duration_seconds_bucket{le="0.5"}[5m])) by (job)
+            /
+            sum(rate(http_request_duration_seconds_count[5m])) by (job)
+            < (1 - 14.4 * 0.001)
+          )
+          and
+          (
+            sum(rate(http_request_duration_seconds_bucket{le="0.5"}[1h])) by (job)
+            /
+            sum(rate(http_request_duration_seconds_count[1h])) by (job)
+            < (1 - 14.4 * 0.001)
+          )
+        for: 2m
+        labels:
+          severity: critical
+          slo: latency
+          burn_window: fast
+        annotations:
+          summary: "Latency SLO fast burn on {{ $labels.job }} (page)"
+          description: "Less than 99.9% of requests complete under 500ms on {{ $labels.job }}. Burn rate >14.4×. Page."

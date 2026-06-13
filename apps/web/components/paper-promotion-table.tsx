@@ -11,7 +11,7 @@ import type { ReactNode } from 'react';
 import { useCallback, useMemo, useState } from 'react';
 
 import type { PaperPromotionCandidateItem } from '@/lib/paper-types';
-import { Button } from './ui/button';
+import { DestructiveOperatorAction } from './destructive-operator-action';
 
 type Props = {
   readonly items: readonly PaperPromotionCandidateItem[];
@@ -45,9 +45,6 @@ export function PaperPromotionTable({ items, onRefresh }: Props): ReactNode {
         if (onRefresh) {
           onRefresh();
         }
-      } catch (error) {
-        console.error(`Failed to ${action} promotion candidate ${id}:`, error);
-        alert(error instanceof Error ? error.message : `Failed to ${action} promotion candidate`);
       } finally {
         setActionLoading(null);
       }
@@ -158,28 +155,31 @@ export function PaperPromotionTable({ items, onRefresh }: Props): ReactNode {
 
           return (
             <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  void handleAction(row.id, 'approve');
+              <DestructiveOperatorAction
+                level="high"
+                actionLabel="Approve"
+                requireTypedConfirmPhrase="PROMOTE"
+                impactPreview={{
+                  affectedResources: `Promotion candidate ${row.id} (${row.instrumentKey})`,
+                  potentialConsequences:
+                    'Promotes this paper-only instrument/route to live trading. Live capital becomes eligible for execution after promotion.',
+                  mitigation:
+                    'Reversible via token/route block in /settings. Monitor drift bps after promotion.',
                 }}
+                onConfirm={() => handleAction(row.id, 'approve')}
                 disabled={isLoading}
-              >
-                Approve
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  void handleAction(row.id, 'reject');
+              />
+              <DestructiveOperatorAction
+                level="medium"
+                actionLabel="Reject"
+                impactPreview={{
+                  affectedResources: `Promotion candidate ${row.id} (${row.instrumentKey})`,
+                  potentialConsequences:
+                    'Marks candidate as rejected. Will not be re-enqueued automatically. Discovery pipeline may surface a new candidate later.',
                 }}
+                onConfirm={() => handleAction(row.id, 'reject')}
                 disabled={isLoading}
-              >
-                Reject
-              </Button>
+              />
             </div>
           );
         },
