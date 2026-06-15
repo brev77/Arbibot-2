@@ -34,7 +34,7 @@
     "@nestjs/common": "^11.1.18",
     "@nestjs/platform-fastify": "^11.1.18",
     "@types/jest": "^30.0.0",
-    "fastify": "^5.2.1",
+    "fastify": "^5.8.5",
     "jest": "^30.3.0",
     "reflect-metadata": "^0.2.2",
     "ts-jest": "^29.4.9",
