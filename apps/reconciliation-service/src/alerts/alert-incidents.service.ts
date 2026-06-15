@@ -4,6 +4,10 @@ import { DataSource, Repository } from 'typeorm';
 
 import { AlertmanagerIncidentEntity } from '@arbibot/persistence';
 
+import {
+  AlertIncidentNotFoundError,
+  AlertIncidentVersionMismatchError,
+} from './alert-incidents.errors';
 import type { AlertmanagerAlertDto } from './dto/alertmanager-webhook.dto';
 
 /**
@@ -124,6 +128,61 @@ export class AlertIncidentsService {
       where,
       order: { lastFiredAt: 'DESC' },
       take: AlertIncidentsService.LIST_LIMIT,
+    });
+  }
+
+  /**
+   * Operator-driven status transition (Drill #1 gap #5).
+   *
+   * Allowed transitions:
+   *   - `investigating`: any current status → `investigating`
+   *   - `resolved`:      any current status → `resolved` (sets resolvedAt/resolvedBy)
+   *
+   * Single-writer: this service (reconciliation-service). Optimistic concurrency
+   * via `expectedEntityVersion` (compare-and-set, like reconciliation_mismatches).
+   * Returns the updated row or throws if version mismatch / not found.
+   */
+  async setStatus(params: {
+    id: string;
+    status: 'investigating' | 'resolved';
+    expectedEntityVersion: number;
+    resolvedBy?: string | null;
+  }): Promise<AlertmanagerIncidentEntity> {
+    const targetStatus = params.status;
+    const now = new Date();
+
+    return this.dataSource.transaction(async (em) => {
+      const existing = await em.findOne(AlertmanagerIncidentEntity, {
+        where: { id: params.id },
+      });
+      if (!existing) {
+        throw new AlertIncidentNotFoundError(params.id);
+      }
+      if (existing.entityVersion !== params.expectedEntityVersion) {
+        throw new AlertIncidentVersionMismatchError(
+          params.id,
+          params.expectedEntityVersion,
+          existing.entityVersion,
+        );
+      }
+
+      existing.status = targetStatus;
+      existing.entityVersion += 1;
+      if (targetStatus === 'resolved') {
+        existing.resolvedAt = now;
+        existing.resolvedBy = params.resolvedBy ?? null;
+        existing.endsAt = existing.endsAt ?? now;
+      } else {
+        // moving to `investigating` clears any stale resolution metadata
+        existing.resolvedAt = null;
+        existing.resolvedBy = null;
+      }
+
+      const saved = await em.save(existing);
+      this.logger.log(
+        `Alert incident ${params.id} status -> ${targetStatus} by ${params.resolvedBy ?? 'operator'} (v${saved.entityVersion})`,
+      );
+      return saved;
     });
   }
 

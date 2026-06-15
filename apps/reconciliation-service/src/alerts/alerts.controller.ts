@@ -1,10 +1,22 @@
-import { Body, Controller, Get, HttpCode, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 
+import { AlertmanagerIncidentEntity } from '@arbibot/persistence';
+
+import { AlertIncidentsService } from './alert-incidents.service';
 import {
   AlertmanagerAlertDto,
   AlertmanagerWebhookDto,
 } from './dto/alertmanager-webhook.dto';
-import { AlertIncidentsService } from './alert-incidents.service';
+import { UpdateAlertIncidentStatusDto } from './dto/update-alert-incident-status.dto';
 
 @Controller('alerts')
 export class AlertsController {
@@ -33,7 +45,7 @@ export class AlertsController {
   @Get()
   async list(
     @Query('status') status?: string,
-  ): Promise<{ items: Awaited<ReturnType<AlertIncidentsService['list']>> }> {
+  ): Promise<{ items: AlertmanagerIncidentEntity[] }> {
     const items = await this.service.list(status);
     return { items };
   }
@@ -46,5 +58,39 @@ export class AlertsController {
     id: string | null;
   }> {
     return this.service.ingestAlert(alert);
+  }
+
+  /**
+   * Drill #1 gap #4/#5: canonical list endpoint consumed by the operator UI
+   * (`/incidents`) via `apps/web/app/api/operator/alerts/incidents/route.ts`.
+   *
+   * Returns newest `lastFiredAt` first; optional `?status=open|firing|
+   * investigating|resolved` filter.
+   */
+  @Get('incidents')
+  async listIncidents(
+    @Query('status') status?: string,
+  ): Promise<{ items: AlertmanagerIncidentEntity[] }> {
+    const items = await this.service.list(status);
+    return { items };
+  }
+
+  /**
+   * Drill #1 gap #5: operator-driven status transition with optimistic
+   * concurrency. Returns the updated incident (new `entityVersion`).
+   *
+   * HTTP 404 if id is unknown, HTTP 409 on stale `expectedEntityVersion`.
+   */
+  @Patch('incidents/:id')
+  async updateIncidentStatus(
+    @Param('id') id: string,
+    @Body() dto: UpdateAlertIncidentStatusDto,
+  ): Promise<AlertmanagerIncidentEntity> {
+    return this.service.setStatus({
+      id,
+      status: dto.status,
+      expectedEntityVersion: dto.expectedEntityVersion,
+      resolvedBy: dto.resolvedBy ?? null,
+    });
   }
 }

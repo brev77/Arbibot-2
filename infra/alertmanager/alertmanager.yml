@@ -71,9 +71,16 @@ receivers:
   # which is the single-writer for `alertmanager_incidents` (Drill #1 gap #1).
   # Operator Web `/incidents` then merges these with reconciliation mismatches.
   # Env: ALERT_WEBHOOK_TOKEN optional Bearer secret on the receiver side.
+  #
+  # IMPORTANT: When Alertmanager runs in a Docker container (infra/docker-compose.dev.yml
+  # profile `observability`) and reconciliation-service runs on the host via `npm run dev:*`,
+  # `localhost` from inside the container refers to the container itself, NOT the host.
+  # Use `host.docker.internal` which Docker Desktop resolves to the host network gateway.
+  # On Linux hosts without Docker Desktop, set `extra_hosts: ["host.docker.internal:host-gateway"]`
+  # in the alertmanager service definition (already present in infra/docker-compose.dev.yml).
   - name: "arbibot-incidents"
     webhook_configs:
-      - url: "http://localhost:3017/alerts/webhook"
+      - url: "http://host.docker.internal:3017/alerts/webhook"
         send_resolved: true
         max_alerts: 0
 

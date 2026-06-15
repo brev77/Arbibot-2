@@ -75,10 +75,19 @@ export class AlertmanagerAlertDto {
   value?: string;
 }
 
+/**
+ * Standard Alertmanager webhook payload (v4 reference).
+ * Reference: https://prometheus.io/docs/alerting/latest/configuration/#webhook_config
+ *
+ * IMPORTANT: Alertmanager sends `version` and `receiver` as STRINGS,
+ * not number/object. `commonLabels`, `commonAnnotations`, and `externalURL`
+ * are standard envelope fields and MUST be whitelisted (reconciliation-service
+ * uses forbidNonWhitelisted=true global ValidationPipe).
+ */
 export class AlertmanagerWebhookDto {
   @IsOptional()
-  @IsNumber()
-  version?: number;
+  @IsString()
+  version?: string;
 
   @IsOptional()
   @IsString()
@@ -93,16 +102,24 @@ export class AlertmanagerWebhookDto {
   status?: string;
 
   @IsOptional()
-  @IsObject()
-  receiver?: Record<string, unknown>;
+  @IsString()
+  receiver?: string;
 
   @IsOptional()
   @IsObject()
   groupLabels?: Record<string, string>;
 
   @IsOptional()
+  @IsObject()
+  commonLabels?: Record<string, string>;
+
+  @IsOptional()
+  @IsObject()
+  commonAnnotations?: Record<string, string>;
+
+  @IsOptional()
   @IsString()
-  commonAlert?: string;
+  externalURL?: string;
 
   @IsArray()
   @ValidateNested({ each: true })
