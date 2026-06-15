@@ -21,7 +21,7 @@
   },
   "devDependencies": {
     "@arbibot/tsconfig": "*",
-    "@nestjs/common": "^11.1.18",
+    "@nestjs/common": "^11.1.26",
     "@types/jest": "^30.0.0",
     "jest": "^30.3.0",
     "reflect-metadata": "^0.2.2",
