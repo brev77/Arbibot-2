@@ -5,6 +5,8 @@ export const operatorKeys = {
   executionPlan: (id: string) => ['operator', 'execution', 'plan', id] as const,
   auditEntries: (limit: number) => ['operator', 'audit', 'entries', limit] as const,
   reconciliationMismatches: ['operator', 'reconciliation', 'mismatches'] as const,
+  /** Alertmanager-driven incidents (Drill #1 gap #1). */
+  alertIncidents: ['operator', 'alerts', 'incidents'] as const,
   portfolioPositions: ['operator', 'portfolio', 'positions'] as const,
   dashboardSummary: ['operator', 'dashboard', 'summary'] as const,
   intakeDegradation: ['operator', 'health', 'intake-degradation'] as const,

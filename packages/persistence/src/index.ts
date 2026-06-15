@@ -1,3 +1,4 @@
+export { AlertmanagerIncidentEntity } from './alertmanager-incident.entity';
 export { ArbitrageOpportunityEntity } from './arbitrage-opportunity.entity';
 export { AuditLogEntity } from './audit-log.entity';
 export { CanonicalInstrumentEntity } from './canonical-instrument.entity';
@@ -42,6 +43,7 @@ export { WalletState } from './wallet-state.entity';
 export { DexPool } from './dex-pool.entity';
 export { Approval } from './approval.entity';
 
+import { AlertmanagerIncidentEntity } from './alertmanager-incident.entity';
 import { ArbitrageOpportunityEntity } from './arbitrage-opportunity.entity';
 import { AuditLogEntity } from './audit-log.entity';
 import { CanonicalInstrumentEntity } from './canonical-instrument.entity';
@@ -79,6 +81,7 @@ import { Approval } from './approval.entity';
 
 /** All entities for TypeORM `entities` array. */
 export const ARBIBOT_TYPEORM_ENTITIES = [
+  AlertmanagerIncidentEntity,
   RiskDecisionEntity,
   RiskWindowReservationEntity,
   OutboxEventEntity,

@@ -12,6 +12,7 @@ import { AuditClientService } from '@arbibot/nest-platform';
 
 import { PaperDriftController } from './paper-drift.controller';
 import { PaperDriftService } from './paper-drift.service';
+import { PaperDriftWorker } from './paper-drift-worker';
 import { PaperPromotionCriteriaController } from './paper-promotion-criteria.controller';
 import { PaperPromotionController } from './paper-promotion.controller';
 import { PaperPromotionService } from './paper-promotion.service';
@@ -44,6 +45,7 @@ import { PaperPromotionQualityWorker } from './paper-promotion-quality.worker';
     PaperTradesService,
     PaperPromotionService,
     PaperDriftService,
+    PaperDriftWorker,
     PaperCapitalService,
     PaperDiscoveryService,
     PaperDiscoveryWorker,

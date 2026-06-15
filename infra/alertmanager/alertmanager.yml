@@ -11,36 +11,41 @@
 #   - Severity:   {{ .CommonLabels.severity }}
 #   - Summary:    {{ range .Alerts }}{{ .Annotations.summary }}{{ end }}
 #
-# Reload without restart:
+# Reload without restart (requires --web.enable-lifecycle on prometheus side):
 #   curl -X POST http://localhost:9093/-/reload
 
 global:
-  # How long to wait before sending notification again
-  repeat_interval: 4h
-  # How long to wait before sending a notification after first alert
-  group_wait: 30s
-  # How long to wait before sending notification about new alerts added to group
-  group_interval: 5m
+  resolve_timeout: 5m
 
 # ── Routes ──────────────────────────────────────────────────────
 route:
   receiver: "default"
   group_by: ["alertname", "severity", "job"]
-
+  # How long to wait before sending a notification after first alert
+  group_wait: 30s
+  # How long to wait before sending notification about new alerts added to group
+  group_interval: 5m
+  # How long to wait before sending notification again
+  repeat_interval: 4h
+  # Mirror every alert to the Arbibot incidents pipeline (Drill #1 gap #1).
+  # `continue: true` ensures severity/specialized receivers still fire too.
   routes:
+    - receiver: "arbibot-incidents"
+      continue: true
+
     # Critical alerts → immediate notification
     - match:
         severity: critical
       receiver: "critical"
-      repeat_interval: 1h
       group_wait: 15s
+      repeat_interval: 1h
 
     # Warning alerts → batched notification
     - match:
         severity: warning
       receiver: "warnings"
-      repeat_interval: 4h
       group_wait: 5m
+      repeat_interval: 4h
 
     # Paper trading specific
     - match:
@@ -62,6 +67,16 @@ route:
 
 # ── Receivers ───────────────────────────────────────────────────
 receivers:
+  # Arbibot incidents pipeline: forwards to reconciliation-service (port 3017)
+  # which is the single-writer for `alertmanager_incidents` (Drill #1 gap #1).
+  # Operator Web `/incidents` then merges these with reconciliation mismatches.
+  # Env: ALERT_WEBHOOK_TOKEN optional Bearer secret on the receiver side.
+  - name: "arbibot-incidents"
+    webhook_configs:
+      - url: "http://localhost:3017/alerts/webhook"
+        send_resolved: true
+        max_alerts: 0
+
   # Default: log to stdout (no external notifications)
   - name: "default"
     webhook_configs:

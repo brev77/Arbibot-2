@@ -52,27 +52,37 @@ docker compose -f infra/docker-compose.dev.yml --profile observability up -d
 ### Автоматическая часть (симулятор)
 
 ```bash
-# Полный прогон с инъекцией 75 bps drift, ожидание firing ~7m
+# Полный прогон с инъекцией 75 bps drift, ожидание firing ~12m
+# (5m recording window + 5m alert `for:` + ~120s scrape jitter)
 npm run drill:1
 
 # Или напрямую:
 node tools/drill-1-paper-incident.mjs
 
-# Сухой прогон (только preflight, без инъекции в БД)
+# Сухой прогон (только preflight, без инъекции)
 DRILL_DRY_RUN=true npm run drill:1
 
-# Свои параметры
+# Свои параметры (example: dev-окружение с длинным scrape)
 DRILL_INSTRUMENT_KEY=DRILL-ETH-USDC \
 DRILL_TARGET_BPS=80 \
-DRILL_SETTLE_SECONDS=600 \
+DRILL_SETTLE_SECONDS=720 \
   npm run drill:1
 ```
+
+> **Важно про timing.** Алерт `PaperDriftBpsHigh` использует recording rule
+> `arb_paper_drift_bps_avg_5m` с окном 5m + `for: 5m` на самом alert. Поэтому
+> **минимальное** время до firing ≈ 10 минут (5m чтобы `avg_over_time` «набрал»
+> точек + 5m чтобы Prometheus держал expression true). Не уменьшайте
+> `DRILL_SETTLE_SECONDS` ниже 600s — drill гарантированно завершится FAIL.
 
 Скрипт делает:
 1. Preflight: ping paper-trading, prometheus, alertmanager.
 2. Проверяет что alert rule `PaperDriftBpsHigh` загружен в Prometheus.
 3. Снимает baseline метрик (`arb_paper_drift_bps_current`, `arb_paper_drift_bps_avg_5m`).
-4. **Инжектирует** 12 drift samples через SQL в `paper_drift_samples` (instrument `DRILL-BTC-USDC`, drift ≈ 75 bps).
+4. **Инжектирует** 12 drift samples через `POST /paper/drift-samples`
+   (instrument `DRILL-BTC-USDC`, drift ≈ 75 bps). Прямой SQL INSERT в
+   `paper_drift_samples` **НЕ** обновляет Prometheus gauge `arb_paper_drift_bps_current` —
+   gauge ставится только в `PaperDriftService.record()`, который вызывается HTTP-хендлером.
 5. Каждые 15 s опрашивает Prometheus + Alertmanager до тех пор, пока:
    - `ALERTS{PaperDriftBpsHigh, firing}` не появится в Prometheus,
    - и алерт не появится в Alertmanager `/api/v2/alerts?active=true`.
@@ -154,4 +164,12 @@ DELETE FROM paper_drift_samples WHERE instrument_key LIKE 'DRILL-%';
 
 | Дата | Operator | Baseline avg5m | MTTA | MTTR | Результат | Замечания |
 |------|----------|----------------|------|------|-----------|-----------|
-| _пока не запускался_ | — | — | — | — | — | — |
+| 2026-06-14 | @dev (auto) | — | ~12 m (auto) | pending (manual) | **AUTO PASS** (6/6 automated checks) | instrumentKey=DRILL-TEST, targetBps=80, firing @ t≈715s. Прямой INSERT в paper_drift_samples НЕ поднимает gauge — drill переписан на POST /paper/drift-samples. Manual эскалация /incidents — TBD. |
+| 2026-06-15 | @operator | ~5 bps | ~13 m (Alertmanager UI) | **Warning ~5m / Critical ~20m** | **PARTIAL PASS** (automated ✅, manual blocked) | instrumentKey=DRILL-BTC-USDC, targetBps=76, 25 samples injected @ 13:47. PaperDriftBpsHigh firing ✅ @ t≈715s (~14:01), Alertmanager active ✅ @ ~14:02, /paper drift table ✅. Cleanup @ ~14:00: DELETE 25 DRILL-* samples + restart paper-trading-service. **Self-resolve:** PaperDriftBpsHigh RESOLVED @ ~14:05 (T+~5m от restart), PaperDriftBpsSustainedHigh RESOLVED @ ~14:20 (T+~20m от restart). Final verify @ 14:22: `max_15m`=0 series, `current`=0 series, DB `drill_samples_left`=0. **Gaps:** (1) `/incidents` не показывает PaperDriftBpsHigh — нет автопайплайна Alertmanager→reconciliation_mismatches (backlog); (2) `/hermes` требует Admin role + HERMES_GATEWAY_URL/BFF_API_KEY не настроены; (3) gauge `arb_paper_drift_bps_current` залипает в памяти сервиса до restart (нет periodic `updateStaleGauges()` worker / admin endpoint); (4) staleness markers для `max_over_time[15m]` удлиняют MTTR critical до ~30m. |
+
+### Gaps, выявленные в прогоне 2026-06-15 (для backlog)
+
+1. **Alertmanager → `/incidents` пайплайн отсутствует.** Operator Web `/incidents` показывает только `reconciliation_mismatches` (через reconciliation-service), а alert `PaperDriftBpsHigh` в reconciliation_mismatches не появляется. Нужен либо Alertmanager webhook receiver → incident source, либо отдельный incident pipeline (Phase 2–3 backlog).
+2. **`/hermes` требует Admin role** даже для read-only dashboard — drill operator (OPERATOR role) не может увидеть drill alert. Также `HERMES_GATEWAY_URL` / `HERMES_BFF_API_KEY` не настроены в dev-окружении по умолчанию.
+3. **`arb_paper_drift_bps_current` gauge не self-heals.** `updateStaleGauges()` существует в `PaperDriftService`, но (a) нет worker-а, который вызывает его периодически, и (b) нет HTTP admin endpoint для ручного refresh. Gauge остаётся 76 до restart сервиса или до нового сэмпла. Это блокирует быстрый drill cleanup.
+4. **Prometheus staleness markers для recording rules** — `avg_over_time(...[5m])` / `max_over_time(...[15m])` тлеют ~5m / ~15m после исчезновения gauge. Это ожидаемое поведение PromQL, но для drill-сценария удлиняет MTTR. Альтернатива: уменьшить `for:` на alert или добавить `or vector(0)` fallback в recording rule.

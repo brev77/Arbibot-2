@@ -1,0 +1,89 @@
+# Arbibot 2 — Prometheus DEV configuration
+# Variant for local development: NestJS apps run on the host (npm run dev:*),
+# Prometheus runs in Docker and scrapes them via host.docker.internal.
+# Usage (volume override in docker-compose.dev.yml):
+#   - ./prometheus/:/etc/prometheus/:ro
+#
+# Docker Desktop (Win/Mac) provides host.docker.internal automatically.
+# Linux: requires `extra_hosts: ["host.docker.internal:host-gateway"]` in compose.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+
+rule_files:
+  - /recording-rules/*.yml
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  # ── Host-run NestJS backend services (dev mode) ────────────────
+  - job_name: "risk-service"
+    static_configs:
+      - targets: ["host.docker.internal:3000"]
+    metrics_path: /metrics
+
+  - job_name: "opportunity-service"
+    static_configs:
+      - targets: ["host.docker.internal:3010"]
+    metrics_path: /metrics
+
+  - job_name: "capital-service"
+    static_configs:
+      - targets: ["host.docker.internal:3011"]
+    metrics_path: /metrics
+
+  - job_name: "execution-orchestrator"
+    static_configs:
+      - targets: ["host.docker.internal:3012"]
+    metrics_path: /metrics
+
+  - job_name: "audit-service"
+    static_configs:
+      - targets: ["host.docker.internal:3013"]
+    metrics_path: /metrics
+
+  - job_name: "canonical-market-service"
+    static_configs:
+      - targets: ["host.docker.internal:3014"]
+    metrics_path: /metrics
+
+  - job_name: "market-intake-service"
+    static_configs:
+      - targets: ["host.docker.internal:3015"]
+    metrics_path: /metrics
+
+  - job_name: "portfolio-service"
+    static_configs:
+      - targets: ["host.docker.internal:3016"]
+    metrics_path: /metrics
+
+  - job_name: "reconciliation-service"
+    static_configs:
+      - targets: ["host.docker.internal:3017"]
+    metrics_path: /metrics
+
+  - job_name: "paper-trading-service"
+    static_configs:
+      - targets: ["host.docker.internal:3018"]
+    metrics_path: /metrics
+
+  - job_name: "config-service"
+    static_configs:
+      - targets: ["host.docker.internal:3019"]
+    metrics_path: /metrics
+
+  - job_name: "hermes-gateway"
+    static_configs:
+      - targets: ["host.docker.internal:3020"]
+    metrics_path: /metrics
+
+  # ── Infrastructure (self-monitoring) ──────────────────────────
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]

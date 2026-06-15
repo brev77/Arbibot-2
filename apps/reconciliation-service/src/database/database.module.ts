@@ -1,9 +1,14 @@
 import { Module } from '@nestjs/common';
 
 import { typeOrmRootForEntities } from '@arbibot/nest-database';
-import { ReconciliationMismatchEntity } from '@arbibot/persistence';
+import {
+  AlertmanagerIncidentEntity,
+  ReconciliationMismatchEntity,
+} from '@arbibot/persistence';
 
 @Module({
-  imports: [typeOrmRootForEntities([ReconciliationMismatchEntity])],
+  imports: [
+    typeOrmRootForEntities([ReconciliationMismatchEntity, AlertmanagerIncidentEntity]),
+  ],
 })
 export class DatabaseModule {}

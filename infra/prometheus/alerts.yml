@@ -34,13 +34,37 @@ groups:
           description: "Average paper drift over 5m exceeds 50 bps threshold."
 
       - alert: PaperDriftBpsSustainedHigh
-        expr: arb_paper_drift_bps_max_15m > 30
-        for: 15m
+        # Guard: only fire if new drift samples are still arriving (gauge not stale).
+        # Gap #4 (Drill #1): without this guard, MTTR was ~30m because the recording
+        # rule retained stale gauge values. Combined with self-heal worker (Gap #3),
+        # stale gauges are reset to 0 within 1 minute, so this guard clears the alert.
+        # Window reduced 15m -> 10m for drill/test MTTR target.
+        expr: (arb_paper_drift_bps_max_15m > 30) and on() (rate(arb_paper_drift_samples_recorded_total[5m]) > 0)
+        for: 10m
         labels:
           severity: critical
         annotations:
-          summary: "Sustained paper drift ({{ $value }} bps for 15m)"
-          description: "Paper drift has been above 30 bps for 15 minutes."
+          summary: "Sustained paper drift ({{ $value }} bps for 10m)"
+          description: "Paper drift has been above 30 bps for 10 minutes with active samples. Runbook: docs/drill-1-paper-incident.md."
+
+      # Gap #3 safety net: detect if self-heal worker is stuck or erroring.
+      - alert: PaperDriftSelfHealWorkerDown
+        expr: increase(arb_paper_drift_self_heal_cycles_total[5m]) < 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Paper drift self-heal worker is not running"
+          description: "No self-heal cycles in the last 5 minutes (10m sustained). Check PAPER_DRIFT_SELF_HEAL_ENABLED and paper-trading-service logs."
+
+      - alert: PaperDriftSelfHealErrors
+        expr: increase(arb_paper_drift_self_heal_cycles_total{status="error"}[15m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Paper drift self-heal worker errors ({{ $value }} in 15m)"
+          description: "Self-heal worker reported errors. Check paper-trading-service logs for updateStaleGauges() failures."
 
   - name: dex_health
     rules:

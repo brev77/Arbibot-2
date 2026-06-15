@@ -2,7 +2,7 @@
 
 > **Single consolidated pre-deploy gate.** Этот документ консолидирует чеклист из 10 разделов (база/контракты/бизнес-потоки/API security/data security/execution safety/observability/frontend/приоритеты/порядок запуска) и отображает каждый пункт на конкретные артефакты, команды и находки этого репозитория. Он **не дублирует** существующие runbook-документы, а ссылается на них как на авторитетные источники.
 
-**Версия документа:** 1.1 (2026-06-13) — corrections pass по итогам аудита: N1 (nginx 80→80+443), N2 (network isolation nuance), N3 (миграции 036→037), sync alert-каталога 8.3 с `alerts.yml`, усиление F4/F3 бонусами реализации.
+**Версия документа:** 1.2 (2026-06-14) — sync §8.3 alert-каталога с фактическим `alerts.yml` (17 правил с mapping целевых имён → реализованные), F6 narrowed до единственного оставшегося backlog-alert (`KafkaPublishFailures`). v1.1 (2026-06-13): corrections pass по итогам аудита: N1 (nginx 80→80+443), N2 (network isolation nuance), N3 (миграции 036→037), sync alert-каталога 8.3 с `alerts.yml`, усиление F4/F3 бонусами реализации.
 **Scope:** paper-first deployment → (после приёмки) live minimal capital.
 **Связанные каноны:**
 - [`docs/deployment-checklist.md`](deployment-checklist.md) — поэтапный деплой.
@@ -463,7 +463,9 @@ ENV_FILE=infra/.env npm run verify:env
 
 ### 8.3 Alerts
 
-> **Примечание (synced с `infra/prometheus/alerts.yml`, 2026-06-13):** ниже — **реально существующие** alert-правила (8 шт.). Имена в ранних версиях этого документа (`ArbibotHttp5xxRate`, `ArbibotServiceUptime`, `IntakeDegradationStale`) были целевыми/каталожными и не совпадали с реализацией — каталог приведён в соответствие.
+> **Примечание (synced с `infra/prometheus/alerts.yml`, 2026-06-14):** в `alerts.yml` **реализовано 17 правил** в 9 группах. Ранние версии этого документа оперировали целевыми/каталожными именами (`ArbibotHttp5xxRate`, `ArbibotServiceUptime`, `IntakeDegradationStale`, `ArbibotHttpLatencyP99`, `OutboxRelayLag`, `KafkaPublishFailures`, `ReconciliationOpenMismatches`) — часть из них теперь реализована под другими именами (см. mapping ниже), часть остаётся backlog.
+
+#### Реализованные правила (17 шт.)
 
 | Alert | Severity | Когда срабатывает | Expr (кратко) |
 |-------|----------|-------------------|---------------|
@@ -475,10 +477,28 @@ ENV_FILE=infra/.env npm run verify:env
 | `DEXRPCDegraded` | warning | DEX RPC degraded 10m | `arb_dex_health_status{status="degraded"} == 0.5` |
 | `HighMemoryUsage` | warning | RSS > 400 MB за 10m | `process_resident_memory_bytes / 1024 / 1024 > 400` |
 | `IntakeDegraded` | warning | intake degradation active 5m | `arb_intake_degradation_active == 1` |
+| `ReconciliationMismatches` | warning | > 5 mismatches за 15m | `increase(arb_reconciliation_mismatches_total[15m]) > 5` |
+| `CapitalExhaustion` | critical | available capital < $1000 за 5m | `arb_capital_available_usd < 1000` |
+| `ExecutionPlanStuck` | warning | plan в `armed`/`executing` > 10m | `time() - arb_execution_plan_state_changed_timestamp_seconds{state=~"armed\|executing"} > 600` |
+| `OutboxRelayBacklog` | warning | pending outbox events > 100 за 5m | `arb_outbox_relay_pending_total > 100` |
+| `DiskSpaceLow` | warning | disk free < 15% за 10m | `node_filesystem_avail_bytes / node_filesystem_size_bytes < 0.15` |
+| `SLOFastBurnCritical` | critical | 2% error budget за 1h (14.4× burn) | SLO multi-window multi-burn-rate (Google SRE Workbook §5) |
+| `SLOSlowBurnCritical` | critical | 5% error budget за 6h (6× burn) | SLO multi-window multi-burn-rate |
+| `SLOMediumBurnWarning` | warning | 10% error budget за 3d (1× burn) | SLO multi-window multi-burn-rate |
+| `SLOLatencyFastBurn` | critical | p99 > 500ms за fast window (Tier 1 SLO) | `http_request_duration_seconds_bucket{le="0.5"}` ratio |
 
-**Backlog (alerts не реализованы, целевые для будущего — см. F6 в разделе 11):** `ArbibotHttpLatencyP99` (SLO breach), `OutboxRelayLag` (oldest unprocessed outbox row), `KafkaPublishFailures` (bridge errors), `ReconciliationOpenMismatches` (open mismatches count).
+#### Mapping целевых имён → реализация
 
-**Файлы:** `infra/prometheus/alerts.yml`, `infra/alertmanager/`, `docs/observability-tracing.md` (alert catalog).
+| Целевое имя (ранние docs / catalog) | Статус | Реализованное имя |
+|-------------------------------------|--------|-------------------|
+| `ArbibotHttpLatencyP99` | ✅ реализован | `SLOLatencyFastBurn` (Tier 1 latency SLO, 500ms p99) |
+| `OutboxRelayLag` | ✅ реализован | `OutboxRelayBacklog` (pending > 100 за 5m) |
+| `ReconciliationOpenMismatches` | ✅ реализован | `ReconciliationMismatches` (mismatches за 15m window) |
+| `KafkaPublishFailures` | ⚠️ **backlog** | нет в `alerts.yml` (ожидает bridge error counter) — см. F6 |
+
+**Backlog (1 правило, см. F6 в разделе 11):** `KafkaPublishFailures` — требует экспорта `arb_outbox_kafka_bridge_publish_failures_total` счётчика из `@arbibot/outbox-kafka-bridge`; после этого добавить правило в `infra/prometheus/alerts.yml` (группа `messaging`).
+
+**Файлы:** `infra/prometheus/alerts.yml`, `infra/alertmanager/`, `docs/observability-tracing.md` (alert catalog — целевые имена).
 
 ### 8.4 Grafana dashboards
 
@@ -661,7 +681,7 @@ ENV_FILE=infra/.env npm run verify:env
 | F3 | ✅ `tools/verify-deployment.sh`: режим `VERIFY_MODE=isolated` для prod — **RESOLVED** (+ BFF-fallback для canonical registry) |
 | F4 | ✅ `tools/validate-env.sh`: блокирует deploy при `ARBIBOT_DEV_ROLE` (exit 1) — **RESOLVED (сильнее обещанного)**; `ARBIBOT_DEV_ROLE` env-fallback → noop в production — **backlog** |
 | F5 | `deployment-readiness-assessment.md`: явная маркировка PAPER vs LIVE |
-| F6 | Alert-каталог: добавить `ArbibotHttpLatencyP99`, `OutboxRelayLag`, `KafkaPublishFailures`, `ReconciliationOpenMismatches` в `infra/prometheus/alerts.yml` (целевые backlog-alerts, см. 8.3) |
+| F6 | ✅ Alert-каталог: `ArbibotHttpLatencyP99` → `SLOLatencyFastBurn`, `OutboxRelayLag` → `OutboxRelayBacklog`, `ReconciliationOpenMismatches` → `ReconciliationMismatches` — **добавлены в `alerts.yml`** (synced в §8.3, 2026-06-14). ⚠️ Остался backlog: `KafkaPublishFailures` — требует экспорта bridge error counter из `@arbibot/outbox-kafka-bridge`. |
 
 ---
 

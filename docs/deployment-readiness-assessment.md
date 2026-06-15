@@ -1,6 +1,6 @@
 ﻿# Оценка готовности к деплою — Arbibot 2
 
-**Дата оценки:** 2026-06-13 (обновлено: Phase C Final)  
+**Дата оценки:** 2026-06-13 (обновлено: 2026-06-14 — sync §5 alert-каталога; Phase C Final)  
 **Статус проекта:** Feature-complete (Phase 0–5 + DEX-1/2/DOC)  
 **Сводная оценка:** **100/100** — ✅ READY для Paper Trading Deploy (LIVE-READY backlog explicit)
 
@@ -125,15 +125,18 @@
 ### Готово
 - Prometheus метрики во всех сервисах (`@arbibot/nest-platform`)
 - **`infra/prometheus/prometheus.yml`** — scrape config для всех 12 сервисов + infra
-- **`infra/prometheus/alerts.yml`** — production alert rules (**12 правил**, synced 2026-06-13):
-  - ServiceDown, HighErrorRate
-  - PaperDriftBpsHigh, PaperDriftBpsSustainedHigh
-  - DEXUnhealthy, DEXRPCDegraded
-  - HighMemoryUsage, IntakeDegraded
-  - ArbibotHttpLatencyP99 (SLO breach)
-  - OutboxRelayLag (oldest unprocessed outbox row)
-  - KafkaPublishFailures (bridge errors)
-  - ReconciliationOpenMismatches (open mismatches count)
+- **`infra/prometheus/alerts.yml`** — production alert rules (**17 правил** в 9 группах, synced 2026-06-14):
+  - **service_health:** `ServiceDown`, `HighErrorRate`
+  - **paper_trading:** `PaperDriftBpsHigh`, `PaperDriftBpsSustainedHigh`
+  - **dex_health:** `DEXUnhealthy`, `DEXRPCDegraded`
+  - **system_resources:** `HighMemoryUsage`
+  - **intake:** `IntakeDegraded`
+  - **reconciliation:** `ReconciliationMismatches` (> 5 mismatches за 15m)
+  - **capital_execution:** `CapitalExhaustion` (< $1000 за 5m), `ExecutionPlanStuck` (plan в armed/executing > 10m)
+  - **messaging:** `OutboxRelayBacklog` (pending events > 100 за 5m)
+  - **infrastructure:** `DiskSpaceLow` (< 15% free за 10m)
+  - **slo_burn_rate:** `SLOFastBurnCritical` (2% budget/1h), `SLOSlowBurnCritical` (5%/6h), `SLOMediumBurnWarning` (10%/3d), `SLOLatencyFastBurn` (p99 > 500ms, Tier 1 latency SLO)
+- Mapping целевых имён из ранних документов → реализованные: `ArbibotHttpLatencyP99`→`SLOLatencyFastBurn`, `OutboxRelayLag`→`OutboxRelayBacklog`, `ReconciliationOpenMismatches`→`ReconciliationMismatches`. ⚠️ Backlog: `KafkaPublishFailures` (требует bridge error counter) — см. F6 в [`docs/pre-deploy-review.md`](pre-deploy-review.md) §11.
 - **`infra/loki/loki-config.yaml`** — centralized logging (single-binary mode)
 - **`infra/promtail/promtail-config.yaml`** — Docker container log collection
 - **`infra/grafana/datasources/datasources.yml`** — Prometheus + Loki datasources
@@ -223,7 +226,7 @@
 | `infra/nginx/nginx.conf` | TLS termination, rate limiting, security headers |
 | `infra/nginx/ssl/.gitkeep` | Placeholder для TLS сертификатов |
 | `infra/prometheus/prometheus.yml` | Scrape config для 12 сервисов + Alertmanager |
-| `infra/prometheus/alerts.yml` | Production alert rules (12 правил) |
+| `infra/prometheus/alerts.yml` | Production alert rules (17 правил, 9 групп) |
 | `infra/loki/loki-config.yaml` | Centralized logging config |
 | `infra/promtail/promtail-config.yaml` | Docker log collection |
 | `infra/grafana/datasources/datasources.yml` | Prometheus + Loki datasources |
@@ -360,7 +363,7 @@ npm run db:seed-canonical
 4. ✅ Internal mTLS cert generation (`tools/generate-internal-certs.sh` — CA + 12 service certs)
 5. ✅ ServiceAuthModule (`@arbibot/nest-platform/service-auth` — HMAC guard + signer + Fastify hook, unit tests)
 6. ✅ ARBIBOT_DEV_ROLE env-fallback → noop в production (`apps/web/lib/operator-session.ts` + `middleware.ts`)
-7. ✅ Backlog alerts добавлены в `infra/prometheus/alerts.yml` (4 правила: Latency P99, OutboxRelayLag, KafkaPublishFailures, ReconciliationOpenMismatches)
+7. ✅ Backlog alerts реализованы в `infra/prometheus/alerts.yml` (synced 2026-06-14: `Latency P99`→`SLOLatencyFastBurn`, `OutboxRelayLag`→`OutboxRelayBacklog`, `ReconciliationOpenMismatches`→`ReconciliationMismatches`; ⚠️ `KafkaPublishFailures` остаётся backlog — требует bridge error counter, см. F6 в `pre-deploy-review.md`)
 8. ✅ Dependabot config (`.github/dependabot.yml` — npm + actions + docker с группировкой)
 9. ✅ Security scanning pipeline (`.github/workflows/security.yml` — npm audit + CodeQL + Trivy + Checkov + gitleaks)
 10. ✅ Secret scanning rules (`.github/gitleaks-config.toml` — Arbibot env patterns)
@@ -374,6 +377,7 @@ npm run db:seed-canonical
 5. Kubernetes deployment при масштабировании за пределы docker compose (reference готов — `infra/kubernetes/README.md`)
 6. Audit log external storage activation (guide готов — `docs/audit-external-storage.md`)
 7. Key rotation drill на стейджинге (`docs/key-rotation-runbook.md`)
+8. `KafkaPublishFailures` alert rule — добавить после экспорта `arb_outbox_kafka_bridge_publish_failures_total` счётчика из `@arbibot/outbox-kafka-bridge` (см. F6 в `docs/pre-deploy-review.md` §11)
 
 ### Рекомендация:
 **Paper trading deploy полностью готов.** Все инфраструктурные блоки, инструменты валидации, observability, документация, операционные процедуры, security scanning и threat model на месте. LIVE-READY gap — только организационные drills (mTLS enforcement, Vault rollout, pen-test, key rotation drill).

@@ -9,9 +9,10 @@
  * Что drill делает автоматически:
  *   1. Проверяет что paper-trading-service живой и метрики `/metrics` отдаются.
  *   2. Проверяет что recording-rule `arb_paper_drift_bps_avg_5m` уже материализована в Prometheus.
- *   3. Вставляет серию drift samples (drift_bps = 75 > порога 50) через прямой SQL,
- *      чтобы вызвать `updateStaleGauges()` на следующем тике.
- *   4. (Опционально) POST'ит `/paper/drift/samples` если такой endpoint существует.
+ *   3. POST'ит серию drift samples (drift_bps = 75 > порога 50) в `/paper/drift-samples`,
+ *      что вызывает `PaperDriftService.record()` и мгновенно обновляет Prometheus gauge
+ *      `arb_paper_drift_bps_current`. Прямой SQL INSERT не работает — gauge ставится
+ *      только в сервисном слое `record()`, а не в БД-триггере.
  *   5. Ждёт 1–2 цикла scrape_interval + recording window и опрашивает Prometheus:
  *        - arb_paper_drift_bps_avg_5m
  *        - ALERTS{alertname="PaperDriftBpsHigh", alertstate="firing"}
@@ -33,7 +34,7 @@
  *   ALERTMANAGER_URL         — Alertmanager (default: http://127.0.0.1:9093)
  *   DRILL_INSTRUMENT_KEY     — instrument для симуляции (default: DRILL-BTC-USDC)
  *   DRILL_TARGET_BPS         — целевой drift (default: 75)
- *   DRILL_SETTLE_SECONDS     — сколько ждать firing (default: 420 — 5m `for` + scrape jitter)
+ *   DRILL_SETTLE_SECONDS     — сколько ждать firing (default: 720s = 5m recording window + 5m alert `for:` + ~120s jitter). Не уменьшайте ниже 600s иначе алерт не успеет перейти из pending в firing.
  *   DRILL_DRY_RUN            — `true`: только проверки, без инъекции (default: false)
  */
 
@@ -46,7 +47,7 @@ const CONFIG = {
   ALERTMANAGER_URL: process.env.ALERTMANAGER_URL || 'http://127.0.0.1:9093',
   DRILL_INSTRUMENT_KEY: process.env.DRILL_INSTRUMENT_KEY || 'DRILL-BTC-USDC',
   DRILL_TARGET_BPS: Number(process.env.DRILL_TARGET_BPS || 75),
-  DRILL_SETTLE_SECONDS: Number(process.env.DRILL_SETTLE_SECONDS || 420),
+  DRILL_SETTLE_SECONDS: Number(process.env.DRILL_SETTLE_SECONDS || 720),
   DRILL_DRY_RUN: process.env.DRILL_DRY_RUN === 'true',
 };
 
@@ -136,8 +137,9 @@ async function checkService(url, name, probe = '/health') {
 
 async function step1_preflight() {
   header('Step 1 — Preflight (services alive)');
+  // paper-trading-service exposes /metrics (NestJS prometheus plugin), not /health
   const checks = await Promise.all([
-    checkService(CONFIG.PAPER_TRADING_URL, 'paper-trading-service'),
+    checkService(CONFIG.PAPER_TRADING_URL, 'paper-trading-service', '/metrics'),
     checkService(CONFIG.PROMETHEUS_URL, 'prometheus', '/-/ready'),
     checkService(CONFIG.ALERTMANAGER_URL, 'alertmanager', '/-/ready'),
   ]);
@@ -181,6 +183,20 @@ async function step3_baseline_metrics() {
   return baseline;
 }
 
+async function postDriftSample(payload) {
+  const url = `${CONFIG.PAPER_TRADING_URL}/paper/drift-samples`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`HTTP ${response.status} ${response.statusText}: ${text}`);
+  }
+  return response.json();
+}
+
 async function step4_inject_drift() {
   header(`Step 4 — Inject high drift (target = ${CONFIG.DRILL_TARGET_BPS} bps)`);
   if (CONFIG.DRILL_DRY_RUN) {
@@ -189,28 +205,39 @@ async function step4_inject_drift() {
   }
   const instrumentKey = CONFIG.DRILL_INSTRUMENT_KEY;
   const targetBps = CONFIG.DRILL_TARGET_BPS;
-  // Инжектируем серию samples с интервалом ~1s чтобы gauge быстро «устаканился»,
-  // т.к. updateStaleGauges берёт последнее значение на инструмент.
+  // ВАЖНО: прямой SQL INSERT в paper_drift_samples НЕ обновляет Prometheus-метрику
+  // `arb_paper_drift_bps_current` — gauge ставится только в PaperDriftService.record(),
+  // который вызывается через HTTP `POST /paper/drift-samples`. Поэтому drill инжектирует
+  // через HTTP API, а не через БД напрямую.
+  // Серия сэмплов с интервалом ~1s нужна, чтобы recording rule avg_over_time
+  // (5m window) набрала достаточно точек для надёжного firing.
   const sampleValues = Array.from({ length: 12 }, (_, i) => targetBps + (i % 3) - 1);
-  const tuples = sampleValues
-    .map(
-      (bps) =>
-        `('${instrumentKey.replace(/'/g, "''")}', '${(45000).toString()}', '${(45000 * (1 + bps / 1e6)).toFixed(6)}', ${bps}, NOW())`
-    )
-    .join(', ');
-  const sql = `
-    INSERT INTO paper_drift_samples (instrument_key, paper_mid, reference_mid, drift_bps, captured_at)
-    VALUES ${tuples}
-  `;
-  try {
-    const result = await pg(sql);
-    log(`  ${COLORS.green}Injected ${result.rowCount} drift samples${COLORS.reset} for instrument_key='${instrumentKey}'`);
-    log(`  ${COLORS.dim}SQL: INSERT INTO paper_drift_samples ... (${sampleValues.join(',')})${COLORS.reset}`);
-    return { injected: result.rowCount, instrumentKey };
-  } catch (err) {
-    log(`  ${COLORS.red}Insert failed: ${err.message}${COLORS.reset}`);
-    return { injected: 0, error: err.message };
+  let injected = 0;
+  let lastErr = null;
+  for (const bps of sampleValues) {
+    const payload = {
+      instrumentKey,
+      paperMid: '45000',
+      referenceMid: (45000 * (1 + bps / 1e6)).toFixed(6),
+      driftBps: bps,
+    };
+    try {
+      await postDriftSample(payload);
+      injected++;
+      process.stdout.write(`  ${COLORS.dim}.${COLORS.reset}`);
+    } catch (err) {
+      lastErr = err;
+      log(`\n  ${COLORS.red}POST /paper/drift-samples failed: ${err.message}${COLORS.reset}`);
+      break;
+    }
+    await new Promise((r) => setTimeout(r, 1000));
   }
+  log('');
+  if (injected > 0) {
+    log(`  ${COLORS.green}Injected ${injected} drift samples${COLORS.reset} via POST /paper/drift-samples (instrumentKey='${instrumentKey}')`);
+    log(`  ${COLORS.dim}Values: ${sampleValues.join(',')}${COLORS.reset}`);
+  }
+  return { injected, instrumentKey, error: lastErr?.message };
 }
 
 async function step5_wait_and_verify(settleSeconds, baseline) {
@@ -260,6 +287,10 @@ async function getAlertmanagerActive() {
 
 function printReport(steps) {
   header('Drill #1 — Report');
+  // В dry-run эти шаги пропускаются намеренно — показываем как SKIP, не FAIL
+  const skipInDryRun = CONFIG.DRILL_DRY_RUN
+    ? new Set(['drift injection', 'alert firing (Prometheus)', 'alert delivered (Alertmanager)'])
+    : new Set();
   const rows = [
     ['preflight', steps.preflight],
     ['rule loaded', steps.ruleLoaded],
@@ -269,12 +300,23 @@ function printReport(steps) {
     ['alert delivered (Alertmanager)', steps.delivered],
   ];
   for (const [name, ok] of rows) {
-    const mark = ok ? `${COLORS.green}PASS${COLORS.reset}` : `${COLORS.red}FAIL${COLORS.reset}`;
+    const mark = skipInDryRun.has(name)
+      ? `${COLORS.yellow}SKIP${COLORS.reset} (dry-run)`
+      : ok
+        ? `${COLORS.green}PASS${COLORS.reset}`
+        : `${COLORS.red}FAIL${COLORS.reset}`;
     log(`  ${pad(name, 36)} ${mark}`);
   }
-  const passed = rows.filter(([, ok]) => ok).length;
-  const total = rows.length;
+  const counted = rows.filter(([name]) => !skipInDryRun.has(name));
+  const passed = counted.filter(([, ok]) => ok).length;
+  const total = counted.length;
   log('');
+  if (CONFIG.DRILL_DRY_RUN) {
+    log(`  ${COLORS.green}✓ Drill #1 DRY-RUN passed (${passed}/${total} preflight checks OK).${COLORS.reset}`);
+    log(`  ${COLORS.cyan}→ Dry-run: только проверки готовности, без инъекции и ожидания alert.${COLORS.reset}`);
+    log(`  ${COLORS.cyan}→ Для полного прогона: unset DRILL_DRY_RUN && npm run drill:1${COLORS.reset}`);
+    return;
+  }
   if (passed === total) {
     log(`  ${COLORS.green}✓ Drill #1 AUTOMATED PART passed (${passed}/${total}).${COLORS.reset}`);
     log(`  ${COLORS.cyan}→ Now hand off to operator:${COLORS.reset}`);
@@ -287,7 +329,8 @@ function printReport(steps) {
     log(`  ${COLORS.red}✗ Drill #1 AUTOMATED PART failed (${passed}/${total}).${COLORS.reset}`);
     log(`  ${COLORS.yellow}Troubleshooting:${COLORS.reset}`);
     if (!steps.preflight) {
-      log(`    • Поднять сервисы: docker compose -f infra/docker-compose.dev.yml --profile bus up -d`);
+      log(`    • Поднять observability-стек: docker compose -f infra/docker-compose.dev.yml --profile observability up -d`);
+      log(`    • Поднять backend-сервисы:    npm run dev:paper (или npm run dev:stack:full для всего)`);
     }
     if (!steps.ruleLoaded) {
       log(`    • Проверить что infra/prometheus/alerts.yml и grafana/recording-rules/* подгружены в Prometheus`);
@@ -329,31 +372,42 @@ async function main() {
     steps.preflight = await step1_preflight();
     if (!steps.preflight) {
       printReport(steps);
-      process.exit(2);
+      process.exitCode = 2;
+      return;
     }
     steps.ruleLoaded = await step2_verify_rule_loaded();
     if (!steps.ruleLoaded) {
       printReport(steps);
-      process.exit(2);
+      process.exitCode = 2;
+      return;
     }
     steps.baseline = await step3_baseline_metrics();
     const injected = await step4_inject_drift();
     steps.injected = injected.injected || 0;
-    if (steps.injected === 0 && !CONFIG.DRILL_DRY_RUN) {
+    if (CONFIG.DRILL_DRY_RUN) {
+      log(`  ${COLORS.green}✓ Dry-run OK: preflight + rule loaded + baseline checked (no injection, no wait).${COLORS.reset}`);
       printReport(steps);
-      process.exit(3);
+      // Не вызываем process.exit() — libuv на Windows падает на exit с открытыми async handles (PG client/fetch).
+      // process.exitCode позволит node корректно завершиться после очистки event loop.
+      process.exitCode = 0;
+      return;
+    }
+    if (steps.injected === 0) {
+      printReport(steps);
+      process.exitCode = 3;
+      return;
     }
     const result = await step5_wait_and_verify(CONFIG.DRILL_SETTLE_SECONDS, steps.baseline);
     steps.firing = result.success || (await promScalarOrZero(`scalar(count(ALERTS{alertname="${ALERT_RULE}",alertstate="firing"} > 0))`)) === 1;
     const amActive = await getAlertmanagerActive();
     steps.delivered = amActive.length > 0;
     printReport(steps);
-    process.exit(steps.firing && steps.delivered ? 0 : 1);
+    process.exitCode = steps.firing && steps.delivered ? 0 : 1;
   } catch (err) {
     log(`\n  ${COLORS.red}Fatal error: ${err.message}${COLORS.reset}`);
     console.error(err);
     printReport(steps);
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 

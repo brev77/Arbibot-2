@@ -54,6 +54,10 @@ function minimumRoleForOperatorBffPathname(pathname: string): OperatorRole | nul
   if (pathname.startsWith('/api/operator/paper')) {
     return 'operator';
   }
+  // Phase 5 Hermes: read-only endpoints accessible to viewers; mutations enforced by POST/PATCH handlers.
+  if (pathname.startsWith('/api/operator/hermes/v1/')) {
+    return 'viewer';
+  }
   return 'operator';
 }
 
@@ -63,8 +67,13 @@ export function minimumRoleForPathname(pathname: string): OperatorRole | null {
   if (bff !== null) {
     return bff;
   }
-  if (pathname.startsWith('/settings') || pathname.startsWith('/hermes')) {
+  if (pathname.startsWith('/settings')) {
     return 'admin';
+  }
+  // Drill #1 gap #2: relax /hermes to viewer for read-only Hermes summary.
+  // Mutations remain gated at the BFF level (POST/PATCH → operator role).
+  if (pathname.startsWith('/hermes')) {
+    return 'viewer';
   }
   if (
     pathname.startsWith('/portfolio') ||

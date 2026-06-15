@@ -1,10 +1,33 @@
 # Dependabot configuration for Arbibot 2 monorepo
 # Docs: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+#
+# ─── Billing-aware configuration (2026-06-14) ───────────────────────────
+# Root cause of CI failures on 2026-06-13: ~28 parallel Dependabot runs
+# fired at the same minute (17:08 UTC), which exhausted the account's
+# Actions minutes / spending limit and blocked all subsequent CI/CD/Security
+# jobs with "recent account payments have failed".
+#
+# Mitigations applied in this file:
+#   1. **Groups**: all minor+patch bumps are merged into ONE PR per directory
+#      (previously each transitive dep produced its own PR → N× CI runs).
+#   2. **Spread schedules**: backend apps / packages / actions / docker are
+#      spread across MON–FRI at different times so no more than ~5 configs
+#      fire in the same hour (was 25+ simultaneously).
+#   3. **rebase-strategy: "disabled"**: no automatic rebases — each rebase
+#      previously retriggers full CI/CD/Security (~60 min of Actions minutes).
+#   4. **open-pull-requests-limit**: lowered to 2 (apps/packages) / 3 (root)
+#      — majors still get individual PRs (and are mostly auto-ignored below).
+#   5. **Major bumps ignored**: semver-major stays pinned (security advisories
+#      still open PRs via `@dependabot ignore`-unaffected security flow).
+#
+# Expected Actions minutes usage: ~3× lower than the previous configuration.
+# After applying, monitor: https://github.com/settings/billing (Actions tab).
+# ─────────────────────────────────────────────────────────────────────
 
 version: 2
 
 updates:
-  # Root package.json (workspaces root, turbo, eslint, typescript)
+  # ─── Root (monorepo tooling: turbo, eslint, typescript) — MON 06:00 MSK ─
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
@@ -12,8 +35,9 @@ updates:
       day: "monday"
       time: "06:00"
       timezone: "Europe/Moscow"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 3
     target-branch: "main"
+    rebase-strategy: "disabled"
     labels:
       - "dependencies"
       - "npm"
@@ -21,250 +45,498 @@ updates:
       prefix: "deps"
       include: "scope"
     groups:
-      # Group minor/patch updates of @types/* to reduce PR noise
+      # All minor/patch root deps → single PR
+      npm-minor-patch:
+        patterns: ["*"]
+        update-types:
+          - "minor"
+          - "patch"
+        exclude-patterns:
+          - "@types/node"
+          - "typescript"
+      # @types/* tracked separately (frequent churn)
       types:
         patterns:
           - "@types/*"
         update-types:
           - "minor"
           - "patch"
-      # Group NestJS ecosystem updates
-      nestjs:
-        patterns:
-          - "@nestjs/*"
-          - "nest*"
-        update-types:
-          - "minor"
-          - "patch"
-      # Group Fastify ecosystem
-      fastify:
-        patterns:
-          - "@fastify/*"
-          - "fastify"
-        update-types:
-          - "minor"
-          - "patch"
-      # Group TypeORM + pg ecosystem
-      typeorm:
-        patterns:
-          - "typeorm"
-          - "pg"
-          - "pg-*"
-        update-types:
-          - "minor"
-          - "patch"
-      # Group testing tooling
-      testing:
-        patterns:
-          - "jest"
-          - "@types/jest"
-          - "ts-jest"
-          - "supertest"
-          - "@types/supertest"
-        update-types:
-          - "minor"
-          - "patch"
     ignore:
-      # Major version bumps require manual review (security advisory still opens PR)
+      # Major version bumps require manual review
+      # (security advisories still bypass ignore and open PRs)
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
-      # Node engine pinned to LTS — do not auto-bump
+      # Node engine pinned to LTS — never auto-bump major
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
       # TypeScript major bumps require full lint/test review
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
 
-  # Per-app package.json (catch workspace-local deps that root scan misses)
+  # ─── Backend apps — split across TUE / WED / THU ────────────────────────
+  # TUE 03:00 MSK (first batch of 5)
   - package-ecosystem: "npm"
     directory: "/apps/audit-service"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 3
+      day: "tuesday"
+      time: "03:00"
+      timezone: "Europe/Moscow"
+    open-pull-requests-limit: 2
+    rebase-strategy: "disabled"
     labels: ["dependencies", "npm", "backend"]
     commit-message:
       prefix: "deps(audit)"
+    groups:
+      npm-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: "npm"
     directory: "/apps/canonical-market-service"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 3
+      day: "tuesday"
+      time: "04:00"
+      timezone: "Europe/Moscow"
+    open-pull-requests-limit: 2
+    rebase-strategy: "disabled"
     labels: ["dependencies", "npm", "backend"]
     commit-message:
       prefix: "deps(canonical)"
+    groups:
+      npm-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: "npm"
     directory: "/apps/capital-service"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 3
+      day: "tuesday"
+      time: "05:00"
+      timezone: "Europe/Moscow"
+    open-pull-requests-limit: 2
+    rebase-strategy: "disabled"
     labels: ["dependencies", "npm", "backend"]
     commit-message:
       prefix: "deps(capital)"
+    groups:
+      npm-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: "npm"
     directory: "/apps/config-service"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 3
+      day: "tuesday"
+      time: "06:00"
+      timezone: "Europe/Moscow"
+    open-pull-requests-limit: 2
+    rebase-strategy: "disabled"
     labels: ["dependencies", "npm", "backend"]
     commit-message:
       prefix: "deps(config)"
+    groups:
+      npm-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: "npm"
     directory: "/apps/execution-orchestrator"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 3
+      day: "tuesday"
+      time: "07:00"
+      timezone: "Europe/Moscow"
+    open-pull-requests-limit: 2
+    rebase-strategy: "disabled"
     labels: ["dependencies", "npm", "backend", "dex"]
     commit-message:
       prefix: "deps(execution)"
+    groups:
+      npm-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # WED 03:00 MSK (second batch of 4)
   - package-ecosystem: "npm"
     directory: "/apps/hermes-gateway"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 3
+      day: "wednesday"
+      time: "03:00"
+      timezone: "Europe/Moscow"
+    open-pull-requests-limit: 2
+    rebase-strategy: "disabled"
     labels: ["dependencies", "npm", "backend", "hermes"]
     commit-message:
       prefix: "deps(hermes)"
+    groups:
+      npm-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: "npm"
     directory: "/apps/market-intake-service"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 3
+      day: "wednesday"
+      time: "04:00"
+      timezone: "Europe/Moscow"
+    open-pull-requests-limit: 2
+    rebase-strategy: "disabled"
     labels: ["dependencies", "npm", "backend"]
     commit-message:
       prefix: "deps(intake)"
+    groups:
+      npm-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: "npm"
     directory: "/apps/opportunity-service"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 3
+      day: "wednesday"
+      time: "05:00"
+      timezone: "Europe/Moscow"
+    open-pull-requests-limit: 2
+    rebase-strategy: "disabled"
     labels: ["dependencies", "npm", "backend"]
     commit-message:
       prefix: "deps(opportunity)"
+    groups:
+      npm-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: "npm"
     directory: "/apps/paper-trading-service"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 3
+      day: "wednesday"
+      time: "06:00"
+      timezone: "Europe/Moscow"
+    open-pull-requests-limit: 2
+    rebase-strategy: "disabled"
     labels: ["dependencies", "npm", "backend", "paper"]
     commit-message:
       prefix: "deps(paper)"
+    groups:
+      npm-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # THU 03:00 MSK (third batch of 4)
   - package-ecosystem: "npm"
     directory: "/apps/portfolio-service"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 3
+      day: "thursday"
+      time: "03:00"
+      timezone: "Europe/Moscow"
+    open-pull-requests-limit: 2
+    rebase-strategy: "disabled"
     labels: ["dependencies", "npm", "backend"]
     commit-message:
       prefix: "deps(portfolio)"
+    groups:
+      npm-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: "npm"
     directory: "/apps/reconciliation-service"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 3
+      day: "thursday"
+      time: "04:00"
+      timezone: "Europe/Moscow"
+    open-pull-requests-limit: 2
+    rebase-strategy: "disabled"
     labels: ["dependencies", "npm", "backend"]
     commit-message:
       prefix: "deps(recon)"
+    groups:
+      npm-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: "npm"
     directory: "/apps/risk-service"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 3
+      day: "thursday"
+      time: "05:00"
+      timezone: "Europe/Moscow"
+    open-pull-requests-limit: 2
+    rebase-strategy: "disabled"
     labels: ["dependencies", "npm", "backend"]
     commit-message:
       prefix: "deps(risk)"
+    groups:
+      npm-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: "npm"
     directory: "/apps/web"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 3
+      day: "thursday"
+      time: "06:00"
+      timezone: "Europe/Moscow"
+    open-pull-requests-limit: 2
+    rebase-strategy: "disabled"
     labels: ["dependencies", "npm", "frontend"]
     commit-message:
       prefix: "deps(web)"
+    groups:
+      npm-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
-  # Shared packages
+  # ─── Shared packages — FRI, 2 configs/hour ─────────────────────────────
   - package-ecosystem: "npm"
     directory: "/packages/contracts"
     schedule:
       interval: "weekly"
+      day: "friday"
+      time: "03:00"
+      timezone: "Europe/Moscow"
     open-pull-requests-limit: 2
+    rebase-strategy: "disabled"
     labels: ["dependencies", "npm", "shared"]
     commit-message:
       prefix: "deps(contracts)"
+    groups:
+      npm-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: "npm"
     directory: "/packages/contracts-eth"
     schedule:
       interval: "weekly"
+      day: "friday"
+      time: "03:00"
+      timezone: "Europe/Moscow"
     open-pull-requests-limit: 2
+    rebase-strategy: "disabled"
     labels: ["dependencies", "npm", "shared", "dex"]
     commit-message:
       prefix: "deps(contracts-eth)"
+    groups:
+      npm-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: "npm"
     directory: "/packages/hermes-mcp-server"
     schedule:
       interval: "weekly"
+      day: "friday"
+      time: "04:00"
+      timezone: "Europe/Moscow"
     open-pull-requests-limit: 2
+    rebase-strategy: "disabled"
     labels: ["dependencies", "npm", "shared", "hermes"]
     commit-message:
       prefix: "deps(mcp)"
+    groups:
+      npm-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: "npm"
     directory: "/packages/messaging"
     schedule:
       interval: "weekly"
+      day: "friday"
+      time: "04:00"
+      timezone: "Europe/Moscow"
     open-pull-requests-limit: 2
+    rebase-strategy: "disabled"
     labels: ["dependencies", "npm", "shared"]
     commit-message:
       prefix: "deps(messaging)"
+    groups:
+      npm-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: "npm"
     directory: "/packages/nest-database"
     schedule:
       interval: "weekly"
+      day: "friday"
+      time: "05:00"
+      timezone: "Europe/Moscow"
     open-pull-requests-limit: 2
+    rebase-strategy: "disabled"
     labels: ["dependencies", "npm", "shared"]
     commit-message:
       prefix: "deps(nest-db)"
+    groups:
+      npm-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: "npm"
     directory: "/packages/nest-platform"
     schedule:
       interval: "weekly"
+      day: "friday"
+      time: "05:00"
+      timezone: "Europe/Moscow"
     open-pull-requests-limit: 2
+    rebase-strategy: "disabled"
     labels: ["dependencies", "npm", "shared"]
     commit-message:
       prefix: "deps(platform)"
+    groups:
+      npm-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: "npm"
     directory: "/packages/outbox-kafka-bridge"
     schedule:
       interval: "weekly"
+      day: "friday"
+      time: "06:00"
+      timezone: "Europe/Moscow"
     open-pull-requests-limit: 2
+    rebase-strategy: "disabled"
     labels: ["dependencies", "npm", "shared"]
     commit-message:
       prefix: "deps(outbox-bridge)"
+    groups:
+      npm-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: "npm"
     directory: "/packages/persistence"
     schedule:
       interval: "weekly"
+      day: "friday"
+      time: "06:00"
+      timezone: "Europe/Moscow"
     open-pull-requests-limit: 2
+    rebase-strategy: "disabled"
     labels: ["dependencies", "npm", "shared"]
     commit-message:
       prefix: "deps(persistence)"
+    groups:
+      npm-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
-  # GitHub Actions — keep workflows up to date
+  # ─── GitHub Actions — SAT 04:00 MSK ────────────────────────────────────
+  # Groupped: all action bumps land in ONE PR
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 5
+      day: "saturday"
+      time: "04:00"
+      timezone: "Europe/Moscow"
+    open-pull-requests-limit: 2
+    rebase-strategy: "disabled"
     labels: ["dependencies", "github-actions"]
     commit-message:
       prefix: "ci"
       include: "scope"
+    groups:
+      actions:
+        patterns: ["*"]
+        update-types:
+          - "minor"
+          - "patch"
 
-  # Docker base images — track updates
+  # ─── Docker base images — SAT 05:00 MSK ────────────────────────────────
+  # Groupped: all image bumps land in ONE PR
   - package-ecosystem: "docker"
     directory: "/infra/docker"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 3
+      day: "saturday"
+      time: "05:00"
+      timezone: "Europe/Moscow"
+    open-pull-requests-limit: 2
+    rebase-strategy: "disabled"
     labels: ["dependencies", "docker"]
     commit-message:
       prefix: "deps(docker)"
+    groups:
+      docker:
+        patterns: ["*"]
+        update-types:
+          - "minor"
+          - "patch"

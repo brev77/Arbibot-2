@@ -13,6 +13,13 @@
 #   docker compose -f infra/docker-compose.dev.yml --profile bus up -d
 # Host apps / @arbibot/outbox-kafka-bridge: KAFKA_BROKERS=127.0.0.1:19092
 #
+# Optional observability stack (Prometheus + Alertmanager + Grafana + Loki + Promtail):
+#   docker compose -f infra/docker-compose.dev.yml --profile observability up -d
+#   Prometheus: http://127.0.0.1:9090
+#   Alertmanager: http://127.0.0.1:9093
+#   Grafana:     http://127.0.0.1:3001  (admin/admin)
+#   Loki:        http://127.0.0.1:3100
+#
 # When you add app containers to this file, use:
 #   depends_on:
 #     postgres:
@@ -72,6 +79,88 @@ services:
     ports:
       - '19092:19092'
 
+  # ── Observability stack (profile: observability) ───────────────────
+  # Prom scrape targets point to host.docker.internal so it works with
+  # NestJS apps running directly on the host via `npm run dev:*`.
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    profiles: [observability]
+    # PROMETHEUS_CONFIG (default: prometheus.dev.yml — apps run on host via npm run dev:*):
+    #   - prometheus.dev.yml  — scrape targets via host.docker.internal (DEV mode, default)
+    #   - prometheus.yml      — scrape targets by container name (apps in containers)
+    # Override with: PROMETHEUS_CONFIG=prometheus.yml docker compose ... up -d
+    command:
+      - '--config.file=/etc/prometheus/${PROMETHEUS_CONFIG:-prometheus.dev.yml}'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    ports:
+      - '9090:9090'
+    volumes:
+      - ./prometheus/:/etc/prometheus/:ro
+      # Recording rules live under infra/grafana/recording-rules/ (co-located
+      # with Grafana dashboards). Mount at a separate path to avoid nested
+      # read-only mount conflicts inside /etc/prometheus.
+      - ./grafana/recording-rules:/recording-rules:ro
+      - arbibot_prom_data:/prometheus
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    profiles: [observability]
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    ports:
+      - '9093:9093'
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - arbibot_am_data:/alertmanager
+
+  grafana:
+    image: grafana/grafana-oss:11.3.0
+    profiles: [observability]
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_AUTH_ANONYMOUS_ENABLED: 'true'
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    ports:
+      - '3001:3000'
+    volumes:
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - arbibot_grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - loki
+
+  loki:
+    image: grafana/loki:3.2.1
+    profiles: [observability]
+    command: ['-config.file=/etc/loki/loki-config.yaml']
+    ports:
+      - '3100:3100'
+    volumes:
+      - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - arbibot_loki_data:/loki
+
+  promtail:
+    image: grafana/promtail:3.2.1
+    profiles: [observability]
+    command: ['-config.file=/etc/promtail/promtail-config.yaml']
+    volumes:
+      - ./promtail/promtail-config.yaml:/etc/promtail/promtail-config.yaml:ro
+      - /var/log:/var/log:ro
+    depends_on:
+      - loki
+
 volumes:
   arbibot_pg_data:
   arbibot_redis_data:
+  arbibot_prom_data:
+  arbibot_am_data:
+  arbibot_grafana_data:
+  arbibot_loki_data:
