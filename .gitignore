@@ -20,3 +20,6 @@ graphify-out/
 backups/
 *.sql.gz
 infra/nginx/ssl/*.pem
+
+# Local dev / scratch files (e.g. generator scripts output)
+tools/_tmp
