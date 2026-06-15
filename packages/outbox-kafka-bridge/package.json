@@ -19,14 +19,14 @@
     "@arbibot/persistence": "*",
     "kafkajs": "^2.2.4",
     "reflect-metadata": "^0.2.2",
-    "typeorm": "^0.3.27"
+    "typeorm": "^0.3.30"
   },
   "devDependencies": {
     "@arbibot/tsconfig": "*",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.19.0",
     "jest": "^30.3.0",
-    "ts-jest": "^29.4.9",
+    "ts-jest": "^29.4.11",
     "typescript": "~5.9.3"
   },
   "jest": {
