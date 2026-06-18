@@ -180,8 +180,10 @@ jobs:
           push: false
           load: true
           tags: arbibot/${{ matrix.image }}:scan
+          # Dockerfile.nest expects the full workspace name with @arbibot/ prefix
+          # (web uses Dockerfile.web which ignores SERVICE)
           build-args: |
-            SERVICE=${{ matrix.image }}
+            SERVICE=${{ matrix.image == 'web' && 'web' || format('@arbibot/{0}', matrix.image) }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
