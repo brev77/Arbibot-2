@@ -226,7 +226,9 @@ jobs:
         uses: bridgecrewio/checkov-action@v12
         with:
           directory: infra/
-          framework: docker_compose,kubernetes
+          # Checkov 3.x removed `docker_compose` framework; `yaml` covers compose files
+          # and `dockerfile` scans Dockerfiles. `kubernetes` covers k8s manifests.
+          framework: dockerfile,yaml,kubernetes
           output_format: cli,sarif
           output_file_path: console,checkov-results.sarif
           soft_fail: true  # Don't fail — surface as findings
@@ -234,7 +236,9 @@ jobs:
           skip_check: CKV_DOCKER_3  # — it does not affect non-root policy; we ARE non-root
 
       - name: Upload Checkov results
-        if: always()
+        id: upload-checkov
+        if: always() && hashFiles('checkov-results.sarif') != ''
+        continue-on-error: true
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: checkov-results.sarif
