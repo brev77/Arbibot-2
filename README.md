@@ -1,4 +1,4 @@
-﻿# Arbibot 2
+# Arbibot 2
 
 Монорепозиторий высокопроизводительной системы крипто-арбитража: canonical market → intake рынка → возможности → риск → капитал → оркестрация исполнения → портфель и сверка. Закрыты **Phase 0–2** (controlled execution); **Phase 3** (paper): trades / promotion / drift / discovery, виртуальный capital, BFF-мутации, E2E + CI; **Phase 4** (масштаб и политика): tier routing и throttling в **market-intake**, writers watchlist/scoring в **risk-service**, degraded UI, replay route scoring и ADR gate для аналитики/ClickHouse — см. [.cursor/plans/DEVELOPMENT_PLAN.md](.cursor/plans/DEVELOPMENT_PLAN.md); **Phase 5**: **HERMES-gateway** и operator UI **`/HERMES`**. Технический контур: snapshot → opportunity → risk → reserve → **arm**, полный цикл ног до `plan.completed` (`npm run e2e:phase2-controlled-execution`, в CI — `npm run ci:e2e-phase2`), **portfolio** / **reconciliation** / UI `/incidents`, HTTP lab-venue, in-DB relay для `RiskDecisionIssued` и `PaperPromotionCandidateRequested`, Kafka bridge для `SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, `PlanCompleted`. Профили риска и policy jobs — [`docs/phase2-risk-policy-roadmap.md`](docs/phase2-risk-policy-roadmap.md); **config-service** и **`/settings`** — [`docs/cfg-3-staged-rollout.md`](docs/cfg-3-staged-rollout.md).
 
@@ -198,6 +198,31 @@ Cookie **`arbibot_role`**: `viewer` | `operator` | `admin`. В production без
 ## CI
 
 На push/PR в `main` / `master` — [`.github/workflows/ci.yml`](.github/workflows/ci.yml), **Node 22**. После **`npm ci`**: job **`build`** (`lint`, `build`, `test`); затем параллельно E2E: **`e2e-phase2`**, **`e2e-phase2-watchlist-route-scoring`**, **`e2e-phase3-paper-promotion`**, **`e2e-phase3-paper-discovery`**, **`e2e-phase4-tier-routing`**; **`bus-smoke`** (без полного `build`, по workflow); чеклист — [`docs/ci-verification-checklist.md`](docs/ci-verification-checklist.md).
+
+## License
+
+Distributed under the **MIT License** — see [`LICENSE`](LICENSE).
+
+## Contributing
+
+Contributions are welcome! Before opening a PR:
+
+1. Read [`CONTRIBUTING.md`](CONTRIBUTING.md) — architectural invariants, tech stack rules, PR process.
+2. Check that the change is within the current phase scope (Phase 6+ is out of scope — see [`.cursor/plans/DEVELOPMENT_PLAN.md`](.cursor/plans/DEVELOPMENT_PLAN.md)).
+3. Run `npm run lint && npm run build && npm run test` locally.
+4. Respect the invariants: single-writer, reservation-first, outbox/inbox, idempotency, audit trail for operator actions.
+
+For architecture / scope questions, open a GitHub Discussion.
+
+## Security
+
+**⚠️ Do not open public issues for security vulnerabilities.** See [`SECURITY.md`](SECURITY.md) for the full policy.
+
+- **Private reports:** GitHub → `Security` → `Report a vulnerability` (preferred)
+- **Email:** `brev77@users.noreply.github.com` with subject prefix `[SECURITY] Arbibot 2:`
+- **Response:** acknowledgment within 72 hours
+
+Before deploying, read the hardening guides in [`docs/security-baseline.md`](docs/security-baseline.md), [`docs/threat-model.md`](docs/threat-model.md), [`docs/vault-integration-guide.md`](docs/vault-integration-guide.md), and [`docs/key-rotation-runbook.md`](docs/key-rotation-runbook.md). Never commit real API keys, RPC endpoints, or private keys — GitHub Secret Scanning and Push Protection reject leaked credentials on push.
 
 ## Архитектура и правила
 
