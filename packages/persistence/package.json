@@ -21,12 +21,12 @@
   },
   "devDependencies": {
     "@arbibot/tsconfig": "*",
-    "@nestjs/common": "^11.1.18",
+    "@nestjs/common": "^11.1.27",
     "@types/jest": "^30.0.0",
     "jest": "^30.3.0",
     "reflect-metadata": "^0.2.2",
-    "ts-jest": "^29.4.9",
-    "typeorm": "^0.3.27",
+    "ts-jest": "^29.4.11",
+    "typeorm": "^0.3.30",
     "typescript": "~5.9.3"
   },
   "jest": {
