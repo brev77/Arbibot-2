@@ -24,7 +24,7 @@
     "@types/jest": "^30.0.0",
     "jest": "^30.3.0",
     "ts-jest": "^29.4.9",
-    "typeorm": "^0.3.27",
+    "typeorm": "^0.3.29",
     "typescript": "~5.9.3"
   },
   "jest": {
