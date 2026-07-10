@@ -391,13 +391,11 @@ git bisect reset
 # Исправить в новом коммите
 ```
 
-### 7.7. Windows-specific: путь с пробелами
+### 7.7. Windows-specific: пути и экранирование
 
-Проект находится в `Arbibot 2` (путь с пробелом). Возможные проблемы:
-
-- **`nest start`** может truncировать путь → используй `npm run start:dev -w @arbibot/<service>` вместо `nest start`.
-- **Git hooks** — если настраиваешь, проверь, что пути корректно экранированы.
-- **`git diff`** с путями — всегда заключай в кавычки: `git diff -- "apps/my service/file.ts"`.
+- **Запуск Nest-сервисов:** используй `npm run start:dev -w @arbibot/<service>` (локальные npm-скрипты), а не глобальный `nest` binary — см. AGENTS.md «Windows and Nest apps».
+- **Git hooks:** если настраиваешь, проверь, что пути корректно экранированы.
+- **`git diff` с путями:** всегда заключай пути в кавычки, особенно если они содержат пробелы или дефисы: `git diff -- "apps/my service/file.ts"`.
 
 ## 8. Integration with review-step
 

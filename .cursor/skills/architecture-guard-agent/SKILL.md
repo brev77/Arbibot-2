@@ -46,13 +46,23 @@ description: >
 - **Gas policy:** maxFeePerGas enforcement, отказ в submit при превышении лимита
 - **On-chain entities:** single-writer boundaries для `on_chain_transactions`, `wallet_states`, `dex_pools`, `approvals`
 - **VenueAdapter:** контракт согласован с существующим `VenueAdapter` интерфейсом в `execution-orchestrator`
-- **ethers.js v6:** использование без `any`, типы `ChainId`, `Address`, `TxHash` из `@arbibot/contracts-eth`
+- **ethers.js v6:** только с типами из `@arbibot/contracts-eth` (`ChainId`, `Address`, `TxHash`); без `any`
 - **RPC:** failover (primary + backup), health checks, latency SLO < 100ms p95
 - **Slippage:** minimumAmountOut enforcement, tolerance по liquidity tier
 - **Approve:** idempotent approve pattern, allowance cache с TTL
 - **Paper/live изоляция:** DEX paper trading не использует live capital, separate `PaperCapitalReservation`
-- **Sequential execution:** DEX-1 (single-chain) завершён до старта DEX-2 (multi-chain)
-- **Сети:** первая волна — Arbitrum, Base, BNB; DEX — Uniswap V2/V3, SushiSwap
+- **Sequential execution:** DEX-1 (single-chain) и DEX-2 (multi-chain) — оба feature-complete; новые DEX-расширения (новые цепи/протоколы) требуют явного архитектурного решения (ADR) и не подменяют существующие single-writer boundaries
+- **Сети/протоколы:** поддержка цепей и DEX определяется конфигурацией (`@arbibot/contracts-eth`) — это не архитектурный инвариант, новые цепи/протоколы добавляются через adapter pattern без изменения core boundaries
+
+## Completion criterion
+
+Ревью завершено, когда (см. также оркестратор `.cursor/commands/review-step.md`, шаг 9):
+
+- Проверены все затронутые инварианты: service boundaries, single-writer, reservation-first, versioned transitions, idempotent commit, outbox/inbox, reconciliation, paper/live изоляция, operator approval, contract consistency (+ DEX-specific для шагов `DEX-*`).
+- Каждое утверждение подкреплено evidence (diff, контракт, ownership-карта, диаграмма).
+- **APPROVE** (`review_passed`): 0 architecture violations из раздела "What to block immediately".
+- **REQUEST_CHANGES** (`review_failed`): есть хотя бы одно блокирующее нарушение.
+- `done` выставляется только после подтверждённого `review_passed` — не опережай.
 
 ## Service-boundary checks
 
@@ -102,7 +112,7 @@ description: >
 - destructive operator action without approval flow
 - смешение paper/live domains
 - критичный contract drift без versioning strategy
-- для DEX: использование `any` с ethers.js типами, отсутствие gas policy check, plaintext private keys
+- для DEX: `any` вместо типов `@arbibot/contracts-eth`, отсутствие gas policy check, plaintext private keys
 
 ## Output format
 

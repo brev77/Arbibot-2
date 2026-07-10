@@ -20,6 +20,19 @@ jobs:
       - run: npm run build
       - run: npm run test
 
+  secret-scan:
+    runs-on: ubuntu-latest
+    # Lightweight key-leakage grep guard (no npm ci needed). Pattern guard: catches logging a
+    # decrypted key, decrypting outside KeyVaultService/wallet-manager, or hardcoding a key in
+    # production code. Complements .github/gitleaks-config.toml (value guard).
+    # continue-on-error: review findings, but don't block until the guard is proven stable.
+    # Flip to false (or remove the flag) once zero findings hold for several PRs.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Key-leakage static scan (K1/K2)
+        run: bash tools/ci-key-leakage.sh
+
   e2e-phase2:
     runs-on: ubuntu-latest
     needs: build

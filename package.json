@@ -31,6 +31,7 @@
     "ci:e2e-phase4-tier-routing": "bash tools/ci-e2e-phase4-tier-routing.sh",
     "seed:intake-policy-config": "node tools/seed-intake-policy-config.mjs",
     "ci:bus-smoke": "bash tools/ci-bus-smoke.sh",
+    "ci:key-leakage": "bash tools/ci-key-leakage.sh",
     "seed:outbox-smoke-events": "node tools/seed-outbox-events.mjs",
     "seed:outbox-smoke-events:all": "node tools/seed-outbox-events.mjs all",
     "venue:load-test": "node tools/venue-load-test.mjs",

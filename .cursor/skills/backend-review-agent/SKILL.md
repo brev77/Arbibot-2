@@ -41,17 +41,16 @@ description: >
 4. concurrency and idempotency issues
 5. violations of Arbibot 2 backend architecture
 
-## Mandatory architecture constraints
+## Architecture invariants — делегирование
 
-Всегда проверяй:
+Архитектурные инварианты (single-writer, reservation-first, versioned state transitions, idempotent commit, outbox/inbox, reconciliation, bulkhead изоляция execution/analytics/paper) — **primary authority** `architecture-guard-agent`. Этот skill не дублирует их полный список, а фокусируется на **implementation correctness** тех инвариантов:
 
-- single-writer principle
-- reservation-first protocol
-- versioned state transitions with optimistic concurrency
-- idempotent commit for fill events
-- outbox/inbox pattern for event delivery
-- reconciliation loop where applicable
-- bulkhead isolation between execution / analytics / paper trading
+- корректность state machine transitions (state + version check)
+- идемпототентность commit для fill events
+- transactional consistency внутри сервиса
+- retry / dead-letter safety
+
+Если обнаружено нарушение инварианта (а не его реализации) — явно укажи: «Архитектурное нарушение — см. `architecture-guard-agent`».
 
 **Primary launch:** paper mode precedes live with minimal capital; backend changes to paper/live boundaries must preserve that narrative.
 
@@ -88,6 +87,16 @@ description: >
 - **Risk:** `DexRiskPolicyService` — slippage/position/protocol/volume checks, DEX-specific reason codes
 - **On-chain entities:** `OnChainTransaction`, `WalletState`, `DexPool`, `Approval` — TypeORM entities, single-writer
 - **Env vars:** все DEX-переменные в `.env.example` с security comments
+
+## Completion criterion
+
+Ревью завершено, когда (см. также оркестратор `.cursor/commands/review-step.md`, шаг 9):
+
+- Проверены все затронутые группы: state machines (ExecutionPlan / ExecutionLeg), event envelopes, DTO/schema consistency, TypeScript standards, data consistency.
+- Каждое замечание подкреплено evidence (файл/строка diff, контракт, тест).
+- **APPROVE** (`review_passed`): 0 critical, 0 major, 0 architecture violations.
+- **REQUEST_CHANGES** (`review_failed`): есть хотя бы один critical/major/architecture violation.
+- `done` выставляется только после подтверждённого `review_passed` — не опережай.
 
 ## State machine checks
 

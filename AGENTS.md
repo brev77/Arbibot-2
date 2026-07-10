@@ -31,7 +31,14 @@ The repo uses custom Cursor skills in `.cursor/skills/` for architecture validat
    - Triggers: git commit, git branch, git merge, git rebase, conflict resolution, git fix, git error, prepare PR, sync branch
    - Usage: Run via `/git-workflow` or automatically on Git operations
 
-**Workflow:** When making changes that cross service boundaries or involve critical flows, use architecture-guard-agent before committing. For PR reviews, use backend-review-agent or frontend-review-agent based on the code area. **For all Git operations (committing, branching, merging, conflict resolution, PR preparation), use git-workflow-agent** to ensure structured commits, pre-commit validation, and correct branch management.
+5. **dex-security-and-capital-safety** — hardens DEX, on-chain, and cross-chain flows against capital loss and key compromise
+   - Path: `.cursor/skills/dex-security-and-capital-safety/SKILL.md`
+   - Checks: threat model for private key leakage (K), on-chain tx replay/MEV/slippage/overflow (T), bridge replay/timeout/finality (B), capital exposure/kill-switch/paper-live contamination (C), token approval leakage (A); RED-zone gating with operator approval; paper→live boundary import-graph contract
+   - Triggers: DEX security review, capital safety check, wallet/key review, bridge adapter review, slippage/approval review, paper→live promotion review, on-chain tx audit
+   - Usage: Run via `/dex-security` or automatically when touching `KeyVaultService`, `WalletManagerService`, `*BridgeAdapter`, `BridgeTransferService`, `MultiLegPlanBuilder`, `SlippageProtectionService`, `on_chain_transactions`, `approvals`, `dex.limits`/`dex.live` config, or any paper→live promotion boundary
+   - References: `references/threat-model.md` (exploit-сценарии + remediation), `references/paper-live-boundary.md` (import-graph контракт изоляции)
+
+**Workflow:** When making changes that cross service boundaries or involve critical flows, use architecture-guard-agent before committing. For PR reviews, use backend-review-agent or frontend-review-agent based on the code area. For any change touching DEX, wallets, keys, bridges, capital limits, or paper→live boundaries, additionally use dex-security-and-capital-safety to catch capital/key-loss vectors that generic OWASP checks miss. **For all Git operations (committing, branching, merging, conflict resolution, PR preparation), use git-workflow-agent** to ensure structured commits, pre-commit validation, and correct branch management.
 
 ### graphify (knowledge graph)
 
@@ -74,6 +81,8 @@ GitHub Actions job `graphify-check`: runs after `build`, rebuilds graph, uploads
 - Before deployment: `npm run graphify:rebuild` + check report
 
 ### Overview
+
+**Domain glossary:** [`CONTEXT.md`](CONTEXT.md) — единый канон доменных терминов (ubiquitous language): architectural invariants, trading/execution, capital, DEX, on-chain/wallet, bridge, risk, paper quality, events, config/ops, reconciliation, HERMES, chain/token types. Используй при обсуждении доменных flows для согласованности терминологии; обновляй inline при разрешении новых терминов. `CONTEXT.md` (что термины значат) и этот `AGENTS.md` (как запускать/настраивать) не перекрываются.
 
 Arbibot 2 is a **Turborepo monorepo** (`npm` workspaces: `apps/*`, `packages/*`):
 
@@ -332,6 +341,7 @@ From the repo root:
 - `npm run ci:e2e-phase4-tier-routing` — Postgres + risk + config + market-intake + `e2e:phase4-tier-routing` (`tools/ci-e2e-phase4-tier-routing.sh`); GitHub Actions job **`e2e-phase4-tier-routing`**
 - `npm run seed:intake-policy-config` — HTTP upsert `intake.*` keys via config-service (`tools/seed-intake-policy-config.mjs`; config may need `AUDIT_CLIENT_ENABLED=false` if audit is down)
 - `npm run ci:bus-smoke` — build `@arbibot/outbox-kafka-bridge` + optional Docker `--profile bus` (`tools/ci-bus-smoke.sh`); GitHub Actions job **`bus-smoke`**; optional `SEED_OUTBOX=1` with `DATABASE_URL` runs [`tools/seed-outbox-events.mjs`](tools/seed-outbox-events.mjs)
+- `npm run ci:key-leakage` — static grep guard for wallet key/mnemonic leakage patterns (K1/K2 from `dex-security-and-capital-safety` SKILL): logging a decrypted key, `decryptPrivateKey` outside `KeyVaultService`/`wallet-manager`, raw 64-hex key or BIP-39 mnemonic in production code (`tools/ci-key-leakage.sh`); GitHub Actions job **`secret-scan`** (`continue-on-error: true`, complements `.github/gitleaks-config.toml` value guard); excludes `*.spec.ts`/`*.d.ts`/`dist/`/mocks
 - `npm run seed:outbox-smoke-events` — insert one `SnapshotUpdated` row into `outbox_events` for manual bus publish tests
 - `npm run seed:outbox-smoke-events:all` — insert one row per Kafka bridge `event_type` (`SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, `PlanCompleted`) for full bus smoke
 - `npm run db:verify-migrations` — verify `schema_migrations` contains **030** and **031** (override list: `node tools/verify-migrations-applied.mjs <file.sql> ...`)
@@ -507,7 +517,8 @@ Operator session in dev: see `apps/web` middleware / `getOperatorSession` — `A
 5. **`e2e-phase3-paper-discovery`** — after `npm ci` + `npm run build`, runs `npm run ci:e2e-phase3-paper-discovery` / `bash tools/ci-e2e-phase3-paper-discovery.sh` (Postgres + **paper-trading-service** + **market-intake-service**, then `node tools/e2e-p3-paper-discovery.mjs`).
 6. **`e2e-phase4-tier-routing`** — after `npm ci` + `npm run build`, runs `npm run ci:e2e-phase4-tier-routing` (Postgres + **risk-service** + **config-service** + **market-intake** + `tools/e2e-phase4-tier-routing.mjs`).
 7. **`bus-smoke`** — after `npm ci`, runs `npm run ci:bus-smoke` (bridge build + optional Docker `--profile bus`; no full monorepo `npm run build` in this job).
-8. **`graphify-check`** — after `build`, rebuilds knowledge graph, uploads `GRAPH_REPORT.md` as artifact (non-blocking, 7-day retention).
+8. **`secret-scan`** — after `actions/checkout` (no `npm ci` needed), runs `npm run ci:key-leakage` (`tools/ci-key-leakage.sh`); static grep for key-leakage patterns (K1/K2 from `dex-security-and-capital-safety` SKILL); `continue-on-error: true` (non-blocking); complements `.github/gitleaks-config.toml` (pattern guard vs value guard).
+9. **`graphify-check`** — after `build`, rebuilds knowledge graph, uploads `GRAPH_REPORT.md` as artifact (non-blocking, 7-day retention).
 
 **Review gate (documentation, not a CI job):** [`docs/review-gate-cfg3-paper-discovery.md`](docs/review-gate-cfg3-paper-discovery.md) — required items completed 2026-04-19; optional full bus E2E deferred.
 

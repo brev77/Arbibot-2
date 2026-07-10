@@ -60,16 +60,16 @@ description: >
 
 ## Mandatory frontend rules
 
-Проверяй:
+Стек и конвенции — канон в `apps/web/STACK-CONVENTIONS.md`. Проверяй соответствие:
 
-- App Router patterns
-- Server Components где это уместно
-- React Query для server state
-- Zustand только для client state
-- shadcn/ui для UI building blocks
-- TanStack Table для всех таблиц
-- ECharts для метрик и аналитики
-- строгую типизацию без `any`
+- **App Router** — структуры маршрутов в `apps/web/app/`, server/client component разделение.
+- **Server Components** — используй по умолчанию; `'use client'` только там, где нужен state/effects/event handlers.
+- **Server state** — весь через React Query (TanStack Query); fetch из server components через BFF-маршруты `/api/operator/*` с `*_API_BASE` env (`apps/web/lib/api-base.ts`).
+- **Client state** — Zustand только для UI/client state, не для server data.
+- **UI building blocks** — shadcn/ui (компоненты в `apps/web/components/ui/`).
+- **Таблицы** — TanStack Table для всех списков с сортировкой/фильтрацией.
+- **Чарты** — ECharts / Recharts для метрик и аналитики.
+- **Типизация** — строгая, без `any`; DTO/типы из `@arbibot/contracts`.
 
 ## Operator safety
 
@@ -102,15 +102,51 @@ description: >
 
 ## UX and data checks
 
-Проверяй:
+Проверяй affirmative-критерии:
 
-- корректную работу loading/error/empty states
-- отсутствие лишних client components
-- отсутствие дублирующих fetch patterns
-- предсказуемость query keys
-- invalidation/refetch semantics
-- корректность optimistic updates, если они есть
-- отсутствие утечек прав доступа в UI
+- **Loading/error/empty states** — каждая асинхронная страница/компонент обрабатывает все три (`isLoading`, `isError`/`error`, `data?.length === 0`); fallback на skeleton или явное сообщение.
+- **Server state через BFF** — все запросы к upstream идут через server-side BFF-маршруты `/api/operator/*` с `*_API_BASE` env (`apps/web/lib/api-base.ts`); клиентский код не вызывает backend-сервисы напрямую.
+- **`'use client'` минимален** — помечай client только компоненты со state/effects/handlers; server components по умолчанию.
+- **Query keys** — консистентные, из `operatorKeys.*` / `settingsQueryKeys.*` (`apps/web/lib/operator-query-keys.ts`, `apps/web/lib/settings-query-keys.ts`); не inline-строки.
+- **Invalidation** — соответствует `apps/web/QUERY_INVALIDATION.md` (см. раздел "Query invalidation checks" ниже).
+- **Optimistic updates** — если используются: cancel outgoing → snapshot → setQueryData → rollback on error → invalidate on `onSettled`.
+- **RBAC-aware UI** — destructive actions через `DestructiveOperatorAction` (impact preview + approval); UI не раскрывает действия сверх роли оператора.
+
+## Query invalidation checks
+
+Канон — `apps/web/QUERY_INVALIDATION.md`. Ключи в `apps/web/lib/operator-query-keys.ts` (`operatorKeys.*`) и `apps/web/lib/settings-query-keys.ts` (`settingsQueryKeys.*`); глобальные defaults в `apps/web/lib/query-client.ts` (`createOperatorQueryClient`).
+
+**Affirmative правила (всегда):**
+
+- Инвалидируй явно сразу после мутаций — не полагайся только на `staleTime` (explicit invalidation > expiry).
+- Используй гранулярную инвалидацию: только затронутые ключи, не `invalidateQueries()` без аргументов.
+- `refetchOnWindowFocus: false` (глобальный default) — не переопределяй без причины.
+- Retry — только на `TypeError` (network), 1 раз; validation/permission errors fail fast.
+- Каждый read-only список имеет ручную кнопку Refresh (disabled пока `isFetching`).
+- `staleTime` 30s только для `dashboardSummary` и settings list; всё остальное 10s.
+
+**Invalidation per-domain (проверяй соответствие мутации → инвалидации):**
+
+| Мутация | Что инвалидировать |
+|---------|-------------------|
+| Incident status mutation, run-detectors | `operatorKeys.reconciliationMismatches` |
+| Opportunity create/update | `operatorKeys.opportunities` |
+| Single-plan update | `operatorKeys.executionPlan(planId)` (предпочитай гранулярный); list при结构性ных изменениях |
+| Portfolio confirm-fill, position update | `operatorKeys.portfolioPositions` |
+| Paper trade create/update | `operatorKeys.paperTrades` |
+| Paper paper-enqueue, approve/reject | `operatorKeys.paperPromotionCandidates` |
+| ANY mutation | `operatorKeys.auditEntries(12)` (backend всегда создаёт audit entry) |
+| Config `POST`/`PUT` | `settingsQueryKeys.configurations(env, tenant)` |
+| Config `rollback` | `configurations` + `['settings','history']` prefix |
+| Config `promote` / `PATCH status` | `settingsQueryKeys.configurations(...)` (как update) |
+| Dashboard: incident/portfolio changes | `operatorKeys.dashboardSummary` |
+
+**Red flag → REQUEST_CHANGES:**
+
+- Мутация без соответствующей инвалидации (особенно после `paper-enqueue`, approve/reject, config rollback).
+- Inline query key вместо `operatorKeys.*` / `settingsQueryKeys.*`.
+- `invalidateQueries()` без фильтра ключа.
+- `refetchOnWindowFocus: true` override без обоснования.
 
 ## Table and chart checks
 
@@ -123,13 +159,12 @@ description: >
 
 ## Code quality checks
 
-Проверяй:
+Проверяй affirmative-критерии:
 
-- композицию компонентов
-- отсутствие fat page components
-- корректное разделение server/client concerns
-- доступность базовых операторских сценариев
-- отсутствие business-critical logic только на клиенте
+- **Композиция** — страницы делегируют логику выделенным компонентам/хукам; fat page components выноси в `components/`.
+- **Server/client разделение** — data fetching и transform в server components, интерактивность в client.
+- **Business logic placement** — критичная бизнес-логика (валидация прав, расчёты влияния) дублируется/проверяется на backend, не только на клиенте.
+- **Доступность операторских сценариев** — keyboard-reachable destructive actions, понятные labels, фокус-менеджмент в модалах approval.
 
 ## Output format
 
@@ -143,8 +178,18 @@ description: >
 6. Required fixes
 7. Verdict: APPROVE | REQUEST_CHANGES
 
+## Completion criterion
+
+Ревью завершено, когда (см. также оркестратор `.cursor/commands/review-step.md`, шаг 9):
+
+- Проверены все затронутые группы: routing/server-client разделение, React Query keys + invalidation, operator safety/RBAC, table/chart rendering, DEX-specific UI (если применимо).
+- Каждое замечание подкреплено evidence (route/компонент/query key/api contract).
+- **APPROVE** (`review_passed`): 0 critical, 0 RBAC/operator-safety violations, 0 major.
+- **REQUEST_CHANGES** (`review_failed`): есть critical / major / RBAC / operator-safety нарушение.
+- `done` выставляется только после подтверждённого `review_passed` — не опережай.
+
 ## Review policy
 
-- Не оценивай визуал "на вкус", если нет явного UX-дефекта
-- Блокируй всё, что нарушает operator safety или role-based access
+- Оценивай по measurable checks (loading/error/empty coverage, query key источник, invalidation соответствие, RBAC enforcement), не по субъективному «нравится».
+- Блокируй всё, что нарушает operator safety или role-based access.
 - Если данных недостаточно, пиши: "Данных недостаточно: нужен <route/component/query/api contract>"
