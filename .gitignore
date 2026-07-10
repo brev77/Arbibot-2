@@ -1,6 +1,13 @@
 node_modules/
 dist/
 build/
+
+# npm workspaces: only the ROOT package-lock.json is committed.
+# Per-workspace lockfiles (apps/*, packages/*) are stray artifacts from
+# `npm install` run inside a subdirectory — they desync Dependabot and CI.
+# The root lockfile is the single source of truth for `npm ci`.
+apps/*/package-lock.json
+packages/*/package-lock.json
 .next/
 .turbo/
 coverage/
