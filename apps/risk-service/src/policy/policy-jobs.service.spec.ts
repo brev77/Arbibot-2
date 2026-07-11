@@ -1,5 +1,3 @@
-import type { IAuditClient } from '@arbibot/nest-platform';
-
 import { PolicyJobsService } from './policy-jobs.service';
 import type { RouteScoringWriterService } from './route-scoring-writer.service';
 import type { WatchlistTieringWriterService } from './watchlist-tiering-writer.service';
@@ -19,7 +17,7 @@ describe('PolicyJobsService', () => {
     const audit = {
       record,
       appendEntry: jest.fn(),
-    } as unknown as IAuditClient;
+    };
     const svc = new PolicyJobsService(watchlistWriter, routeWriter, audit);
     const out = await svc.runWatchlistTiering('http');
     expect(out.instrumentsEvaluated).toBe(2);
@@ -47,7 +45,7 @@ describe('PolicyJobsService', () => {
     const audit = {
       record,
       appendEntry: jest.fn(),
-    } as unknown as IAuditClient;
+    };
     const svc = new PolicyJobsService(watchlistWriter, routeWriter, audit);
     const out = await svc.runRouteScoring('http');
     expect(out.routesEvaluated).toBe(3);

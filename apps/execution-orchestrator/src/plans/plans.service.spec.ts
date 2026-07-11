@@ -9,12 +9,8 @@ import {
 } from '@arbibot/persistence';
 import type { DataSource, EntityManager, Repository } from 'typeorm';
 
-import type { IAuditClient } from '@arbibot/nest-platform';
-
 import type { CapitalReservationSnapshot } from '../integration/capital-http.client';
-import { CapitalHttpClient } from '../integration/capital-http.client';
 import type { RiskDecisionSnapshot } from '../integration/risk-http.client';
-import { RiskHttpClient } from '../integration/risk-http.client';
 
 import { CreatePlanDto } from './dto/create-plan.dto';
 import { PlansService } from './plans.service';
@@ -128,7 +124,7 @@ describe('PlansService', () => {
     const audit = {
       record: auditRecord,
       appendEntry: jest.fn(),
-    } as unknown as IAuditClient;
+    };
 
     const onChainTxRepo = {
       find: jest.fn().mockResolvedValue([]),
@@ -137,10 +133,10 @@ describe('PlansService', () => {
 
     const capitalHttp = {
       getReservation: capitalGetReservation,
-    } as unknown as CapitalHttpClient;
+    };
     const riskHttp = {
       getRiskDecision: riskGetDecision,
-    } as unknown as RiskHttpClient;
+    };
 
     service = new PlansService(
       dataSource,

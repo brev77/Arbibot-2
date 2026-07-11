@@ -1,4 +1,3 @@
-import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { NodeSDK } from '@opentelemetry/sdk-node';
@@ -33,6 +32,11 @@ export function startOpenTelemetryNodeSdkIfConfigured(options: {
     return;
   }
 
+  // Lazy-load auto-instrumentations to avoid pulling dozens of optional peer deps
+  // (instrumentation-host-metrics, propagator-aws-xray, etc.) at import time.
+  // These are only needed when OTEL is actually configured (env vars set).
+  const { getNodeAutoInstrumentations } = require('@opentelemetry/auto-instrumentations-node');
+
   const resource = resourceFromAttributes({
     [SERVICE_NAME_ATTR]: options.serviceName,
   });
@@ -45,6 +49,7 @@ export function startOpenTelemetryNodeSdkIfConfigured(options: {
     instrumentations: [
       getNodeAutoInstrumentations({
         '@opentelemetry/instrumentation-fs': { enabled: false },
+        '@opentelemetry/instrumentation-aws-lambda': { enabled: false },
       }),
     ],
   });

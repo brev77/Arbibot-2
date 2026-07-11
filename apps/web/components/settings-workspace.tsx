@@ -782,6 +782,9 @@ export function SettingsWorkspace({
       activeTab === 'intake' ||
       activeTab === 'paper'
     ) {
+      // loadEffectivePolicyBundle sets loading state synchronously; this is intentional
+      // for the manual fetch pattern (not React Query). Safe to call in effect.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       void loadEffectivePolicyBundle();
     }
   }, [activeTab, environment, tenantId, loadEffectivePolicyBundle]);

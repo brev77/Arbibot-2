@@ -87,7 +87,7 @@ describe('AlertIncidentsService', () => {
 
     repo = {
       find: jest.fn(),
-    } as unknown as jest.Mocked<Repository<AlertmanagerIncidentEntity>>;
+    };
 
     const moduleRef = await Test.createTestingModule({
       providers: [

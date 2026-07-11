@@ -7,8 +7,6 @@ import type {
 } from '@arbibot/persistence';
 import type { DataSource, EntityManager, Repository } from 'typeorm';
 
-import type { IAuditClient } from '@arbibot/nest-platform';
-
 import { ReserveCapitalDto } from './dto/reserve-capital.dto';
 import { CapitalService } from './capital.service';
 
@@ -64,7 +62,7 @@ describe('CapitalService', () => {
     const audit = {
       record: auditRecord,
       appendEntry: jest.fn(),
-    } as unknown as IAuditClient;
+    };
     service = new CapitalService(dataSource, repo, audit);
   });
 

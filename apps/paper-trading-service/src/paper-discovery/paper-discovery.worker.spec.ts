@@ -95,7 +95,7 @@ describe('PaperDiscoveryWorker', () => {
     it('should trigger discovery cycle when not running', async () => {
       jest
         .spyOn(
-          worker as unknown as { runDiscoveryCycle: () => Promise<void> },
+          worker,
           'runDiscoveryCycle',
         )
         .mockResolvedValue(undefined);
@@ -119,7 +119,7 @@ describe('PaperDiscoveryWorker', () => {
       const error = new Error('Test error');
       jest
         .spyOn(
-          worker as unknown as { runDiscoveryCycle: () => Promise<void> },
+          worker,
           'runDiscoveryCycle',
         )
         .mockRejectedValue(error);

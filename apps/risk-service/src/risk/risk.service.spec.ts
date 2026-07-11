@@ -3,8 +3,6 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import type { OutboxEventEntity, RiskDecisionEntity } from '@arbibot/persistence';
 import type { DataSource, EntityManager, Repository } from 'typeorm';
 
-import type { IAuditClient } from '@arbibot/nest-platform';
-
 import { AdaptiveRiskService } from '../policy/adaptive-risk.service';
 import { EvaluateRiskRequestDto } from './dto/evaluate-risk-request.dto';
 import { RiskService } from './risk.service';
@@ -75,7 +73,7 @@ describe('RiskService', () => {
     const audit = {
       record: auditRecord,
       appendEntry: jest.fn(),
-    } as unknown as IAuditClient;
+    };
     const adaptive = new AdaptiveRiskService();
     service = new RiskService(dataSource, decisionRepo, audit, adaptive);
   });

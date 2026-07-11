@@ -16,8 +16,6 @@ import {
 } from '@arbibot/persistence';
 import type { DataSource, EntityManager, Repository } from 'typeorm';
 
-import type { IAuditClient } from '@arbibot/nest-platform';
-
 import { MockVenueAdapter } from '../venue/mock-venue.adapter';
 import type { VenueAdapter } from '../venue/venue-adapter';
 import { VenueSubmitClientError, VenueTerminalSubmitError } from '../venue/venue-adapter';
@@ -194,7 +192,7 @@ describe('LegsService', () => {
     const audit = {
       record: auditRecord,
       appendEntry: jest.fn(),
-    } as unknown as IAuditClient;
+    };
 
     fillOutboundSvc = { afterLegFullyFilled: jest.fn() };
 

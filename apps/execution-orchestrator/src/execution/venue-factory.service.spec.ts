@@ -137,7 +137,7 @@ describe('VenueFactoryService', () => {
     });
 
     it('ignores non-string venueKey', () => {
-      expect(extractVenueKey(planStub({ venueKey: 123 } as any), legStub(0))).toBeUndefined(); // eslint-disable-line @typescript-eslint/no-explicit-any
+      expect(extractVenueKey(planStub({ venueKey: 123 }), legStub(0))).toBeUndefined();  
     });
   });
 

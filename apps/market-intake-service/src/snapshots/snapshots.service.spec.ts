@@ -155,7 +155,7 @@ describe('SnapshotsService', () => {
         }
         return { findOne: jest.fn() };
       }),
-    } as unknown as jest.Mocked<Pick<DataSource, 'transaction' | 'getRepository'>>;
+    };
 
     const audit = { record: jest.fn(), appendEntry: jest.fn() };
     service = new SnapshotsService(
