@@ -29,7 +29,7 @@ describe('CapitalService', () => {
           _Entity: unknown,
           entity: Record<string, unknown>,
         ) => {
-          const e = entity as unknown as Record<string, unknown>;
+          const e = entity;
           if ('eventType' in e) {
             outbox.push(e as unknown as OutboxEventEntity);
             return e;
@@ -103,7 +103,7 @@ describe('CapitalService', () => {
       expiresAt: new Date(Date.now() + 60_000),
       entityVersion: 1,
       createdAt: new Date(),
-    } as CapitalReservationEntity);
+    });
 
     const first = await service.release('44444444-4444-4444-8444-444444444444');
     expect(first.state).toBe('released');
@@ -127,7 +127,7 @@ describe('CapitalService', () => {
     const svc = new CapitalService(
       dataSource,
       {} as unknown as Repository<CapitalReservationEntity>,
-      { record: jest.fn(), appendEntry: jest.fn() } as unknown as IAuditClient,
+      { record: jest.fn(), appendEntry: jest.fn() },
     );
     await expect(svc.getById('33333333-3333-4333-8333-333333333333')).rejects.toThrow(
       NotFoundException,
@@ -144,7 +144,7 @@ describe('CapitalService', () => {
       expiresAt: new Date(Date.now() - 60_000),
       entityVersion: 1,
       createdAt: new Date(),
-    } as CapitalReservationEntity);
+    });
 
     await expect(
       service.release('55555555-5555-4555-8555-555555555555'),

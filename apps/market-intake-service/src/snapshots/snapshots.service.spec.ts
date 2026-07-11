@@ -76,13 +76,13 @@ describe('SnapshotsService', () => {
       }),
       create: jest.fn((Entity: object, o: object) => {
         if (Entity === MarketSnapshotEntity) {
-          return { ...o, id: 'snap-new' } as MarketSnapshotEntity;
+          return { ...o, id: 'snap-new' };
         }
         if (Entity === OutboxEventEntity) {
-          return { ...o } as OutboxEventEntity;
+          return { ...o };
         }
         if (Entity === MarketSnapshotIngestIdempotencyEntity) {
-          return { ...o } as MarketSnapshotIngestIdempotencyEntity;
+          return { ...o };
         }
         return { ...o };
       }),
@@ -115,7 +115,7 @@ describe('SnapshotsService', () => {
             const withId = {
               ...snap,
               id: snap.id ?? 'snap-1',
-            } as MarketSnapshotEntity;
+            };
             snapshots.push(withId);
             return withId;
           }

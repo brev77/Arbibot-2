@@ -350,7 +350,7 @@ export class PaperDiscoveryService {
       theoretical_profit_usd: candidate.theoreticalProfitUsd,
       liquidity_score: candidate.liquidityScore,
       is_eligible: candidate.isEligible,
-      status: 'discovered' as PaperDiscoveryCandidateStatus,
+      status: 'discovered',
       entity_version: 1,
       created_at: now,
       processed_at: null,

@@ -112,13 +112,13 @@ export class StargateBridgeAdapter implements BridgeAdapter {
 
       // 2. Resolve provider and Router address
       const provider = this.rpcProviderManager.getProvider(
-        params.sourceChainId as ChainId,
+        params.sourceChainId,
       ) as JsonRpcProvider;
       const routerAddress = getStargateAddresses(params.sourceChainId).router as string;
 
       // 3. Select wallet on source chain
       const selectedWallet = await this.walletManager.selectWallet(
-        params.sourceChainId as ChainId,
+        params.sourceChainId,
         provider,
         asAddr(params.token),
         params.amount,
@@ -144,7 +144,7 @@ export class StargateBridgeAdapter implements BridgeAdapter {
 
       // 7. Estimate gas (include LZ fee as value)
       const gasEstimation = await this.gasEstimator.estimateGas(
-        params.sourceChainId as ChainId,
+        params.sourceChainId,
         {
           to: routerAddress,
           data: swapData,
@@ -277,7 +277,7 @@ export class StargateBridgeAdapter implements BridgeAdapter {
     routerAddress: string,
   ): Promise<void> {
     const currentAllowance = await this.tokenApprove.getAllowance({
-      chainId: params.sourceChainId as ChainId,
+      chainId: params.sourceChainId,
       tokenAddress: asAddr(params.token),
       owner: asAddr(ownerAddress),
       spender: asAddr(routerAddress),
@@ -295,7 +295,7 @@ export class StargateBridgeAdapter implements BridgeAdapter {
     );
 
     const result = await this.tokenApprove.approveToken({
-      chainId: params.sourceChainId as ChainId,
+      chainId: params.sourceChainId,
       tokenAddress: asAddr(params.token),
       spender: asAddr(routerAddress),
       amount: params.amount,

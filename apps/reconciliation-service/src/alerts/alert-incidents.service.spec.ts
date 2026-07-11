@@ -29,7 +29,7 @@ function makeEntity(over: EntityStub = {}): AlertmanagerIncidentEntity {
     resolvedAt: null,
     resolvedBy: null,
     ...over,
-  } as AlertmanagerIncidentEntity;
+  };
 }
 
 function makeAlert(
@@ -45,7 +45,7 @@ function makeAlert(
     fingerprint: 'fp-1',
     value: '0.5',
     ...over,
-  } as AlertmanagerAlertDto;
+  };
 }
 
 type EntityManagerLike = {

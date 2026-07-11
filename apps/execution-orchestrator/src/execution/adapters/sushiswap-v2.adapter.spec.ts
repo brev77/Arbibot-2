@@ -129,7 +129,7 @@ describe('SushiSwapV2Adapter', () => {
     });
 
     it('should throw VenueSubmitClientError when dexSwaps is not an array', async () => {
-      const plan = makePlan(null as any);
+      const plan = makePlan(null);
       (plan as any).playbookConfig = { dexSwaps: 'not-array' };
       const leg = makeLeg();
 
@@ -144,7 +144,7 @@ describe('SushiSwapV2Adapter', () => {
     });
 
     it('should throw VenueSubmitClientError when required fields missing', async () => {
-      const plan = makePlan([{ chainId: 42161 }] as any);
+      const plan = makePlan([{ chainId: 42161 }]);
       const leg = makeLeg();
 
       await expect(adapter.submitLeg(plan as any, leg as any)).rejects.toThrow('invalid swap params');
@@ -167,11 +167,11 @@ describe('SushiSwapV2Adapter', () => {
   describe('buildSwapTxRequest', () => {
     it('should encode swapExactTokensForTokens calldata', () => {
       const request = adapter.buildSwapTxRequest(
-        '0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506' as any,
+        '0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506',
         '1000000000000000000',
         '990000000',
         [TOKEN_IN, TOKEN_OUT],
-        '0x0000000000000000000000000000000000000def' as any,
+        '0x0000000000000000000000000000000000000def',
         1700000000,
         FROM,
       );
@@ -196,7 +196,7 @@ describe('SushiSwapV2Adapter', () => {
       const wallet = makeSelectedWallet();
       mockTokenApprove.getAllowance.mockResolvedValue(BigInt('2000000000000000000'));
 
-      await adapter.ensureApproval(params as any, wallet as any, routerAddress);
+      await adapter.ensureApproval(params, wallet as any, routerAddress);
 
       expect(mockTokenApprove.approveToken).not.toHaveBeenCalled();
     });
@@ -209,7 +209,7 @@ describe('SushiSwapV2Adapter', () => {
         txHash: '0xapprove123',
       });
 
-      await adapter.ensureApproval(params as any, wallet as any, routerAddress);
+      await adapter.ensureApproval(params, wallet as any, routerAddress);
 
       expect(mockTokenApprove.approveToken).toHaveBeenCalledTimes(1);
       expect(mockTokenApprove.approveToken).toHaveBeenCalledWith(

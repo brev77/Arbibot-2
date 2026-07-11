@@ -367,7 +367,7 @@ export function SettingsWorkspace({
                 updatedBy: null,
                 scopeType: variables.scopeType ?? ConfigScopeType.GLOBAL,
                 scopeValue: variables.scopeValue ?? null,
-              } as ConfigurationDto),
+              }),
         );
         setShowHistory(true);
         void queryClient.invalidateQueries({

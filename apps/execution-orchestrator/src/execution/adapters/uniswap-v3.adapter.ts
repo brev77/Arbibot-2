@@ -177,7 +177,7 @@ function extractSwapParamsV3(
   }
 
   return {
-    chainId: chainId as ChainId,
+    chainId: chainId,
     tokenIn: tokenIn as Address,
     tokenOut: tokenOut as Address,
     fee,

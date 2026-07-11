@@ -158,7 +158,7 @@ export function extractSwapParams(plan: ExecutionPlanEntity, leg: ExecutionLegEn
   }
 
   return {
-    chainId: chainId as ChainId,
+    chainId: chainId,
     tokenIn: tokenIn as Address,
     tokenOut: tokenOut as Address,
     amountIn,

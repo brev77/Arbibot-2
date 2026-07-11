@@ -9,6 +9,6 @@ describe('messageIdFromEnvelope', () => {
 
   it('returns null when missing or wrong type', () => {
     expect(messageIdFromEnvelope({})).toBeNull();
-    expect(messageIdFromEnvelope({ messageId: 1 } as never)).toBeNull();
+    expect(messageIdFromEnvelope({ messageId: 1 })).toBeNull();
   });
 });

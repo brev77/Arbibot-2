@@ -20,7 +20,7 @@ describe('AuditClientService', () => {
       ok: true,
       text: () => Promise.resolve(''),
     });
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    globalThis.fetch = fetchMock;
 
     const svc = new AuditClientService();
 
@@ -56,7 +56,7 @@ describe('AuditClientService', () => {
       ok: true,
       text: () => Promise.resolve(''),
     });
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    globalThis.fetch = fetchMock;
 
     const svc = new AuditClientService();
 

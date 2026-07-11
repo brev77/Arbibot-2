@@ -216,7 +216,7 @@ describe('UniswapV2Adapter', () => {
     });
 
     it('should throw when dexSwaps is not an array', async () => {
-      const plan = makePlan({ playbookConfig: { dexSwaps: 'invalid' } as any });
+      const plan = makePlan({ playbookConfig: { dexSwaps: 'invalid' } });
       const leg = makeLeg();
 
       await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('dexSwaps is not an array');

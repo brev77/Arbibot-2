@@ -23,7 +23,7 @@ function planStub(playbookConfig?: Record<string, unknown>): ExecutionPlanEntity
     createdAt: new Date(),
     updatedAt: new Date(),
     legs: [],
-  } as ExecutionPlanEntity;
+  };
 }
 
 function legStub(legIndex: number): ExecutionLegEntity {

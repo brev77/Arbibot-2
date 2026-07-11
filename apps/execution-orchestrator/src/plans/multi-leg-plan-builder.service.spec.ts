@@ -239,7 +239,7 @@ describe('MultiLegPlanBuilderService', () => {
       const dto: CreateMultiLegPlanDto = {
         legs: [
           makeDexLeg(),
-          makeBridgeLeg({ bridgeKey: undefined } as LegDescriptorDto),
+          makeBridgeLeg({ bridgeKey: undefined }),
           makeDexLeg({ chainId: 8453 }),
         ],
       };
@@ -250,7 +250,7 @@ describe('MultiLegPlanBuilderService', () => {
       const dto: CreateMultiLegPlanDto = {
         legs: [
           makeDexLeg(),
-          makeBridgeLeg({ destinationChainId: undefined } as LegDescriptorDto),
+          makeBridgeLeg({ destinationChainId: undefined }),
           makeDexLeg({ chainId: 8453 }),
         ],
       };
@@ -261,7 +261,7 @@ describe('MultiLegPlanBuilderService', () => {
       const dto: CreateMultiLegPlanDto = {
         legs: [
           makeDexLeg(),
-          makeBridgeLeg({ token: undefined } as LegDescriptorDto),
+          makeBridgeLeg({ token: undefined }),
           makeDexLeg({ chainId: 8453 }),
         ],
       };
@@ -272,7 +272,7 @@ describe('MultiLegPlanBuilderService', () => {
       const dto: CreateMultiLegPlanDto = {
         legs: [
           makeDexLeg(),
-          makeBridgeLeg({ destinationToken: undefined } as LegDescriptorDto),
+          makeBridgeLeg({ destinationToken: undefined }),
           makeDexLeg({ chainId: 8453 }),
         ],
       };
@@ -283,7 +283,7 @@ describe('MultiLegPlanBuilderService', () => {
       const dto: CreateMultiLegPlanDto = {
         legs: [
           makeDexLeg(),
-          makeBridgeLeg({ amount: undefined } as LegDescriptorDto),
+          makeBridgeLeg({ amount: undefined }),
           makeDexLeg({ chainId: 8453 }),
         ],
       };
