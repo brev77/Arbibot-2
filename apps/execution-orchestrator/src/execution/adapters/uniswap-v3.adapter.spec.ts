@@ -139,7 +139,7 @@ describe('UniswapV3Adapter', () => {
   describe('calculateAmountOutMin', () => {
     it('should apply slippage to amountOutExpected', () => {
       const result = adapter.calculateAmountOutMin({
-        chainId: 42161 as any,
+        chainId: 42161,
         tokenIn: TOKEN_IN,
         tokenOut: TOKEN_OUT,
         fee: 3000,
@@ -153,7 +153,7 @@ describe('UniswapV3Adapter', () => {
 
     it('should use env default slippage when not specified', () => {
       const result = adapter.calculateAmountOutMin({
-        chainId: 42161 as any,
+        chainId: 42161,
         tokenIn: TOKEN_IN,
         tokenOut: TOKEN_OUT,
         fee: 3000,
@@ -166,7 +166,7 @@ describe('UniswapV3Adapter', () => {
 
     it('should handle large amounts', () => {
       const result = adapter.calculateAmountOutMin({
-        chainId: 42161 as any,
+        chainId: 42161,
         tokenIn: TOKEN_IN,
         tokenOut: TOKEN_OUT,
         fee: 3000,
@@ -248,7 +248,7 @@ describe('UniswapV3Adapter', () => {
     });
 
     it('should throw when dexSwaps is not an array', async () => {
-      const plan = makePlan({ playbookConfig: { dexSwaps: 'invalid' } as any });
+      const plan = makePlan({ playbookConfig: { dexSwaps: 'invalid' } });
       const leg = makeLeg();
 
       await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('dexSwaps is not an array');

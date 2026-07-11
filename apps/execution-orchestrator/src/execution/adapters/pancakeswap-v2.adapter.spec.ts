@@ -138,7 +138,7 @@ describe('PancakeSwapV2Adapter', () => {
   describe('buildSwapTxRequest', () => {
     it('should encode swapExactTokensForTokens for PancakeSwap V2 router (testnet)', () => {
       const result = adapter.buildSwapTxRequest(
-        PANCAKE_V2_ROUTER_TESTNET as any,
+        PANCAKE_V2_ROUTER_TESTNET,
         '100000000000000000',
         '99000000',
         [TOKEN_IN, TOKEN_OUT],
@@ -156,7 +156,7 @@ describe('PancakeSwapV2Adapter', () => {
 
     it('should encode swapExactTokensForTokens for PancakeSwap V2 router (mainnet)', () => {
       const result = adapter.buildSwapTxRequest(
-        PANCAKE_V2_ROUTER_MAINNET as any,
+        PANCAKE_V2_ROUTER_MAINNET,
         '1000000000000000000',
         '599000000',
         [TOKEN_IN, TOKEN_OUT],
@@ -185,7 +185,7 @@ describe('PancakeSwapV2Adapter', () => {
     });
 
     it('should throw when dexSwaps is not an array', async () => {
-      const plan = makePlan({ playbookConfig: { dexSwaps: 'invalid' } as any });
+      const plan = makePlan({ playbookConfig: { dexSwaps: 'invalid' } });
       const leg = makeLeg();
 
       await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('dexSwaps is not an array');
@@ -251,7 +251,7 @@ describe('PancakeSwapV2Adapter', () => {
       const wallet = makeSelectedWallet();
       mockTokenApprove.getAllowance.mockResolvedValue(200000000000000000n);
 
-      await adapter.ensureApproval(params, wallet as any, PANCAKE_V2_ROUTER_TESTNET as any);
+      await adapter.ensureApproval(params, wallet as any, PANCAKE_V2_ROUTER_TESTNET);
 
       expect(mockTokenApprove.approveToken).not.toHaveBeenCalled();
     });
@@ -264,7 +264,7 @@ describe('PancakeSwapV2Adapter', () => {
         txHash: '0xApproveTxHash',
       });
 
-      await adapter.ensureApproval(params, wallet as any, PANCAKE_V2_ROUTER_TESTNET as any);
+      await adapter.ensureApproval(params, wallet as any, PANCAKE_V2_ROUTER_TESTNET);
 
       expect(mockTokenApprove.approveToken).toHaveBeenCalledWith({
         chainId: params.chainId,

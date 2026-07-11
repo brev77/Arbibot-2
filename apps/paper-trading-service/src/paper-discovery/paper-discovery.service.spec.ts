@@ -338,7 +338,7 @@ describe('PaperDiscoveryService', () => {
               minProfitUsd: 5,
             }),
           }),
-      }) as unknown as typeof fetch;
+      });
 
       const svc = await createServiceForEnv();
       const filters = await svc.fetchPaperOnlyFilters();
@@ -360,7 +360,7 @@ describe('PaperDiscoveryService', () => {
       globalThis.fetch = jest.fn().mockResolvedValue({
         ok: false,
         status: 500,
-      }) as unknown as typeof fetch;
+      });
 
       const svc = await createServiceForEnv();
       const filters = await svc.fetchPaperOnlyFilters();

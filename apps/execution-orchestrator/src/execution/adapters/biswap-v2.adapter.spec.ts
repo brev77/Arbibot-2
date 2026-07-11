@@ -137,7 +137,7 @@ describe('BiswapV2Adapter', () => {
   describe('buildSwapTxRequest', () => {
     it('should encode swapExactTokensForTokens for Biswap V2 router (mainnet)', () => {
       const result = adapter.buildSwapTxRequest(
-        BISWAP_V2_ROUTER_MAINNET as any,
+        BISWAP_V2_ROUTER_MAINNET,
         '1000000000000000000',
         '599000000',
         [TOKEN_IN, TOKEN_OUT],
@@ -167,7 +167,7 @@ describe('BiswapV2Adapter', () => {
     });
 
     it('should throw when dexSwaps is not an array', async () => {
-      const plan = makePlan({ playbookConfig: { dexSwaps: 'invalid' } as any });
+      const plan = makePlan({ playbookConfig: { dexSwaps: 'invalid' } });
       const leg = makeLeg();
 
       await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('dexSwaps is not an array');
@@ -253,7 +253,7 @@ describe('BiswapV2Adapter', () => {
       const wallet = makeSelectedWallet();
       mockTokenApprove.getAllowance.mockResolvedValue(2000000000000000000n);
 
-      await adapter.ensureApproval(params, wallet as any, BISWAP_V2_ROUTER_MAINNET as any);
+      await adapter.ensureApproval(params, wallet as any, BISWAP_V2_ROUTER_MAINNET);
 
       expect(mockTokenApprove.approveToken).not.toHaveBeenCalled();
     });
@@ -266,7 +266,7 @@ describe('BiswapV2Adapter', () => {
         txHash: '0xApproveTxHash',
       });
 
-      await adapter.ensureApproval(params, wallet as any, BISWAP_V2_ROUTER_MAINNET as any);
+      await adapter.ensureApproval(params, wallet as any, BISWAP_V2_ROUTER_MAINNET);
 
       expect(mockTokenApprove.approveToken).toHaveBeenCalledWith({
         chainId: params.chainId,

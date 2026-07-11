@@ -277,7 +277,7 @@ export class WalletManagerService implements OnModuleInit {
     const balance = await this.getTokenBalance(provider, address, tokenAddress);
     const formattedBalance = formatUnits(balance, decimals);
     const network = await provider.getNetwork();
-    const chainId = Number(network.chainId) as ChainId;
+    const chainId = Number(network.chainId);
 
     return {
       address,
@@ -331,7 +331,7 @@ export class WalletManagerService implements OnModuleInit {
         // Create new state
         walletState = this.walletStateRepository.create({
           keyId,
-          walletAddress: wallet.address as Address,
+          walletAddress: wallet.address,
           chainId: walletKey.chainId,
           nonce: Number(await wallet.getNonce()),
           status: 'active',

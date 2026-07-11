@@ -23,13 +23,13 @@ export interface AcrossAddresses {
  */
 export const ACROSS_MAINNET: Record<number, AcrossAddresses> = {
   [ChainId.ETHEREUM_MAINNET]: {
-    spokePool: '0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5' as Address,
+    spokePool: '0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5',
   },
   [ChainId.ARBITRUM_ONE_MAINNET]: {
-    spokePool: '0xe35e9842fceaCA96570B734083f4a58e8F7C5f2A' as Address,
+    spokePool: '0xe35e9842fceaCA96570B734083f4a58e8F7C5f2A',
   },
   [ChainId.BASE_MAINNET]: {
-    spokePool: '0x09aea4b2242abC8bb4BB78D537A67a245a7bEC64' as Address,
+    spokePool: '0x09aea4b2242abC8bb4BB78D537A67a245a7bEC64',
   },
 };
 
@@ -38,13 +38,13 @@ export const ACROSS_MAINNET: Record<number, AcrossAddresses> = {
  */
 export const ACROSS_TESTNET: Record<number, AcrossAddresses> = {
   [ChainId.ETHEREUM_TESTNET_SEPOLIA]: {
-    spokePool: '0x5ef6C01E11839d1B5F5146a3cF26a90e2b5B3C81' as Address,
+    spokePool: '0x5ef6C01E11839d1B5F5146a3cF26a90e2b5B3C81',
   },
   [ChainId.ARBITRUM_ONE_SEPOLIA]: {
-    spokePool: '0x60AbD308cCEE43443b12B02De943B3E3abD3DB21' as Address,
+    spokePool: '0x60AbD308cCEE43443b12B02De943B3E3abD3DB21',
   },
   [ChainId.BASE_SEPOLIA]: {
-    spokePool: '0x03f78791E7a2f21ca2a792cb12C24Fba6E07EfbC' as Address,
+    spokePool: '0x03f78791E7a2f21ca2a792cb12C24Fba6E07EfbC',
   },
 };
 
@@ -92,16 +92,16 @@ export interface StargateAddresses {
  */
 export const STARGATE_MAINNET: Record<number, StargateAddresses> = {
   [ChainId.ETHEREUM_MAINNET]: {
-    router: '0x9aA8E2114a6BC55e575B7c3D3f52F4f9035733d7' as Address,
+    router: '0x9aA8E2114a6BC55e575B7c3D3f52F4f9035733d7',
   },
   [ChainId.ARBITRUM_ONE_MAINNET]: {
-    router: '0x9aA8E2114a6BC55e575B7c3D3f52F4f9035733d7' as Address,
+    router: '0x9aA8E2114a6BC55e575B7c3D3f52F4f9035733d7',
   },
   [ChainId.BASE_MAINNET]: {
-    router: '0x9aA8E2114a6BC55e575B7c3D3f52F4f9035733d7' as Address,
+    router: '0x9aA8E2114a6BC55e575B7c3D3f52F4f9035733d7',
   },
   [ChainId.BNB_CHAIN_MAINNET]: {
-    router: '0x9aA8E2114a6BC55e575B7c3D3f52F4f9035733d7' as Address,
+    router: '0x9aA8E2114a6BC55e575B7c3D3f52F4f9035733d7',
   },
 };
 
@@ -113,16 +113,16 @@ export const STARGATE_MAINNET: Record<number, StargateAddresses> = {
  */
 export const STARGATE_TESTNET: Record<number, StargateAddresses> = {
   [ChainId.ETHEREUM_TESTNET_SEPOLIA]: {
-    router: '0x101F9565965De449D5ef3E3b915F4aB6cA0E5111' as Address,
+    router: '0x101F9565965De449D5ef3E3b915F4aB6cA0E5111',
   },
   [ChainId.ARBITRUM_ONE_SEPOLIA]: {
-    router: '0x101F9565965De449D5ef3E3b915F4aB6cA0E5111' as Address,
+    router: '0x101F9565965De449D5ef3E3b915F4aB6cA0E5111',
   },
   [ChainId.BASE_SEPOLIA]: {
-    router: '0x101F9565965De449D5ef3E3b915F4aB6cA0E5111' as Address,
+    router: '0x101F9565965De449D5ef3E3b915F4aB6cA0E5111',
   },
   [ChainId.BNB_CHAIN_TESTNET]: {
-    router: '0x101F9565965De449D5ef3E3b915F4aB6cA0E5111' as Address,
+    router: '0x101F9565965De449D5ef3E3b915F4aB6cA0E5111',
   },
 };
 
@@ -187,22 +187,22 @@ export interface NativeBridgeAddresses {
 export const NATIVE_MAINNET: Record<string, NativeBridgeAddresses> = {
   // ETH → Arbitrum (L1 Inbox deposit)
   '1-42161': {
-    bridge: '0x6c5c509c248a3bb1C32979b49ceC4ADa02F2D92F' as Address,
+    bridge: '0x6c5c509c248a3bb1C32979b49ceC4ADa02F2D92F',
     bridgeType: 'arbitrum-inbox',
   },
   // Arbitrum → ETH (withdrawal initiated on L2 — tracked via gateway)
   '42161-1': {
-    bridge: '0x0000000000000000000000000000000000000064' as Address, // Arbitrum L2 Outbox (pre-defined)
+    bridge: '0x0000000000000000000000000000000000000064', // Arbitrum L2 Outbox (pre-defined)
     bridgeType: 'arbitrum-inbox',
   },
   // ETH → Base (L1StandardBridge deposit)
   '1-8453': {
-    bridge: '0x3154Cf16ccdb4C6d922629664174b904d80F2C35' as Address,
+    bridge: '0x3154Cf16ccdb4C6d922629664174b904d80F2C35',
     bridgeType: 'l1-standard-bridge',
   },
   // Base → ETH (L2StandardBridge withdrawal)
   '8453-1': {
-    bridge: '0x4200000000000000000000000000000000000010' as Address,
+    bridge: '0x4200000000000000000000000000000000000010',
     bridgeType: 'l2-standard-bridge',
   },
 };
@@ -215,22 +215,22 @@ export const NATIVE_MAINNET: Record<string, NativeBridgeAddresses> = {
 export const NATIVE_TESTNET: Record<string, NativeBridgeAddresses> = {
   // ETH Sepolia → Arbitrum Sepolia
   '11155111-421614': {
-    bridge: '0x56d45f6E6679Eeb4a9c5b0D2C4e23B8a45a3e3D6' as Address,
+    bridge: '0x56d45f6E6679Eeb4a9c5b0D2C4e23B8a45a3e3D6',
     bridgeType: 'arbitrum-inbox',
   },
   // Arbitrum Sepolia → ETH Sepolia
   '421614-11155111': {
-    bridge: '0x0000000000000000000000000000000000000064' as Address,
+    bridge: '0x0000000000000000000000000000000000000064',
     bridgeType: 'arbitrum-inbox',
   },
   // ETH Sepolia → Base Sepolia
   '11155111-84532': {
-    bridge: '0x16Fc5058F25648194471939df75CF27A2fdC48BC' as Address,
+    bridge: '0x16Fc5058F25648194471939df75CF27A2fdC48BC',
     bridgeType: 'l1-standard-bridge',
   },
   // Base Sepolia → ETH Sepolia
   '84532-11155111': {
-    bridge: '0x4200000000000000000000000000000000000010' as Address,
+    bridge: '0x4200000000000000000000000000000000000010',
     bridgeType: 'l2-standard-bridge',
   },
 };

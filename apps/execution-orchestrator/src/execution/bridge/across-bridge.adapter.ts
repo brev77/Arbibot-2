@@ -110,13 +110,13 @@ export class AcrossBridgeAdapter implements BridgeAdapter {
 
       // 2. Resolve provider and SpokePool address
       const provider = this.rpcProviderManager.getProvider(
-        params.sourceChainId as ChainId,
+        params.sourceChainId,
       ) as JsonRpcProvider;
       const spokePoolAddress = getAcrossAddresses(params.sourceChainId).spokePool as string;
 
       // 3. Select wallet on source chain
       const selectedWallet = await this.walletManager.selectWallet(
-        params.sourceChainId as ChainId,
+        params.sourceChainId,
         provider,
         asAddr(params.token),
         params.amount,
@@ -147,7 +147,7 @@ export class AcrossBridgeAdapter implements BridgeAdapter {
 
       // 6. Estimate gas
       const gasEstimation = await this.gasEstimator.estimateGas(
-        params.sourceChainId as ChainId,
+        params.sourceChainId,
         {
           to: spokePoolAddress,
           data: depositData,
@@ -279,7 +279,7 @@ export class AcrossBridgeAdapter implements BridgeAdapter {
     spokePoolAddress: string,
   ): Promise<void> {
     const currentAllowance = await this.tokenApprove.getAllowance({
-      chainId: params.sourceChainId as ChainId,
+      chainId: params.sourceChainId,
       tokenAddress: asAddr(params.token),
       owner: asAddr(ownerAddress),
       spender: asAddr(spokePoolAddress),
@@ -297,7 +297,7 @@ export class AcrossBridgeAdapter implements BridgeAdapter {
     );
 
     const result = await this.tokenApprove.approveToken({
-      chainId: params.sourceChainId as ChainId,
+      chainId: params.sourceChainId,
       tokenAddress: asAddr(params.token),
       spender: asAddr(spokePoolAddress),
       amount: params.amount,

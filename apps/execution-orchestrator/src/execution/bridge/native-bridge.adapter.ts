@@ -120,11 +120,11 @@ export class NativeBridgeAdapter implements BridgeAdapter {
       );
 
       const provider = this.rpcProviderManager.getProvider(
-        params.sourceChainId as ChainId,
+        params.sourceChainId,
       ) as JsonRpcProvider;
 
       const selectedWallet = await this.walletManager.selectWallet(
-        params.sourceChainId as ChainId,
+        params.sourceChainId,
         provider,
         asAddr(params.token),
         params.amount,
@@ -262,7 +262,7 @@ export class NativeBridgeAdapter implements BridgeAdapter {
     const data = this.arbitrumInboxInterface.encodeFunctionData('depositEth');
 
     const gasEstimation = await this.gasEstimator.estimateGas(
-      params.sourceChainId as ChainId,
+      params.sourceChainId,
       {
         to: bridgeAddress,
         data,
@@ -336,7 +336,7 @@ export class NativeBridgeAdapter implements BridgeAdapter {
     }
 
     const gasEstimation = await this.gasEstimator.estimateGas(
-      params.sourceChainId as ChainId,
+      params.sourceChainId,
       {
         to: bridgeAddress,
         data,
@@ -410,7 +410,7 @@ export class NativeBridgeAdapter implements BridgeAdapter {
     }
 
     const gasEstimation = await this.gasEstimator.estimateGas(
-      params.sourceChainId as ChainId,
+      params.sourceChainId,
       {
         to: bridgeAddress,
         data,
@@ -464,7 +464,7 @@ export class NativeBridgeAdapter implements BridgeAdapter {
     bridgeAddress: string,
   ): Promise<void> {
     const currentAllowance = await this.tokenApprove.getAllowance({
-      chainId: params.sourceChainId as ChainId,
+      chainId: params.sourceChainId,
       tokenAddress: asAddr(params.token),
       owner: asAddr(ownerAddress),
       spender: asAddr(bridgeAddress),
@@ -479,7 +479,7 @@ export class NativeBridgeAdapter implements BridgeAdapter {
     );
 
     const result = await this.tokenApprove.approveToken({
-      chainId: params.sourceChainId as ChainId,
+      chainId: params.sourceChainId,
       tokenAddress: asAddr(params.token),
       spender: asAddr(bridgeAddress),
       amount: params.amount,
@@ -497,7 +497,10 @@ export class NativeBridgeAdapter implements BridgeAdapter {
   }
 
   private isL1Chain(chainId: number): boolean {
-    return chainId === (ChainId.ETHEREUM_MAINNET as number) || chainId === (ChainId.ETHEREUM_TESTNET_SEPOLIA as number);
+    return (
+      chainId === Number(ChainId.ETHEREUM_MAINNET) ||
+      chainId === Number(ChainId.ETHEREUM_TESTNET_SEPOLIA)
+    );
   }
 
   private buildSupportedChains(): ReadonlyArray<readonly [number, number]> {

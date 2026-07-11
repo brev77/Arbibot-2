@@ -55,10 +55,10 @@ describe('BridgeTransferService', () => {
   const defaultParams: BridgeTransferParams = {
     sourceChainId: 42161,
     destinationChainId: 8453,
-    token: '0xtoken' as `0x${string}`,
-    destinationToken: '0xdesttoken' as `0x${string}`,
+    token: '0xtoken',
+    destinationToken: '0xdesttoken',
     amount: 1000000000000000000n,
-    recipientAddress: '0xrecipient' as `0x${string}`,
+    recipientAddress: '0xrecipient',
     idempotencyKey: 'plan:1:across',
   };
 

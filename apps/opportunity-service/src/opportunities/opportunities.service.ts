@@ -23,7 +23,6 @@
   import type { RequestRiskEvaluationDto } from './dto/request-risk-evaluation.dto';
   import type {
     DexFiltersConfigDto,
-    FilterBreakdownDto,
     FiltersPreviewDto,
     FilterMetricsPeriodDto,
     FiltersMetricsDto,
@@ -344,14 +343,14 @@ export class OpportunitiesService {
 
     const total = opportunities.length;
     const breakdown = {
-      minSpreadPct: { count: 0, percentage: 0 } as FilterBreakdownDto,
-      minProfitUsd: { count: 0, percentage: 0 } as FilterBreakdownDto,
-      maxFeesUsd: { count: 0, percentage: 0 } as FilterBreakdownDto,
-      volumeRange: { count: 0, percentage: 0 } as FilterBreakdownDto,
-      blacklistTokens: { count: 0, percentage: 0 } as FilterBreakdownDto,
-      allowedChains: { count: 0, percentage: 0 } as FilterBreakdownDto,
-      quoteAssets: { count: 0, percentage: 0 } as FilterBreakdownDto,
-      highRisk: { count: 0, percentage: 0 } as FilterBreakdownDto,
+      minSpreadPct: { count: 0, percentage: 0 },
+      minProfitUsd: { count: 0, percentage: 0 },
+      maxFeesUsd: { count: 0, percentage: 0 },
+      volumeRange: { count: 0, percentage: 0 },
+      blacklistTokens: { count: 0, percentage: 0 },
+      allowedChains: { count: 0, percentage: 0 },
+      quoteAssets: { count: 0, percentage: 0 },
+      highRisk: { count: 0, percentage: 0 },
     };
 
     let filteredOut = 0;

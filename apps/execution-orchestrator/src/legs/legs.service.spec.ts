@@ -159,7 +159,7 @@ describe('LegsService', () => {
               ...leg,
               createdAt: new Date('2026-01-01'),
               updatedAt: new Date('2026-01-01'),
-            } as ExecutionLegEntity);
+            });
           }
           return legs.find((l) => l.id === leg.id)!;
         }
@@ -461,7 +461,7 @@ describe('LegsService', () => {
       legs: [],
       createdAt: new Date(),
       updatedAt: new Date(),
-    } as ExecutionPlanEntity);
+    });
     legs.push({
       id: legId,
       planId,
@@ -690,12 +690,12 @@ describe('MockVenueAdapter', () => {
     process.env.MOCK_VENUE_TERMINAL_LEG_INDEX = '0';
     process.env.MOCK_VENUE_TERMINAL_STATE = 'timed_out';
     const a = new MockVenueAdapter();
-    const leg0 = { ...leg, legIndex: 0 } as ExecutionLegEntity;
+    const leg0 = { ...leg, legIndex: 0 };
     await expect(a.submitLeg(plan, leg0)).rejects.toMatchObject({
       name: 'VenueTerminalSubmitError',
       terminalState: 'timedOut',
     });
-    const leg1 = { ...leg, legIndex: 1 } as ExecutionLegEntity;
+    const leg1 = { ...leg, legIndex: 1 };
     const r = await a.submitLeg(plan, leg1);
     expect(r.externalOrderId).toMatch(/^mock:l1:/);
   });
