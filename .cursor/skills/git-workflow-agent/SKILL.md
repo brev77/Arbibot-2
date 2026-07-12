@@ -18,6 +18,19 @@ description: >
 
 Обеспечивать корректную и безопасную работу с Git в монорепозитории Arbibot 2. Самостоятельно обнаруживать и исправлять типичные Git-ошибки, поддерживать дисциплину коммитов и ветвлений, интегрироваться с планами разработки.
 
+## Commit Target Policy (Direct-to-main)
+
+**По умолчанию коммить напрямую в `main`.** Это разрешено и поддерживается для ЛЮБЫХ типов изменений: docs, планы (`.cursor/plans/`), config, код сервисов/пакетов, инфраструктура, hotfixes. PR/feature-ветки — опциональны.
+
+- **По умолчанию — `main` напрямую.** Алгоритм: `git pull --rebase origin main` → pre-commit validation (скоупированная под тип изменения) → `git commit` → `git push origin main`.
+- **Feature-ветка — опциональна**, рекомендуется (не обязательно) для: крупных кросс-сервисных рефакторингов; изменений, которые хотят провести через ревью перед лендированием; совместной работы нескольких авторов. На feature-ветке сохраняй обычный flow (4.1 опц., 4.5 merge).
+- **Создание/правка plan- и doc-файлов** (`docs/`, `.cursor/plans/`, `*.md`, `.cursor/skills/`) — всегда разрешены в `main` напрямую, независимо от статуса шага в плане (это мета-артефакты, а не реализация шага).
+- **Pre-commit validation скоупируй под изменение:**
+  - Только docs/plans/`.md` → достаточно `git status` + `git diff` review; `lint`/`build`/`test` пропускаются (код не менялся).
+  - Код одного сервиса/пакета → `npm run lint`, `npm run build`, `npm run test -w @arbibot/<pkg>`.
+  - Общие пакеты (`packages/*`) → плюс тесты зависимых сервисов.
+- **Всё ещё запрещено:** `git push --force` на `main`, перезапись push'нутой истории, коммит `.env`/секретов/`dist`/`.next`/`.turbo`/`graphify-out/`, пустые и `wip` сообщения.
+
 ## План-контекст
 
 - **Активный план:** `.cursor/plans/DEVELOPMENT_PLAN-DEX.md` — DEX-ветка (шаги `DEX-1-*`, `DEX-2-*`, `DEX-DOC-*`).
@@ -160,7 +173,9 @@ npm run test -w @arbibot/<affected-package>
 
 ## 4. Standard Git Workflow
 
-### 4.1. Создание feature-ветки
+### 4.1. Создание feature-ветки (опционально)
+
+Feature-ветка нужна только для крупных изменений, которые хотят провести через ревью. **По умолчанию коммить в `main` напрямую** (см. «Commit Target Policy»).
 
 ```bash
 git checkout main
@@ -168,27 +183,43 @@ git pull origin main
 git checkout -b feat/<step-id>-<description>
 ```
 
-### 4.2. Рабочий цикл (коммит)
+### 4.2. Рабочий цикл (коммит в `main` напрямую — по умолчанию)
 
 ```bash
-# 1. Проверь что на правильной ветке
-git branch --show-current
+# 1. Убедись что на main и актуален
+git checkout main
+git pull --rebase origin main
 
 # 2. Посмотри что изменилось
 git status
 git diff
 
-# 3. Pre-commit validation (раздел 3)
-npm run lint
-npm run build
-npm run test -w @arbibot/<affected-package>
+# 3. Pre-commit validation (скоупируй под тип изменения — см. «Commit Target Policy»)
+#    - Только docs/plans/`.md` → пропустить lint/build/test
+#    - Код сервиса → npm run lint && npm run build && npm run test -w @arbibot/<pkg>
 
 # 4. Stage
 git add <files>  # или git add -p для интерактивного выбора hunks
 
 # 5. Коммит с правильным сообщением
 git commit -m "<scope>(<step-id>): <description>"
+
+# 6. Push в main
+git push origin main
 ```
+
+<details>
+<summary><b>Альтернатива: коммит через feature-ветку (опционально)</b></summary>
+
+```bash
+# 1. Создай ветку (4.1)
+# 2. Рабочий цикл тот же, но коммит на feature-ветке
+git commit -m "<scope>(<step-id>): <description>"
+git push origin <branch-name>
+# 3. Merge обратно в main (через PR на GitHub или 4.5)
+```
+
+</details>
 
 ### 4.3. Синхронизация с main
 
@@ -402,8 +433,8 @@ git bisect reset
 ### До ревью
 
 - Убедись, что все изменения закоммичены и push'нуты.
-- Ветка должна быть ребейзнута на `origin/main`.
-- `npm run build` и `npm run lint` — зелёные.
+- Если работаешь на feature-ветке — она должна быть ребейзнута на `origin/main`. Если напрямую в `main` — убедись, что `main` актуален (`git pull --rebase origin main`).
+- `npm run build` и `npm run lint` — зелёные (для code-изменений; для docs/plans — опционально).
 
 ### Во время ревью
 
@@ -440,7 +471,7 @@ git push origin main
 | Коммит `graphify-out/` | Локальные артефакты, в `.gitignore` |
 | Коммит `dist/`, `.next/`, `.turbo/` | Билд-артефакты |
 | `git commit -m "wip"` или пустое сообщение | Нарушает commit discipline |
-| Коммит в `main` напрямую (без PR) | В обход review-step процесса |
+| ~~Коммит в `main` напрямую (без PR)~~ | **Разрешено** — см. «Commit Target Policy» в начале скилла. Прямой коммит в `main` поддерживается для всех типов изменений; feature-ветки опциональны. |
 
 ### С осторожностью
 
