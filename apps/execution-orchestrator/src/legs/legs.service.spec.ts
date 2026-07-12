@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 
 import { EVENT_NAMES } from '@arbibot/contracts';
+import type { IAuditClient } from '@arbibot/nest-platform';
 import {
   ExecutionLegEntity,
   ExecutionLegFillIdempotencyEntity,
@@ -204,6 +205,10 @@ describe('LegsService', () => {
       submitBridgeTransfer: jest.fn(),
     } as unknown as BridgeTransferService;
 
+    const killSwitch = {
+      assertLiveNotHalted: jest.fn(() => Promise.resolve()),
+    } as unknown as import('../execution/risk/dex-kill-switch.service').DexKillSwitchService;
+
     service = new LegsService(
       dataSource,
       plansRepo,
@@ -213,6 +218,7 @@ describe('LegsService', () => {
       fillOutboundSvc as unknown as FillOutboundService,
       bridgeAdapterFactory,
       bridgeTransferService,
+      killSwitch,
     );
   });
 
@@ -696,5 +702,193 @@ describe('MockVenueAdapter', () => {
     const leg1 = { ...leg, legIndex: 1 };
     const r = await a.submitLeg(plan, leg1);
     expect(r.externalOrderId).toMatch(/^mock:l1:/);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// D4-B-1-KILLSWITCH: live kill-switch gate on markSent.
+// Verifies paper/live isolation: only live legs (venueKey ∈ DEX_VENUE_KEYS) and
+// bridge legs are gated; paper-dex / legacy legs pass through unhalted.
+// ────────────────────────────────────────────────────────────────────────────
+describe('LegsService — D4-B-1-KILLSWITCH gate', () => {
+  let venue: { submitLeg: jest.Mock };
+  let plans: ExecutionPlanEntity[];
+  let legs: ExecutionLegEntity[];
+
+  function buildService(killSwitchMock: {
+    assertLiveNotHalted: jest.Mock;
+  }): LegsService {
+    venue = {
+      submitLeg: jest.fn(() =>
+        Promise.resolve({ externalOrderId: 'mock:ext-1' }),
+      ),
+    };
+    const em = {
+      findOne: jest.fn(
+        (
+          Entity: unknown,
+          opts: { where: { id?: string; planId?: string; legId?: string } },
+        ): Promise<unknown> => {
+          let result: unknown = null;
+          if (Entity === ExecutionPlanEntity) {
+            result = plans.find((p) => p.id === opts.where.id) ?? null;
+          } else if (Entity === ExecutionLegEntity) {
+            result =
+              legs.find((l) => l.id === opts.where.id) ??
+              legs.find((l) => l.id === opts.where.legId) ??
+              null;
+          }
+          return Promise.resolve(result);
+        },
+      ),
+      save: jest.fn((entity: unknown) => Promise.resolve(entity)),
+    };
+    const dataSource = {
+      transaction: jest.fn(async (cb: (em: unknown) => Promise<unknown>) =>
+        cb(em),
+      ),
+    } as unknown as DataSource;
+    const plansRepo = {} as Repository<ExecutionPlanEntity>;
+    const legsRepo = {} as Repository<ExecutionLegEntity>;
+    const audit = { record: jest.fn(() => Promise.resolve()) };
+    const fillOutbound = { afterLegFullyFilled: jest.fn() };
+    const bridgeAdapterFactory = { resolveAdapter: jest.fn() };
+    const bridgeTransferService = { submitBridgeTransfer: jest.fn() };
+    return new LegsService(
+      dataSource,
+      plansRepo,
+      legsRepo,
+      audit as unknown as IAuditClient,
+      venue,
+      fillOutbound as unknown as FillOutboundService,
+      bridgeAdapterFactory as unknown as BridgeAdapterFactoryService,
+      bridgeTransferService as unknown as BridgeTransferService,
+      killSwitchMock as unknown as import('../execution/risk/dex-kill-switch.service').DexKillSwitchService,
+    );
+  }
+
+  function planWithVenueKey(venueKey: string | undefined): ExecutionPlanEntity {
+    return {
+      id: 'p-kill-1',
+      state: 'executing',
+      entityVersion: 1,
+      correlationId: null,
+      capitalReservationId: null,
+      riskDecisionId: null,
+      playbookConfig:
+        venueKey === undefined ? null : { venueKey },
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as ExecutionPlanEntity;
+  }
+
+  function createdLeg(legType: 'dex' | 'bridge'): ExecutionLegEntity {
+    return {
+      id: 'l-kill-1',
+      planId: 'p-kill-1',
+      legIndex: 0,
+      state: 'created',
+      entityVersion: 1,
+      venueRef: null,
+      legType,
+      ...legDefaults(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as ExecutionLegEntity;
+  }
+
+  beforeEach(() => {
+    plans = [];
+    legs = [];
+    jest.clearAllMocks();
+  });
+
+  it('live DEX leg (venueKey=uniswap-v2): calls assertLiveNotHalted, proceeds when allowed', async () => {
+    const killSwitch = { assertLiveNotHalted: jest.fn(() => Promise.resolve()) };
+    const svc = buildService(killSwitch);
+    plans.push(planWithVenueKey('uniswap-v2'));
+    legs.push(createdLeg('dex'));
+
+    const row = await svc.markSent('p-kill-1', 'l-kill-1');
+
+    expect(killSwitch.assertLiveNotHalted).toHaveBeenCalledTimes(1);
+    expect(venue.submitLeg).toHaveBeenCalledTimes(1);
+    expect(row.state).toBe('sent');
+  });
+
+  it('live DEX leg: blocked when kill-switch halted (leg stays created, submitLeg NOT called)', async () => {
+    const killSwitch = {
+      assertLiveNotHalted: jest.fn(() =>
+        Promise.reject(new ConflictException('kill switch active')),
+      ),
+    };
+    const svc = buildService(killSwitch);
+    plans.push(planWithVenueKey('uniswap-v2'));
+    legs.push(createdLeg('dex'));
+
+    await expect(svc.markSent('p-kill-1', 'l-kill-1')).rejects.toThrow(
+      ConflictException,
+    );
+    expect(killSwitch.assertLiveNotHalted).toHaveBeenCalledTimes(1);
+    expect(venue.submitLeg).not.toHaveBeenCalled();
+    expect(legs[0]!.state).toBe('created');
+  });
+
+  it('paper leg (venueKey=paper-dex): NOT gated — assertLiveNotHalted never called', async () => {
+    const killSwitch = { assertLiveNotHalted: jest.fn(() => Promise.resolve()) };
+    const svc = buildService(killSwitch);
+    plans.push(planWithVenueKey('paper-dex'));
+    legs.push(createdLeg('dex'));
+
+    const row = await svc.markSent('p-kill-1', 'l-kill-1');
+
+    expect(killSwitch.assertLiveNotHalted).not.toHaveBeenCalled();
+    expect(venue.submitLeg).toHaveBeenCalledTimes(1);
+    expect(row.state).toBe('sent');
+  });
+
+  it('legacy leg (no venueKey, legType=dex): NOT gated', async () => {
+    const killSwitch = { assertLiveNotHalted: jest.fn(() => Promise.resolve()) };
+    const svc = buildService(killSwitch);
+    plans.push(planWithVenueKey(undefined));
+    legs.push(createdLeg('dex'));
+
+    await svc.markSent('p-kill-1', 'l-kill-1');
+
+    expect(killSwitch.assertLiveNotHalted).not.toHaveBeenCalled();
+    expect(venue.submitLeg).toHaveBeenCalledTimes(1);
+  });
+
+  it('bridge leg (legType=bridge): gated even though venueKey unresolved', async () => {
+    const killSwitch = { assertLiveNotHalted: jest.fn(() => Promise.resolve()) };
+    const svc = buildService(killSwitch);
+    plans.push(planWithVenueKey(undefined));
+    legs.push(createdLeg('bridge'));
+
+    // markSent for a bridge leg without bridge params would throw later, but the
+    // kill-switch gate runs BEFORE the bridge-param extraction. We assert the
+    // gate was reached.
+    await svc.markSent('p-kill-1', 'l-kill-1').catch(() => {
+      /* downstream bridge-params error is expected and irrelevant here */
+    });
+
+    expect(killSwitch.assertLiveNotHalted).toHaveBeenCalledTimes(1);
+  });
+
+  it('bridge leg: blocked when kill-switch halted', async () => {
+    const killSwitch = {
+      assertLiveNotHalted: jest.fn(() =>
+        Promise.reject(new ConflictException('kill switch active')),
+      ),
+    };
+    const svc = buildService(killSwitch);
+    plans.push(planWithVenueKey(undefined));
+    legs.push(createdLeg('bridge'));
+
+    await expect(svc.markSent('p-kill-1', 'l-kill-1')).rejects.toThrow(
+      ConflictException,
+    );
+    expect(killSwitch.assertLiveNotHalted).toHaveBeenCalledTimes(1);
+    expect(legs[0]!.state).toBe('created');
   });
 });

@@ -30,7 +30,7 @@ export type LegacyVenueKey = 'http' | 'mock';
 export type VenueKey = DexVenueKey | LegacyVenueKey | 'auto';
 
 /** All recognised DEX venue keys. */
-const DEX_VENUE_KEYS: ReadonlySet<string> = new Set<string>([
+export const DEX_VENUE_KEYS: ReadonlySet<string> = new Set<string>([
   'uniswap-v2',
   'uniswap-v3',
   'sushiswap',
@@ -42,6 +42,16 @@ const DEX_VENUE_KEYS: ReadonlySet<string> = new Set<string>([
 const PAPER_VENUE_KEYS: ReadonlySet<string> = new Set<string>([
   'paper-dex',
 ]);
+
+/**
+ * Whether the resolved venue key denotes a LIVE DEX (real on-chain execution).
+ * Used by the live kill-switch gate (D4-B-1-KILLSWITCH) and other live-only
+ * controls to distinguish live from paper/legacy without a dedicated entity
+ * flag. Paper keys (`paper-dex`) and unresolved/legacy keys return `false`.
+ */
+export function isLiveVenueKey(key: string | undefined): boolean {
+  return typeof key === 'string' && DEX_VENUE_KEYS.has(key);
+}
 
 // ───────────────────────────────────────────────────────────────────────
 // Venue key extraction

@@ -209,12 +209,16 @@ services:
       CAPITAL_SERVICE_BASE_URL: http://capital-service:3011
       RISK_SERVICE_BASE_URL: http://risk-service:3000
       PORTFOLIO_SERVICE_URL: http://portfolio-service:3016
+      # D4-B-1-KILLSWITCH: config-service is the source of truth for dex.limits.killSwitch.
+      CONFIG_SERVICE_URL: http://config-service:3019
     depends_on:
       capital-service:
         condition: service_healthy
       risk-service:
         condition: service_healthy
       portfolio-service:
+        condition: service_healthy
+      config-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3012/health/ready || exit 1"]

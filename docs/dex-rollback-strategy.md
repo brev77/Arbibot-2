@@ -186,18 +186,35 @@ curl -s http://localhost:3012/health | jq .
 curl -s http://localhost:3012/health/dex | jq .
 ```
 
-### Code-Level Kill Switch
+### Code-Level Kill Switch (D4-B-1-KILLSWITCH)
 
-The execution-orchestrator checks `dex.limits.killSwitch` before any DEX execution:
+The `execution-orchestrator` enforces the kill switch **before every live leg broadcast**
+via `DexKillSwitchService` (`apps/execution-orchestrator/src/execution/risk/dex-kill-switch.service.ts`).
+In `LegsService.markSent`, before any DEX submit or bridge transfer:
 
 ```typescript
-// In DEX execution path
-if (dexLimits.killSwitch) {
-  throw new Error('DEX kill switch active — trading halted');
+// Live = on-chain DEX (venueKey ∈ DEX_VENUE_KEYS) OR bridge leg.
+// Paper legs (venueKey='paper-dex') and legacy legs are never halted.
+const venueKey = extractVenueKey(plan, leg);
+const isLiveLeg = isBridgeLeg || isLiveVenueKey(venueKey);
+if (isLiveLeg) {
+  await this.killSwitch.assertLiveNotHalted(); // throws ConflictException if halted
 }
 ```
 
-This is the **fastest** way to halt DEX without deployment changes.
+**Two activation sources** (highest precedence first):
+1. `DEX_LIVE_KILL_SWITCH` env override — operator emergency, no config-service round-trip.
+   `true`/`1` → halt; `false`/`0` → explicitly allow (overrides config); unset → defer.
+2. config-service `dex.limits.killSwitch` (effective, cached 30s) — toggled via operator UI / API.
+
+**Fail-closed:** in production, if the cache is empty and no env override is set → halt
+(block live). In non-production → allow (dev convenience).
+
+**Observability:** metric `arb_dex_live_halt_active` (1=halted, 0=running); alert
+`DEXLiveHaltActive` (severity critical, see `infra/prometheus/alerts.yml`).
+
+This is the **fastest** way to halt DEX live trading without deployment changes.
+Paper trading and bridge-adjacent paper flows are structurally unaffected.
 
 ## Rollback Decision Matrix
 

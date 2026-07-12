@@ -37,6 +37,8 @@ import {
 } from '../venue/venue-adapter';
 import { BridgeAdapterFactoryService, extractBridgeParams } from '../execution/bridge/bridge-adapter-factory.service';
 import { BridgeTransferService } from '../execution/bridge/bridge-transfer.service';
+import { DexKillSwitchService } from '../execution/risk/dex-kill-switch.service';
+import { extractVenueKey, isLiveVenueKey } from '../execution/venue-factory.service';
 import type { BridgeTransferParams } from '../execution/bridge/bridge-adapter.interface';
 import { MultiLegPlanBuilderService } from '../plans/multi-leg-plan-builder.service';
 
@@ -116,6 +118,7 @@ export class LegsService {
     private readonly fillOutbound: FillOutboundService,
     private readonly bridgeAdapterFactory: BridgeAdapterFactoryService,
     private readonly bridgeTransferService: BridgeTransferService,
+    private readonly killSwitch: DexKillSwitchService,
   ) {}
 
   async listForPlan(planId: string): Promise<ReturnType<typeof legView>[]> {
@@ -250,6 +253,18 @@ export class LegsService {
       // BridgeTransferService which handles adapter resolution, submission,
       // idempotency, and persistence.
       const isBridgeLeg = leg.legType === 'bridge';
+
+      // ── D4-B-1-KILLSWITCH: live kill-switch gate ────────────────────────
+      // Block NEW live legs (on-chain DEX swaps + bridge transfers) when the
+      // kill-switch is active. Paper legs (venueKey ∈ PAPER_VENUE_KEYS) and
+      // legacy (http/mock) legs are never halted — paper/live isolation is
+      // structural: the gate only applies to live venue keys + bridge. On throw
+      // the leg stays in 'created' state (retryable once the halt clears).
+      const venueKey = extractVenueKey(plan, leg);
+      const isLiveLeg = isBridgeLeg || isLiveVenueKey(venueKey);
+      if (isLiveLeg) {
+        await this.killSwitch.assertLiveNotHalted();
+      }
 
       try {
         if (isBridgeLeg) {

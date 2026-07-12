@@ -5,7 +5,7 @@
 | **depends_on** | `D4-B-0-LIVE-ADR` |
 | **risk_level** | `high` |
 | **estimated_hours** | 6 |
-| **status** | `planned` |
+| **status** | `done` |
 
 ## Контекст (из ревью)
 `grep -rn "killSwitch\|DEX_LIVE_KILL_SWITCH" apps/ packages/ --include="*.ts"` → совпадения **только** в `apps/web` (`dex-config-types.ts`, `use-dex-config.ts`). В бэкенде kill-switch **не существует**. Доки (`docs/dex-rollback-strategy.md:189-200`, `deployment-readiness-assessment.md:103`) описывают его как существующий — это фикция. Угроза **C2 (🔴)** (L1).
