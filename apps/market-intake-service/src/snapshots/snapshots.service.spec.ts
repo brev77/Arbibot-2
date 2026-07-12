@@ -159,7 +159,7 @@ describe('SnapshotsService', () => {
 
     const audit = { record: jest.fn(), appendEntry: jest.fn() };
     service = new SnapshotsService(
-      dataSource as unknown as DataSource,
+      dataSource,
       mockThrottle as never,
       audit as never,
     );

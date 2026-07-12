@@ -77,9 +77,9 @@ describe('MarketService', () => {
       },
     } as unknown as RedisConnection;
     service = new MarketService(
-      venueRepo as unknown as Repository<VenueRefEntity>,
-      instrumentRepo as unknown as Repository<CanonicalInstrumentEntity>,
-      routeRepo as unknown as Repository<CanonicalRouteEntity>,
+      venueRepo,
+      instrumentRepo,
+      routeRepo,
       redisConnection,
     );
   });

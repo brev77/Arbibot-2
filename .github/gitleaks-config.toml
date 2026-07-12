@@ -21,6 +21,10 @@ paths = [
   '''graphify-out/.*''',
   '''node_modules/.*''',
   '''.git/.*''',
+  '''.*\.spec\.ts''',
+  '''.*\.spec\.tsx''',
+  '''.*\.test\.ts''',
+  '''.*\.mock\.ts''',
 ]
 regexes = [
   # Placeholders in env examples

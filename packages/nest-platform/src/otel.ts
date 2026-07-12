@@ -35,6 +35,7 @@ export function startOpenTelemetryNodeSdkIfConfigured(options: {
   // Lazy-load auto-instrumentations to avoid pulling dozens of optional peer deps
   // (instrumentation-host-metrics, propagator-aws-xray, etc.) at import time.
   // These are only needed when OTEL is actually configured (env vars set).
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { getNodeAutoInstrumentations } = require('@opentelemetry/auto-instrumentations-node');
 
   const resource = resourceFromAttributes({
