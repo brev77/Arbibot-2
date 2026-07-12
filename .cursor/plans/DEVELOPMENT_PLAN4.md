@@ -1,6 +1,6 @@
 # Arbibot 2 — План 4: Deployment Readiness (Paper → Live)
 
-**Прогресс:** 0/22 | **Обновлено:** 2026-07-11 | **Детали шагов:** `.cursor/plans/deploy-readiness/`
+**Прогресс:** 4/22 | **Обновлено:** 2026-07-12 | **Детали шагов:** `.cursor/plans/deploy-readiness/`
 **Источник:** [`docs/deployment-readiness-review-2026-07.md`](../../docs/deployment-readiness-review-2026-07.md)
 
 ## Контекст
@@ -29,10 +29,10 @@
 
 | step_id | Суть | status | details | из ревью |
 |---------|------|--------|---------|----------|
-| `D4-A-0-ADR` | ADR: операторский auth | planned | `deploy-readiness/D4-A-0-ADR.md` | P1 |
-| `D4-A-1-AUTH` | Реализация операторского auth | planned | `deploy-readiness/D4-A-1-AUTH.md` | P1 🔴 |
-| `D4-A-2-PAGING` | Реальный paging в Alertmanager | planned | `deploy-readiness/D4-A-2-PAGING.md` | P2 |
-| `D4-A-3-RESTORE` | Починка процедуры restore | planned | `deploy-readiness/D4-A-3-RESTORE.md` | P3 |
+| `D4-A-0-ADR` | ADR: операторский auth | done | `deploy-readiness/D4-A-0-ADR.md` | P1 |
+| `D4-A-1-AUTH` | Реализация операторского auth | done | `deploy-readiness/D4-A-1-AUTH.md` | P1 🔴 |
+| `D4-A-2-PAGING` | Реальный paging в Alertmanager | done | `deploy-readiness/D4-A-2-PAGING.md` | P2 |
+| `D4-A-3-RESTORE` | Починка процедуры restore | done | `deploy-readiness/D4-A-3-RESTORE.md` | P3 |
 | `D4-A-4-MIGRATIONS` | Коллизия 037 + prod-процедура | planned | `deploy-readiness/D4-A-4-MIGRATIONS.md` | P7 |
 | `D4-A-5-PROBES` | /ready vs /live probes | planned | `deploy-readiness/D4-A-5-PROBES.md` | P8 |
 | `D4-A-6-TLS` | TLS-сертификаты + HSTS | planned | `deploy-readiness/D4-A-6-TLS.md` | P9 |

@@ -418,12 +418,24 @@ services:
     networks:
       - arbibot-backend
       - arbibot-observability
+    environment:
+      # Paging secrets (D4-A-2-PAGING). Rendered into alertmanager.yml by the
+      # entrypoint via envsubst. Empty values trigger an incidents-only fallback.
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+      PAGERDUTY_ROUTING_KEY: ${PAGERDUTY_ROUTING_KEY:-}
+      ALERTMANAGER_SLACK_CHANNEL: ${ALERTMANAGER_SLACK_CHANNEL:-#arbibot-critical}
+    entrypoint: ["/usr/local/bin/entrypoint.alertmanager.sh"]
     command:
+      - "alertmanager"
       - "--config.file=/etc/alertmanager/alertmanager.yml"
       - "--storage.path=/alertmanager"
       - "--web.listen-address=:9093"
+      - "--web.enable-lifecycle"
     volumes:
-      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      # Template (rendered at start) + dev config (fallback when secrets empty).
+      - ./alertmanager/alertmanager.yml.tpl:/etc/alertmanager/alertmanager.yml.tpl:ro
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.dev.yml:ro
+      - ./docker/entrypoint.alertmanager.sh:/usr/local/bin/entrypoint.alertmanager.sh:ro
       - arbibot_alertmanager_data:/alertmanager
     deploy:
       resources:

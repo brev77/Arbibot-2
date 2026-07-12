@@ -135,7 +135,8 @@ docker exec $(docker ps -q -f name=postgres) \
   psql -U arbibot -c "DELETE FROM schema_migrations WHERE version > '<LAST_KNOWN_VERSION>';"
 
 # 3. Восстановить backup (если нужно)
-bash tools/backup-postgres.sh restore
+npm run db:restore -- /path/to/backup.sql.gz
+# После restore: npm run db:verify-migrations:all
 
 # 4. Пересобрать с предыдущим tag
 IMAGE_TAG=<previous-sha> docker compose -f infra/docker-compose.prod.yml up -d

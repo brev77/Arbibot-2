@@ -1,10 +1,12 @@
-# Arbibot 2 — Alertmanager Configuration
+# Arbibot 2 — Alertmanager Configuration (DEV / LOCAL)
 #
-# Notification routing for Prometheus alerts.
-# Configure at least one receiver before deploying.
+# This is the local-dev configuration (infra/docker-compose.dev.yml, profile
+# `observability`). It mirrors alerts to the Arbibot incidents pipeline only —
+# no external paging (Slack/PagerDuty) is wired in dev.
 #
-# Receivers supported: Slack, Email, PagerDuty, webhook, Telegram
-# See: https://prometheus.io/docs/alerting/latest/configuration/
+# For PRODUCTION, use infra/alertmanager/alertmanager.yml.tpl, which is rendered
+# by infra/docker/entrypoint.alertmanager.sh via envsubst with real paging
+# receivers (Slack + PagerDuty). See docs/observability-tracing.md (on-call v1).
 #
 # Templating:
 #   - Alert name: {{ .GroupLabels.alertname }}
@@ -84,47 +86,37 @@ receivers:
         send_resolved: true
         max_alerts: 0
 
-  # Default: log to stdout (no external notifications)
+  # Dev-only: non-functional no-op webhooks. In dev, alerts are observed via the
+  # /incidents UI (arbibot-incidents receiver above). Production paging is wired
+  # in alertmanager.yml.tpl (Slack + PagerDuty via envsubst entrypoint).
   - name: "default"
     webhook_configs:
-      - url: "http://localhost:5001/alerts"
+      - url: "http://127.0.0.1:5001/alerts"
         send_resolved: true
 
-  # Critical: configure Slack / PagerDuty / Telegram
   - name: "critical"
-    # Slack example (uncomment and configure):
-    # slack_configs:
-    #   - channel: "#arbibot-critical"
-    #     api_url: "<SLACK_WEBHOOK_URL>"
-    #     title: "🔴 {{ .GroupLabels.alertname }}"
-    #     text: "{{ range .Alerts }}{{ .Annotations.summary }}\n{{ .Annotations.description }}{{ end }}"
-    #     send_resolved: true
     webhook_configs:
-      - url: "http://localhost:5001/alerts/critical"
+      - url: "http://127.0.0.1:5001/alerts/critical"
         send_resolved: true
 
-  # Warnings
   - name: "warnings"
     webhook_configs:
-      - url: "http://localhost:5001/alerts/warnings"
+      - url: "http://127.0.0.1:5001/alerts/warnings"
         send_resolved: true
 
-  # Paper trading alerts
   - name: "paper-trading"
     webhook_configs:
-      - url: "http://localhost:5001/alerts/paper"
+      - url: "http://127.0.0.1:5001/alerts/paper"
         send_resolved: true
 
-  # DEX alerts
   - name: "dex"
     webhook_configs:
-      - url: "http://localhost:5001/alerts/dex"
+      - url: "http://127.0.0.1:5001/alerts/dex"
         send_resolved: true
 
-  # Infrastructure
   - name: "infrastructure"
     webhook_configs:
-      - url: "http://localhost:5001/alerts/infra"
+      - url: "http://127.0.0.1:5001/alerts/infra"
         send_resolved: true
 
 # ── Inhibition rules ────────────────────────────────────────────

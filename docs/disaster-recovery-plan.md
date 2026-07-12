@@ -165,11 +165,12 @@ docker compose -f infra/docker-compose.prod.yml up -d --force-recreate
 
 # 3. Если нужно откатить миграции:
 # WARNING: миграции вниз могут потерять данные!
-# Всегда делать backup перед rollback
-bash tools/backup-postgres.sh
-
-# Откат конкретной миграции (пример):
-# psql "$DATABASE_URL" -f infra/postgres/migrations/rollback/036_rollback.sql
+# Всегда делать backup перед rollback.
+# Arbibot 2 миграции — forward-only; отката отдельных миграций нет.
+# Чтобы вернуться к состоянию БД на дату бэкапа — восстановите дамп:
+bash tools/backup-postgres.sh backup          # сделать свежий backup текущего состояния
+npm run db:restore -- backups/arbibot_<timestamp>.sql.gz   # восстановить прежний дамп
+npm run db:verify-migrations:all              # проверить, какие миграции применились
 
 # 4. Верифицировать
 bash tools/verify-deployment.sh

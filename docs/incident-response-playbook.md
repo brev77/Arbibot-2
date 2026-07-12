@@ -234,11 +234,24 @@ Product Owner / Stakeholders
 
 ## 7. Контактная информация
 
-Обновить при назначении on-call:
+### 7.1 Paging-каналы (автоматические, D4-A-2-PAGING)
 
-| Роль | Имя | Контакт |
-|------|-----|---------|
-| IC | TBD | TBD |
-| On-call | TBD | TBD |
-| Tech Lead | TBD | TBD |
-| DBA | TBD | TBD |
+Paging настроен в `infra/alertmanager/alertmanager.yml.tpl` (см. `docs/observability-tracing.md` → "Wiring"):
+- **PagerDuty** → schedule `arbibot-critical` (severity: critical, infrastructure) — `PAGERDUTY_ROUTING_KEY` env.
+- **Slack** → канал `#arbibot-critical` (critical, infrastructure) / `#arbibot-on-call` (warnings, paper, dex) — `SLACK_WEBHOOK_URL` env.
+- **Incidents UI** → `/incidents` (все алёрты, audit-trail) — через `arbibot-incidents` receiver → reconciliation-service.
+
+При срабатывании critical-алёрта (например `ServiceDown`) on-call получает PagerDuty page + Slack-уведомление в течение 15s (`group_wait`). SLA ack — 5 мин.
+
+### 7.2 Роли и назначение
+
+Обновить при назначении on-call roster (имена/контакты конкретных операторов — вне репозитория, хранятся в PagerDuty schedule `arbibot-critical` и Slack `#arbibot-on-call`):
+
+| Роль | Назначение | Где найти текущего дежурного |
+|------|-----------|------------------------------|
+| IC (Incident Commander) | Координация инцидента, решения | PagerDuty `arbibot-critical` → current on-call |
+| On-call engineer | Первичный ответчик, диагностика | PagerDuty `arbibot-critical` → current on-call |
+| Tech Lead | Эскалация Tier 2 (15–30 мин) | PagerDuty `Arbibot Escalation` policy |
+| DBA | БД-специфичные инциденты | Slack `#arbibot-on-call` → ask for DBA |
+
+> Конкретные имена/телефоны/email операторов **намеренно не хранятся в репозитории** — они живут в PagerDuty schedule и ротируются. При первом выкате product-owner должен создать schedule `arbibot-critical` в PagerDuty и занести туда операторов.

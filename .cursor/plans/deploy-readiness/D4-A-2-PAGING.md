@@ -5,7 +5,7 @@
 | **depends_on** | — |
 | **risk_level** | `medium` |
 | **estimated_hours** | 2 |
-| **status** | `planned` |
+| **status** | `done` |
 
 ## Контекст (из ревью)
 `infra/alertmanager/alertmanager.yml`: все receiver'ы → `http://localhost:5001/alerts/*` (несуществующий placeholder). Slack/PagerDuty/Telegram **закомментированы**. В проде как есть — никто не получает страниц; алёрты идут только в `/incidents` UI (P2).

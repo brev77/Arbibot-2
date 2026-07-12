@@ -5,7 +5,7 @@
 | **depends_on** | `D4-A-0-ADR` |
 | **risk_level** | `high` |
 | **estimated_hours** | 8 |
-| **status** | `planned` |
+| **status** | `done` |
 
 ## Контекст (из ревью)
 Подписанная httpOnly-сессия вместо неподписанной `arbibot_role` (P1, critical для любого не-localhost).

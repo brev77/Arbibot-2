@@ -103,6 +103,14 @@ Starter dashboard JSON: [`infra/grafana/dashboards/arbibot-http-overview.json`](
 - Notification channels: Slack, SMS, email
 - On-call schedule: `arbibot-critical` (weekly rotation, handoff Monday 9:00 UTC)
 
+**Wiring (D4-A-2-PAGING, 2026-07):** Paging is wired in code, not just docs.
+- Config: `infra/alertmanager/alertmanager.yml.tpl` — rendered at container start by `infra/docker/entrypoint.alertmanager.sh` (envsubst).
+- Secrets (env, never committed): `SLACK_WEBHOOK_URL`, `PAGERDUTY_ROUTING_KEY`, optional `ALERTMANAGER_SLACK_CHANNEL` (default `#arbibot-critical`). See `.env.production.example` (section "Alertmanager paging").
+- Routing: `severity: critical` + `infrastructure` receivers → PagerDuty page + Slack; `warnings` / `paper-trading` / `dex` → Slack only. All alerts mirror to `arbibot-incidents` (→ reconciliation-service → `/incidents` UI) via `continue: true`.
+- Fail-safe: if both paging secrets are empty, alertmanager falls back to an incidents-pipeline-only config (alerts appear in `/incidents` UI but are **not** paged) and logs a loud warning. `tools/validate-env.sh` warns when both are empty.
+- Validation: `docker run --rm -v $(pwd)/infra/alertmanager/alertmanager.yml:/etc/alertmanager/config.yml prom/alertmanager:latest amtool check-config /etc/alertmanager/config.yml` (run against the **rendered** file, not the `.tpl`).
+- Reload without restart: `curl -X POST http://localhost:9093/-/reload` (alertmanager runs with `--web.enable-lifecycle` in prod).
+
 **Incident lifecycle:**
 1. **Detection:** Alert fires → PagerDuty page → Slack notification
 2. **Acknowledgement:** On-call engineer acknowledges in PagerDuty (5 min SLA)

@@ -5,7 +5,7 @@
 | **depends_on** | — |
 | **risk_level** | `high` |
 | **estimated_hours** | 2 |
-| **status** | `planned` |
+| **status** | `done` |
 
 ## Контекст (из ревью)
 

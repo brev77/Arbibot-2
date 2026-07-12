@@ -23,6 +23,9 @@ Thumbs.db
 # graphify (local knowledge graph artifacts; not committed)
 graphify-out/
 
+# ZCode (local planning/session artifacts; not committed)
+.zcode/
+
 # Production / deployment artifacts
 backups/
 *.sql.gz

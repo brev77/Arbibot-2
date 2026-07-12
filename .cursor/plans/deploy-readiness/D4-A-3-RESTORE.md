@@ -5,7 +5,7 @@
 | **depends_on** | — |
 | **risk_level** | `high` |
 | **estimated_hours** | 3 |
-| **status** | `planned` |
+| **status** | `done` |
 
 ## Контекст (из ревью)
 - `docs/deployment-guide.md:648` и `docs/deployment-checklist.md:138` учат: `bash tools/backup-postgres.sh restore /path/to/backup.sql` — **но у скрипта нет restore-аргумента** (P3).

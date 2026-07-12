@@ -66,10 +66,14 @@ export default async function HomePage({
     return (
       <OperatorAccessMessage title="Operator access unavailable">
         <p>
-          Configure <code>ARBIBOT_DEV_ROLE</code> or set the{' '}
-          <code>arbibot_role</code> cookie to <code>viewer</code>,{' '}
-          <code>operator</code>, or <code>admin</code> before using the operator UI.
+          You are not signed in. Sign in with the operator bootstrap token to
+          access the operator UI.
         </p>
+        <div className="operator-access-actions">
+          <Link href="/login" className="operator-access-link">
+            Sign in
+          </Link>
+        </div>
       </OperatorAccessMessage>
     );
   }

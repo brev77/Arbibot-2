@@ -127,3 +127,78 @@ html.theme-light .operator-access-link {
 .operator-access-link:hover {
   text-decoration: underline;
 }
+
+.operator-login-form {
+  margin-top: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.operator-login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.operator-login-label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #cbd5e1;
+}
+
+html.theme-light .operator-login-label {
+  color: #334155;
+}
+
+.operator-login-input {
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid #1e293b;
+  background: #020617;
+  color: #e5e7eb;
+  font-size: 0.95rem;
+  font-family: inherit;
+}
+
+html.theme-light .operator-login-input {
+  background: #fff;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+.operator-login-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+.operator-login-error {
+  margin: 0;
+  color: #fca5a5;
+  font-size: 0.85rem;
+}
+
+html.theme-light .operator-login-error {
+  color: #b91c1c;
+}
+
+.operator-login-submit {
+  margin-top: 0.35rem;
+  padding: 0.55rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #1e40af;
+  background: #1d4ed8;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.operator-login-submit:hover:not(:disabled) {
+  background: #2563eb;
+}
+
+.operator-login-submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

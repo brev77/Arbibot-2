@@ -103,6 +103,8 @@ SECRET_VARS=(
   "RISK_POLICY_JOB_TRIGGER_TOKEN"
   "HERMES_API_KEYS"
   "HERMES_BFF_API_KEY"
+  "OPERATOR_SESSION_SECRET"
+  "OPERATOR_BOOTSTRAP_TOKEN"
 )
 
 for var in "${SECRET_VARS[@]}"; do
@@ -117,6 +119,25 @@ for var in "${SECRET_VARS[@]}"; do
     log_pass "${var} — set (${#val} chars)"
   fi
 done
+
+# OPERATOR_SESSION_SECRET must be >=32 bytes (HS256 signing key, D4-A-1-AUTH).
+_op_session_secret="${ENV_VARS[OPERATOR_SESSION_SECRET]:-}"
+if [[ -n "${_op_session_secret}" && "${_op_session_secret}" != *"<CHANGE_ME"* && "${#_op_session_secret}" -lt 32 ]]; then
+  log_fail "OPERATOR_SESSION_SECRET — too short (${#_op_session_secret} chars, require 32+ for HS256)"
+fi
+unset _op_session_secret
+
+# Alertmanager paging secrets (D4-A-2-PAGING). At least one of SLACK_WEBHOOK_URL
+# / PAGERDUTY_ROUTING_KEY should be set for critical alerts to be paged. Both
+# empty triggers an incidents-only fallback (non-fatal, but warning-worthy).
+_slack_webhook="${ENV_VARS[SLACK_WEBHOOK_URL]:-}"
+_pager_key="${ENV_VARS[PAGERDUTY_ROUTING_KEY]:-}"
+if [[ -z "${_slack_webhook}" && -z "${_pager_key}" ]]; then
+  log_warn "SLACK_WEBHOOK_URL / PAGERDUTY_ROUTING_KEY — both empty; critical alerts will NOT be paged (incidents UI only)"
+elif [[ "${_slack_webhook}" == *"<CHANGE_ME"* || "${_pager_key}" == *"<CHANGE_ME"* ]]; then
+  log_fail "paging secrets — still have placeholder value(s)"
+fi
+unset _slack_webhook _pager_key
 
 # ── 2. Database configuration ──────────────────────────────────
 log_section "Database"

@@ -23,21 +23,19 @@ export default async function OperatorLayout({
       <Providers>
         <OperatorAccessMessage title="Operator access unavailable">
           <p>
-            Configure <code>ARBIBOT_DEV_ROLE</code> or set the{' '}
-            <code>arbibot_role</code> cookie to <code>viewer</code>,{' '}
-            <code>operator</code>, or <code>admin</code> before using the operator
-            UI.
+            You are not signed in. Sign in with the operator bootstrap token to
+            access the operator UI.
           </p>
           <p className="mb-0 text-sm text-slate-400 html.theme-light:text-slate-600">
-            If you were redirected from a protected route, check your role and try again
-            from home or the dashboard.
+            If you were redirected from a protected route, sign in and you will be
+            returned to it automatically.
           </p>
           <div className="operator-access-actions">
+            <Link href="/login" className="operator-access-link">
+              Sign in
+            </Link>
             <Link href="/" className="operator-access-link">
               Home
-            </Link>
-            <Link href="/dashboard" className="operator-access-link">
-              Try the dashboard
             </Link>
           </div>
         </OperatorAccessMessage>

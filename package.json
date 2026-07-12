@@ -63,6 +63,7 @@
     "docker:push": "bash tools/docker-build-all.sh --push",
     "db:seed-canonical": "node tools/seed-canonical-registry.mjs",
     "db:backup": "bash tools/backup-postgres.sh",
+    "db:restore": "bash tools/backup-postgres.sh restore",
     "verify:deployment": "bash tools/verify-deployment.sh",
     "verify:env": "bash tools/validate-env.sh",
     "validate:dependabot": "node tools/validate-dependabot.mjs",
