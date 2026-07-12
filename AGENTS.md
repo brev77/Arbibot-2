@@ -27,8 +27,8 @@ The repo uses custom Cursor skills in `.cursor/skills/` for architecture validat
 
 4. **git-workflow-agent** — manages Git operations in the Arbibot 2 monorepo
    - Path: `.cursor/skills/git-workflow-agent/SKILL.md`
-   - Checks: structured commits linked to plan step_ids, pre-commit validation (build/lint/test), branch naming conventions, conflict resolution, error recovery, Windows path safety, forbidden operations
-   - Triggers: git commit, git branch, git merge, git rebase, conflict resolution, git fix, git error, prepare PR, sync branch
+   - Checks: **direct-to-main commit policy** (commits/pushes go straight to `main`; feature branches are optional, not required), structured commits linked to plan step_ids, scoped pre-commit validation (build/lint/test for code; `verify:env` for config; none for docs/plans), optional branch naming conventions, conflict resolution, error recovery, Windows path safety, forbidden operations
+   - Triggers: git commit, git push, git branch, git merge, git rebase, conflict resolution, git fix, git error, prepare PR, sync branch
    - Usage: Run via `/git-workflow` or automatically on Git operations
 
 5. **dex-security-and-capital-safety** — hardens DEX, on-chain, and cross-chain flows against capital loss and key compromise
@@ -38,7 +38,7 @@ The repo uses custom Cursor skills in `.cursor/skills/` for architecture validat
    - Usage: Run via `/dex-security` or automatically when touching `KeyVaultService`, `WalletManagerService`, `*BridgeAdapter`, `BridgeTransferService`, `MultiLegPlanBuilder`, `SlippageProtectionService`, `on_chain_transactions`, `approvals`, `dex.limits`/`dex.live` config, or any paper→live promotion boundary
    - References: `references/threat-model.md` (exploit-сценарии + remediation), `references/paper-live-boundary.md` (import-graph контракт изоляции)
 
-**Workflow:** When making changes that cross service boundaries or involve critical flows, use architecture-guard-agent before committing. For PR reviews, use backend-review-agent or frontend-review-agent based on the code area. For any change touching DEX, wallets, keys, bridges, capital limits, or paper→live boundaries, additionally use dex-security-and-capital-safety to catch capital/key-loss vectors that generic OWASP checks miss. **For all Git operations (committing, branching, merging, conflict resolution, PR preparation), use git-workflow-agent** to ensure structured commits, pre-commit validation, and correct branch management.
+**Workflow:** When making changes that cross service boundaries or involve critical flows, use architecture-guard-agent before committing. For PR reviews, use backend-review-agent or frontend-review-agent based on the code area. For any change touching DEX, wallets, keys, bridges, capital limits, or paper→live boundaries, additionally use dex-security-and-capital-safety to catch capital/key-loss vectors that generic OWASP checks miss. **For all Git operations (committing, pushing, branching, merging, conflict resolution, PR preparation), use git-workflow-agent** to ensure structured commits, scoped pre-commit validation, and direct-to-main workflow (feature branches are optional).
 
 ### graphify (knowledge graph)
 

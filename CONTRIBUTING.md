@@ -116,32 +116,44 @@ runbook start, promotions, policy changes) must:
 
 See [`docs/operator-approval-flow.md`](docs/operator-approval-flow.md).
 
-## Pull Request Process
+## Commit Process (Direct-to-Main)
 
-1. **Branch name**: `feat/<short>`, `fix/<short>`, `docs/<short>`,
-   `chore/<short>` — keep it short and ASCII.
-2. **Commit style**: conventional commits preferred
+Arbibot 2 uses a **direct-to-main** commit policy: by default, commit and push
+directly to `main`. Feature branches and pull requests are **optional**, not
+required — use them when you want a review checkpoint or an isolated
+experiment.
+
+1. **Commit directly to `main`** for any type of change (docs, plans,
+   config, code, infrastructure, hotfixes). This is the supported default.
+2. **Feature branch (optional)**: create one (`feat/<short>`,
+   `fix/<short>`, `docs/<short>`, `chore/<short>`) only when you want a review
+   gate or to isolate risky work. Branches always start from current `main`.
+   Never name a branch `main`, `master`, `prod`, or `production`.
+3. **Commit style**: conventional commits preferred
    (`feat(risk): add X`, `fix(execution): handle Y`, `docs: ...`).
    Structured commits linked to plan `step_id` are welcome.
-3. **Pre-commit validation** must pass locally:
-   ```bash
-   npm run lint
-   npm run build
-   npm run test
-   ```
-   Optionally run the relevant E2E script from `tools/`.
-4. **PR description** must include:
+4. **Pre-commit validation** — scoped by change type:
+   - **Code changes** (services, packages): run `npm run lint`, `npm run build`,
+     `npm run test` (turbo runs across affected workspaces). Optionally run the
+     relevant E2E script from `tools/`.
+   - **Docs / plans (`.cursor/plans/`, `docs/`)**: no build/test needed.
+   - **Config / infra (`.env*`, compose, nginx, SQL migrations)**: run
+     `npm run verify:env` / `bash tools/validate-env.sh` and the targeted
+     tool check (e.g. `amtool check-config`, `bash -n`, `node --check`).
+5. **Commit message** should include:
    - **What** changed and **why**.
    - Which architectural invariant(s) apply (single-writer,
      reservation-first, etc.).
    - Which contracts changed (HTTP endpoint, event, DB migration).
    - Migration number if a new SQL file was added (next sequential under
      `infra/postgres/migrations/`).
-5. **Review** — expect review against:
+6. **Review** (whether direct-to-main or via optional PR) — expect review
+   against:
    - `.cursor/skills/architecture-guard-agent/SKILL.md`
    - `.cursor/skills/backend-review-agent/SKILL.md` or
      `.cursor/skills/frontend-review-agent/SKILL.md`
-6. **Do not force-push** after review — add follow-up commits unless asked.
+7. **Do not force-push** to `main` — add follow-up commits unless explicitly
+   asked.
 
 ## Database Migrations
 

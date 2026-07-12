@@ -1,12 +1,14 @@
 ﻿---
 name: git-workflow-agent
 description: >
-  Use when managing Git operations in Arbibot 2 monorepo: committing changes, branching,
-  merging, resolving conflicts, recovering from errors, syncing with remote, preparing PRs.
-  Enforces structured commits linked to plan step_ids, pre-commit validation (build/lint/test),
-  branch naming conventions, and safe Git practices for a Windows monorepo with spaces in path.
-  Triggers: git commit, git branch, git merge, git rebase, conflict resolution, git fix,
-  git error, prepare PR, sync branch, cleanup branches.
+  Use when managing Git operations in Arbibot 2 monorepo: committing changes, pushing,
+  branching (optional), merging, resolving conflicts, recovering from errors, syncing with
+  remote, preparing PRs. Default policy is DIRECT-TO-MAIN: commit and push straight to main;
+  feature branches are optional, not required. Enforces structured commits linked to plan
+  step_ids, scoped pre-commit validation (build/lint/test for code; verify:env for config;
+  none for docs/plans), optional branch naming conventions, and safe Git practices for a
+  Windows monorepo. Triggers: git commit, git push, git branch, git merge, git rebase,
+  conflict resolution, git fix, git error, prepare PR, sync branch, cleanup branches.
   Invocation: /git-workflow или автоматически при Git-операциях.
 ---
 
