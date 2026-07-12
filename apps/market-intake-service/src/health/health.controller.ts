@@ -4,14 +4,18 @@ import { DegradationStateService } from '../policy/degradation-state.service';
 
 const THROTTLE_WINDOW_SEC = 300;
 
+/**
+ * Service-specific health probes for market-intake-service.
+ *
+ * The base `GET /health`, `GET /health/live`, and `GET /health/ready` endpoints
+ * are provided by the shared `@Global() HealthModule` from
+ * `@arbibot/nest-platform` (registered first in AppModule). This controller only
+ * owns the service-specific `GET /health/degradation` probe to avoid a route
+ * conflict on `GET /health`.
+ */
 @Controller()
 export class HealthController {
   constructor(private readonly degradationState: DegradationStateService) {}
-
-  @Get('health')
-  health(): { ok: true; service: string } {
-    return { ok: true, service: 'market-intake-service' };
-  }
 
   /**
    * Operator / UI degradation signals (Phase 4).

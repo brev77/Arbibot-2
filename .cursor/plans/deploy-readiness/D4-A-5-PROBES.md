@@ -5,7 +5,7 @@
 | **depends_on** | — |
 | **risk_level** | `low` |
 | **estimated_hours** | 3 |
-| **status** | `planned` |
+| **status** | `done` |
 
 ## Контекст (из ревью)
 HEALTHCHECK `Dockerfile.nest` и k8s-пробы бьют в `/metrics` — доказывает, что процесс жив, но **не что готов обслуживать** (нет проверки DB/Redis/Kafka). Отдельный `/health` есть только на `hermes-gateway` и `apps/web` (`/api/health`); на остальных 11 сервисах его нет (P8).

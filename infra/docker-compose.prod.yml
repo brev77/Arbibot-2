@@ -167,7 +167,7 @@ services:
     environment:
       PORT: 3000
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3000/metrics || exit 1"]
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3000/health/ready || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -183,7 +183,7 @@ services:
       risk-service:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3010/metrics || exit 1"]
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3010/health/ready || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -195,7 +195,7 @@ services:
     environment:
       PORT: 3011
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3011/metrics || exit 1"]
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3011/health/ready || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -217,7 +217,7 @@ services:
       portfolio-service:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3012/metrics || exit 1"]
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3012/health/ready || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -234,7 +234,7 @@ services:
     environment:
       PORT: 3013
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3013/metrics || exit 1"]
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3013/health/ready || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -246,7 +246,7 @@ services:
     environment:
       PORT: 3014
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3014/metrics || exit 1"]
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3014/health/ready || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -263,7 +263,7 @@ services:
       config-service:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3015/metrics || exit 1"]
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3015/health/ready || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -275,7 +275,7 @@ services:
     environment:
       PORT: 3016
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3016/metrics || exit 1"]
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3016/health/ready || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -287,7 +287,7 @@ services:
     environment:
       PORT: 3017
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3017/metrics || exit 1"]
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3017/health/ready || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -303,7 +303,7 @@ services:
       config-service:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3018/metrics || exit 1"]
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3018/health/ready || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -315,7 +315,7 @@ services:
     environment:
       PORT: 3019
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3019/metrics || exit 1"]
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3019/health/ready || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3

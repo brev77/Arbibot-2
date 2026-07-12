@@ -1,6 +1,6 @@
 # Arbibot 2 — План 4: Deployment Readiness (Paper → Live)
 
-**Прогресс:** 4/22 | **Обновлено:** 2026-07-12 | **Детали шагов:** `.cursor/plans/deploy-readiness/`
+**Прогресс:** 8/22 | **Обновлено:** 2026-07-12 | **Детали шагов:** `.cursor/plans/deploy-readiness/`
 **Источник:** [`docs/deployment-readiness-review-2026-07.md`](../../docs/deployment-readiness-review-2026-07.md)
 
 ## Контекст
@@ -33,10 +33,10 @@
 | `D4-A-1-AUTH` | Реализация операторского auth | done | `deploy-readiness/D4-A-1-AUTH.md` | P1 🔴 |
 | `D4-A-2-PAGING` | Реальный paging в Alertmanager | done | `deploy-readiness/D4-A-2-PAGING.md` | P2 |
 | `D4-A-3-RESTORE` | Починка процедуры restore | done | `deploy-readiness/D4-A-3-RESTORE.md` | P3 |
-| `D4-A-4-MIGRATIONS` | Коллизия 037 + prod-процедура | planned | `deploy-readiness/D4-A-4-MIGRATIONS.md` | P7 |
-| `D4-A-5-PROBES` | /ready vs /live probes | planned | `deploy-readiness/D4-A-5-PROBES.md` | P8 |
-| `D4-A-6-TLS` | TLS-сертификаты + HSTS | planned | `deploy-readiness/D4-A-6-TLS.md` | P9 |
-| `D4-A-7-PAPER-SMOKE` | Paper-deploy DoD + smoke | planned | `deploy-readiness/D4-A-7-PAPER-SMOKE.md` | гейт |
+| `D4-A-4-MIGRATIONS` | Коллизия 037 + prod-процедура | done | `deploy-readiness/D4-A-4-MIGRATIONS.md` | P7 |
+| `D4-A-5-PROBES` | /ready vs /live probes | done | `deploy-readiness/D4-A-5-PROBES.md` | P8 |
+| `D4-A-6-TLS` | TLS-сертификаты + HSTS | done | `deploy-readiness/D4-A-6-TLS.md` | P9 |
+| `D4-A-7-PAPER-SMOKE` | Paper-deploy DoD + smoke | done | `deploy-readiness/D4-A-7-PAPER-SMOKE.md` | гейт |
 
 ### Фаза B: Live-gate (10 шагов)
 

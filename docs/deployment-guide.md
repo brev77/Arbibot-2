@@ -296,6 +296,45 @@ ls -la infra/nginx/ssl/
 # privkey.pem
 ```
 
+### Вариант для paper-deploy (D4-A-6-TLS)
+
+Для **paper на изолированном хосте** есть два приемлемых пути:
+
+**Путь 1 — Self-signed + импорт CA в браузер оператора** (paper-only):
+```bash
+# Сгенерировать self-signed (SAN включает localhost + IP):
+DOMAIN=<host-ip-or-localhost> npm run generate:tls
+# Импортировать infra/nginx/ssl/fullchain.pem в браузер оператора как
+# доверенный CA (Chrome: Settings → Security → Manage certificates → Authorities).
+# Это убирает browser-warning без публичного CA.
+```
+
+**Путь 2 — Let's Encrypt** (если у хоста есть публичный домен):
+используйте «Вариант B» выше.
+
+### HSTS (Strict-Transport-Security) — gating
+
+`infra/nginx/nginx.conf` содержит HSTS-заголовок (раскомментирован в D4-A-6-TLS):
+
+```nginx
+add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
+```
+
+> ⚠️ **HSTS пинит браузер к HTTPS на 2 года.** Включайте HSTS **только** после
+> подтверждения, что HTTPS стабилен с **валидным (CA-signed)** сертификатом.
+>
+> **Для paper-deploy с self-signed сертификатом — ЗАКОММЕНТИРУЙТЕ строку HSTS**
+> в `infra/nginx/nginx.conf`. Иначе браузер оператора запомнит self-signed cert
+> на `max-age` (63072000s ≈ 2 года), и доступ к UI будет заблокирован даже после
+> установки валидного сертификата. HSTS включается при переходе на Let's Encrypt
+> (Путь 2) или CA-сертификат организации.
+
+Проверить, что HSTS не отдаётся (paper/self-signed):
+```bash
+curl -skI https://localhost/ | grep -i strict-transport
+# Ожидание для self-signed/paper: (пусто — HSTS закомментирован)
+```
+
 ---
 
 ## 6. Запуск стека
@@ -372,23 +411,69 @@ docker compose -f infra/docker-compose.prod.yml ps --format json | jq -r '.[].St
 
 ## 7. Инициализация данных
 
-### Шаг 1: Проверить миграции БД
+### Шаг 1: Применить миграции БД
+
+> **Процедура prod-применения миграций (D4-A-4-MIGRATIONS).** Миграции
+> **forward-only** (отката отдельных миграций нет — откат = восстановление из
+> бэкапа + образ предыдущего SHA, см. §11). Порядок: **migrate-до-rollout**
+> новых образов. Миграции должны быть additive/forward-compatible (не ломать
+> работающие старые образы).
+
+**Порядок применения (первый деплой и каждый subsequent deploy):**
 
 ```bash
-# Миграции применяются автоматически при первом запуске postgres
-# (через bootstrap-schema-migrations.sql)
-# Проверить:
+# 1. Запустить PostgreSQL (если ещё не запущен):
+docker compose -f infra/docker-compose.dev.yml up -d postgres
+# (prod: docker compose -f infra/docker-compose.prod.yml up -d postgres pgbouncer)
+
+# 2. Применить миграции (лексический порядок, каждый файл один раз):
+npm run db:migrate
+
+# 3. Верифицировать, что ВСЕ миграции применились:
+npm run db:verify-migrations:all
+```
+
+**Ожидаемый результат:** `db:verify-migrations:all` подтверждает 38 миграций
+(`001_core.sql` … `038_alertmanager_incidents.sql`).
+
+Проверить количество вручную:
+
+```bash
 docker exec $(docker ps -q -f name=postgres) \
   psql -U arbibot -c "SELECT count(*) FROM schema_migrations;"
 ```
 
-**Ожидаемый результат:** `36` миграций.
+**Ожидаемый результат:** `38`.
 
-Если миграции не применены:
+> **Collision guard (D4-A-4-MIGRATIONS):** `db-migrate.mjs` автоматически
+> прерывается с ошибкой, если два файла миграции имеют одинаковый 3-значный
+> префикс (например, `037_a.sql` и `037_b.sql`). Это защищает от
+> недетерминированного порядка применения. Если вы столкнулись с ошибкой
+> коллизии — переименуйте один из файлов на следующий свободный номер.
 
-```bash
-# Применить миграции вручную:
-npm run db:migrate
+**Migrate→rollout sequence (subsequent deploys):**
+
+1. **Backup:** `npm run db:backup` (всегда перед миграцией).
+2. **Migrate** (forward-only, additive): `npm run db:migrate` → старые образы
+   продолжают работать на новой схеме.
+3. **Verify:** `npm run db:verify-migrations:all`.
+4. **Rollout** новых образов: `IMAGE_TAG=<sha> docker compose ... up -d`.
+5. **Verify deployment:** `npm run verify:deployment`.
+
+**Rollback (forward-only миграции):** откат отдельных миграций невозможен.
+Процедура отката = восстановление БД из бэкапа + запуск образа предыдущего SHA
+(см. §11 «Обновление и откат» и `npm run db:restore`).
+
+**Renumbering existing environments:** если миграция была переименована
+(например, `037_alertmanager_incidents.sql` → `038_alertmanager_incidents.sql`
+в D4-A-4), на средах, где она уже применена под старым именем, `db:migrate`
+применит её повторно под новым именем. Поскольку миграции идемпотентны
+(`CREATE ... IF NOT EXISTS`), это безопасно (no-op). Чтобы убрать дубль в
+`schema_migrations` (косметика, необязательно):
+
+```sql
+UPDATE schema_migrations SET filename = '038_alertmanager_incidents.sql'
+WHERE filename = '037_alertmanager_incidents.sql';
 ```
 
 ### Шаг 2: Seed Canonical Registry
@@ -435,7 +520,7 @@ npm run verify:deployment
   ...
 
 ━━━ Database ━━━
-  ✓ PostgreSQL — 36 migrations applied
+  ✓ PostgreSQL — 38 migrations applied
 
 ━━━ Redis ━━━
   ✓ Redis — PONG
@@ -468,6 +553,14 @@ curl -sk https://localhost/api/health
 # Risk service
 curl -s http://localhost:3000/metrics | head -5
 # Ожидание: Prometheus metrics
+
+# Health probes (D4-A-5-PROBES) — есть на каждом Nest-сервисе:
+#   /health/live  — liveness (200 всегда, процесс жив)
+#   /health/ready — readiness (200 если DB reachable, 503 если нет)
+#   /health       — alias liveness (обратная совместимость)
+curl -s http://localhost:3000/health/live   # {"ok":true}
+curl -s http://localhost:3000/health/ready  # {"ok":true,"checks":{"database":{"ok":true,"latencyMs":N}}}
+# При недоступной БД: /health/ready → 503 {"ok":false,"checks":{"database":{"ok":false,"error":"..."}}}
 
 # Config service
 curl -s http://localhost:3019/policy/configurations | jq '.[0].configKey'
@@ -640,16 +733,14 @@ npm run verify:deployment
 # 1. Остановить всё
 docker compose -f infra/docker-compose.prod.yml down
 
-# 2. Откатить БД при необходимости (ОСТОРОЖНО!)
-# Только если миграции добавляют несовместимые изменения:
-# docker exec -it <postgres> psql -U arbibot -c "DELETE FROM schema_migrations WHERE version > '036';"
-
-# 3. Восстановить backup БД (если нужно):
+# 2. Откат БД — forward-only (см. §7 и D4-A-3-RESTORE).
+# Миграции НЕЛЬЗЯ откатить удалением строк из schema_migrations — DDL уже выполнен.
+# Откат = восстановление БД из бэкапа:
 npm run db:restore -- /path/to/backup.sql.gz
 # или без confirm-prompt (автоматизация): npm run db:restore -- /path/to/backup.sql.gz --force
 # После restore: npm run db:verify-migrations:all
 
-# 4. Запустить с предыдущим tag:
+# 3. Запустить с предыдущим tag:
 IMAGE_TAG=<previous-sha> docker compose -f infra/docker-compose.prod.yml up -d
 
 # 5. Верифицировать:

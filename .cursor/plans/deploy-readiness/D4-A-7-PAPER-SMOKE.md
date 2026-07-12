@@ -5,7 +5,7 @@
 | **depends_on** | `D4-A-1-AUTH`, `D4-A-2-PAGING`, `D4-A-3-RESTORE`, `D4-A-4-MIGRATIONS`, `D4-A-5-PROBES`, `D4-A-6-TLS` |
 | **risk_level** | `high` |
 | **estimated_hours** | 4 |
-| **status** | `planned` |
+| **status** | `done` |
 
 ## Контекст
 Финальный гейт Фазы A — проверить, что изолированный paper-deploy проходит end-to-end после закрытия P1/P2/P3/P7/P8/P9.

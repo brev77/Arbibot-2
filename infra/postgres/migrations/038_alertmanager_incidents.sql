@@ -1,7 +1,17 @@
--- Migration 037: Alertmanager → incidents pipeline
+-- Migration 038: Alertmanager → incidents pipeline
 -- Resolves Drill #1 Gap #1: /incidents showed only reconciliation_mismatches.
 -- This table stores Prometheus/Alertmanager alerts forwarded via webhook receiver
 -- so operators can see them in /incidents alongside reconciliation mismatches.
+--
+-- NOTE (D4-A-4-MIGRATIONS): This migration was renumbered from 037 to 038 to
+-- resolve a version collision with 037_fix_get_effective_config_value.sql
+-- (which predates it — added 2026-06-11 vs 2026-06-15). The migration is
+-- idempotent (CREATE ... IF NOT EXISTS), so on environments where it was
+-- already applied as 037_alertmanager_incidents.sql, re-applying under the
+-- new 038 name is a no-op. To keep schema_migrations tidy on such envs, run:
+--   UPDATE schema_migrations SET filename = '038_alertmanager_incidents.sql'
+--   WHERE filename = '037_alertmanager_incidents.sql';
+-- (optional — the duplicate row is harmless because the DDL is idempotent).
 --
 -- Single-writer: alert-receiver-service (apps/alert-receiver-service, port 3021).
 -- Readers: operator-web BFF (GET /incidents merge), incident-response tooling.

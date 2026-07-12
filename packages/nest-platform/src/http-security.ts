@@ -53,7 +53,13 @@ export async function applyArbibotHttpSecurity(
     timeWindow: env.HTTP_RATE_LIMIT_WINDOW ?? '1 minute',
     allowList: (req) => {
       const pathOnly = req.url.split('?')[0] ?? '';
-      return pathOnly === '/metrics';
+      // Kubelet/orchestrator probes must not be rate-limited. /metrics and
+      // /health (+ /health/* readiness/liveness) are exempt.
+      return (
+        pathOnly === '/metrics' ||
+        pathOnly === '/health' ||
+        pathOnly.startsWith('/health/')
+      );
     },
   });
 

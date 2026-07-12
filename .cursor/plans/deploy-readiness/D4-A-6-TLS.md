@@ -5,7 +5,7 @@
 | **depends_on** | — |
 | **risk_level** | `low` |
 | **estimated_hours** | 2 |
-| **status** | `planned` |
+| **status** | `done` |
 
 ## Контекст (из ревью)
 `infra/nginx/ssl/` содержит только `.gitkeep`. Operator должен сам класть `fullchain.pem` + `privkey.pem`. Let's Encrypt/cert-manager не подключены (есть только `tools/generate-tls-certs.sh` — self-signed для тестов). HSTS в `infra/nginx/nginx.conf:84` закомментирован (P9).

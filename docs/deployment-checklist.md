@@ -130,15 +130,13 @@ npm run verify:deployment
 # 1. Остановить все контейнеры
 docker compose -f infra/docker-compose.prod.yml down
 
-# 2. Откатить БД (если миграции были накачены)
-docker exec $(docker ps -q -f name=postgres) \
-  psql -U arbibot -c "DELETE FROM schema_migrations WHERE version > '<LAST_KNOWN_VERSION>';"
-
-# 3. Восстановить backup (если нужно)
+# 2. Откат БД — миграции forward-only (см. deployment-guide §7, D4-A-3-RESTORE).
+# НЕ удаляйте строки из schema_migrations — DDL уже выполнен, это не откатит схему.
+# Откат = восстановление БД из бэкапа, сделанного ДО миграции:
 npm run db:restore -- /path/to/backup.sql.gz
 # После restore: npm run db:verify-migrations:all
 
-# 4. Пересобрать с предыдущим tag
+# 3. Пересобрать с предыдущим tag
 IMAGE_TAG=<previous-sha> docker compose -f infra/docker-compose.prod.yml up -d
 ```
 

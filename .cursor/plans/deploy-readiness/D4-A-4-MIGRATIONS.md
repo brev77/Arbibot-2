@@ -5,7 +5,7 @@
 | **depends_on** | — |
 | **risk_level** | `medium` |
 | **estimated_hours** | 3 |
-| **status** | `planned` |
+| **status** | `done` |
 
 ## Контекст (из ревью)
 - Коллизия версий: `infra/postgres/migrations/037_alertmanager_incidents.sql` и `037_fix_get_effective_config_value.sql` — недетерминированный порядок применения (`tools/db-migrate.mjs` применяет в лексическом порядке) (P7).

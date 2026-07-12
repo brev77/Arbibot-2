@@ -25,6 +25,40 @@ if (!url || url.length === 0) {
 }
 
 const client = new pg.Client({ connectionString: url });
+
+// Pre-flight: read migration files and run the collision guard BEFORE
+// connecting to the database. This way a version-prefix collision fails fast
+// without needing a reachable DB (D4-A-4-MIGRATIONS).
+const files = (await readdir(migrationsDir))
+  .filter((f) => f.endsWith('.sql'))
+  .sort();
+
+// Collision guard (D4-A-4-MIGRATIONS): detect two files sharing the same
+// numeric prefix (e.g. 037_a.sql and 037_b.sql). Such a collision makes the
+// apply order depend on the full filename rather than the version number,
+// which is non-deterministic from a migration-versioning perspective.
+const prefixCounts = new Map();
+for (const f of files) {
+  const prefix = f.slice(0, 3); // e.g. "037"
+  prefixCounts.set(prefix, (prefixCounts.get(prefix) ?? 0) + 1);
+}
+const collisions = [...prefixCounts.entries()].filter(
+  ([, count]) => count > 1,
+);
+if (collisions.length > 0) {
+  console.error(
+    'ERROR: migration version collision detected (same 3-digit prefix):',
+  );
+  for (const [prefix, count] of collisions) {
+    const dupes = files.filter((f) => f.slice(0, 3) === prefix);
+    console.error(`  ${prefix}: ${count} files → ${dupes.join(', ')}`);
+  }
+  console.error(
+    'Rename one of the files to the next free number. Aborting to avoid non-deterministic apply order.',
+  );
+  process.exit(1);
+}
+
 await client.connect();
 
 const ensureTracker = `
@@ -36,10 +70,6 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 
 try {
   await client.query(ensureTracker);
-
-  const files = (await readdir(migrationsDir))
-    .filter((f) => f.endsWith('.sql'))
-    .sort();
 
   for (const file of files) {
     const check = await client.query(

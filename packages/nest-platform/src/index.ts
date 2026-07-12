@@ -4,6 +4,12 @@ export {
   type AuditRecordInput,
   type IAuditClient,
 } from './audit-client.service';
+export { HealthModule } from './health/health.module';
+export {
+  HealthController,
+  type HealthCheckResult,
+  type ReadinessReport,
+} from './health/health.controller';
 export {
   correlationIdPreHandler,
   getCorrelationId,
