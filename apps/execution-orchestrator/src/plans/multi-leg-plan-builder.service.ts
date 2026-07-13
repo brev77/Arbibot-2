@@ -39,6 +39,26 @@ export interface ResolvedLegConfig {
   readonly targetQuantity: number;
   // DEX-specific
   readonly venueKey?: string;
+  /** Token to sell (DEX legs). Consumed by `extractSwapParams`/`extractSwapParamsV3`. */
+  readonly tokenIn?: string;
+  /** Token to buy (DEX legs). */
+  readonly tokenOut?: string;
+  /** Exact input amount in smallest token units, bigint string (DEX legs). */
+  readonly amountIn?: string;
+  /** Optional multi-hop path (DEX legs). Defaults to [tokenIn, tokenOut]. */
+  readonly path?: readonly string[];
+  /** Slippage tolerance in basis points (DEX legs). */
+  readonly slippageBps?: number;
+  /** Recipient wallet (DEX legs). */
+  readonly recipient?: string;
+  /** Deadline in seconds from now (DEX legs). */
+  readonly deadlineSeconds?: number;
+  /** Expected output amount, bigint string (V3 DEX legs). */
+  readonly amountOutExpected?: string;
+  /** Pool fee tier, uint24 (V3 DEX legs). */
+  readonly fee?: number;
+  /** V3 sqrtPriceLimitX96, bigint string (V3 DEX legs). */
+  readonly sqrtPriceLimitX96?: string;
   // Bridge-specific
   readonly bridgeKey?: string;
   readonly destinationChainId?: number;
@@ -238,6 +258,20 @@ export class MultiLegPlanBuilderService {
         return {
           ...base,
           venueKey: leg.venueKey,
+          // DEX swap params (D4-B-2c): carried through into playbookConfig.legs[]
+          // so extractSwapParams / extractSwapParamsV3 resolve them on the live
+          // path. Optional — when absent the live adapter throws a validation
+          // error (no silent default for swap tokens/amounts).
+          tokenIn: leg.tokenIn,
+          tokenOut: leg.tokenOut,
+          amountIn: leg.amountIn,
+          path: leg.path,
+          slippageBps: leg.slippageBps,
+          recipient: leg.recipient,
+          deadlineSeconds: leg.deadlineSeconds,
+          amountOutExpected: leg.amountOutExpected,
+          fee: leg.fee,
+          sqrtPriceLimitX96: leg.sqrtPriceLimitX96,
         };
       }
 

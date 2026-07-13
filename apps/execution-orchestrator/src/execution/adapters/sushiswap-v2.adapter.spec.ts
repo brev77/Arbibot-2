@@ -133,7 +133,7 @@ describe('SushiSwapV2Adapter', () => {
       (plan as any).playbookConfig = { dexSwaps: 'not-array' };
       const leg = makeLeg();
 
-      await expect(adapter.submitLeg(plan as any, leg as any)).rejects.toThrow('dexSwaps is not an array');
+      await expect(adapter.submitLeg(plan as any, leg as any)).rejects.toThrow('no swap params');
     });
 
     it('should throw VenueSubmitClientError when no swap params at legIndex', async () => {
@@ -147,7 +147,7 @@ describe('SushiSwapV2Adapter', () => {
       const plan = makePlan([{ chainId: 42161 }]);
       const leg = makeLeg();
 
-      await expect(adapter.submitLeg(plan as any, leg as any)).rejects.toThrow('invalid swap params');
+      await expect(adapter.submitLeg(plan as any, leg as any)).rejects.toThrow('no swap params');
     });
 
     it('should throw VenueSubmitClientError for unsupported chainId', async () => {

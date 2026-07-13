@@ -166,18 +166,18 @@ describe('BiswapV2Adapter', () => {
       await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('missing playbookConfig');
     });
 
-    it('should throw when dexSwaps is not an array', async () => {
+    it('should throw when neither legs[] nor dexSwaps[] carry swap params', async () => {
       const plan = makePlan({ playbookConfig: { dexSwaps: 'invalid' } });
       const leg = makeLeg();
 
-      await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('dexSwaps is not an array');
+      await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('no swap params');
     });
 
     it('should throw when dexSwaps[legIndex] is missing', async () => {
       const plan = makePlan({ playbookConfig: { dexSwaps: [] } });
       const leg = makeLeg({ legIndex: 0 });
 
-      await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('no swap params at dexSwaps[0]');
+      await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('no swap params');
     });
 
     it('should throw for BNB testnet (chainId=97) — Biswap not deployed', async () => {

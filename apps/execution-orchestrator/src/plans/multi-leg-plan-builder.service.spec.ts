@@ -501,6 +501,76 @@ describe('MultiLegPlanBuilderService', () => {
     });
   });
 
+  // ── DEX swap params propagation (D4-B-2c) ──────────────────────────
+
+  describe('DEX swap params propagation', () => {
+    it('should carry DEX swap fields into playbookConfig.legs[]', async () => {
+      const TOKEN_IN = '0x1111111111111111111111111111111111111111';
+      const TOKEN_OUT = '0x2222222222222222222222222222222222222222';
+      const RECIPIENT = '0x3333333333333333333333333333333333333333';
+      const dto: CreateMultiLegPlanDto = {
+        legs: [
+          makeDexLeg({
+            chainId: 42161,
+            venueKey: 'uniswap-v3',
+            tokenIn: TOKEN_IN,
+            tokenOut: TOKEN_OUT,
+            amountIn: '1000000000000000000',
+            amountOutExpected: '900000000000000000',
+            fee: 500,
+            slippageBps: 50,
+            recipient: RECIPIENT,
+            deadlineSeconds: 600,
+            sqrtPriceLimitX96: '0',
+            path: [TOKEN_IN, TOKEN_OUT],
+          }),
+          makeDexLeg({ chainId: 42161, venueKey: 'sushiswap' }),
+        ],
+      };
+
+      const { config } = await service.buildMultiLegPlan(dto);
+
+      expect(config.legs[0]).toMatchObject({
+        legType: 'dex',
+        venueKey: 'uniswap-v3',
+        tokenIn: TOKEN_IN,
+        tokenOut: TOKEN_OUT,
+        amountIn: '1000000000000000000',
+        amountOutExpected: '900000000000000000',
+        fee: 500,
+        slippageBps: 50,
+        recipient: RECIPIENT,
+        deadlineSeconds: 600,
+        sqrtPriceLimitX96: '0',
+        path: [TOKEN_IN, TOKEN_OUT],
+      });
+
+      // Second DEX leg without swap params — fields are undefined (not defaulted).
+      expect(config.legs[1]!.venueKey).toBe('sushiswap');
+      expect(config.legs[1]!.tokenIn).toBeUndefined();
+      expect(config.legs[1]!.amountIn).toBeUndefined();
+    });
+
+    it('should not set swap fields when omitted (no silent defaults)', async () => {
+      const dto: CreateMultiLegPlanDto = {
+        legs: [
+          { legType: 'dex', chainId: 42161, venueKey: 'uniswap-v2' },
+          { legType: 'dex', chainId: 42161, venueKey: 'uniswap-v2' },
+        ],
+      };
+
+      const { config } = await service.buildMultiLegPlan(dto);
+
+      for (const leg of config.legs) {
+        expect(leg.tokenIn).toBeUndefined();
+        expect(leg.tokenOut).toBeUndefined();
+        expect(leg.amountIn).toBeUndefined();
+        expect(leg.amountOutExpected).toBeUndefined();
+        expect(leg.fee).toBeUndefined();
+      }
+    });
+  });
+
   // ── parsePlaybookConfig ───────────────────────────────────────────
 
   describe('parsePlaybookConfig', () => {

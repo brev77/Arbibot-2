@@ -137,7 +137,40 @@ describe('VenueFactoryService', () => {
     });
 
     it('ignores non-string venueKey', () => {
-      expect(extractVenueKey(planStub({ venueKey: 123 }), legStub(0))).toBeUndefined();  
+      expect(extractVenueKey(planStub({ venueKey: 123 }), legStub(0))).toBeUndefined();
+    });
+
+    // ── Multi-leg legs[] shape (D4-B-2c) ──────────────────────────────
+
+    it('returns venueKey from config.legs[legIndex] (multi-leg format)', () => {
+      const config = {
+        schemaVersion: 1,
+        legs: [{ legIndex: 0, legType: 'dex', venueKey: 'sushiswap' }],
+      };
+      expect(extractVenueKey(planStub(config), legStub(0))).toBe('sushiswap');
+    });
+
+    it('prefers legs[legIndex].venueKey over dexSwaps[legIndex].venueKey', () => {
+      const config = {
+        legs: [{ venueKey: 'uniswap-v3' }],
+        dexSwaps: [{ venueKey: 'uniswap-v2' }],
+      };
+      expect(extractVenueKey(planStub(config), legStub(0))).toBe('uniswap-v3');
+    });
+
+    it('falls back to dexSwaps when legs[legIndex].venueKey is empty', () => {
+      const config = {
+        legs: [{ venueKey: '' }],
+        dexSwaps: [{ venueKey: 'biswap' }],
+      };
+      expect(extractVenueKey(planStub(config), legStub(0))).toBe('biswap');
+    });
+
+    it('returns undefined when legIndex is out of bounds for legs[]', () => {
+      const config = {
+        legs: [{ venueKey: 'uniswap-v2' }],
+      };
+      expect(extractVenueKey(planStub(config), legStub(5))).toBeUndefined();
     });
   });
 

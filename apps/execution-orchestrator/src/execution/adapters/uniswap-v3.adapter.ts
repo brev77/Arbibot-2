@@ -110,7 +110,12 @@ function resolveRouterAddress(chainId: ChainId): Address {
 /**
  * Extract DexSwapParamsV3 from plan playbookConfig.
  *
- * Layout: `plan.playbookConfig.dexSwaps[leg.legIndex]`
+ * Layout (mirrors `extractSwapParams`, D4-B-2c):
+ * 1. `plan.playbookConfig.legs[leg.legIndex]` — multi-leg builder format
+ * 2. `plan.playbookConfig.dexSwaps[leg.legIndex]` — legacy per-leg format
+ *
+ * `amountOutExpected` is required for V3. `fee` defaults to 3000 (0.3%) when
+ * absent. Throws `VenueSubmitClientError` if neither layout yields valid params.
  */
 function extractSwapParamsV3(
   plan: ExecutionPlanEntity,
@@ -124,23 +129,45 @@ function extractSwapParamsV3(
     );
   }
 
+  // 1. Multi-leg format: config.legs[legIndex]
+  const legs = config.legs;
+  if (Array.isArray(legs)) {
+    const legEntry = legs[leg.legIndex];
+    if (legEntry && typeof legEntry === 'object') {
+      const params = legEntry as Record<string, unknown>;
+      const result = validateSwapParamsV3(params);
+      if (result !== null) {
+        return result;
+      }
+    }
+  }
+
+  // 2. Legacy dexSwaps[legIndex]
   const dexSwaps = config.dexSwaps;
-  if (!Array.isArray(dexSwaps)) {
-    throw new VenueSubmitClientError(
-      `UniswapV3Adapter: plan ${plan.id} playbookConfig.dexSwaps is not an array`,
-      { category: 'validation' },
-    );
+  if (Array.isArray(dexSwaps)) {
+    const params = dexSwaps[leg.legIndex] as Record<string, unknown> | undefined;
+    if (params && typeof params === 'object') {
+      const result = validateSwapParamsV3(params);
+      if (result !== null) {
+        return result;
+      }
+    }
   }
 
-  const params = dexSwaps[leg.legIndex] as Record<string, unknown> | undefined;
-  if (!params || typeof params !== 'object') {
-    throw new VenueSubmitClientError(
-      `UniswapV3Adapter: no swap params at dexSwaps[${leg.legIndex}] for plan ${plan.id}`,
-      { category: 'validation' },
-    );
-  }
+  throw new VenueSubmitClientError(
+    `UniswapV3Adapter: no swap params for plan ${plan.id} leg ${leg.legIndex} — ` +
+    `neither playbookConfig.legs[${leg.legIndex}] nor playbookConfig.dexSwaps[${leg.legIndex}] ` +
+    `has valid {chainId, tokenIn, tokenOut, amountIn, amountOutExpected}`,
+    { category: 'validation' },
+  );
+}
 
-  // Validate required fields
+/**
+ * Validate and build `DexSwapParamsV3` from a raw leg entry (used for both the
+ * multi-leg `legs[]` and legacy `dexSwaps[]` shapes). Returns `null` if the
+ * entry is missing required fields (caller falls through / throws).
+ */
+function validateSwapParamsV3(params: Record<string, unknown>): DexSwapParamsV3 | null {
   const chainId = params.chainId;
   const tokenIn = params.tokenIn;
   const tokenOut = params.tokenOut;
@@ -151,20 +178,10 @@ function extractSwapParamsV3(
     typeof chainId !== 'number' ||
     typeof tokenIn !== 'string' ||
     typeof tokenOut !== 'string' ||
-    typeof amountIn !== 'string'
+    typeof amountIn !== 'string' ||
+    typeof amountOutExpected !== 'string'
   ) {
-    throw new VenueSubmitClientError(
-      `UniswapV3Adapter: invalid swap params at dexSwaps[${leg.legIndex}] — ` +
-      `required: chainId (number), tokenIn (string), tokenOut (string), amountIn (string)`,
-      { category: 'validation' },
-    );
-  }
-
-  if (typeof amountOutExpected !== 'string') {
-    throw new VenueSubmitClientError(
-      `UniswapV3Adapter: amountOutExpected is required for V3 swaps at dexSwaps[${leg.legIndex}]`,
-      { category: 'validation' },
-    );
+    return null;
   }
 
   // Validate fee is uint24 range
@@ -198,7 +215,8 @@ function extractSwapParamsV3(
  * Uniswap V3 DEX venue adapter using `exactInputSingle`.
  *
  * Implements `VenueAdapter.submitLeg()` by:
- * 1. Extracting `DexSwapParamsV3` from `plan.playbookConfig.dexSwaps[legIndex]`
+ * 1. Extracting `DexSwapParamsV3` from `plan.playbookConfig` (multi-leg `legs[]`
+ *    first, then legacy `dexSwaps[]` — D4-B-2c)
  * 2. Ensuring ERC20 approval for the router
  * 3. Computing `amountOutMinimum` from `amountOutExpected` + slippage
  * 4. Estimating gas and checking policy

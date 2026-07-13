@@ -60,10 +60,11 @@ export function isLiveVenueKey(key: string | undefined): boolean {
 /**
  * Extract venue key from plan/leg metadata.
  *
- * Priority:
- * 1. `plan.playbookConfig.dexSwaps[leg.legIndex].venueKey` (leg-level)
- * 2. `plan.playbookConfig.venueKey` (plan-level default)
- * 3. `undefined` (no key → legacy fallback)
+ * Priority (mirrors `extractBridgeParams`, D4-B-2c):
+ * 1. `plan.playbookConfig.legs[leg.legIndex].venueKey` — multi-leg builder format
+ * 2. `plan.playbookConfig.dexSwaps[leg.legIndex].venueKey` — legacy per-leg format
+ * 3. `plan.playbookConfig.venueKey` — plan-level default
+ * 4. `undefined` (no key → legacy fallback)
  */
 export function extractVenueKey(
   plan: ExecutionPlanEntity,
@@ -74,7 +75,19 @@ export function extractVenueKey(
     return undefined;
   }
 
-  // Leg-level override
+  // 1. Multi-leg format (DEX-2-2-PLAN): config.legs[legIndex].venueKey
+  const legs = config.legs;
+  if (Array.isArray(legs)) {
+    const legEntry = legs[leg.legIndex];
+    if (legEntry && typeof legEntry === 'object') {
+      const vk = (legEntry as Record<string, unknown>).venueKey;
+      if (typeof vk === 'string' && vk.length > 0) {
+        return vk;
+      }
+    }
+  }
+
+  // 2. Legacy dexSwaps[legIndex].venueKey
   const dexSwaps = config.dexSwaps;
   if (Array.isArray(dexSwaps)) {
     const legParams = dexSwaps[leg.legIndex];
@@ -86,7 +99,7 @@ export function extractVenueKey(
     }
   }
 
-  // Plan-level default
+  // 3. Plan-level default
   if ('venueKey' in config) {
     const vk = config.venueKey;
     if (typeof vk === 'string' && vk.length > 0) {

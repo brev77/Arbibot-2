@@ -30,9 +30,10 @@ import { TokenApproveService } from '../token/token-approve.service';
 /**
  * DEX swap parameters extracted from plan/leg metadata.
  *
- * Stored in `plan.playbookConfig.dexSwaps[legIndex]` or provided directly
- * for programmatic use. The adapter reads from this structure and does NOT
- * invent default values for missing fields.
+ * Resolved by `extractSwapParams` from either `plan.playbookConfig.legs[legIndex]`
+ * (multi-leg builder format, D4-B-2c) or the legacy `dexSwaps[legIndex]` shape.
+ * The adapter reads from this structure and does NOT invent default values for
+ * missing fields.
  */
 export interface DexSwapParams {
   /** Target chain ID */
@@ -111,7 +112,12 @@ function resolveRouterAddress(chainId: ChainId): Address {
 /**
  * Extract DexSwapParams from plan playbookConfig.
  *
- * Layout: `plan.playbookConfig.dexSwaps[leg.legIndex]`
+ * Layout (mirrors `extractBridgeParams`, D4-B-2c):
+ * 1. `plan.playbookConfig.legs[leg.legIndex]` — multi-leg builder format (chainId,
+ *    tokenIn, tokenOut, amountIn, path, slippageBps, recipient, deadlineSeconds)
+ * 2. `plan.playbookConfig.dexSwaps[leg.legIndex]` — legacy per-leg format
+ *
+ * Throws `VenueSubmitClientError` if neither layout yields the required fields.
  */
 export function extractSwapParams(plan: ExecutionPlanEntity, leg: ExecutionLegEntity): DexSwapParams {
   const config = plan.playbookConfig;
@@ -122,23 +128,51 @@ export function extractSwapParams(plan: ExecutionPlanEntity, leg: ExecutionLegEn
     );
   }
 
+  // 1. Multi-leg format: config.legs[legIndex]
+  const legs = config.legs;
+  if (Array.isArray(legs)) {
+    const legEntry = legs[leg.legIndex];
+    if (legEntry && typeof legEntry === 'object') {
+      const params = legEntry as Record<string, unknown>;
+      const result = validateSwapParams(params, plan.id, leg.legIndex, 'UniswapV2Adapter');
+      if (result !== null) {
+        return result;
+      }
+    }
+  }
+
+  // 2. Legacy dexSwaps[legIndex]
   const dexSwaps = config.dexSwaps;
-  if (!Array.isArray(dexSwaps)) {
-    throw new VenueSubmitClientError(
-      `UniswapV2Adapter: plan ${plan.id} playbookConfig.dexSwaps is not an array`,
-      { category: 'validation' },
-    );
+  if (Array.isArray(dexSwaps)) {
+    const params = dexSwaps[leg.legIndex] as Record<string, unknown> | undefined;
+    if (params && typeof params === 'object') {
+      const result = validateSwapParams(params, plan.id, leg.legIndex, 'UniswapV2Adapter');
+      if (result !== null) {
+        return result;
+      }
+    }
   }
 
-  const params = dexSwaps[leg.legIndex] as Record<string, unknown> | undefined;
-  if (!params || typeof params !== 'object') {
-    throw new VenueSubmitClientError(
-      `UniswapV2Adapter: no swap params at dexSwaps[${leg.legIndex}] for plan ${plan.id}`,
-      { category: 'validation' },
-    );
-  }
+  throw new VenueSubmitClientError(
+    `UniswapV2Adapter: no swap params for plan ${plan.id} leg ${leg.legIndex} — ` +
+    `neither playbookConfig.legs[${leg.legIndex}] nor playbookConfig.dexSwaps[${leg.legIndex}] ` +
+    `has valid {chainId, tokenIn, tokenOut, amountIn}`,
+    { category: 'validation' },
+  );
+}
 
-  // Validate required fields
+/**
+ * Validate and build `DexSwapParams` from a raw leg entry (used for both the
+ * multi-leg `legs[]` and legacy `dexSwaps[]` shapes). Returns `null` if the
+ * entry is missing required fields (so the caller can fall through to the next
+ * layout); returns a validated `DexSwapParams` on success.
+ */
+function validateSwapParams(
+  params: Record<string, unknown>,
+  planId: string,
+  legIndex: number,
+  adapterName: string,
+): DexSwapParams | null {
   const chainId = params.chainId;
   const tokenIn = params.tokenIn;
   const tokenOut = params.tokenOut;
@@ -150,11 +184,8 @@ export function extractSwapParams(plan: ExecutionPlanEntity, leg: ExecutionLegEn
     typeof tokenOut !== 'string' ||
     typeof amountIn !== 'string'
   ) {
-    throw new VenueSubmitClientError(
-      `UniswapV2Adapter: invalid swap params at dexSwaps[${leg.legIndex}] — ` +
-      `required: chainId (number), tokenIn (string), tokenOut (string), amountIn (string)`,
-      { category: 'validation' },
-    );
+    // Missing required fields — let the caller try the next layout / throw.
+    return null;
   }
 
   return {
@@ -167,6 +198,11 @@ export function extractSwapParams(plan: ExecutionPlanEntity, leg: ExecutionLegEn
     recipient: typeof params.recipient === 'string' ? (params.recipient as Address) : undefined,
     deadlineSeconds: typeof params.deadlineSeconds === 'number' ? params.deadlineSeconds : undefined,
   };
+  // planId/legIndex/adapterName are accepted for symmetric error context but
+  // the null-return path intentionally lets the caller produce the final error.
+  void planId;
+  void legIndex;
+  void adapterName;
 }
 
 /**
@@ -200,7 +236,8 @@ export function getSlippageBps(override?: number): number {
  * Uniswap V2-compatible DEX venue adapter.
  *
  * Implements `VenueAdapter.submitLeg()` by:
- * 1. Extracting `DexSwapParams` from `plan.playbookConfig.dexSwaps[legIndex]`
+ * 1. Extracting `DexSwapParams` from `plan.playbookConfig` (multi-leg `legs[]`
+ *    first, then legacy `dexSwaps[]` — D4-B-2c)
  * 2. Ensuring ERC20 approval for the router
  * 3. Calculating `amountOutMin` via on-chain quote + slippage
  * 4. Estimating gas and checking policy

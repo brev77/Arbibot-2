@@ -18,7 +18,10 @@ type LegType = 'dex' | 'bridge';
 /**
  * Descriptor for a single leg in a multi-leg cross-chain plan.
  *
- * - DEX legs: specify `chainId`, optional `venueKey`, optional `targetQuantity`
+ * - DEX legs: specify `chainId`, optional `venueKey`, optional `targetQuantity`,
+ *   and swap params (`tokenIn`, `tokenOut`, `amountIn` + optional path/slippage/
+ *   recipient/deadline; V3 legs also accept `amountOutExpected`, `fee`,
+ *   `sqrtPriceLimitX96`).
  * - Bridge legs: specify `chainId`, `bridgeKey`, `destinationChainId`, `token`,
  *   `destinationToken`, `amount`, optional `recipientAddress`
  */
@@ -48,6 +51,73 @@ export class LegDescriptorDto {
   @MinLength(1)
   @MaxLength(64)
   venueKey?: string;
+
+  /** Token address to sell (DEX legs). */
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(66)
+  tokenIn?: string;
+
+  /** Token address to buy (DEX legs). */
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(66)
+  tokenOut?: string;
+
+  /** Exact input amount in smallest token units, bigint string (DEX legs). */
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(128)
+  amountIn?: string;
+
+  /** Optional multi-hop path (DEX legs). Defaults to [tokenIn, tokenOut]. */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MinLength(2)
+  path?: string[];
+
+  /** Slippage tolerance in basis points (DEX legs). */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  slippageBps?: number;
+
+  /** Recipient wallet address (DEX legs). */
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(66)
+  recipient?: string;
+
+  /** Deadline in seconds from now (DEX legs). */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  deadlineSeconds?: number;
+
+  /** Expected output amount, bigint string (V3 DEX legs). */
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(128)
+  amountOutExpected?: string;
+
+  /** Pool fee tier, uint24 (V3 DEX legs). */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  fee?: number;
+
+  /** V3 sqrtPriceLimitX96, bigint string (V3 DEX legs). */
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(128)
+  sqrtPriceLimitX96?: string;
 
   // ── Bridge-specific ───────────────────────────────────────────────────
 

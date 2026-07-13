@@ -215,18 +215,18 @@ describe('UniswapV2Adapter', () => {
       await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('missing playbookConfig');
     });
 
-    it('should throw when dexSwaps is not an array', async () => {
+    it('should throw when neither legs[] nor dexSwaps[] carry swap params', async () => {
       const plan = makePlan({ playbookConfig: { dexSwaps: 'invalid' } });
       const leg = makeLeg();
 
-      await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('dexSwaps is not an array');
+      await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('no swap params');
     });
 
     it('should throw when dexSwaps[legIndex] is missing', async () => {
       const plan = makePlan({ playbookConfig: { dexSwaps: [] } });
       const leg = makeLeg({ legIndex: 0 });
 
-      await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('no swap params at dexSwaps[0]');
+      await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('no swap params');
     });
 
     it('should throw when required fields have wrong types', async () => {
@@ -237,12 +237,57 @@ describe('UniswapV2Adapter', () => {
       });
       const leg = makeLeg();
 
-      await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('invalid swap params');
+      await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('no swap params');
     });
 
     it('should throw for unsupported chainId', async () => {
       const plan = makePlan({
         playbookConfig: {
+          dexSwaps: [{
+            chainId: 99999,
+            tokenIn: TOKEN_IN,
+            tokenOut: TOKEN_OUT,
+            amountIn: '1000',
+          }],
+        },
+      });
+      const leg = makeLeg();
+
+      mockRpcProviderManager.getProvider.mockReturnValue(makeMockProvider());
+
+      await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('unsupported chainId');
+    });
+
+    // ── Multi-leg legs[] shape (D4-B-2c) ──────────────────────────────
+
+    it('should extract swap params from config.legs[legIndex] (multi-leg format)', async () => {
+      const plan = makePlan({
+        playbookConfig: {
+          schemaVersion: 1,
+          legs: [{
+            legIndex: 0,
+            legType: 'dex',
+            chainId: 99999,
+            venueKey: 'uniswap-v2',
+            tokenIn: TOKEN_IN,
+            tokenOut: TOKEN_OUT,
+            amountIn: '1000',
+          }],
+        },
+      });
+      const leg = makeLeg();
+
+      mockRpcProviderManager.getProvider.mockReturnValue(makeMockProvider());
+
+      // chainId 99999 is unsupported — proves the legs[] entry was parsed
+      // (tokenIn/tokenOut/amountIn extracted) and reached resolveRouterAddress.
+      await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('unsupported chainId');
+    });
+
+    it('should fall back to dexSwaps[] when legs[] has no valid entry', async () => {
+      const plan = makePlan({
+        playbookConfig: {
+          legs: [{ legType: 'bridge' }], // no DEX swap fields
           dexSwaps: [{
             chainId: 99999,
             tokenIn: TOKEN_IN,
