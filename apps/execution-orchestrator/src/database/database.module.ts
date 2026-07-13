@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { typeOrmRootForEntities } from '@arbibot/nest-database';
 import {
+  DexDailyVolumeEntity,
   ExecutionLegEntity,
   ExecutionLegFillIdempotencyEntity,
   ExecutionPlanEntity,
@@ -19,6 +20,7 @@ import {
       OutboxEventEntity,
       OnChainTransaction,
       WalletState,
+      DexDailyVolumeEntity,
     ]),
   ],
 })

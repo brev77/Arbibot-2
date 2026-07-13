@@ -41,6 +41,7 @@ export { BridgeTransferEntity } from './bridge-transfer.entity';
 export { OnChainTransaction } from './on-chain-transaction.entity';
 export { WalletState } from './wallet-state.entity';
 export { DexPool } from './dex-pool.entity';
+export { DexDailyVolumeEntity } from './dex-daily-volume.entity';
 export { Approval } from './approval.entity';
 
 import { AlertmanagerIncidentEntity } from './alertmanager-incident.entity';
@@ -77,6 +78,7 @@ import { BridgeTransferEntity } from './bridge-transfer.entity';
 import { OnChainTransaction } from './on-chain-transaction.entity';
 import { WalletState } from './wallet-state.entity';
 import { DexPool } from './dex-pool.entity';
+import { DexDailyVolumeEntity } from './dex-daily-volume.entity';
 import { Approval } from './approval.entity';
 
 /** All entities for TypeORM `entities` array. */
@@ -115,5 +117,6 @@ export const ARBIBOT_TYPEORM_ENTITIES = [
   OnChainTransaction,
   WalletState,
   DexPool,
+  DexDailyVolumeEntity,
   Approval,
 ] as const;
