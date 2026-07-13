@@ -18,6 +18,7 @@ import { RpcHealthController } from './rpc/rpc-health.controller';
 import { PoolDiscoveryService } from './pool/pool-discovery.service';
 import { DexRiskPolicyService } from './risk/dex-risk-policy.service';
 import { DexKillSwitchService } from './risk/dex-kill-switch.service';
+import { PriceOracleService } from './price/price-oracle.service';
 import { TokenApproveService } from './token/token-approve.service';
 import { SlippageProtectionService } from './slippage/slippage-protection.service';
 import { UniswapV2Adapter } from './adapters/uniswap-v2.adapter';
@@ -55,6 +56,7 @@ import { CrossChainReconWorker } from './workers/cross-chain-recon.worker';
     PoolDiscoveryService,
     DexRiskPolicyService,
     DexKillSwitchService,
+    PriceOracleService,
     TokenApproveService,
     SlippageProtectionService,
     UniswapV2Adapter,
@@ -83,6 +85,7 @@ import { CrossChainReconWorker } from './workers/cross-chain-recon.worker';
     PoolDiscoveryService,
     DexRiskPolicyService,
     DexKillSwitchService,
+    PriceOracleService,
     TokenApproveService,
     SlippageProtectionService,
     UniswapV2Adapter,

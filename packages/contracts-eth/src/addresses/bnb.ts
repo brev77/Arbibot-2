@@ -31,6 +31,12 @@ export interface BnbAddresses {
   usdc: Address;
   // BUSD (deprecated but still present)
   busd: Address;
+  // Chainlink price feed proxies (AggregatorV3Interface)
+  // Step: D4-B-2b (PriceOracleService). On BNB the canonical native feed is
+  // BNB/USD; WBNB price tracks BNB 1:1 (wrap is 1:1).
+  chainlinkBnbUsd: Address;
+  chainlinkUsdcUsd: Address;
+  chainlinkUsdtUsd: Address;
 }
 
 /**
@@ -65,6 +71,13 @@ export const BnbMainnetAddresses: BnbAddresses = {
   usdc: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d',
   // BUSD (deprecated)
   busd: '0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56',
+  // Chainlink price feed proxies.
+  // Source: https://docs.chain.link/data-feeds/price-feeds/addresses
+  // NOTE: USDC/USDT feeds are not consumed in v1 (PriceOracleService treats
+  // stables as $1); retained for future depeg detection.
+  chainlinkBnbUsd: '0x0567F2323251f0Aab15c8dFbF732C0a1150aCE56',
+  chainlinkUsdcUsd: '0xE20CA8D7546932360123796D9F43550bC89C74E8',
+  chainlinkUsdtUsd: '0xB1Ad49dB8f0663920F4F7d709e54D1aC395d76Cd',
 };
 
 /**
@@ -94,6 +107,10 @@ export const BnbTestnetAddresses: BnbAddresses = {
   usdc: '0x64544969ed7EBf5f083679233325356EbE738930',
   // BUSD (testnet)
   busd: '0xeD24FC36d5Ee211Ea25A80239Fb8C4Cfd80f12Ee',
+  // Chainlink feeds — not reliably deployed on BNB testnet; oracle returns null.
+  chainlinkBnbUsd: '0x0000000000000000000000000000000000000000',
+  chainlinkUsdcUsd: '0x0000000000000000000000000000000000000000',
+  chainlinkUsdtUsd: '0x0000000000000000000000000000000000000000',
 };
 
 /**

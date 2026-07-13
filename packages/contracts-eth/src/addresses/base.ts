@@ -20,6 +20,11 @@ export interface BaseAddresses {
   usdc: Address;
   // USDT
   usdt: Address;
+  // Chainlink price feed proxies (AggregatorV3Interface)
+  // Step: D4-B-2b (PriceOracleService)
+  chainlinkEthUsd: Address;
+  chainlinkUsdcUsd: Address;
+  chainlinkUsdtUsd: Address;
 }
 
 /**
@@ -45,6 +50,13 @@ export const BaseMainnetAddresses: BaseAddresses = {
   usdc: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
   // USDT
   usdt: '0xfdeBeC2fcC5819D3B0a2499F5CC2b2b2AA1a806e',
+  // Chainlink price feed proxies.
+  // Source: https://docs.chain.link/data-feeds/price-feeds/addresses
+  // NOTE: USDC/USDT feeds are not consumed in v1 (PriceOracleService treats
+  // stables as $1); retained for future depeg detection.
+  chainlinkEthUsd: '0x71041dddad3595F9Ced3DccF3A44C052051f9ef9',
+  chainlinkUsdcUsd: '0x591e825C558479126A8A70Ec109BA6f3c9f1E42C',
+  chainlinkUsdtUsd: '0xdFc0FAD3c803CF5DB8c1B85113ebe4F0FD2c1F37',
 };
 
 /**
@@ -66,6 +78,10 @@ export const BaseSepoliaAddresses: BaseAddresses = {
   usdc: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
   // USDT
   usdt: '0x0000000000000000000000000000000000000000',
+  // Chainlink feeds — not reliably deployed on Sepolia; oracle returns null.
+  chainlinkEthUsd: '0x0000000000000000000000000000000000000000',
+  chainlinkUsdcUsd: '0x0000000000000000000000000000000000000000',
+  chainlinkUsdtUsd: '0x0000000000000000000000000000000000000000',
 };
 
 /**
