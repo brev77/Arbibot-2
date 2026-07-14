@@ -1,6 +1,6 @@
 # Arbibot 2 — План 4: Deployment Readiness (Paper → Live)
 
-**Прогресс:** 10/22 | **Обновлено:** 2026-07-12 | **Детали шагов:** `.cursor/plans/deploy-readiness/`
+**Прогресс:** 11/22 | **Обновлено:** 2026-07-14 | **Детали шагов:** `.cursor/plans/deploy-readiness/`
 **Источник:** [`docs/deployment-readiness-review-2026-07.md`](../../docs/deployment-readiness-review-2026-07.md)
 
 ## Контекст
@@ -46,7 +46,7 @@
 |---------|------|--------|---------|----------|
 | `D4-B-0-LIVE-ADR` | ADR: live-gate архитектура | done | `deploy-readiness/D4-B-0-LIVE-ADR.md` | — |
 | `D4-B-1-KILLSWITCH` | Реальный kill-switch в orchestrator | done | `deploy-readiness/D4-B-1-KILLSWITCH.md` | L1 🔴 |
-| `D4-B-2-LIMITS` | dex.limits/live + вызов evaluateTrade | planned | `deploy-readiness/D4-B-2-LIMITS.md` | L2 🔴 |
+| `D4-B-2-LIMITS` | dex.limits/live + вызов evaluateTrade | done | `deploy-readiness/D4-B-2-LIMITS.md` | L2 🔴 |
 | `D4-B-3-CEILING` | Aggregate capital ceiling (C1) | planned | `deploy-readiness/D4-B-3-CEILING.md` | L3 🔴 |
 | `D4-B-4-KEYS` | Ключи: убрать in-memory Wallet cache | planned | `deploy-readiness/D4-B-4-KEYS.md` | L4 🔴 |
 | `D4-B-5-BRIDGE` | Bridge confirmation/finality | planned | `deploy-readiness/D4-B-5-BRIDGE.md` | L5 🔴 |

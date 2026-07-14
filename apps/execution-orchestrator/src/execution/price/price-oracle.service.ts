@@ -280,8 +280,17 @@ export class PriceOracleService {
     return null;
   }
 
-  /** ERC20 decimals, cached permanently per token. */
-  private async getTokenDecimals(chainId: ChainId, tokenLower: Address): Promise<number | null> {
+  /**
+   * ERC20 decimals, cached permanently per token.
+   *
+   * Public so the live DEX adapters (D4-B-2d) can reuse the cached read when
+   * converting raw `amountIn` to USD notional for the risk gate. Returns `null`
+   * on any read failure (RPC down / non-ERC20); callers fail-closed.
+   *
+   * `tokenAddress` is case-insensitive; internally lowercased for cache keys.
+   */
+  async getTokenDecimals(chainId: ChainId, tokenAddress: Address): Promise<number | null> {
+    const tokenLower = tokenAddress.toLowerCase() as Address;
     const key = `${chainId}:${tokenLower}`;
     const cached = this.decimalsCache.get(key);
     if (cached !== undefined) {

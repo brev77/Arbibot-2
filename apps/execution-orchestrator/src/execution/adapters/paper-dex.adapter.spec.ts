@@ -4,6 +4,8 @@ import type { ExecutionLegEntity, ExecutionPlanEntity } from '@arbibot/persisten
 import { VenueSubmitClientError } from '../../venue/venue-adapter';
 
 import { PaperDexAdapter, simulateSwapOutput, calculateSimulatedGasCostEth } from './paper-dex.adapter';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 // ───────────────────────────────────────────────────────────────────────
 // Stubs
@@ -337,6 +339,51 @@ describe('PaperDexAdapter', () => {
       const metrics = await registry.getMetricsAsJSON();
       const driftCount = metrics.find((m: any) => m.name === 'arb_paper_dex_drift_samples_total'); // eslint-disable-line @typescript-eslint/no-explicit-any
       expect(driftCount).toBeDefined();
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────
+  // D4-B-2d: paper/live isolation
+  // ─────────────────────────────────────────────────────────────────────
+
+  describe('D4-B-2d paper/live isolation', () => {
+    it('does NOT import DexRiskPolicyService / PriceOracleService (structural guard)', () => {
+      // Read the adapter source at runtime: the paper path must not reference
+      // the live risk-gate symbols. This catches accidental wiring of the live
+      // risk gate (evaluateTrade / recordTradeVolume) into the paper path.
+      const src = readFileSync(join(__dirname, 'paper-dex.adapter.ts'), 'utf8');
+      expect(src).not.toContain('DexRiskPolicyService');
+      expect(src).not.toContain('PriceOracleService');
+      expect(src).not.toContain('evaluateTrade');
+      expect(src).not.toContain('recordTradeVolume');
+      expect(src).not.toContain('enforceLiveRiskGate');
+    });
+
+    it('constructor has ZERO parameters (no live risk-gate dependencies can be injected)', () => {
+      // PaperDexAdapter must keep a zero-arg constructor. Asserting .length
+      // avoids the metrics double-registration that a second `new` would
+      // trigger while still pinning the constructor signature. The live risk
+      // gate (evaluateTrade / recordTradeVolume) can therefore never be wired
+      // into the paper path via DI.
+      expect(PaperDexAdapter.length).toBe(0);
+      // The live-gate methods must not exist on the paper adapter instance.
+      const adapterAny = adapter as unknown as Record<string, unknown>;
+      expect(adapterAny.evaluateTrade).toBeUndefined();
+      expect(adapterAny.recordTradeVolume).toBeUndefined();
+    });
+
+    it('completes a paper swap without any live risk-gate calls (path isolation)', async () => {
+      // No DexRiskPolicyService / PriceOracleService are in the process. If the
+      // paper path tried to reach them it would throw (undefined methods), so a
+      // successful swap proves the live gate is structurally unreachable.
+      const plan = planStub(STANDARD_PLAYBOOK);
+      const leg = legStub(0);
+
+      const result = await adapter.submitLeg(plan, leg);
+
+      expect(result.externalOrderId).toMatch(/^paper-dex:/);
+      // Paper adapter returns a PaperDexSwapResult; live fields (txHash) absent.
+      expect((result as unknown as { simulated: boolean }).simulated).toBe(true);
     });
   });
 });

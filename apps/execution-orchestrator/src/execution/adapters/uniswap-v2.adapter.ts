@@ -22,6 +22,8 @@ import { RpcProviderManager } from '../rpc/rpc-provider-manager.service';
 import { WalletManagerService, type SelectedWallet } from '../wallet-manager.service';
 import { GasEstimatorService } from '../gas/gas-estimator.service';
 import { TokenApproveService } from '../token/token-approve.service';
+import { DexRiskPolicyService } from '../risk/dex-risk-policy.service';
+import { PriceOracleService } from '../price/price-oracle.service';
 
 // ───────────────────────────────────────────────────────────────────────
 // Types
@@ -229,6 +231,103 @@ export function getSlippageBps(override?: number): number {
 }
 
 // ───────────────────────────────────────────────────────────────────────
+// D4-B-2d: live risk gate (shared across all 5 live DEX adapters)
+// ───────────────────────────────────────────────────────────────────────
+
+/**
+ * Result of a successful live risk-gate check. Carries the USD notional that
+ * the adapter must forward to `recordTradeVolume()` after a successful swap.
+ */
+export interface LiveRiskGateResult {
+  /** USD notional of `amountIn` (price × units) — passed to recordTradeVolume. */
+  readonly amountInUsd: number;
+}
+
+/**
+ * Enforce the live DEX risk gate before wallet selection / broadcast.
+ *
+ * Steps (D4-B-2d):
+ * 1. Resolve `tokenIn` USD price via the price oracle. `null` → throw
+ *    (fail-closed: never broadcast a live leg without a capital valuation).
+ * 2. Resolve `tokenIn` decimals (cached) and compute `amountInUsd`.
+ *    Unresolved decimals → throw (same fail-closed reasoning).
+ * 3. Call `DexRiskPolicyService.evaluateTrade({ chainId, amountInUsd, ... })`.
+ *    `allowed === false` → throw `VenueSubmitClientError` (leg stays retryable).
+ *
+ * Returns `{ amountInUsd }` so the caller can `recordTradeVolume()` after
+ * `tx.wait()` success. Used by all 5 live adapters; `PaperDexAdapter` does NOT
+ * call this (paper/live isolation — see paper-dex.adapter.ts).
+ *
+ * `adapterName` is used purely for error attribution in thrown messages.
+ */
+export async function enforceLiveRiskGate(args: {
+  readonly dexRiskPolicy: DexRiskPolicyService;
+  readonly priceOracle: PriceOracleService;
+  readonly adapterName: string;
+  readonly chainId: ChainId;
+  readonly tokenIn: Address;
+  readonly tokenOut: Address;
+  readonly amountIn: string;
+  readonly slippageBps?: number;
+}): Promise<LiveRiskGateResult> {
+  const { dexRiskPolicy, priceOracle, adapterName, chainId, tokenIn, tokenOut, amountIn } = args;
+
+  // 1. Price tokenIn → USD. Fail-closed on null.
+  const tokenInUsd = await priceOracle.getTokenPriceUsd(chainId, tokenIn);
+  if (tokenInUsd === null) {
+    throw new VenueSubmitClientError(
+      `${adapterName}: cannot price tokenIn ${tokenIn} on chain ${chainId} — live risk check blocked`,
+      { category: 'semantic' },
+    );
+  }
+
+  // 2. Decimals (cached). Fail-closed on null — cannot value without units.
+  const tokenInDecimals = await priceOracle.getTokenDecimals(chainId, tokenIn);
+  if (tokenInDecimals === null) {
+    throw new VenueSubmitClientError(
+      `${adapterName}: cannot read decimals for tokenIn ${tokenIn} on chain ${chainId} — live risk check blocked`,
+      { category: 'semantic' },
+    );
+  }
+
+  const amountInUnits = Number(BigInt(amountIn)) / 10 ** tokenInDecimals;
+  const amountInUsd = amountInUnits * tokenInUsd;
+
+  // 3. evaluateTrade. Throwing on denial keeps the leg in `created` (retryable).
+  const risk = await dexRiskPolicy.evaluateTrade({
+    chainId,
+    amountInUsd,
+    estimatedSlippageBps: getSlippageBps(args.slippageBps),
+    estimatedGasCostUsd: 0, // refined post-estimateGas if needed later
+    tokenIn,
+    tokenOut,
+  });
+  if (!risk.allowed) {
+    throw new VenueSubmitClientError(
+      `${adapterName}: DEX risk denied: ${risk.reasons.join('; ')}`,
+      { category: 'semantic' },
+    );
+  }
+
+  return { amountInUsd };
+}
+
+/**
+ * Record traded volume for daily-limit tracking (D4-B-2d). Non-fatal — the swap
+ * is already broadcast; any persistence failure is logged inside the service.
+ * Call this from each live adapter right after a successful `tx.wait()`.
+ */
+export async function recordLiveTradeVolume(
+  dexRiskPolicy: DexRiskPolicyService,
+  chainId: ChainId,
+  amountInUsd: number,
+): Promise<void> {
+  await dexRiskPolicy.recordTradeVolume(chainId, amountInUsd).catch(() => {
+    /* logged inside recordTradeVolume; swap already broadcast */
+  });
+}
+
+// ───────────────────────────────────────────────────────────────────────
 // Adapter
 // ───────────────────────────────────────────────────────────────────────
 
@@ -262,6 +361,8 @@ export class UniswapV2Adapter implements VenueAdapter {
     private readonly walletManager: WalletManagerService,
     private readonly gasEstimator: GasEstimatorService,
     private readonly tokenApprove: TokenApproveService,
+    private readonly dexRiskPolicy: DexRiskPolicyService,
+    private readonly priceOracle: PriceOracleService,
   ) {
     this.initializeMetrics();
   }
@@ -294,6 +395,19 @@ export class UniswapV2Adapter implements VenueAdapter {
       // 2. Resolve provider and router address
       const provider = this.rpcProviderManager.getProvider(params.chainId) as JsonRpcProvider;
       const routerAddress = resolveRouterAddress(params.chainId);
+
+      // 2.5 D4-B-2d: live risk gate — evaluateTrade before wallet selection.
+      // Fail-closed: unresolvable price/decimals or denied trade → throw, no broadcast.
+      const { amountInUsd } = await enforceLiveRiskGate({
+        dexRiskPolicy: this.dexRiskPolicy,
+        priceOracle: this.priceOracle,
+        adapterName: 'UniswapV2Adapter',
+        chainId: params.chainId,
+        tokenIn: params.tokenIn,
+        tokenOut: params.tokenOut,
+        amountIn: params.amountIn,
+        slippageBps: params.slippageBps,
+      });
 
       // 3. Select wallet
       const selectedWallet = await this.walletManager.selectWallet(
@@ -380,6 +494,9 @@ export class UniswapV2Adapter implements VenueAdapter {
         `submitLeg: confirmed hash=${tx.hash} gasUsed=${receipt.gasUsed.toString()} ` +
         `block=${receipt.blockNumber}`,
       );
+
+      // D4-B-2d: record traded volume for daily-limit tracking (non-fatal).
+      await recordLiveTradeVolume(this.dexRiskPolicy, params.chainId, amountInUsd);
 
       return {
         externalOrderId: tx.hash,

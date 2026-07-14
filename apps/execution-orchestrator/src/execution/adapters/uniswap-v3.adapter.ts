@@ -22,7 +22,14 @@ import { RpcProviderManager } from '../rpc/rpc-provider-manager.service';
 import { WalletManagerService, type SelectedWallet } from '../wallet-manager.service';
 import { GasEstimatorService } from '../gas/gas-estimator.service';
 import { TokenApproveService } from '../token/token-approve.service';
-import { applySlippage, getSlippageBps } from './uniswap-v2.adapter';
+import { DexRiskPolicyService } from '../risk/dex-risk-policy.service';
+import { PriceOracleService } from '../price/price-oracle.service';
+import {
+  applySlippage,
+  getSlippageBps,
+  enforceLiveRiskGate,
+  recordLiveTradeVolume,
+} from './uniswap-v2.adapter';
 
 // ───────────────────────────────────────────────────────────────────────
 // Types
@@ -241,6 +248,8 @@ export class UniswapV3Adapter implements VenueAdapter {
     private readonly walletManager: WalletManagerService,
     private readonly gasEstimator: GasEstimatorService,
     private readonly tokenApprove: TokenApproveService,
+    private readonly dexRiskPolicy: DexRiskPolicyService,
+    private readonly priceOracle: PriceOracleService,
   ) {
     this.initializeMetrics();
   }
@@ -274,6 +283,19 @@ export class UniswapV3Adapter implements VenueAdapter {
       // 2. Resolve provider and router address
       const provider = this.rpcProviderManager.getProvider(params.chainId) as JsonRpcProvider;
       const routerAddress = resolveRouterAddress(params.chainId);
+
+      // 2.5 D4-B-2d: live risk gate — evaluateTrade before wallet selection.
+      // Fail-closed: unresolvable price/decimals or denied trade → throw, no broadcast.
+      const { amountInUsd } = await enforceLiveRiskGate({
+        dexRiskPolicy: this.dexRiskPolicy,
+        priceOracle: this.priceOracle,
+        adapterName: 'UniswapV3Adapter',
+        chainId: params.chainId,
+        tokenIn: params.tokenIn,
+        tokenOut: params.tokenOut,
+        amountIn: params.amountIn,
+        slippageBps: params.slippageBps,
+      });
 
       // 3. Select wallet
       const selectedWallet = await this.walletManager.selectWallet(
@@ -355,6 +377,9 @@ export class UniswapV3Adapter implements VenueAdapter {
         `submitLeg: confirmed hash=${tx.hash} gasUsed=${receipt.gasUsed.toString()} ` +
         `block=${receipt.blockNumber}`,
       );
+
+      // D4-B-2d: record traded volume for daily-limit tracking (non-fatal).
+      await recordLiveTradeVolume(this.dexRiskPolicy, params.chainId, amountInUsd);
 
       return {
         externalOrderId: tx.hash,

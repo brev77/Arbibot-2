@@ -5,7 +5,16 @@
 | **depends_on** | `D4-B-1-KILLSWITCH` |
 | **risk_level** | `high` |
 | **estimated_hours** | 8 |
-| **status** | `planned` |
+| **status** | `done` |
+
+## Реализация (4 под-шага, 2026-07)
+
+| Под-шаг | Суть | Коммит |
+|---------|------|--------|
+| 2a | config-service reader (dex.limits/dex.live) + daily-volume в БД | `e2dd527` |
+| 2b | PriceOracleService (stables→$1, WETH→Chainlink, arbitrary→pool) | `27ff8eb` |
+| 2c | live-DEX path glue (extractVenueKey/extractSwapParams читают config.legs[]) | `368e50e` |
+| 2d | wire evaluateTrade() + recordTradeVolume() в 5 live DEX-адаптерах | (этот шаг) |
 
 ## Контекст (из ревью)
 - `DexRiskPolicyService.getEffectiveConfig()` (`apps/execution-orchestrator/src/execution/risk/dex-risk-policy.service.ts:44-54`) — хардкод (`maxPositionSizeUsd:10000`, `maxDailyVolumeUsd:100000`) с комментарием `// TODO: integrate with config-service`.
@@ -28,12 +37,12 @@
 4. **Только для live-path**: paper-path не вызывает `evaluateTrade` (изоляция)
 
 ## Acceptance
-- [ ] `getEffectiveConfig()` возвращает значения из config-service, не хардкод
-- [ ] `evaluateTrade()` вызывается во всех 5 DEX-адаптерах перед live-leg
-- [ ] При превышении `maxNotionalPerTradeUsd` leg блокируется
-- [ ] Дневной объём переживает рестарт процесса (читается из БД)
-- [ ] Paper-path не вызывает `evaluateTrade` (юнит-тест)
-- [ ] Метрики: `arb_dex_risk_evaluation_total{result=allowed|blocked,reason}`
+- [x] `getEffectiveConfig()` возвращает значения из config-service, не хардкод
+- [x] `evaluateTrade()` вызывается во всех 5 DEX-адаптерах перед live-leg
+- [x] При превышении `maxNotionalPerTradeUsd` leg блокируется
+- [x] Дневной объём переживает рестарт процесса (читается из БД)
+- [x] Paper-path не вызывает `evaluateTrade` (юнит-тест)
+- [x] Метрики: `arb_dex_risk_checks_total{result=allowed|blocked,chain_id}`
 
 ## Edge Cases
 - Config-service недоступен → fail-closed (блок live) или fail-open с cached-last-known-good? → ADR: fail-closed для live
@@ -42,8 +51,9 @@
 
 ## Test Commands
 ```bash
-npm run test -w @arbibot/execution-orchestrator
+npm run test -w @arbibot/execution-orchestrator      # 494/494 passed
 npm run build -w @arbibot/execution-orchestrator
+npm run lint -w @arbibot/execution-orchestrator
 npm run db:migrate   # применит 039
 ```
 

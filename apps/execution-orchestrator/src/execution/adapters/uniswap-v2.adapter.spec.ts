@@ -35,6 +35,27 @@ const mockTokenApprove: Record<string, any> = {
   approveToken: jest.fn(),
 };
 
+// D4-B-2d: risk-gate + price-oracle mocks. evaluateTrade allowed by default;
+// tests override per-case. Price returns a non-null USD value so the gate
+// passes; decimals cached by the oracle. `jest.fn<any>()` keeps the resolved
+// value loosely typed so defaulting + per-test overrides both compile.
+const mockDexRiskPolicy: Record<string, any> = {
+  evaluateTrade: jest.fn<any>().mockResolvedValue({
+    allowed: true,
+    reasons: [],
+    warnings: [],
+    estimatedSlippageBps: 0,
+    estimatedGasCostUsd: 0,
+    poolLiquidityUsd: 0,
+  }),
+  recordTradeVolume: jest.fn<any>().mockResolvedValue(undefined),
+};
+
+const mockPriceOracle: Record<string, any> = {
+  getTokenPriceUsd: jest.fn<any>().mockResolvedValue(2500),
+  getTokenDecimals: jest.fn<any>().mockResolvedValue(18),
+};
+
 // Helper: create a minimal plan entity
 function makePlan(overrides: Partial<{
   id: string;
@@ -122,11 +143,26 @@ describe('UniswapV2Adapter', () => {
     getArbibotMetricsRegistry().clear();
     jest.clearAllMocks();
 
+    // Restore default risk-gate behaviour (allowed) after clearAllMocks.
+    mockDexRiskPolicy.evaluateTrade.mockResolvedValue({
+      allowed: true,
+      reasons: [],
+      warnings: [],
+      estimatedSlippageBps: 0,
+      estimatedGasCostUsd: 0,
+      poolLiquidityUsd: 0,
+    });
+    mockDexRiskPolicy.recordTradeVolume.mockResolvedValue(undefined);
+    mockPriceOracle.getTokenPriceUsd.mockResolvedValue(2500);
+    mockPriceOracle.getTokenDecimals.mockResolvedValue(18);
+
     adapter = new UniswapV2Adapter(
       mockRpcProviderManager as any,
       mockWalletManager as any,
       mockGasEstimator as any,
       mockTokenApprove as any,
+      mockDexRiskPolicy as any,
+      mockPriceOracle as any,
     );
   });
 
@@ -493,6 +529,144 @@ describe('UniswapV2Adapter', () => {
       });
 
       await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('unexpected error');
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────
+  // D4-B-2d: live risk gate (evaluateTrade / recordTradeVolume)
+  // ─────────────────────────────────────────────────────────────────────
+
+  describe('submitLeg — D4-B-2d live risk gate', () => {
+    it('should call evaluateTrade before wallet selection on the live path', async () => {
+      const plan = makePlan();
+      const leg = makeLeg();
+      const wallet = makeSelectedWallet();
+
+      mockRpcProviderManager.getProvider.mockReturnValue(makeMockProvider());
+      mockWalletManager.selectWallet.mockResolvedValue(wallet);
+      mockTokenApprove.getAllowance.mockResolvedValue(10000000n);
+      mockGasEstimator.estimateGas.mockResolvedValue({
+        gasLimit: 200000n,
+        feeData: { maxFeePerGas: 1000000000n, maxPriorityFeePerGas: 100000000n },
+        withinPolicy: true,
+        estimatedCostEth: '0.0002',
+      });
+      jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('950000');
+      wallet._mockWait.mockResolvedValue({ status: 1, gasUsed: 180000n, blockNumber: 12345 });
+
+      await adapter.submitLeg(plan, leg);
+
+      expect(mockPriceOracle.getTokenPriceUsd).toHaveBeenCalledWith(
+        42161,
+        TOKEN_IN,
+      );
+      expect(mockPriceOracle.getTokenDecimals).toHaveBeenCalledWith(
+        42161,
+        TOKEN_IN,
+      );
+      expect(mockDexRiskPolicy.evaluateTrade).toHaveBeenCalledTimes(1);
+      // evaluateTrade must run BEFORE selectWallet (fail-closed before broadcast).
+      expect(mockWalletManager.selectWallet).toHaveBeenCalledTimes(1);
+    });
+
+    it('should reject with "DEX risk denied" and NOT select wallet when evaluateTrade denies', async () => {
+      const plan = makePlan();
+      const leg = makeLeg();
+
+      mockRpcProviderManager.getProvider.mockReturnValue(makeMockProvider());
+      mockDexRiskPolicy.evaluateTrade.mockResolvedValue({
+        allowed: false,
+        reasons: ['Position size $10000 exceeds max $500', 'Slippage 80 bps exceeds max 50 bps'],
+        warnings: [],
+        estimatedSlippageBps: 80,
+        estimatedGasCostUsd: 0,
+        poolLiquidityUsd: 0,
+      });
+
+      await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('DEX risk denied');
+      await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('Position size');
+
+      // No broadcast path should have been reached.
+      expect(mockWalletManager.selectWallet).not.toHaveBeenCalled();
+      expect(mockTokenApprove.approveToken).not.toHaveBeenCalled();
+      expect(mockDexRiskPolicy.recordTradeVolume).not.toHaveBeenCalled();
+    });
+
+    it('should reject with "cannot price tokenIn" (fail-closed) when oracle returns null price', async () => {
+      const plan = makePlan();
+      const leg = makeLeg();
+
+      mockRpcProviderManager.getProvider.mockReturnValue(makeMockProvider());
+      mockPriceOracle.getTokenPriceUsd.mockResolvedValue(null);
+
+      await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('cannot price tokenIn');
+
+      // evaluateTrade must not run (price resolution is the first gate).
+      expect(mockDexRiskPolicy.evaluateTrade).not.toHaveBeenCalled();
+      expect(mockWalletManager.selectWallet).not.toHaveBeenCalled();
+    });
+
+    it('should reject (fail-closed) when oracle cannot resolve tokenIn decimals', async () => {
+      const plan = makePlan();
+      const leg = makeLeg();
+
+      mockRpcProviderManager.getProvider.mockReturnValue(makeMockProvider());
+      mockPriceOracle.getTokenDecimals.mockResolvedValue(null);
+
+      await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('cannot read decimals');
+
+      expect(mockDexRiskPolicy.evaluateTrade).not.toHaveBeenCalled();
+      expect(mockWalletManager.selectWallet).not.toHaveBeenCalled();
+    });
+
+    it('should call recordTradeVolume(chainId, amountInUsd) after a successful swap', async () => {
+      const plan = makePlan();
+      const leg = makeLeg();
+      const wallet = makeSelectedWallet();
+
+      mockRpcProviderManager.getProvider.mockReturnValue(makeMockProvider());
+      mockWalletManager.selectWallet.mockResolvedValue(wallet);
+      mockTokenApprove.getAllowance.mockResolvedValue(10000000n);
+      mockGasEstimator.estimateGas.mockResolvedValue({
+        gasLimit: 200000n,
+        feeData: { maxFeePerGas: 1000000000n, maxPriorityFeePerGas: 100000000n },
+        withinPolicy: true,
+        estimatedCostEth: '0.0002',
+      });
+      jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('950000');
+      wallet._mockWait.mockResolvedValue({ status: 1, gasUsed: 180000n, blockNumber: 12345 });
+
+      await adapter.submitLeg(plan, leg);
+
+      // amountIn '1000000' with decimals 18 → 1e-12 units × $2500 = $2.5e-9
+      // (test tokens are tiny; the assertion is on the (chainId, amountInUsd)
+      //  shape, not the magnitude).
+      expect(mockDexRiskPolicy.recordTradeVolume).toHaveBeenCalledTimes(1);
+      const [recordedChainId, recordedUsd] = mockDexRiskPolicy.recordTradeVolume.mock.calls[0];
+      expect(recordedChainId).toBe(42161);
+      expect(recordedUsd).toBeCloseTo((1 / 1e12) * 2500, 20);
+    });
+
+    it('should not record volume when the tx reverts (success path not reached)', async () => {
+      const plan = makePlan();
+      const leg = makeLeg();
+      const wallet = makeSelectedWallet();
+
+      mockRpcProviderManager.getProvider.mockReturnValue(makeMockProvider());
+      mockWalletManager.selectWallet.mockResolvedValue(wallet);
+      mockTokenApprove.getAllowance.mockResolvedValue(10000000n);
+      mockGasEstimator.estimateGas.mockResolvedValue({
+        gasLimit: 200000n,
+        feeData: { maxFeePerGas: 1000000000n, maxPriorityFeePerGas: 100000000n },
+        withinPolicy: true,
+        estimatedCostEth: '0.0002',
+      });
+      jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('950000');
+      wallet._mockWait.mockResolvedValue({ status: 0, gasUsed: 180000n, blockNumber: 12345 });
+
+      await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('reverted on-chain');
+
+      expect(mockDexRiskPolicy.recordTradeVolume).not.toHaveBeenCalled();
     });
   });
 });
