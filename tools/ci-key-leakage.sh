@@ -80,11 +80,13 @@ if [[ -n "$MNEMONIC_OUT" ]]; then
   findings=$((findings + 1))
 fi
 
-# K2 — decryptPrivateKey / getEncryptedKey called outside the two authoritative owners.
+# K2 — decryptPrivateKey / getEncryptedKey called outside the authoritative owners.
 # KeyVaultService (owner) and wallet-manager.service.ts (sole signer consumer) are allowlisted.
-# grep -l gives file paths; we filter out the two allowed owners.
+# The ciphertext-only persistence layer (WalletKeyStore port + TypeORM adapter) is also
+# allowlisted: it transports the AES-GCM ciphertext blob to/from the wallet_keys table and
+# NEVER calls decryptPrivateKey — the plaintext stays inside KeyVaultService.decryptPrivateKey.
 xargs -r grep -IlE 'decryptPrivateKey|getEncryptedKey|retrieveEncryptedKey' <"$FILES" 2>/dev/null \
-  | grep -vE 'key-vault\.service\.ts|wallet-manager\.service\.ts' >"$K2_OUT" || true
+  | grep -vE 'key-vault\.service\.ts|wallet-manager\.service\.ts|wallet-key-store\.ts|wallet-key-store\.typeorm\.ts' >"$K2_OUT" || true
 if [[ -s "$K2_OUT" ]]; then
   printf '\n[K2-decrypt-outside-vault] decryptPrivateKey/getEncryptedKey used outside KeyVaultService or wallet-manager\n' >&2
   cat "$K2_OUT" >&2

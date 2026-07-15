@@ -48,7 +48,7 @@
 | `D4-B-1-KILLSWITCH` | Реальный kill-switch в orchestrator | done | `deploy-readiness/D4-B-1-KILLSWITCH.md` | L1 🔴 |
 | `D4-B-2-LIMITS` | dex.limits/live + вызов evaluateTrade | done | `deploy-readiness/D4-B-2-LIMITS.md` | L2 🔴 |
 | `D4-B-3-CEILING` | Aggregate capital ceiling (C1) | done | `deploy-readiness/D4-B-3-CEILING.md` | L3 🔴 |
-| `D4-B-4-KEYS` | Ключи: убрать in-memory Wallet cache | planned | `deploy-readiness/D4-B-4-KEYS.md` | L4 🔴 |
+| `D4-B-4-KEYS` | Ключи: убрать in-memory Wallet cache | done | `deploy-readiness/D4-B-4-KEYS.md` | L4 🔴 |
 | `D4-B-5-BRIDGE` | Bridge confirmation/finality | planned | `deploy-readiness/D4-B-5-BRIDGE.md` | L5 🔴 |
 | `D4-B-6-MTLS` | Service-to-service auth enforce | planned | `deploy-readiness/D4-B-6-MTLS.md` | L6 🔴 |
 | `D4-B-7-SECRET-SCAN` | secret-scan → blocking CI | planned | `deploy-readiness/D4-B-7-SECRET-SCAN.md` | L7 |

@@ -46,7 +46,7 @@ describe('WalletManagerService', () => {
     keyId: 'key-1',
     encryptedData: 'abc123',
     iv: 'def456',
-    tag: 'ghi789',
+    salt: 'aabbccdd',
     algorithm: 'aes-256-gcm',
     createdAt: new Date(),
   };
@@ -57,7 +57,7 @@ describe('WalletManagerService', () => {
     const mockKeyVaultService = {
       getWalletKeysByChain: jest.fn().mockReturnValue(mockWalletKeys),
       getWalletKey: jest.fn().mockReturnValue(mockWalletKeys[0]),
-      retrieveEncryptedKey: jest.fn().mockReturnValue(mockEncryptedKey),
+      retrieveEncryptedKey: jest.fn().mockResolvedValue(mockEncryptedKey),
       decryptPrivateKey: jest.fn().mockResolvedValue('0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef'),
       updateKeyLastUsed: jest.fn().mockResolvedValue(undefined),
     };
@@ -144,6 +144,20 @@ describe('WalletManagerService', () => {
 
       expect(keyVaultService.updateKeyLastUsed).toHaveBeenCalled();
     });
+
+    // D4-B-4-KEYS (K1.2): Wallet instances must NOT be cached for the process
+    // lifetime. Two selections should each decrypt the key fresh.
+    it('should NOT cache the Wallet — each selection decrypts fresh (no long-lived plaintext)', async () => {
+      const mockProvider = {} as Provider;
+
+      await service.selectWallet(42161, mockProvider);
+      await service.selectWallet(42161, mockProvider);
+
+      // retrieveEncryptedKey + decryptPrivateKey called once PER selection (2x),
+      // proving the wallet is rebuilt per call rather than cached.
+      expect(keyVaultService.retrieveEncryptedKey).toHaveBeenCalledTimes(2);
+      expect(keyVaultService.decryptPrivateKey).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe('wallet selection strategies', () => {
@@ -164,10 +178,57 @@ describe('WalletManagerService', () => {
     });
   });
 
-  describe('clearWalletCache', () => {
-    it('should clear wallet cache without error', async () => {
+  describe('balance-based selection (D4-B-4-KEYS: no per-candidate decrypt)', () => {
+    beforeEach(async () => {
       await service.onModuleInit();
-      expect(() => service.clearWalletCache()).not.toThrow();
+      process.env.WALLET_SELECTION_STRATEGY = 'balance-based';
+    });
+
+    afterEach(() => {
+      delete process.env.WALLET_SELECTION_STRATEGY;
+    });
+
+    it('should check balances via public address and only decrypt the selected key', async () => {
+      // Re-create the module so the balance-based strategy is picked up from env.
+      getArbibotMetricsRegistry().clear();
+      const balanceMockVault = {
+        getWalletKeysByChain: jest.fn().mockReturnValue(mockWalletKeys),
+        getWalletKey: jest.fn().mockReturnValue(mockWalletKeys[0]),
+        retrieveEncryptedKey: jest.fn().mockResolvedValue(mockEncryptedKey),
+        decryptPrivateKey: jest.fn().mockResolvedValue('0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef'),
+        updateKeyLastUsed: jest.fn().mockResolvedValue(undefined),
+      };
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          WalletManagerService,
+          { provide: KeyVaultService, useValue: balanceMockVault },
+          {
+            provide: getRepositoryToken(WalletState),
+            useValue: {
+              find: jest.fn().mockResolvedValue([]),
+              findOne: jest.fn().mockResolvedValue(null),
+              create: jest.fn().mockReturnValue({}),
+              save: jest.fn().mockResolvedValue({}),
+            },
+          },
+        ],
+      }).compile();
+      const balanceService = module.get<WalletManagerService>(WalletManagerService);
+      await balanceService.onModuleInit();
+
+      const mockProvider = {} as Provider;
+      const result = await balanceService.selectWallet(
+        42161,
+        mockProvider,
+        '0xtoken1234567890abcdef1234567890abcdef12',
+        BigInt('500000000000000000'),
+      );
+
+      // The first candidate has sufficient balance (mock returns 1e18), so it is
+      // selected. decryptPrivateKey is called exactly ONCE — for the selected
+      // key only, never for balance-checking candidates.
+      expect(result.keyId).toBe('key-1');
+      expect(balanceMockVault.decryptPrivateKey).toHaveBeenCalledTimes(1);
     });
   });
 

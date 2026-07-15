@@ -1,6 +1,11 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'crypto';
 import { AuditClientService } from '../audit-client.service';
+import {
+  WALLET_KEY_STORE,
+  type WalletKeyRecord,
+  type WalletKeyStore,
+} from './wallet-key-store';
 
 /**
  * Encrypted key representation
@@ -28,10 +33,20 @@ export interface WalletKey {
 
 /**
  * Key Vault Service
- * Step: DEX-1-0-VAULT
- * 
- * Manages encryption/decryption of private keys with audit logging
- * Keys are encrypted at rest and only decrypted during signing
+ * Step: DEX-1-0-VAULT (D4-B-4-KEYS: persistence refactor)
+ *
+ * Manages encryption/decryption of private keys with audit logging.
+ * Keys are encrypted at rest (AES-256-GCM) and only decrypted during signing.
+ *
+ * D4-B-4-KEYS: the encrypted ciphertext blob is NO LONGER held in a long-lived
+ * in-memory Map. It is persisted through the {@link WalletKeyStore} port
+ * (production adapter → `wallet_keys` table) and read on demand. Nonsensitive
+ * metadata (address, chainId, active flag) is kept in a read-through cache so
+ * sync readers (dex-health checks, wallet selection) stay sync.
+ *
+ * Plaintext private keys live only inside {@link decryptPrivateKey} — the K2
+ * leakage-guard contract is preserved (this file + wallet-manager.service.ts
+ * are the sole owners of decryptPrivateKey / retrieveEncryptedKey).
  */
 @Injectable()
 export class KeyVaultService implements OnModuleInit {
@@ -42,11 +57,13 @@ export class KeyVaultService implements OnModuleInit {
   private readonly ivLength = 16; // 128 bits
   private readonly saltLength = 32; // 256 bits
 
-  // In-memory key registry (in production, this would be in encrypted database)
-  private keys = new Map<string, WalletKey>();
-
-  // In-memory encrypted key storage (in production, this would be in encrypted database)
-  private encryptedKeys = new Map<string, EncryptedKey>();
+  /**
+   * Read-through cache of nonsensitive key metadata (address/chainId/isActive).
+   * Hydrated from the store on init and kept in sync on every write. Sync readers
+   * (dex-health) read from here. The ciphertext blob is NEVER cached — it is
+   * fetched on demand from {@link retrieveEncryptedKey}.
+   */
+  private readonly metaCache = new Map<string, WalletKeyRecord>();
 
   // Performance metrics
   private encryptLatency = 0;
@@ -54,7 +71,10 @@ export class KeyVaultService implements OnModuleInit {
   private encryptCount = 0;
   private decryptCount = 0;
 
-  constructor(private readonly auditService: AuditClientService) {
+  constructor(
+    private readonly auditService: AuditClientService,
+    @Optional() @Inject(WALLET_KEY_STORE) private readonly store?: WalletKeyStore,
+  ) {
     const encryptionKeyHex = process.env.PRIVATE_KEY_ENCRYPTION_KEY;
     if (!encryptionKeyHex) {
       throw new Error('PRIVATE_KEY_ENCRYPTION_KEY environment variable is required');
@@ -63,10 +83,25 @@ export class KeyVaultService implements OnModuleInit {
     // Derive encryption key from environment variable
     const salt = 'arbibot-vault-salt-v1';
     this.encryptionKey = scryptSync(encryptionKeyHex, salt, this.keyLength);
-    this.logger.log('Key Vault Service initialized');
+    this.logger.log(
+      `Key Vault Service initialized (persistence: ${store ? 'wallet_keys table' : 'in-memory fallback'})`,
+    );
   }
 
-  onModuleInit() {
+  async onModuleInit() {
+    // Hydrate metadata cache from the store so sync readers see existing keys.
+    // The in-memory fallback path has nothing to load (no store registered).
+    if (this.store) {
+      try {
+        const records = await this.store.getAllKeyMeta();
+        for (const r of records) {
+          this.metaCache.set(r.keyId, r);
+        }
+        this.logger.log(`Loaded ${records.length} wallet key(s) from store`);
+      } catch (error) {
+        this.logger.error('Failed to hydrate wallet key cache from store:', error);
+      }
+    }
     this.logger.log('Key Vault Service ready');
   }
 
@@ -124,8 +159,12 @@ export class KeyVaultService implements OnModuleInit {
         },
       });
 
-      // Store encrypted key in memory
-      this.encryptedKeys.set(keyId, result);
+      // Persist the ciphertext through the store (write-through). When no store
+      // is bound (dev/test fallback) the encrypted blob is not retained — callers
+      // that need round-trip in that mode must use storeEncryptedKey with a bound store.
+      if (this.store) {
+        await this.store.saveEncryptedKey(keyId, result);
+      }
 
       // Update metrics
       this.encryptLatency = Date.now() - startTime;
@@ -209,11 +248,11 @@ export class KeyVaultService implements OnModuleInit {
    * @param chainId - Chain ID
    */
   async registerWalletKey(keyId: string, address: string, chainId: number): Promise<void> {
-    if (this.keys.has(keyId)) {
+    if (this.metaCache.has(keyId)) {
       throw new Error(`Key ${keyId} already registered`);
     }
 
-    const walletKey: WalletKey = {
+    const record: WalletKeyRecord = {
       keyId,
       address: address.toLowerCase(),
       chainId,
@@ -221,7 +260,11 @@ export class KeyVaultService implements OnModuleInit {
       createdAt: new Date(),
     };
 
-    this.keys.set(keyId, walletKey);
+    // Write-through to the persistent store and the in-memory cache together.
+    if (this.store) {
+      await this.store.saveKeyMeta(record);
+    }
+    this.metaCache.set(keyId, record);
 
     // Audit logging
     await this.auditService.appendEntry({
@@ -244,14 +287,15 @@ export class KeyVaultService implements OnModuleInit {
    * @param keyId - Key identifier
    */
   getWalletKey(keyId: string): WalletKey | undefined {
-    return this.keys.get(keyId);
+    const record = this.metaCache.get(keyId);
+    return record ? this.recordToWalletKey(record) : undefined;
   }
 
   /**
    * Get all wallet keys
    */
   getAllWalletKeys(): WalletKey[] {
-    return Array.from(this.keys.values());
+    return Array.from(this.metaCache.values()).map((r) => this.recordToWalletKey(r));
   }
 
   /**
@@ -259,7 +303,9 @@ export class KeyVaultService implements OnModuleInit {
    * @param chainId - Chain ID
    */
   getWalletKeysByChain(chainId: number): WalletKey[] {
-    return Array.from(this.keys.values()).filter(k => k.chainId === chainId && k.isActive);
+    return Array.from(this.metaCache.values())
+      .filter((k) => k.chainId === chainId && k.isActive)
+      .map((r) => this.recordToWalletKey(r));
   }
 
   /**
@@ -267,12 +313,15 @@ export class KeyVaultService implements OnModuleInit {
    * @param keyId - Key identifier
    */
   async deactivateWalletKey(keyId: string): Promise<void> {
-    const key = this.keys.get(keyId);
-    if (!key) {
+    const record = this.metaCache.get(keyId);
+    if (!record) {
       throw new Error(`Key ${keyId} not found`);
     }
 
-    key.isActive = false;
+    record.isActive = false;
+    if (this.store) {
+      await this.store.setActive(keyId, false);
+    }
 
     // Audit logging
     await this.auditService.appendEntry({
@@ -281,8 +330,8 @@ export class KeyVaultService implements OnModuleInit {
       resourceType: 'WalletKey',
       resourceId: keyId,
       payload: {
-        address: key.address,
-        chainId: key.chainId,
+        address: record.address,
+        chainId: record.chainId,
         timestamp: new Date().toISOString(),
       },
     });
@@ -303,7 +352,7 @@ export class KeyVaultService implements OnModuleInit {
     newAddress: string,
     chainId: number
   ): Promise<void> {
-    const oldKey = this.keys.get(oldKeyId);
+    const oldKey = this.metaCache.get(oldKeyId);
     if (!oldKey) {
       throw new Error(`Old key ${oldKeyId} not found`);
     }
@@ -335,11 +384,21 @@ export class KeyVaultService implements OnModuleInit {
   /**
    * Update last used timestamp for a key
    * @param keyId - Key identifier
+   *
+   * Stays synchronous (called fire-and-forget from wallet-manager). Updates the
+   * metadata cache immediately and best-effort persists to the store; persistence
+   * failures are logged but do not surface to callers.
    */
   updateKeyLastUsed(keyId: string): void {
-    const key = this.keys.get(keyId);
-    if (key) {
-      key.lastUsedAt = new Date();
+    const record = this.metaCache.get(keyId);
+    if (!record) {
+      return;
+    }
+    record.lastUsedAt = new Date();
+    if (this.store) {
+      this.store.updateLastUsed(keyId, record.lastUsedAt).catch((error) => {
+        this.logger.warn(`Failed to persist lastUsedAt for keyId ${keyId}: ${error}`);
+      });
     }
   }
 
@@ -347,9 +406,14 @@ export class KeyVaultService implements OnModuleInit {
    * Store an encrypted key (e.g. loaded from database on startup)
    * @param keyId - Key identifier
    * @param encryptedKey - The encrypted key data to store
+   *
+   * D4-B-4-KEYS: persists the ciphertext through the store. The plaintext is
+   * never retained in memory after this call.
    */
-  storeEncryptedKey(keyId: string, encryptedKey: EncryptedKey): void {
-    this.encryptedKeys.set(keyId, encryptedKey);
+  async storeEncryptedKey(keyId: string, encryptedKey: EncryptedKey): Promise<void> {
+    if (this.store) {
+      await this.store.saveEncryptedKey(keyId, encryptedKey);
+    }
     this.logger.debug(`Stored encrypted key for keyId: ${keyId}`);
   }
 
@@ -357,9 +421,16 @@ export class KeyVaultService implements OnModuleInit {
    * Retrieve an encrypted key by keyId
    * @param keyId - Key identifier
    * @returns The encrypted key data, or undefined if not found
+   *
+   * D4-B-4-KEYS: reads the ciphertext ON DEMAND from the store (no in-memory
+   * cache of the blob). The returned value still needs {@link decryptPrivateKey}
+   * to produce the signing key — the plaintext exists only inside that call.
    */
-  retrieveEncryptedKey(keyId: string): EncryptedKey | undefined {
-    return this.encryptedKeys.get(keyId);
+  async retrieveEncryptedKey(keyId: string): Promise<EncryptedKey | undefined> {
+    if (this.store) {
+      return (await this.store.getEncryptedKey(keyId)) ?? undefined;
+    }
+    return undefined;
   }
 
   /**
@@ -372,6 +443,20 @@ export class KeyVaultService implements OnModuleInit {
 
     // Must be 64 hex characters (32 bytes)
     return /^[0-9a-fA-F]{64}$/.test(cleanKey);
+  }
+
+  /**
+   * Map a metadata record to the public WalletKey shape.
+   */
+  private recordToWalletKey(record: WalletKeyRecord): WalletKey {
+    return {
+      keyId: record.keyId,
+      address: record.address,
+      chainId: record.chainId,
+      isActive: record.isActive,
+      createdAt: record.createdAt,
+      lastUsedAt: record.lastUsedAt,
+    };
   }
 
   /**

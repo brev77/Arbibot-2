@@ -1,6 +1,53 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { KeyVaultService, EncryptedKey } from './key-vault.service';
+import { KeyVaultService, type EncryptedKey } from './key-vault.service';
+import {
+  WALLET_KEY_STORE,
+  type WalletKeyRecord,
+  type WalletKeyStore,
+} from './wallet-key-store';
 import { AuditClientService } from '../audit-client.service';
+
+/**
+ * Minimal in-memory WalletKeyStore used to exercise the DB-backed code path
+ * (D4-B-4-KEYS) without a real Postgres. Simulates the production adapter.
+ */
+function createInMemoryStore(): WalletKeyStore & {
+  meta: Map<string, WalletKeyRecord>;
+  blobs: Map<string, EncryptedKey>;
+} {
+  const meta = new Map<string, WalletKeyRecord>();
+  const blobs = new Map<string, EncryptedKey>();
+  return {
+    meta,
+    blobs,
+    saveKeyMeta: (record: WalletKeyRecord): Promise<void> => {
+      meta.set(record.keyId, { ...record });
+      return Promise.resolve();
+    },
+    getKeyMeta: (keyId: string): Promise<WalletKeyRecord | null> =>
+      Promise.resolve(meta.get(keyId) ?? null),
+    getAllKeyMeta: (): Promise<WalletKeyRecord[]> =>
+      Promise.resolve(Array.from(meta.values())),
+    getKeysByChain: (chainId: number): Promise<WalletKeyRecord[]> =>
+      Promise.resolve(Array.from(meta.values()).filter((r) => r.chainId === chainId)),
+    saveEncryptedKey: (keyId: string, encryptedKey: EncryptedKey): Promise<void> => {
+      blobs.set(keyId, { ...encryptedKey });
+      return Promise.resolve();
+    },
+    getEncryptedKey: (keyId: string): Promise<EncryptedKey | null> =>
+      Promise.resolve(blobs.get(keyId) ?? null),
+    setActive: (keyId: string, isActive: boolean): Promise<void> => {
+      const r = meta.get(keyId);
+      if (r) meta.set(keyId, { ...r, isActive });
+      return Promise.resolve();
+    },
+    updateLastUsed: (keyId: string, lastUsedAt: Date): Promise<void> => {
+      const r = meta.get(keyId);
+      if (r) meta.set(keyId, { ...r, lastUsedAt });
+      return Promise.resolve();
+    },
+  };
+}
 
 describe('KeyVaultService', () => {
   let service: KeyVaultService;
@@ -22,10 +69,6 @@ describe('KeyVaultService', () => {
     }).compile();
 
     service = module.get<KeyVaultService>(KeyVaultService);
-
-    // Clear in-memory stores
-    service['keys'] = new Map();
-    service['encryptedKeys'] = new Map();
   });
 
   afterEach(() => {
@@ -36,7 +79,7 @@ describe('KeyVaultService', () => {
     expect(service).toBeDefined();
   });
 
-  describe('registerWalletKey', () => {
+  describe('registerWalletKey (in-memory fallback, no store)', () => {
     it('should register a new wallet key', async () => {
       await service.registerWalletKey('test-key-1', '0x1234567890123456789012345678901234567890', 42161);
 
@@ -58,7 +101,7 @@ describe('KeyVaultService', () => {
   });
 
   describe('encryptPrivateKey', () => {
-    it('should encrypt a private key and store it', async () => {
+    it('should encrypt a private key and return ciphertext (not the key)', async () => {
       const privateKey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 
       const encrypted = await service.encryptPrivateKey(privateKey, 'test-key-1');
@@ -70,9 +113,6 @@ describe('KeyVaultService', () => {
       expect(encrypted.salt).toBeDefined();
       expect(encrypted.algorithm).toBe('aes-256-gcm');
       expect(encrypted.encryptedData).not.toBe(privateKey);
-
-      // Should be stored in encryptedKeys map
-      expect(service.retrieveEncryptedKey('test-key-1')).toEqual(encrypted);
     });
 
     it('should encrypt same key differently each time (due to random IV + salt)', async () => {
@@ -133,7 +173,7 @@ describe('KeyVaultService', () => {
     });
   });
 
-  describe('getWalletKeysByChain', () => {
+  describe('getWalletKeysByChain (in-memory fallback)', () => {
     it('should return keys for specific chain', async () => {
       await service.registerWalletKey('test-key-1', '0x1111111111111111111111111111111111111111', 42161);
       await service.registerWalletKey('test-key-2', '0x2222222222222222222222222222222222222222', 8453);
@@ -165,7 +205,6 @@ describe('KeyVaultService', () => {
     it('should update last used timestamp', async () => {
       await service.registerWalletKey('test-key-1', '0x1111111111111111111111111111111111111111', 42161);
 
-      // Wait a bit to ensure time difference
       await new Promise(resolve => setTimeout(resolve, 10));
 
       service.updateKeyLastUsed('test-key-1');
@@ -181,24 +220,7 @@ describe('KeyVaultService', () => {
     });
   });
 
-  describe('storeEncryptedKey / retrieveEncryptedKey', () => {
-    it('should store and retrieve an encrypted key', async () => {
-      const privateKey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
-      const encrypted = await service.encryptPrivateKey(privateKey, 'source-key');
-
-      // Store under a different keyId (simulating loading from DB)
-      service.storeEncryptedKey('target-key', encrypted);
-
-      const retrieved = service.retrieveEncryptedKey('target-key');
-      expect(retrieved).toEqual(encrypted);
-    });
-
-    it('should return undefined for non-existent key', () => {
-      expect(service.retrieveEncryptedKey('non-existent')).toBeUndefined();
-    });
-  });
-
-  describe('deactivateWalletKey', () => {
+  describe('deactivateWalletKey (in-memory fallback)', () => {
     it('should deactivate an active key', async () => {
       await service.registerWalletKey('test-key-1', '0x1111111111111111111111111111111111111111', 42161);
       await service.deactivateWalletKey('test-key-1');
@@ -212,7 +234,7 @@ describe('KeyVaultService', () => {
     });
   });
 
-  describe('rotateWalletKey', () => {
+  describe('rotateWalletKey (in-memory fallback)', () => {
     it('should deactivate old key and register new one', async () => {
       await service.registerWalletKey('old-key', '0x1111111111111111111111111111111111111111', 42161);
       await service.rotateWalletKey('old-key', 'new-key', '0x2222222222222222222222222222222222222222', 42161);
@@ -227,6 +249,21 @@ describe('KeyVaultService', () => {
     });
   });
 
+  describe('retrieveEncryptedKey without store (in-memory fallback)', () => {
+    it('should return undefined — ciphertext is not retained without a store', async () => {
+      const privateKey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+      await service.encryptPrivateKey(privateKey, 'test-key-1');
+
+      // D4-B-4-KEYS: without a bound store the ciphertext is NOT held in memory.
+      const retrieved = await service.retrieveEncryptedKey('test-key-1');
+      expect(retrieved).toBeUndefined();
+    });
+
+    it('should return undefined for non-existent key', async () => {
+      expect(await service.retrieveEncryptedKey('non-existent')).toBeUndefined();
+    });
+  });
+
   describe('getMetrics', () => {
     it('should return performance metrics', async () => {
       const privateKey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
@@ -238,6 +275,140 @@ describe('KeyVaultService', () => {
       expect(metrics.decryptCount).toBe(1);
       expect(metrics.encryptLatency).toBeGreaterThanOrEqual(0);
       expect(metrics.decryptLatency).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // D4-B-4-KEYS: DB-backed path (WalletKeyStore bound). These tests verify the
+  // persistence contract — encrypted keys survive a "restart" (new service
+  // instance sharing the same store) and are decrypted on demand.
+  // ─────────────────────────────────────────────────────────────────────────
+  describe('DB-backed persistence (WalletKeyStore bound)', () => {
+    let store: ReturnType<typeof createInMemoryStore>;
+    let dbService: KeyVaultService;
+
+    beforeEach(async () => {
+      process.env.PRIVATE_KEY_ENCRYPTION_KEY = testEncryptionKey;
+      store = createInMemoryStore();
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          KeyVaultService,
+          {
+            provide: AuditClientService,
+            useValue: { appendEntry: jest.fn().mockResolvedValue(undefined) },
+          },
+          { provide: WALLET_KEY_STORE, useValue: store },
+        ],
+      }).compile();
+
+      dbService = module.get<KeyVaultService>(KeyVaultService);
+      await dbService.onModuleInit();
+    });
+
+    it('should persist encrypted key to the store and retrieve it on demand', async () => {
+      const privateKey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+      const encrypted = await dbService.encryptPrivateKey(privateKey, 'db-key-1');
+
+      // The ciphertext is now in the store, not in a process-lifetime Map.
+      expect(store.blobs.get('db-key-1')).toEqual(encrypted);
+
+      // On-demand retrieval reads it back from the store.
+      const retrieved = await dbService.retrieveEncryptedKey('db-key-1');
+      expect(retrieved).toEqual(encrypted);
+
+      // And it round-trips through decryptPrivateKey.
+      const decrypted = await dbService.decryptPrivateKey(retrieved!);
+      expect(decrypted).toBe(privateKey);
+    });
+
+    it('should survive a process restart — decrypt on demand from a fresh instance', async () => {
+      // Instance A: register + encrypt + persist.
+      const privateKey = 'fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210';
+      await dbService.registerWalletKey('restart-key', '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 42161);
+      const encrypted = await dbService.encryptPrivateKey(privateKey, 'restart-key');
+      await dbService.storeEncryptedKey('restart-key', encrypted);
+
+      // Instance B: new KeyVaultService bound to the SAME store (simulates restart).
+      const moduleB: TestingModule = await Test.createTestingModule({
+        providers: [
+          KeyVaultService,
+          {
+            provide: AuditClientService,
+            useValue: { appendEntry: jest.fn().mockResolvedValue(undefined) },
+          },
+          { provide: WALLET_KEY_STORE, useValue: store },
+        ],
+      }).compile();
+      const restartedService = moduleB.get<KeyVaultService>(KeyVaultService);
+      await restartedService.onModuleInit();
+
+      // Metadata cache was hydrated from the store on init.
+      const keyMeta = restartedService.getWalletKey('restart-key');
+      expect(keyMeta).toBeDefined();
+      expect(keyMeta!.address).toBe('0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+
+      // Encrypted blob is fetched on demand and decrypts correctly.
+      const retrieved = await restartedService.retrieveEncryptedKey('restart-key');
+      expect(retrieved).toBeDefined();
+      const decrypted = await restartedService.decryptPrivateKey(retrieved!);
+      expect(decrypted).toBe(privateKey);
+    });
+
+    it('registerWalletKey should persist metadata through the store', async () => {
+      await dbService.registerWalletKey('meta-key', '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 8453);
+
+      // Store received the metadata.
+      const stored = store.meta.get('meta-key');
+      expect(stored).toBeDefined();
+      expect(stored!.chainId).toBe(8453);
+      expect(stored!.isActive).toBe(true);
+    });
+
+    it('deactivateWalletKey should persist the active flag through the store', async () => {
+      await dbService.registerWalletKey('deact-key', '0xcccccccccccccccccccccccccccccccccccccccc', 42161);
+      await dbService.deactivateWalletKey('deact-key');
+
+      expect(store.meta.get('deact-key')!.isActive).toBe(false);
+      expect(dbService.getWalletKey('deact-key')!.isActive).toBe(false);
+    });
+
+    it('updateKeyLastUsed should best-effort persist through the store', async () => {
+      await dbService.registerWalletKey('used-key', '0xdddddddddddddddddddddddddddddddddddddddd', 42161);
+      dbService.updateKeyLastUsed('used-key');
+
+      // fire-and-forget persistence — give the microtask a tick.
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(store.meta.get('used-key')!.lastUsedAt).toBeDefined();
+    });
+
+    it('onModuleInit should hydrate the metadata cache from the store', async () => {
+      // Seed the store directly (simulating pre-existing rows).
+      await store.saveKeyMeta({
+        keyId: 'seeded-key',
+        address: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+        chainId: 42161,
+        isActive: true,
+        createdAt: new Date(),
+      });
+
+      // Fresh service hydrates from the store.
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          KeyVaultService,
+          {
+            provide: AuditClientService,
+            useValue: { appendEntry: jest.fn().mockResolvedValue(undefined) },
+          },
+          { provide: WALLET_KEY_STORE, useValue: store },
+        ],
+      }).compile();
+      const fresh = module.get<KeyVaultService>(KeyVaultService);
+      await fresh.onModuleInit();
+
+      expect(fresh.getWalletKey('seeded-key')).toBeDefined();
+      expect(fresh.getWalletKeysByChain(42161).some((k) => k.keyId === 'seeded-key')).toBe(true);
     });
   });
 });

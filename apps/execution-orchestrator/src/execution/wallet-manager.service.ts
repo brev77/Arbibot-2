@@ -48,18 +48,22 @@ export interface SelectedWallet {
 
 /**
  * Wallet Manager Service
- * Step: DEX-1-0-WALLET-MGT
- * 
- * Manages multiple wallets: selection, balance checking, load balancing
+ * Step: DEX-1-0-WALLET-MGT (D4-B-4-KEYS: removed long-lived wallet cache)
+ *
+ * Manages multiple wallets: selection, balance checking, load balancing.
+ *
+ * D4-B-4-KEYS (K1.2): Wallet instances are created per-operation and NOT cached
+ * for the lifetime of the process. The decrypted plaintext private key lives only
+ * for the duration of one transaction — callers use `SelectedWallet.wallet` and
+ * let the reference go out of scope so it is eligible for garbage collection.
+ * Balance-based selection checks balances via read-only `balanceOf` calls against
+ * the public address (no key decryption needed) and only decrypts the chosen key.
  */
 @Injectable()
 export class WalletManagerService implements OnModuleInit {
   private readonly logger = new Logger(WalletManagerService.name);
   private readonly strategy: WalletSelectionStrategy;
   private roundRobinIndex = 0;
-
-  // Cache for wallet instances
-  private walletCache = new Map<string, Wallet>();
 
   // Metrics
   private selectionCounter!: Counter<string>;
@@ -120,14 +124,12 @@ export class WalletManagerService implements OnModuleInit {
     // Select wallet based on strategy
     const selectedKey = await this.selectWalletByStrategy(walletKeys, minBalance, tokenAddress, provider, tokenDecimals);
 
-    // Get or create wallet instance
-    let wallet = this.walletCache.get(selectedKey.keyId);
-    if (!wallet) {
-      const encryptedKey = this.getEncryptedKey(selectedKey.keyId);
-      const privateKey = await this.keyVaultService.decryptPrivateKey(encryptedKey);
-      wallet = new Wallet(privateKey, provider);
-      this.walletCache.set(selectedKey.keyId, wallet);
-    }
+    // D4-B-4-KEYS (K1.2): create the Wallet instance PER CALL — do NOT cache it.
+    // The decrypted plaintext private key must live only for this operation; the
+    // caller uses the returned wallet and lets the reference go out of scope.
+    const encryptedKey = await this.getEncryptedKey(selectedKey.keyId);
+    const privateKey = await this.keyVaultService.decryptPrivateKey(encryptedKey);
+    const wallet = new Wallet(privateKey, provider);
 
     // Update last used timestamp
     this.keyVaultService.updateKeyLastUsed(selectedKey.keyId);
@@ -199,6 +201,11 @@ export class WalletManagerService implements OnModuleInit {
 
   /**
    * Balance-based selection (prefer wallets with sufficient balance)
+   *
+   * D4-B-4-KEYS: balance is a read-only `balanceOf(address)` call and does NOT
+   * require the private key. We check balances against the public address only
+   * and decrypt the chosen key once in `selectWallet` after selection. This
+   * eliminates the previous behaviour of decrypting every candidate key.
    */
   private async selectByBalance(
     walletKeys: WalletKey[],
@@ -212,15 +219,11 @@ export class WalletManagerService implements OnModuleInit {
       return this.selectWeighted(walletKeys);
     }
 
-    // Check balances for all wallets
+    // Check balances for all wallets using only their PUBLIC address — no key
+    // material is touched here. The chosen key is decrypted once in selectWallet.
     for (const walletKey of walletKeys) {
       try {
-        const encryptedKey = this.getEncryptedKey(walletKey.keyId);
-        const privateKey = await this.keyVaultService.decryptPrivateKey(encryptedKey);
-        const wallet = new Wallet(privateKey, provider);
-
-        // Get token balance
-        const balance = await this.getTokenBalance(provider, wallet.address as Address, tokenAddress);
+        const balance = await this.getTokenBalance(provider, walletKey.address as Address, tokenAddress);
 
         if (balance >= minBalance) {
           // Update balance gauge
@@ -345,22 +348,19 @@ export class WalletManagerService implements OnModuleInit {
   }
 
   /**
-   * Get encrypted key data from vault
+   * Get encrypted key data from vault (on-demand, not cached).
+   *
+   * D4-B-4-KEYS: retrieveEncryptedKey now reads the ciphertext from the store
+   * (wallet_keys table) on demand. The returned blob still needs
+   * decryptPrivateKey to yield the signing key — the plaintext exists only
+   * inside that call.
    */
-  private getEncryptedKey(keyId: string): EncryptedKey {
-    const encryptedKey = this.keyVaultService.retrieveEncryptedKey(keyId);
+  private async getEncryptedKey(keyId: string): Promise<EncryptedKey> {
+    const encryptedKey = await this.keyVaultService.retrieveEncryptedKey(keyId);
     if (!encryptedKey) {
       throw new Error(`Encrypted key not found for keyId: ${keyId} — ensure key was stored via encryptPrivateKey or storeEncryptedKey`);
     }
     return encryptedKey;
-  }
-
-  /**
-   * Clear wallet cache (useful for key rotation)
-   */
-  clearWalletCache(): void {
-    this.walletCache.clear();
-    this.logger.debug('Wallet cache cleared');
   }
 
   /**

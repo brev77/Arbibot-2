@@ -9,6 +9,7 @@ import {
   OutboxEventEntity,
   OnChainTransaction,
   WalletState,
+  WalletKeyEntity,
 } from '@arbibot/persistence';
 
 @Module({
@@ -20,6 +21,7 @@ import {
       OutboxEventEntity,
       OnChainTransaction,
       WalletState,
+      WalletKeyEntity,
       DexDailyVolumeEntity,
     ]),
   ],

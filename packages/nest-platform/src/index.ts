@@ -34,5 +34,8 @@ export {
   KeyVaultService,
   EncryptedKey,
   WalletKey,
+  WALLET_KEY_STORE,
+  type WalletKeyStore,
+  type WalletKeyRecord,
 } from './vault';
 export * from './service-auth';

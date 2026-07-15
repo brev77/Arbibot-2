@@ -40,6 +40,7 @@ export { WatchlistTierSnapshotEntity } from './watchlist-tier-snapshot.entity';
 export { BridgeTransferEntity } from './bridge-transfer.entity';
 export { OnChainTransaction } from './on-chain-transaction.entity';
 export { WalletState } from './wallet-state.entity';
+export { WalletKeyEntity } from './wallet-key.entity';
 export { DexPool } from './dex-pool.entity';
 export { DexDailyVolumeEntity } from './dex-daily-volume.entity';
 export { Approval } from './approval.entity';
@@ -77,6 +78,7 @@ import { WatchlistTierSnapshotEntity } from './watchlist-tier-snapshot.entity';
 import { BridgeTransferEntity } from './bridge-transfer.entity';
 import { OnChainTransaction } from './on-chain-transaction.entity';
 import { WalletState } from './wallet-state.entity';
+import { WalletKeyEntity } from './wallet-key.entity';
 import { DexPool } from './dex-pool.entity';
 import { DexDailyVolumeEntity } from './dex-daily-volume.entity';
 import { Approval } from './approval.entity';
@@ -116,6 +118,7 @@ export const ARBIBOT_TYPEORM_ENTITIES = [
   BridgeTransferEntity,
   OnChainTransaction,
   WalletState,
+  WalletKeyEntity,
   DexPool,
   DexDailyVolumeEntity,
   Approval,
