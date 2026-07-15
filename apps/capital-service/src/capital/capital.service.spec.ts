@@ -8,18 +8,31 @@ import type {
 import type { DataSource, EntityManager, Repository } from 'typeorm';
 
 import { ReserveCapitalDto } from './dto/reserve-capital.dto';
-import { CapitalService } from './capital.service';
+import { CapitalService, CapitalCeilingExceededError } from './capital.service';
+import type { CapitalLimitsService } from './capital-limits.service';
 
 describe('CapitalService', () => {
   let service: CapitalService;
   let reservations: CapitalReservationEntity[];
   let outbox: OutboxEventEntity[];
   const auditRecord = jest.fn();
+  // D4-B-3-CEILING: em.query mock returning aggregate SUMs for the ceiling
+  // check. [0]=reservations SUM, [1]=positions SUM (each query returns rows).
+  let queryResults: Array<Array<{ sum: string }>>;
+  const auditRecord_mock = auditRecord;
+  let limitsMock: { getMaxActiveCapitalUsd: jest.Mock };
 
   beforeEach(() => {
     jest.clearAllMocks();
     reservations = [];
     outbox = [];
+    queryResults = [
+      [{ sum: '0' }], // active reservations SUM
+      [{ sum: '0' }], // open positions SUM
+    ];
+    limitsMock = {
+      getMaxActiveCapitalUsd: jest.fn().mockResolvedValue(1000),
+    };
     const em = {
       create: jest.fn((_Entity: unknown, row: object) => ({ ...row })),
       save: jest.fn(
@@ -50,6 +63,7 @@ describe('CapitalService', () => {
           reservations.find((r) => r.id === opts.where.id) ?? null,
         );
       }),
+      query: jest.fn(async () => Promise.resolve(queryResults.shift() ?? [{ sum: '0' }])),
     } as unknown as EntityManager;
 
     const dataSource = {
@@ -60,10 +74,11 @@ describe('CapitalService', () => {
 
     const repo = {} as unknown as Repository<CapitalReservationEntity>;
     const audit = {
-      record: auditRecord,
+      record: auditRecord_mock,
       appendEntry: jest.fn(),
     };
-    service = new CapitalService(dataSource, repo, audit);
+    void auditRecord_mock;
+    service = new CapitalService(dataSource, repo, audit, limitsMock as unknown as CapitalLimitsService);
   });
 
   function validDto(over?: Partial<ReserveCapitalDto>): ReserveCapitalDto {
@@ -126,6 +141,7 @@ describe('CapitalService', () => {
       dataSource,
       {} as unknown as Repository<CapitalReservationEntity>,
       { record: jest.fn(), appendEntry: jest.fn() },
+      { getMaxActiveCapitalUsd: jest.fn().mockResolvedValue(1000) } as unknown as CapitalLimitsService,
     );
     await expect(svc.getById('33333333-3333-4333-8333-333333333333')).rejects.toThrow(
       NotFoundException,
@@ -147,5 +163,75 @@ describe('CapitalService', () => {
     await expect(
       service.release('55555555-5555-4555-8555-555555555555'),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────
+  // D4-B-3-CEILING: aggregate capital ceiling (reservations + open positions)
+  // ─────────────────────────────────────────────────────────────────────
+
+  describe('D4-B-3-CEILING aggregate capital ceiling', () => {
+    function setSums(reservationsSum: string, positionsSum: string): void {
+      queryResults = [[{ sum: reservationsSum }], [{ sum: positionsSum }]];
+    }
+
+    it('creates the reservation when active total + requested <= ceiling', async () => {
+      // default ceiling = 1000, active = 0, requested = 1000 → allowed (<=).
+      const row = await service.reserve(validDto({ amountUsd: 1000 }));
+      expect(row.id).toBe('22222222-2222-4222-8222-222222222222');
+      expect(outbox).toHaveLength(1);
+      expect(auditRecord).toHaveBeenCalled();
+    });
+
+    it('throws CapitalCeilingExceededError (422) and creates no reservation/outbox when over ceiling', async () => {
+      setSums('600', '0'); // 600 active + 1000 requested > 1000 ceiling
+      await expect(service.reserve(validDto({ amountUsd: 1000 }))).rejects.toBeInstanceOf(
+        CapitalCeilingExceededError,
+      );
+      expect(reservations).toHaveLength(0);
+      expect(outbox).toHaveLength(0);
+      expect(auditRecord).not.toHaveBeenCalled();
+    });
+
+    it('counts open positions into the active aggregate', async () => {
+      // 0 reservations + 950 open positions + 100 requested = 1050 > 1000
+      setSums('0', '950');
+      await expect(service.reserve(validDto({ amountUsd: 100 }))).rejects.toBeInstanceOf(
+        CapitalCeilingExceededError,
+      );
+    });
+
+    it('treats an empty table as active_total = 0 (COALESCE edge)', async () => {
+      setSums('0', '0');
+      const row = await service.reserve(validDto({ amountUsd: 500 }));
+      expect(row.id).toBe('22222222-2222-4222-8222-222222222222');
+    });
+
+    it('propagates fail-closed when CapitalLimitsService throws (prod, unresolved)', async () => {
+      limitsMock.getMaxActiveCapitalUsd.mockRejectedValue(
+        new (class extends Error {
+          constructor() {
+            super('ServiceUnavailable');
+            this.name = 'ServiceUnavailableException';
+          }
+        })(),
+      );
+      await expect(service.reserve(validDto({ amountUsd: 100 }))).rejects.toThrow(
+        'ServiceUnavailable',
+      );
+      expect(reservations).toHaveLength(0);
+      expect(outbox).toHaveLength(0);
+    });
+
+    it('blocks when the limits service returns a tightened ceiling', async () => {
+      // The env-override lower-bound logic lives in CapitalLimitsService (see
+      // capital-limits.service.spec). Here we assert CapitalService respects
+      // whatever ceiling the limits service returns — a tightened 50.
+      limitsMock.getMaxActiveCapitalUsd.mockResolvedValue(50);
+      setSums('0', '0');
+      // 100 requested > 50 → blocked.
+      await expect(service.reserve(validDto({ amountUsd: 100 }))).rejects.toBeInstanceOf(
+        CapitalCeilingExceededError,
+      );
+    });
   });
 });

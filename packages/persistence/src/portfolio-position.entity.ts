@@ -20,6 +20,15 @@ export class PortfolioPositionEntity {
   @Column({ type: 'numeric', precision: 38, scale: 18, default: 0 })
   quantity!: string;
 
+  /**
+   * Cumulative USD notional of fills for this position (D4-B-3-CEILING).
+   * Single-writer: portfolio-service (`PositionsService.confirmFill`). Counted
+   * into the aggregate capital ceiling in capital-service when `quantity <> 0`
+   * (open). Defaults to '0'; existing rows backfilled by migration 040.
+   */
+  @Column({ name: 'notional_usd', type: 'numeric', precision: 24, scale: 8, default: '0' })
+  notionalUsd!: string;
+
   @Column({ name: 'entity_version', type: 'int', default: 1 })
   entityVersion!: number;
 

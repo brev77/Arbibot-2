@@ -50,10 +50,13 @@ The deployment-readiness review (2026-07) found 8 capital-critical blockers (L1�
 
 ### 3. Aggregate capital ceiling (L3) — `D4-B-3`
 
-- **Mechanism:** inside `capital.service.reserve()` transaction, before the insert, run `SELECT COALESCE(SUM(amount_usd),0) AS active_total FROM capital_reservations WHERE state='active' FOR UPDATE;` and assert `active_total + dto.amountUsd <= ceiling`. Throw `CapitalCeilingExceeded` (→ 422 to caller) on violation.
+> **Implementation complete (2026-07-15).** Migrations `040_portfolio_positions_notional_usd.sql` + `041_capital_limits_seed.sql`; `CapitalLimitsService` (config-service reader + fail-closed env `CAPITAL_MAX_ACTIVE_USD`); `CapitalService.reserve()` enforces the gate under `FOR UPDATE`. **Open positions are included** (full C1.3) via `portfolio_positions.notional_usd` (single-writer = `PositionsService.confirmFill`, populated from execution-orchestrator's price-oracle re-price at fill time). Tests: capital-service 18/18, portfolio-service 13/13, execution-orchestrator 494/494, persistence 5/5. See `.cursor/plans/deploy-readiness/D4-B-3-CEILING.md`.
+
+- **Mechanism:** inside `capital.service.reserve()` transaction, before the insert, run `SELECT COALESCE(SUM(amount_usd),0) AS active_total FROM capital_reservations WHERE state='active' FOR UPDATE;` and assert `active_total + dto.amountUsd <= ceiling`. Throw `CapitalCeilingExceededError` (→ 422 to caller) on violation.
 - **`FOR UPDATE`** on the aggregate row set serializes concurrent reservations and closes the C1 race.
-- **Ceiling source:** new config key `capital.limits` (seeded by a new migration): `{ maxActiveCapitalUsd, maxDailyNotionalUsd }`. Fallback: env `CAPITAL_MAX_ACTIVE_USD` (fail-closed if neither set in prod).
-- **Metric:** `arb_capital_ceiling_used_ratio` gauge (`active_total / ceiling`) for Alertmanager.
+- **Open positions included (C1.3):** a second `SELECT COALESCE(SUM(notional_usd),0) FROM portfolio_positions WHERE quantity <> 0` is added to `active_total`. `portfolio_positions.notional_usd` is populated by portfolio-service's `confirmFill` from a USD notional that execution-orchestrator computes at fill time via `PriceOracleService` (re-prices `tokenIn`; oracle-null → '0', never blocks the post-broadcast fill). capital-service is a **read-only** consumer (single-writer for that table remains portfolio-service).
+- **Ceiling source:** new config key `capital.limits` (seeded by migration 041): `{ maxActiveCapitalUsd, maxDailyNotionalUsd }`. Fallback: env `CAPITAL_MAX_ACTIVE_USD` (fail-closed if neither set in prod).
+- **Metric:** `arb_capital_ceiling_active_usd` gauge (`SUM active reservations + SUM open positions`) set at each `reserve()` check, for Alertmanager.
 
 ### 4. Key management (L4) — `D4-B-4`
 

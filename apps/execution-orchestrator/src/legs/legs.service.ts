@@ -63,6 +63,31 @@ export function resolveInstrumentKeyForPlan(plan: ExecutionPlanEntity): string {
   return `arb:execution-plan:${plan.id}`;
 }
 
+/**
+ * D4-B-3-CEILING: read a DEX leg's `tokenIn` from the multi-leg playbook
+ * (`config.legs[legIndex].tokenIn`, D4-B-2c format). Returns `null` when the
+ * leg is not a priced DEX leg (bridge legs, missing config) — the caller then
+ * leaves the fill notional as '0'.
+ */
+export function readLegTokenIn(
+  playbookConfig: Record<string, unknown> | null,
+  legIndex: number,
+): string | null {
+  if (playbookConfig === null || typeof playbookConfig !== 'object') {
+    return null;
+  }
+  const legs = (playbookConfig as { legs?: unknown }).legs;
+  if (!Array.isArray(legs)) {
+    return null;
+  }
+  const entry = legs[legIndex];
+  if (entry === null || typeof entry !== 'object') {
+    return null;
+  }
+  const tokenIn = (entry as { tokenIn?: unknown }).tokenIn;
+  return typeof tokenIn === 'string' && tokenIn.length > 0 ? tokenIn : null;
+}
+
 
 import type { ApplyFillDto } from './dto/apply-fill.dto';
 import { executionLegPartialFillCommits } from './execution-leg-metrics';
@@ -413,6 +438,11 @@ export class LegsService {
         : `execution:ApplyFill:${legId}:v${dto.clientKnownVersion ?? 'na'}`;
     let correlationId: string | null = null;
     let instrumentKeyForSettlement: string | null = null;
+    // D4-B-3-CEILING: leg context for pricing the fill into a USD notional
+    // (resolved inside the tx from on-chain tx + playbook leg; passed out so
+    // the post-commit settlement can re-price via PriceOracleService).
+    let chainIdForSettlement: number | undefined;
+    let tokenInForSettlement: string | undefined;
     const view = await this.dataSource.transaction(async (em) => {
       const plan = await em.findOne(ExecutionPlanEntity, {
         where: { id: planId },
@@ -530,6 +560,12 @@ export class LegsService {
           where: { legId: saved.id, status: 'confirmed' },
           order: { createdAt: 'DESC' },
         });
+        // D4-B-3-CEILING: capture chainId from the confirmed on-chain tx so the
+        // post-commit settlement can price the fill into a USD notional. Absent
+        // (non-DEX leg / no confirmed tx) → FillOutboundService prices '0'.
+        if (onChainTx !== null) {
+          chainIdForSettlement = onChainTx.chainId;
+        }
         const dexMeta = onChainTx !== null
           ? {
               txHash: onChainTx.txHash,
@@ -585,6 +621,13 @@ export class LegsService {
       });
       if (saved.state === 'filled') {
         instrumentKeyForSettlement = resolveInstrumentKeyForPlan(plan);
+        // D4-B-3-CEILING: tokenIn from the multi-leg playbook
+        // (config.legs[legIndex].tokenIn, D4-B-2c format). Absent → FillOutboundService
+        // prices notional as '0' (non-fatal).
+        const legTokenIn = readLegTokenIn(plan.playbookConfig, saved.legIndex);
+        if (legTokenIn !== null) {
+          tokenInForSettlement = legTokenIn;
+        }
       }
       return legView(saved);
     });
@@ -597,6 +640,8 @@ export class LegsService {
         filledQuantity: view.filledQuantity,
         instrumentKey: instrumentKeyForSettlement,
         correlationId,
+        chainId: chainIdForSettlement,
+        tokenIn: tokenInForSettlement,
       });
     }
 

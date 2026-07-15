@@ -1,9 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 
 import { PORTFOLIO_HTTP_ROUTES } from '@arbibot/contracts';
+import { Address } from '@arbibot/contracts-eth';
 import { getCorrelationId } from '@arbibot/nest-platform';
 
 import { PlansService } from '../plans/plans.service';
+import { PriceOracleService } from '../execution/price/price-oracle.service';
 
 export type LegFilledSettlementArgs = {
   readonly planId: string;
@@ -13,6 +15,14 @@ export type LegFilledSettlementArgs = {
   /** Canonical portfolio grouping key (plan `routeKey`, risk decision, or plan id). */
   readonly instrumentKey: string;
   readonly correlationId: string | null;
+  /**
+   * Optional DEX leg context used to price the fill into a USD notional
+   * (D4-B-3-CEILING). Resolved by the caller from the leg's on-chain tx
+   * (`chainId`) + playbook leg (`tokenIn`). Absent for non-DEX legs → notional
+   * stays '0' (position row still created by portfolio-service).
+   */
+  readonly chainId?: number;
+  readonly tokenIn?: string;
 };
 
 const TRANSIENT_HTTP = new Set([429, 502, 503, 504]);
@@ -59,7 +69,12 @@ async function fetchWithRetry(
  */
 @Injectable()
 export class FillOutboundService {
-  constructor(private readonly plans: PlansService) {}
+  private readonly logger = new Logger(FillOutboundService.name);
+
+  constructor(
+    private readonly plans: PlansService,
+    private readonly priceOracle: PriceOracleService,
+  ) {}
 
   async afterLegFullyFilled(args: LegFilledSettlementArgs): Promise<void> {
     // Always mark plan completed when all legs are filled — this must not be
@@ -117,6 +132,7 @@ export class FillOutboundService {
       legId: args.legId,
       instrumentKey: args.instrumentKey,
       quantity: String(args.filledQuantity),
+      notionalUsd: await this.priceFillNotional(args),
       idempotencyKey: `portfolio:fill:${args.legId}`,
     };
     const res = await fetchWithRetry(url, { method: 'POST', headers, body: JSON.stringify(body) });
@@ -124,6 +140,48 @@ export class FillOutboundService {
       throw new Error(
         `Portfolio confirm-fill failed: ${res.status} ${await res.text()}`,
       );
+    }
+  }
+
+  /**
+   * D4-B-3-CEILING: price a just-filled leg into a USD notional string so
+   * portfolio-service can accumulate it into `portfolio_positions.notional_usd`
+   * (counted into the aggregate capital ceiling when the position is open).
+   *
+   * Re-prices `tokenIn` via the price oracle at fill time. Best-effort: oracle
+   * `null` or missing leg context → '0' (position row still created; settlement
+   * is already post-broadcast, so a missing notional must never block the fill).
+   */
+  private async priceFillNotional(args: LegFilledSettlementArgs): Promise<string> {
+    if (args.chainId === undefined || args.tokenIn === undefined) {
+      return '0';
+    }
+    try {
+      const tokenIn = args.tokenIn as Address;
+      const priceUsd = await this.priceOracle.getTokenPriceUsd(args.chainId, tokenIn);
+      if (priceUsd === null) {
+        this.logger.warn(
+          `priceFillNotional: oracle returned null for tokenIn=${args.tokenIn} on chain=${args.chainId}; notional=0`,
+        );
+        return '0';
+      }
+      const decimals = await this.priceOracle.getTokenDecimals(args.chainId, tokenIn);
+      if (decimals === null) {
+        this.logger.warn(
+          `priceFillNotional: decimals unresolved for tokenIn=${args.tokenIn} on chain=${args.chainId}; notional=0`,
+        );
+        return '0';
+      }
+      const units = args.filledQuantity / 10 ** decimals;
+      const notionalUsd = units * priceUsd;
+      return Number.isFinite(notionalUsd) && notionalUsd > 0
+        ? notionalUsd.toFixed(8)
+        : '0';
+    } catch (e) {
+      this.logger.warn(
+        `priceFillNotional failed (chain=${args.chainId}, tokenIn=${args.tokenIn}): ${e instanceof Error ? e.message : String(e)}; notional=0`,
+      );
+      return '0';
     }
   }
 

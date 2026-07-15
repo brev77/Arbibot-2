@@ -56,12 +56,20 @@ export class PositionsService {
           planId: dto.planId,
           instrumentKey: dto.instrumentKey,
           quantity: '0',
+          notionalUsd: '0',
           entityVersion: 1,
         });
         await em.save(pos);
       }
 
       pos.quantity = addNonNegativeDecimalStrings(pos.quantity, dto.quantity);
+      // D4-B-3-CEILING: accumulate USD notional alongside quantity. Defaults to
+      // '0' when the caller omits it (backward-compat); the position row is
+      // still created so the fill is not lost.
+      pos.notionalUsd = addNonNegativeDecimalStrings(
+        pos.notionalUsd ?? '0',
+        dto.notionalUsd ?? '0',
+      );
       pos.entityVersion += 1;
       await em.save(pos);
 
