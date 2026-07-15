@@ -80,6 +80,24 @@ export class BridgeTransferEntity {
   @Column({ name: 'idempotency_key', type: 'text', unique: true })
   idempotencyKey!: string;
 
+  // ── Finality tracking (D4-B-5-BRIDGE, L5) ──────────────────────────────
+  /** Confirmations observed on the source chain TX. Updated by pollAndUpdateStatus. */
+  @Column({ name: 'source_confirmations', type: 'integer', default: 0 })
+  sourceConfirmations!: number;
+
+  /** Chain-specific required confirmations snapshotted at submit. */
+  @Column({ name: 'required_confirmations', type: 'integer', default: 0 })
+  requiredConfirmations!: number;
+
+  /** Confirmations observed on the destination chain fill TX (0 until delivery verified). */
+  @Column({ name: 'destination_confirmations', type: 'integer', default: 0 })
+  destinationConfirmations!: number;
+
+  /** Timestamp when destination delivery was proven on-chain (completed). */
+  @Column({ name: 'finalized_at', type: 'timestamptz', nullable: true })
+  finalizedAt!: Date | null;
+  // ────────────────────────────────────────────────────────────────────────
+
   @Column({ name: 'submitted_at', type: 'timestamptz', nullable: true })
   submittedAt!: Date | null;
 
