@@ -1,5 +1,5 @@
 import { Address } from '../types/address';
-import { ChainId } from '../types/chain-id';
+import { ChainId, isMainnet } from '../types/chain-id';
 
 /**
  * Bridge contract addresses.
@@ -155,22 +155,70 @@ export function isStargateSupportedChainPair(
 }
 
 // ───────────────────────────────────────────────────────────────────────
+// LayerZero V2 Endpoint (D4-B-5-BRIDGE, L5)
+// ───────────────────────────────────────────────────────────────────────
+//
+// The LayerZero V2 Endpoint is deployed at the SAME canonical address on every
+// supported EVM chain (mainnet). Used to verify Stargate swap delivery via
+// `delivered(guid)`. Stargate messages are dispatched through this endpoint.
+//
+// Reference: https://docs.layerzero.network/v2/deployments/deployed-contracts
+export const LAYERZERO_ENDPOINT_V2: Address = '0x1a44076050125825900e736c501f859c50fE728c';
+
+/** Testnet (Sepolia) LayerZero V2 Endpoint — used for testnet Stargate verification. */
+export const LAYERZERO_ENDPOINT_V2_TESTNET: Address = '0x6EDCE65403992e310A62460808c4b910D972f10f';
+
+/**
+ * Resolve the LayerZero V2 Endpoint address for a chain ID.
+ *
+ * Returns the canonical mainnet endpoint for mainnet chains, the Sepolia endpoint
+ * for testnet chains (Ethereum/Arbitrum/Base Sepolia). Throws for unknown chains.
+ */
+export function getLayerZeroEndpoint(chainId: number): Address {
+  if (isMainnet(chainId)) {
+    return LAYERZERO_ENDPOINT_V2;
+  }
+  // Sepolia-family testnets share a testnet endpoint deployment.
+  const testnetChains = [
+    ChainId.ETHEREUM_TESTNET_SEPOLIA,
+    ChainId.ARBITRUM_ONE_SEPOLIA,
+    ChainId.BASE_SEPOLIA,
+    ChainId.BNB_CHAIN_TESTNET,
+  ];
+  if (testnetChains.includes(chainId)) {
+    return LAYERZERO_ENDPOINT_V2_TESTNET;
+  }
+  throw new Error(`LayerZero V2: no Endpoint address for chainId ${chainId}`);
+}
+
+// ───────────────────────────────────────────────────────────────────────
 // Native / Canonical L2 Bridges
 // ───────────────────────────────────────────────────────────────────────
 
 /**
  * Native bridge type discriminator.
- * - 'arbitrum-inbox': Arbitrum canonical bridge (L1 Inbox depositEth)
+ * - 'arbitrum-inbox': Arbitrum canonical bridge (L1 Inbox depositEth) — L1→L2
+ * - 'arbitrum-outbox': Arbitrum canonical bridge (L1 Outbox) — L2→L1 withdrawal finalization
  * - 'l1-standard-bridge': Optimism Standard Bridge on L1 (ETH→Base deposit)
  * - 'l2-standard-bridge': Optimism Standard Bridge on L2 (Base→ETH withdrawal)
  */
-export type NativeBridgeType = 'arbitrum-inbox' | 'l1-standard-bridge' | 'l2-standard-bridge';
+export type NativeBridgeType =
+  | 'arbitrum-inbox'
+  | 'arbitrum-outbox'
+  | 'l1-standard-bridge'
+  | 'l2-standard-bridge';
 
 export interface NativeBridgeAddresses {
-  /** Bridge contract address. */
+  /** Bridge contract address (initiation side: Inbox / L1StandardBridge / L2StandardBridge). */
   bridge: Address;
   /** Bridge type (determines ABI + method). */
   bridgeType: NativeBridgeType;
+  /** L1 Outbox address (Arbitrum L2→L1 finalization, D4-B-5-BRIDGE). Only for arbitrum-outbox. */
+  outbox?: Address;
+  /** L1 OptimismPortal address (OP L2→L1 finalization, D4-B-5-BRIDGE). Only for l2-standard-bridge. */
+  optimismPortal?: Address;
+  /** L2 L2ToL1MessagePasser predeploy (OP L2→L1 withdrawal hash source). Only for l2-standard-bridge. */
+  l2ToL1MessagePasser?: Address;
 }
 
 /**
@@ -190,20 +238,23 @@ export const NATIVE_MAINNET: Record<string, NativeBridgeAddresses> = {
     bridge: '0x6c5c509c248a3bb1C32979b49ceC4ADa02F2D92F',
     bridgeType: 'arbitrum-inbox',
   },
-  // Arbitrum → ETH (withdrawal initiated on L2 — tracked via gateway)
+  // Arbitrum → ETH (L2→L1 withdrawal; initiated on L2, finalized via L1 Outbox)
   '42161-1': {
-    bridge: '0x0000000000000000000000000000000000000064', // Arbitrum L2 Outbox (pre-defined)
-    bridgeType: 'arbitrum-inbox',
+    bridge: '0x0000000000000000000000000000000000000064', // Arbitrum L2 Outbox system precompile (L2 side)
+    bridgeType: 'arbitrum-outbox',
+    outbox: '0x667e23abD27e623C11D4cc00Ca3eC4D0bd63337a', // L1 Outbox — executeTransaction / outboxEntryExists
   },
   // ETH → Base (L1StandardBridge deposit)
   '1-8453': {
     bridge: '0x3154Cf16ccdb4C6d922629664174b904d80F2C35',
     bridgeType: 'l1-standard-bridge',
   },
-  // Base → ETH (L2StandardBridge withdrawal)
+  // Base → ETH (L2StandardBridge withdrawal; finalized via L1 OptimismPortal after 7-day window)
   '8453-1': {
     bridge: '0x4200000000000000000000000000000000000010',
     bridgeType: 'l2-standard-bridge',
+    optimismPortal: '0xbEb5Fc579115071764c7423A4fB5eD9aB6d3C91E', // L1 OptimismPortal (Base)
+    l2ToL1MessagePasser: '0x4200000000000000000000000000000000000016', // Base L2 predeploy
   },
 };
 
@@ -218,20 +269,23 @@ export const NATIVE_TESTNET: Record<string, NativeBridgeAddresses> = {
     bridge: '0x56d45f6E6679Eeb4a9c5b0D2C4e23B8a45a3e3D6',
     bridgeType: 'arbitrum-inbox',
   },
-  // Arbitrum Sepolia → ETH Sepolia
+  // Arbitrum Sepolia → ETH Sepolia (L2→L1; outbox address not configured for testnet →
+  // adapter holds 'confirming' until operator manual completion per runbook B1)
   '421614-11155111': {
     bridge: '0x0000000000000000000000000000000000000064',
-    bridgeType: 'arbitrum-inbox',
+    bridgeType: 'arbitrum-outbox',
   },
   // ETH Sepolia → Base Sepolia
   '11155111-84532': {
     bridge: '0x16Fc5058F25648194471939df75CF27A2fdC48BC',
     bridgeType: 'l1-standard-bridge',
   },
-  // Base Sepolia → ETH Sepolia
+  // Base Sepolia → ETH Sepolia (L2StandardBridge withdrawal; testnet OptimismPortal
+  // address not pinned — adapter holds 'confirming' until operator manual completion)
   '84532-11155111': {
     bridge: '0x4200000000000000000000000000000000000010',
     bridgeType: 'l2-standard-bridge',
+    l2ToL1MessagePasser: '0x4200000000000000000000000000000000000016', // Base Sepolia L2 predeploy
   },
 };
 

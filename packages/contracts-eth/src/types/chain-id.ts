@@ -95,3 +95,54 @@ export function isMainnet(chainId: ChainId): boolean {
 export function isTestnet(chainId: ChainId): boolean {
   return !isMainnet(chainId);
 }
+
+// ───────────────────────────────────────────────────────────────────────
+// Finality thresholds (D4-B-5-BRIDGE, L5)
+// ───────────────────────────────────────────────────────────────────────
+//
+// Chain-specific required confirmations for considering a transaction "final"
+// (reorg-safe). Used by BridgeFinalityService for source-chain finality before
+// destination delivery verification, and snapshotted onto bridge_transfers.
+//
+// Values reflect conservative reorg-safety thresholds:
+//   - Ethereum mainnet: 12 blocks (~2.5 min) — strong reorg safety.
+//   - L2 rollups (Arbitrum, Base): 1 confirmation — sequencer finality; the L1
+//     data-availability layer makes deep reorgs economically infeasible.
+//   - BNB Chain mainnet: 15 blocks (~45 s) — higher reorg risk, conservative.
+//   - Testnets (Sepolia family): 3 blocks — fast iteration, low-value traffic.
+//
+// Operators may OVERRIDE (tighten only) via the BRIDGE_FINALITY_CONFIRMATIONS
+// env var (JSON map of chainId → confirmations), parsed fail-closed by the
+// consumer (BridgeFinalityService): on parse error the defaults below are used.
+
+/**
+ * Default required confirmations per chain ID (mainnet + testnet).
+ */
+export const CHAIN_FINALITY_CONFIRMATIONS: Readonly<Record<number, number>> = {
+  // Ethereum
+  [ChainId.ETHEREUM_MAINNET]: 12,
+  [ChainId.ETHEREUM_TESTNET_SEPOLIA]: 3,
+
+  // L2 rollups — sequencer finality
+  [ChainId.ARBITRUM_ONE_MAINNET]: 1,
+  [ChainId.ARBITRUM_ONE_SEPOLIA]: 1,
+  [ChainId.BASE_MAINNET]: 1,
+  [ChainId.BASE_SEPOLIA]: 1,
+
+  // BNB Chain — higher reorg risk
+  [ChainId.BNB_CHAIN_MAINNET]: 15,
+  [ChainId.BNB_CHAIN_TESTNET]: 3,
+};
+
+/** Safe default when a chain ID is not in the map (unknown chain → conservative). */
+export const DEFAULT_FINALITY_CONFIRMATIONS = 12;
+
+/**
+ * Get the required number of confirmations for a chain ID.
+ *
+ * Returns the chain-specific threshold from CHAIN_FINALITY_CONFIRMATIONS, or
+ * the conservative DEFAULT_FINALITY_CONFIRMATIONS for unknown chains.
+ */
+export function getRequiredConfirmations(chainId: number): number {
+  return CHAIN_FINALITY_CONFIRMATIONS[chainId] ?? DEFAULT_FINALITY_CONFIRMATIONS;
+}
