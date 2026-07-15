@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Interface, JsonRpcProvider, ZeroAddress } from 'ethers';
+import { Contract, Interface, JsonRpcProvider, ZeroAddress } from 'ethers';
 import { Counter, Histogram } from 'prom-client';
 import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
 import {
@@ -12,10 +12,12 @@ import {
 import type {
   BridgeAdapter,
   BridgeFeeEstimate,
+  BridgeStatusContext,
   BridgeStatusResult,
   BridgeSubmitResult,
   BridgeTransferParams,
 } from './bridge-adapter.interface';
+import { BridgeFinalityService } from './bridge-finality.service';
 
 /** Narrow string → Address for ethers.js interop. */
 const asAddr = (v: string): `0x${string}` => v as `0x${string}`;
@@ -80,6 +82,7 @@ export class AcrossBridgeAdapter implements BridgeAdapter {
     private readonly walletManager: WalletManagerService,
     private readonly gasEstimator: GasEstimatorService,
     private readonly tokenApprove: TokenApproveService,
+    private readonly finalityService: BridgeFinalityService,
   ) {
     this.supportedChains = this.buildSupportedChains();
     this.initializeMetrics();
@@ -225,18 +228,166 @@ export class AcrossBridgeAdapter implements BridgeAdapter {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await
-  async checkBridgeStatus(bridgeId: string): Promise<BridgeStatusResult> {
-    // TODO: Implement on-chain status polling via SpokePool.filledDeposits(depositId)
-    // For now, return pending status — full implementation in DEX-2-1 integration testing
-    this.logger.debug(`checkBridgeStatus: depositId=${bridgeId} → pending (stub)`);
-    return {
-      status: 'pending',
-      sourceTxHash: '',
-      destinationTxHash: null,
-      confirmations: 0,
-      estimatedCompletionMs: DEFAULT_ESTIMATED_RELAY_MS,
-    };
+  /**
+   * Check bridge transfer status with source finality + destination delivery.
+   *
+   * D4-B-5-BRIDGE (L5):
+   * 1. Source-chain finality — wait for chain-specific confirmations (reorg safety).
+   * 2. Destination delivery — query the destination SpokePool for `FilledV3Relay`
+   *    event filtered by depositId (gives the destination fill tx hash), and
+   *    verify `filledDeposits(depositId) > 0`.
+   * 3. `completed` only when BOTH source finalized AND destination delivery proven.
+   *
+   * Fail-closed: on any RPC error, returns the current non-completed status
+   * (never `'completed'` or `'failed'` on transient errors).
+   */
+  async checkBridgeStatus(ctx: BridgeStatusContext): Promise<BridgeStatusResult> {
+    const { bridgeId: depositId, sourceChainId, destinationChainId, sourceTxHash } = ctx;
+
+    // 1. Source-chain finality
+    const sourceConfirmations = await this.finalityService.getSourceConfirmations(
+      sourceTxHash,
+      sourceChainId,
+    );
+    const requiredConfirmations = this.finalityService.getRequiredConfirmationsFor(sourceChainId);
+
+    if (sourceConfirmations < requiredConfirmations) {
+      return {
+        status: sourceConfirmations > 0 ? 'relaying' : 'pending',
+        sourceTxHash,
+        destinationTxHash: null,
+        confirmations: sourceConfirmations,
+        estimatedCompletionMs: DEFAULT_ESTIMATED_RELAY_MS,
+      };
+    }
+
+    // 2. Destination delivery verification
+    try {
+      const destProvider = this.rpcProviderManager.getProvider(destinationChainId) as JsonRpcProvider;
+      const destSpokePool = getAcrossAddresses(destinationChainId).spokePool as string;
+      const spokePool = new Contract(destSpokePool, new Interface(AcrossSpokePoolABI), destProvider);
+
+      // Fast existence check: filledDeposits(depositId) > 0 means a relayer filled it.
+      // The ABI declares uint256 return; canonical Across V3 returns the filled amount.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const filledAmount = BigInt(await (spokePool as any).filledDeposits(depositId));
+      if (filledAmount <= 0n) {
+        // Source finalized but relay not filled yet — relaying in progress.
+        this.logger.debug(
+          `checkBridgeStatus: depositId=${depositId} not filled yet (source finalized, awaiting relayer)`,
+        );
+        return {
+          status: 'relaying',
+          sourceTxHash,
+          destinationTxHash: null,
+          confirmations: sourceConfirmations,
+          estimatedCompletionMs: DEFAULT_ESTIMATED_RELAY_MS,
+        };
+      }
+
+      // Locate the destination fill tx hash via the FilledV3Relay event.
+      const destinationTxHash = await this.findFilledRelayTxHash(
+        destSpokePool,
+        destinationChainId,
+        depositId,
+      );
+
+      if (!destinationTxHash) {
+        // filledDeposits > 0 but the event filter found nothing — treat as confirming
+        // (capital-safe: do NOT mark completed without the dest tx hash).
+        this.logger.warn(
+          `checkBridgeStatus: depositId=${depositId} filledDeposits>0 but no FilledV3Relay event found`,
+        );
+        return {
+          status: 'confirming',
+          sourceTxHash,
+          destinationTxHash: null,
+          confirmations: sourceConfirmations,
+          estimatedCompletionMs: DEFAULT_ESTIMATED_RELAY_MS,
+        };
+      }
+
+      // Destination fill tx confirmed → completed (capital-safe).
+      const destConfirmations = await this.finalityService.getSourceConfirmations(
+        destinationTxHash,
+        destinationChainId,
+      );
+
+      this.logger.log(
+        `checkBridgeStatus: depositId=${depositId} delivered destTx=${destinationTxHash} ` +
+        `(destConfirmations=${destConfirmations})`,
+      );
+
+      return {
+        status: 'completed',
+        sourceTxHash,
+        destinationTxHash,
+        confirmations: destConfirmations,
+        estimatedCompletionMs: 0,
+      };
+    } catch (error) {
+      // Fail-closed: transient RPC error → keep relaying (not completed, not failed).
+      this.logger.warn(
+        `checkBridgeStatus: destination verification error for depositId=${depositId}: ${String(error)}`,
+      );
+      return {
+        status: 'relaying',
+        sourceTxHash,
+        destinationTxHash: null,
+        confirmations: sourceConfirmations,
+        estimatedCompletionMs: DEFAULT_ESTIMATED_RELAY_MS,
+      };
+    }
+  }
+
+  /**
+   * Find the destination-chain fill tx hash for an Across depositId by scanning
+   * the destination SpokePool's `FilledV3Relay` event (depositId is indexed).
+   *
+   * Returns null if no matching event is found. Scans a recent window of blocks
+   * to bound the RPC cost.
+   */
+  private async findFilledRelayTxHash(
+    destSpokePool: string,
+    destinationChainId: number,
+    depositId: string,
+  ): Promise<string | null> {
+    const provider = this.rpcProviderManager.getProvider(destinationChainId) as JsonRpcProvider;
+    const iface = new Interface(AcrossSpokePoolABI);
+    const contract = new Contract(destSpokePool, iface, provider);
+
+    // FilledV3Relay: depositId is the first indexed param (topics[1]).
+    // Build an event filter for the depositId to narrow the query.
+    const currentBlock = await provider.getBlockNumber();
+    const fromBlock = Math.max(0, currentBlock - 10_000);
+
+    try {
+      // FilledV3Relay: depositId is indexed (topics[1]); build a filter to narrow.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const filterFn = (contract.filters as any).FilledV3Relay as
+        | ((depositId?: string) => unknown)
+        | undefined;
+      const filter = filterFn ? filterFn(depositId) : undefined;
+      const logs = filter
+        ? await contract.queryFilter(filter as never, fromBlock, currentBlock)
+        : await contract.queryFilter('FilledV3Relay', fromBlock, currentBlock);
+      for (const log of logs) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const parsed = log as any;
+        if (parsed.args?.depositId === depositId) {
+          return parsed.transactionHash ?? parsed.hash ?? null;
+        }
+        if (parsed.topics && parsed.topics[1] === depositId) {
+          return parsed.transactionHash ?? parsed.hash ?? null;
+        }
+      }
+    } catch (error) {
+      this.logger.warn(
+        `findFilledRelayTxHash: queryFilter error for depositId=${depositId}: ${String(error)}`,
+      );
+    }
+
+    return null;
   }
 
   // eslint-disable-next-line @typescript-eslint/require-await

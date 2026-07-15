@@ -5,6 +5,7 @@ import { BridgeTransferEntity } from '@arbibot/persistence';
 
 import type { BridgeAdapter, BridgeTransferParams } from './bridge-adapter.interface';
 import { BridgeTransferService } from './bridge-transfer.service';
+import { BridgeFinalityService } from './bridge-finality.service';
 
 describe('BridgeTransferService', () => {
   let service: BridgeTransferService;
@@ -24,6 +25,11 @@ describe('BridgeTransferService', () => {
   };
 
   const mockDataSource = { createQueryBuilder: jest.fn() };
+
+  const mockFinalityService = {
+    getRequiredConfirmationsFor: jest.fn().mockReturnValue(1),
+    getSourceConfirmations: jest.fn().mockResolvedValue(0),
+  };
 
   const mockAdapter: BridgeAdapter = {
     bridgeKey: 'across',
@@ -64,12 +70,15 @@ describe('BridgeTransferService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockFinalityService.getRequiredConfirmationsFor.mockReturnValue(1);
+    mockFinalityService.getSourceConfirmations.mockResolvedValue(0);
 
     const module = await Test.createTestingModule({
       providers: [
         BridgeTransferService,
         { provide: getRepositoryToken(BridgeTransferEntity), useValue: mockRepo },
         { provide: DataSource, useValue: mockDataSource },
+        { provide: BridgeFinalityService, useValue: mockFinalityService },
       ],
     }).compile();
 
@@ -106,6 +115,8 @@ describe('BridgeTransferService', () => {
       expect(mockFindOne).toHaveBeenCalledWith({
         where: { idempotencyKey: 'plan:1:across' },
       });
+      // required_confirmations snapshot captured at submit (D4-B-5-BRIDGE, L5)
+      expect(mockFinalityService.getRequiredConfirmationsFor).toHaveBeenCalledWith(42161);
       expect(mockSave).toHaveBeenCalled();
       expect(result.id).toBe('new-transfer-id');
     });
@@ -133,6 +144,21 @@ describe('BridgeTransferService', () => {
       await expect(
         service.submitBridgeTransfer(mockAdapter, defaultParams, 'leg-1'),
       ).rejects.toThrow('terminal state');
+    });
+
+    it('idempotent claim: re-submit returns existing active (B1)', async () => {
+      // B1 protection: a second submit with the same idempotency key must not
+      // create a duplicate — the existing active transfer is returned.
+      mockFindOne.mockResolvedValueOnce({
+        id: 'existing-active',
+        status: 'confirming',
+        idempotencyKey: 'plan:1:across',
+      });
+
+      const result = await service.submitBridgeTransfer(mockAdapter, defaultParams, 'leg-1');
+
+      expect(mockAdapter.submitBridgeTransfer).not.toHaveBeenCalled();
+      expect(result.id).toBe('existing-active');
     });
   });
 
@@ -175,6 +201,22 @@ describe('BridgeTransferService', () => {
       );
       expect(result.status).toBe('timed_out');
     });
+
+    it('should write errorMessage on timeout (L5)', async () => {
+      mockUpdate.mockResolvedValueOnce({ affected: 1 });
+      mockFindOne.mockResolvedValueOnce({
+        id: 'transfer-id',
+        status: 'timed_out',
+        errorMessage: 'relay deadline exceeded',
+      });
+
+      await service.markTimedOut('transfer-id', 'relay deadline exceeded');
+
+      expect(mockUpdate).toHaveBeenCalledWith(
+        'transfer-id',
+        expect.objectContaining({ errorMessage: 'relay deadline exceeded' }),
+      );
+    });
   });
 
   describe('getActiveTransfers', () => {
@@ -194,6 +236,125 @@ describe('BridgeTransferService', () => {
         ],
       });
       expect(results).toHaveLength(2);
+    });
+  });
+
+  describe('pollAndUpdateStatus', () => {
+    it('should transition to completed and set finalizedAt (L5)', async () => {
+      // Adapter reports completed with a destination tx hash.
+      (mockAdapter.checkBridgeStatus as jest.Mock).mockResolvedValueOnce({
+        status: 'completed',
+        sourceTxHash: '0xsrc',
+        destinationTxHash: '0xdest',
+        confirmations: 5,
+        estimatedCompletionMs: 0,
+      });
+      mockFindOne.mockResolvedValueOnce({
+        id: 'updated-id',
+        status: 'completed',
+        destinationTxHash: '0xdest',
+        finalizedAt: new Date(),
+      });
+
+      const entity = {
+        id: 't1',
+        bridgeId: 'bridge-123',
+        sourceChainId: 42161,
+        destinationChainId: 8453,
+        sourceTxHash: '0xsrc',
+        amount: '1000000000000000000',
+        tokenAddress: '0xtoken',
+        destinationTokenAddress: '0xdesttoken',
+        status: 'relaying',
+        destinationConfirmations: 0,
+        submittedAt: new Date(),
+      } as BridgeTransferEntity;
+
+      const updated = await service.pollAndUpdateStatus(entity, mockAdapter);
+
+      expect(mockAdapter.checkBridgeStatus).toHaveBeenCalledWith(
+        expect.objectContaining({
+          bridgeId: 'bridge-123',
+          sourceChainId: 42161,
+          destinationChainId: 8453,
+          sourceTxHash: '0xsrc',
+        }),
+      );
+      expect(mockUpdate).toHaveBeenCalledWith(
+        't1',
+        expect.objectContaining({
+          status: 'completed',
+          destinationTxHash: '0xdest',
+          finalizedAt: expect.any(Date),
+        }),
+      );
+      expect(updated.status).toBe('completed');
+    });
+
+    it('should write errorMessage on adapter-reported failed (L5)', async () => {
+      (mockAdapter.checkBridgeStatus as jest.Mock).mockResolvedValueOnce({
+        status: 'failed',
+        sourceTxHash: '0xsrc',
+        destinationTxHash: null,
+        confirmations: 0,
+        estimatedCompletionMs: 0,
+      });
+      mockFindOne.mockResolvedValueOnce({
+        id: 't1',
+        status: 'failed',
+        errorMessage: expect.any(String),
+      });
+
+      const entity = {
+        id: 't1',
+        bridgeId: 'bridge-123',
+        sourceChainId: 42161,
+        destinationChainId: 8453,
+        sourceTxHash: '0xsrc',
+        amount: '1',
+        tokenAddress: '0xtoken',
+        destinationTokenAddress: '0xdesttoken',
+        status: 'relaying',
+        bridgeKey: 'across',
+      } as BridgeTransferEntity;
+
+      await service.pollAndUpdateStatus(entity, mockAdapter);
+
+      expect(mockUpdate).toHaveBeenCalledWith(
+        't1',
+        expect.objectContaining({
+          status: 'failed',
+          errorMessage: expect.stringContaining('failed'),
+        }),
+      );
+    });
+
+    it('should not transition when status unchanged (no-op)', async () => {
+      (mockAdapter.checkBridgeStatus as jest.Mock).mockResolvedValueOnce({
+        status: 'pending',
+        sourceTxHash: '0xsrc',
+        destinationTxHash: null,
+        confirmations: 0,
+        estimatedCompletionMs: 0,
+      });
+
+      const entity = {
+        id: 't1',
+        bridgeId: 'bridge-123',
+        sourceChainId: 42161,
+        destinationChainId: 8453,
+        sourceTxHash: '0xsrc',
+        amount: '1',
+        tokenAddress: '0xtoken',
+        destinationTokenAddress: '0xdesttoken',
+        status: 'pending',
+        destinationConfirmations: 0,
+      } as BridgeTransferEntity;
+
+      await service.pollAndUpdateStatus(entity, mockAdapter);
+
+      // No status update issued when nothing changed.
+      expect(mockUpdate).not.toHaveBeenCalled();
     });
   });
 });

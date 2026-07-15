@@ -37,6 +37,7 @@ import { AcrossBridgeAdapter } from './bridge/across-bridge.adapter';
 import { StargateBridgeAdapter } from './bridge/stargate-bridge.adapter';
 import { NativeBridgeAdapter } from './bridge/native-bridge.adapter';
 import { BridgeTransferService } from './bridge/bridge-transfer.service';
+import { BridgeFinalityService } from './bridge/bridge-finality.service';
 import { BridgeAdapterFactoryService } from './bridge/bridge-adapter-factory.service';
 import { BridgeTransferPollingWorker } from './workers/bridge-transfer-polling.worker';
 import { CrossChainReconciliationService } from './reconciliation/cross-chain-reconciliation.service';
@@ -81,6 +82,7 @@ import { CrossChainReconWorker } from './workers/cross-chain-recon.worker';
     StargateBridgeAdapter,
     NativeBridgeAdapter,
     BridgeTransferService,
+    BridgeFinalityService,
     BridgeAdapterFactoryService,
     BridgeTransferPollingWorker,
     CrossChainReconciliationService,
@@ -110,6 +112,7 @@ import { CrossChainReconWorker } from './workers/cross-chain-recon.worker';
     StargateBridgeAdapter,
     NativeBridgeAdapter,
     BridgeTransferService,
+    BridgeFinalityService,
     BridgeAdapterFactoryService,
     BridgeTransferPollingWorker,
     CrossChainReconciliationService,

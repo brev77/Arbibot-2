@@ -3,12 +3,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, type QueryDeepPartialEntity } from 'typeorm';
 import { BridgeTransferEntity } from '@arbibot/persistence';
 
-import type { BridgeAdapter, BridgeTransferParams } from './bridge-adapter.interface';
+import type { BridgeAdapter, BridgeStatusContext, BridgeTransferParams } from './bridge-adapter.interface';
+import { BridgeFinalityService } from './bridge-finality.service';
 
 /**
  * Bridge transfer lifecycle service.
  *
- * Step: DEX-2-1-BRIDGE-ACROSS
+ * Step: DEX-2-1-BRIDGE-ACROSS  |  D4-B-5-BRIDGE (finality, L5)
  *
  * Manages bridge transfer records in `bridge_transfers` table.
  * Single-writer: execution-orchestrator.
@@ -18,6 +19,7 @@ import type { BridgeAdapter, BridgeTransferParams } from './bridge-adapter.inter
  * - Status tracking and polling
  * - Timeout detection
  * - Fill commitment
+ * - Source-chain finality + destination-delivery verification (L5)
  */
 @Injectable()
 export class BridgeTransferService {
@@ -27,6 +29,7 @@ export class BridgeTransferService {
     @InjectRepository(BridgeTransferEntity)
     private readonly bridgeTransferRepo: Repository<BridgeTransferEntity>,
     private readonly dataSource: DataSource,
+    private readonly finalityService: BridgeFinalityService,
   ) {}
 
   /**
@@ -72,6 +75,12 @@ export class BridgeTransferService {
     // Submit via adapter
     const result = await adapter.submitBridgeTransfer(params);
 
+    // Snapshot the chain-specific required source confirmations (D4-B-5-BRIDGE, L5).
+    // Captured at submit time so the polling worker can compare against live progress.
+    const requiredConfirmations = this.finalityService.getRequiredConfirmationsFor(
+      params.sourceChainId,
+    );
+
     // Persist record
     const entity = this.bridgeTransferRepo.create({
       legId,
@@ -88,6 +97,7 @@ export class BridgeTransferService {
       idempotencyKey: params.idempotencyKey,
       submittedAt: new Date(),
       timeoutAt: new Date(Date.now() + result.estimatedRelayMs * 2), // 2x estimated relay
+      requiredConfirmations,
     });
 
     const saved = await this.bridgeTransferRepo.save(entity);
@@ -121,6 +131,10 @@ export class BridgeTransferService {
    *   pending → relaying → confirming → completed
    *   pending → failed
    *   relaying → timed_out
+   *
+   * D4-B-5-BRIDGE (L5): assembles a `BridgeStatusContext` from the entity and
+   * delegates to the adapter's destination-delivery-aware `checkBridgeStatus`.
+   * Persists source/destination confirmation progress and `errorMessage`.
    */
   async pollAndUpdateStatus(
     entity: BridgeTransferEntity,
@@ -131,7 +145,18 @@ export class BridgeTransferService {
       return entity;
     }
 
-    const statusResult = await adapter.checkBridgeStatus(entity.bridgeId);
+    const ctx: BridgeStatusContext = {
+      bridgeId: entity.bridgeId,
+      sourceChainId: entity.sourceChainId,
+      destinationChainId: entity.destinationChainId,
+      sourceTxHash: entity.sourceTxHash ?? '',
+      amount: entity.amount,
+      token: entity.tokenAddress,
+      destinationToken: entity.destinationTokenAddress,
+      recipientAddress: '', // recipient is not persisted on the entity; adapters derive from bridgeId
+    };
+
+    const statusResult = await adapter.checkBridgeStatus(ctx);
 
     // Map adapter status to entity status
     const statusMap: Record<string, BridgeTransferEntity['status']> = {
@@ -143,14 +168,36 @@ export class BridgeTransferService {
     };
 
     const newStatus = statusMap[statusResult.status];
-    if (!newStatus || newStatus === entity.status) {
+    if (!newStatus) {
+      this.logger.warn(
+        `pollAndUpdateStatus: adapter returned unknown status '${statusResult.status}' for ${entity.id}`,
+      );
       return entity;
     }
 
     const updates: QueryDeepPartialEntity<BridgeTransferEntity> = {
-      status: newStatus,
       updatedAt: new Date(),
     };
+
+    // Always persist observed confirmation progress (L5).
+    updates.destinationConfirmations = statusResult.confirmations ?? 0;
+    // sourceConfirmations are best-effort fetched here to keep the entity fresh;
+    // adapters also gate completed on them internally.
+    if (entity.sourceTxHash) {
+      try {
+        const srcConf = await this.finalityService.getSourceConfirmations(
+          entity.sourceTxHash,
+          entity.sourceChainId,
+        );
+        updates.sourceConfirmations = srcConf;
+      } catch {
+        // Non-fatal — leave sourceConfirmations as-is.
+      }
+    }
+
+    if (newStatus !== entity.status) {
+      updates.status = newStatus;
+    }
 
     if (statusResult.destinationTxHash) {
       updates.destinationTxHash = statusResult.destinationTxHash;
@@ -158,6 +205,7 @@ export class BridgeTransferService {
 
     if (newStatus === 'completed') {
       updates.confirmedAt = new Date();
+      updates.finalizedAt = new Date();
       if (entity.submittedAt) {
         updates.actualRelayMs = Date.now() - entity.submittedAt.getTime();
       }
@@ -165,13 +213,26 @@ export class BridgeTransferService {
 
     if (newStatus === 'failed') {
       updates.failedAt = new Date();
+      updates.errorMessage = `Bridge adapter reported failed status (bridgeKey=${entity.bridgeKey})`;
+    }
+
+    // No-op if nothing changed: same status AND confirmation counts unchanged.
+    const sourceConfChanged =
+      updates.sourceConfirmations !== undefined &&
+      updates.sourceConfirmations !== (entity.sourceConfirmations ?? 0);
+    const destConfChanged =
+      updates.destinationConfirmations !== (entity.destinationConfirmations ?? 0);
+    if (newStatus === entity.status && !sourceConfChanged && !destConfChanged) {
+      return entity;
     }
 
     await this.bridgeTransferRepo.update(entity.id, updates);
 
-    this.logger.log(
-      `pollAndUpdateStatus: transfer ${entity.id} ${entity.status} → ${newStatus}`,
-    );
+    if (newStatus !== entity.status) {
+      this.logger.log(
+        `pollAndUpdateStatus: transfer ${entity.id} ${entity.status} → ${newStatus}`,
+      );
+    }
 
     const updated = await this.bridgeTransferRepo.findOne({ where: { id: entity.id } });
     return updated ?? { ...entity, status: newStatus };
@@ -179,15 +240,18 @@ export class BridgeTransferService {
 
   /**
    * Mark transfer as timed out.
+   *
+   * @param reason - optional human-readable reason written to `errorMessage` (L5).
    */
-  async markTimedOut(id: string): Promise<BridgeTransferEntity> {
+  async markTimedOut(id: string, reason?: string): Promise<BridgeTransferEntity> {
     await this.bridgeTransferRepo.update(id, {
       status: 'timed_out',
       failedAt: new Date(),
+      errorMessage: reason ?? 'Bridge transfer exceeded timeout deadline',
       updatedAt: new Date(),
     });
 
-    this.logger.warn(`markTimedOut: transfer ${id} timed out`);
+    this.logger.warn(`markTimedOut: transfer ${id} timed out${reason ? ` (${reason})` : ''}`);
 
     const entity = await this.bridgeTransferRepo.findOne({ where: { id } });
     if (!entity) {

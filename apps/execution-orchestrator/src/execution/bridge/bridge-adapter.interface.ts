@@ -60,6 +60,32 @@ export interface BridgeStatusResult {
   readonly estimatedCompletionMs: number;
 }
 
+/**
+ * Context passed to `checkBridgeStatus` (D4-B-5-BRIDGE, L5).
+ *
+ * Carries the destination-delivery context required for on-chain verification
+ * (which destination SpokePool/Endpoint/Portal to query, what amount was sent).
+ * Assembled by `BridgeTransferService.pollAndUpdateStatus` from the entity.
+ */
+export interface BridgeStatusContext {
+  /** Bridge-specific tracking ID (depositId / swapId / txHash:native). */
+  readonly bridgeId: string;
+  /** Source chain ID. */
+  readonly sourceChainId: number;
+  /** Destination chain ID. */
+  readonly destinationChainId: number;
+  /** Source chain TX hash. */
+  readonly sourceTxHash: string;
+  /** Amount bridged (smallest token units), as string for bigint interop. */
+  readonly amount: string;
+  /** Token address on the source chain. */
+  readonly token: string;
+  /** Token address on the destination chain. */
+  readonly destinationToken: string;
+  /** Recipient wallet address on the destination chain. */
+  readonly recipientAddress: string;
+}
+
 /** Fee estimation for a bridge transfer. */
 export interface BridgeFeeEstimate {
   /** Bridge fee in wei (native token on source chain). */
@@ -103,8 +129,15 @@ export interface BridgeAdapter {
    * Check the current status of a bridge transfer.
    *
    * Polled by `BridgeTransferService` during the relay lifecycle.
+   * Returns source-chain finality + destination-delivery verification.
+   *
+   * D4-B-5-BRIDGE (L5): `completed` requires on-chain proof of destination
+   * delivery (Across FilledV3Relay / LayerZero delivered(guid) / Outbox entry
+   * / OptimismPortal finalization). On RPC error the adapter MUST return
+   * `'pending'` (or current non-completed status) — never `'completed'` or
+   * `'failed'` on transient errors (fail-closed).
    */
-  checkBridgeStatus(bridgeId: string): Promise<BridgeStatusResult>;
+  checkBridgeStatus(ctx: BridgeStatusContext): Promise<BridgeStatusResult>;
 
   /**
    * Estimate the total fee for a bridge transfer.

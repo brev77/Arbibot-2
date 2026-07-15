@@ -1,12 +1,13 @@
 import { Test } from '@nestjs/testing';
 import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
 
-import type { BridgeTransferParams } from './bridge-adapter.interface';
+import type { BridgeStatusContext, BridgeTransferParams } from './bridge-adapter.interface';
 import { StargateBridgeAdapter } from './stargate-bridge.adapter';
 import { RpcProviderManager } from '../rpc/rpc-provider-manager.service';
 import { WalletManagerService } from '../wallet-manager.service';
 import { GasEstimatorService } from '../gas/gas-estimator.service';
 import { TokenApproveService } from '../token/token-approve.service';
+import { BridgeFinalityService } from './bridge-finality.service';
 
 // ───────────────────────────────────────────────────────────────────────
 // Tests
@@ -20,6 +21,8 @@ describe('StargateBridgeAdapter', () => {
   const mockEstimateGas = jest.fn();
   const mockGetAllowance = jest.fn();
   const mockApproveToken = jest.fn();
+  const mockFinalityGetSourceConfirmations = jest.fn().mockResolvedValue(5);
+  const mockFinalityRequired = jest.fn().mockReturnValue(1);
 
   const defaultParams: BridgeTransferParams = {
     sourceChainId: 42161, // Arbitrum
@@ -29,6 +32,17 @@ describe('StargateBridgeAdapter', () => {
     amount: 1000000000000000000n,
     recipientAddress: '0x1234567890123456789012345678901234567890',
     idempotencyKey: 'test-plan:1:stargate',
+  };
+
+  const defaultStatusCtx: BridgeStatusContext = {
+    bridgeId: '0xstargatetxhash:0',
+    sourceChainId: 42161,
+    destinationChainId: 8453,
+    sourceTxHash: '0xstargatetxhash',
+    amount: '1000000000000000000',
+    token: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1',
+    destinationToken: '0x4200000000000000000000000000000000000006',
+    recipientAddress: '0x1234567890123456789012345678901234567890',
   };
 
   beforeEach(async () => {
@@ -65,8 +79,11 @@ describe('StargateBridgeAdapter', () => {
         }),
       },
     });
+    mockFinalityGetSourceConfirmations.mockResolvedValue(5);
+    mockFinalityRequired.mockReturnValue(1);
     mockGetProvider.mockReturnValue({
       getBlockNumber: jest.fn().mockResolvedValue(100),
+      getTransactionReceipt: jest.fn().mockResolvedValue(null),
     });
 
     const module = await Test.createTestingModule({
@@ -76,6 +93,13 @@ describe('StargateBridgeAdapter', () => {
         { provide: WalletManagerService, useValue: { selectWallet: mockSelectWallet } },
         { provide: GasEstimatorService, useValue: { estimateGas: mockEstimateGas } },
         { provide: TokenApproveService, useValue: { getAllowance: mockGetAllowance, approveToken: mockApproveToken } },
+        {
+          provide: BridgeFinalityService,
+          useValue: {
+            getSourceConfirmations: mockFinalityGetSourceConfirmations,
+            getRequiredConfirmationsFor: mockFinalityRequired,
+          },
+        },
       ],
     }).compile();
 
@@ -123,10 +147,23 @@ describe('StargateBridgeAdapter', () => {
   });
 
   describe('checkBridgeStatus', () => {
-    it('should return pending status (stub)', async () => {
-      const result = await adapter.checkBridgeStatus('swap-123');
+    it('should return pending when source not finalized (L5)', async () => {
+      mockFinalityGetSourceConfirmations.mockResolvedValueOnce(0);
+
+      const result = await adapter.checkBridgeStatus(defaultStatusCtx);
+
       expect(result.status).toBe('pending');
-      expect(result).toHaveProperty('estimatedCompletionMs');
+      expect(result.destinationTxHash).toBeNull();
+    });
+
+    it('should hold confirming when guid cannot be recovered (fail-closed, L5)', async () => {
+      // Source finalized, but PacketSent event not found in the receipt → cannot
+      // verify delivery. Capital-safe: hold 'confirming' (operator manual completion).
+      const result = await adapter.checkBridgeStatus(defaultStatusCtx);
+
+      // getTransactionReceipt returns null → guid null → 'confirming'.
+      expect(result.status).toBe('confirming');
+      expect(result.destinationTxHash).toBeNull();
     });
   });
 

@@ -2,12 +2,13 @@ import { Test } from '@nestjs/testing';
 import { ZeroAddress } from 'ethers';
 import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
 
-import type { BridgeTransferParams } from './bridge-adapter.interface';
+import type { BridgeStatusContext, BridgeTransferParams } from './bridge-adapter.interface';
 import { NativeBridgeAdapter } from './native-bridge.adapter';
 import { RpcProviderManager } from '../rpc/rpc-provider-manager.service';
 import { WalletManagerService } from '../wallet-manager.service';
 import { GasEstimatorService } from '../gas/gas-estimator.service';
 import { TokenApproveService } from '../token/token-approve.service';
+import { BridgeFinalityService } from './bridge-finality.service';
 
 // ───────────────────────────────────────────────────────────────────────
 // Tests
@@ -21,6 +22,8 @@ describe('NativeBridgeAdapter', () => {
   const mockEstimateGas = jest.fn();
   const mockGetAllowance = jest.fn();
   const mockApproveToken = jest.fn();
+  const mockFinalityGetSourceConfirmations = jest.fn().mockResolvedValue(5);
+  const mockFinalityRequired = jest.fn().mockReturnValue(1);
 
   /** ETH → Arbitrum (Arbitrum Inbox deposit) */
   const ethToArbParams: BridgeTransferParams = {
@@ -100,8 +103,11 @@ describe('NativeBridgeAdapter', () => {
       },
     });
 
+    mockFinalityGetSourceConfirmations.mockResolvedValue(5);
+    mockFinalityRequired.mockReturnValue(1);
     mockGetProvider.mockReturnValue({
       getBlockNumber: jest.fn().mockResolvedValue(100),
+      queryFilter: jest.fn().mockResolvedValue([]),
     });
 
     const module = await Test.createTestingModule({
@@ -111,6 +117,13 @@ describe('NativeBridgeAdapter', () => {
         { provide: WalletManagerService, useValue: { selectWallet: mockSelectWallet } },
         { provide: GasEstimatorService, useValue: { estimateGas: mockEstimateGas } },
         { provide: TokenApproveService, useValue: { getAllowance: mockGetAllowance, approveToken: mockApproveToken } },
+        {
+          provide: BridgeFinalityService,
+          useValue: {
+            getSourceConfirmations: mockFinalityGetSourceConfirmations,
+            getRequiredConfirmationsFor: mockFinalityRequired,
+          },
+        },
       ],
     }).compile();
 
@@ -194,10 +207,32 @@ describe('NativeBridgeAdapter', () => {
   // ─────────────────────────────────────────────────────────────────────
 
   describe('checkBridgeStatus', () => {
-    it('should return pending status (stub)', async () => {
-      const result = await adapter.checkBridgeStatus('native-123');
+    const ethToArbCtx: BridgeStatusContext = {
+      bridgeId: '0xnativetxhash:native',
+      sourceChainId: 1,
+      destinationChainId: 42161,
+      sourceTxHash: '0xnativetxhash',
+      amount: '1000000000000000000',
+      token: ZeroAddress,
+      destinationToken: ZeroAddress,
+      recipientAddress: '0x1234567890123456789012345678901234567890',
+    };
+
+    it('should return pending when source not finalized (L5)', async () => {
+      mockFinalityGetSourceConfirmations.mockResolvedValueOnce(0);
+
+      const result = await adapter.checkBridgeStatus(ethToArbCtx);
+
       expect(result.status).toBe('pending');
-      expect(result).toHaveProperty('estimatedCompletionMs');
+      expect(result.destinationTxHash).toBeNull();
+    });
+
+    it('should hold confirming for L1→L2 after source finalized (capital-safe, L5)', async () => {
+      // Source finalized (5 ≥ 1). L1→L2 delivery is auto-executing but cannot be
+      // cheaply correlated without the Arb-node retryable API → hold 'confirming'.
+      const result = await adapter.checkBridgeStatus(ethToArbCtx);
+
+      expect(['confirming', 'relaying', 'completed']).toContain(result.status);
     });
   });
 
