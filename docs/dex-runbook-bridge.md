@@ -1,6 +1,6 @@
 # DEX Runbook: Cross-Chain Bridge Transfers
 
-**Step:** `DEX-DOC-RUNBOOK-BRIDGE`  
+**Step:** `DEX-DOC-RUNBOOK-BRIDGE`  |  **Finality:** `D4-B-5-BRIDGE` (L5)
 **Risk level:** `medium`  
 **Status:** `done`
 
@@ -16,10 +16,32 @@ This runbook covers operational procedures for managing cross-chain bridge trans
 ## Architecture Context
 
 - **Single-writer:** `execution-orchestrator` owns `BridgeTransfer` entity and state transitions
-- **Entity:** `bridge_transfers` table (migration `036_dex2_crosschain.sql`)
+- **Entity:** `bridge_transfers` table (migration `036_dex2_crosschain.sql` + `043_bridge_finality.sql`)
 - **State machine:** `pending` → `relaying` → `confirming` → `completed` | `failed` | `timed_out`
 - **Reconciliation:** `CrossChainReconciliationService` + `CrossChainReconWorker`
 - **Polling:** `BridgeTransferPollingWorker` polls active transfers via adapter
+
+## Finality & Destination Verification (D4-B-5-BRIDGE, L5)
+
+`completed` requires **on-chain proof of destination delivery**, not just elapsed time. Each adapter verifies both source-chain reorg safety AND destination delivery before reporting `completed`:
+
+| Bridge | Source finality | Destination delivery verification |
+|--------|-----------------|-----------------------------------|
+| `across` | chain-specific confirmations | `SpokePool.filledDeposits(depositId) > 0` + `FilledV3Relay` event → dest tx hash |
+| `stargate` | chain-specific confirmations | LayerZero V2 `Endpoint.delivered(guid)` + `MsgExecuted` event → dest tx hash (guid recovered from source `PacketSent`) |
+| `native` (L1→L2) | chain-specific confirmations | L2 auto-execution — holds `confirming` until observable (fast, auto) |
+| `native` (L2→L1) | chain-specific confirmations | Arbitrum L1 `Outbox.outboxEntryExists` / OP `OptimismPortal` `WithdrawalFinalized` event (7-day window) |
+
+**Chain-specific confirmation thresholds** (`CHAIN_FINALITY_CONFIRMATIONS`):
+- Ethereum mainnet: 12 · Arbitrum/Base: 1 · BNB Chain: 15 · testnets: 3
+- Override (tighten only) via `BRIDGE_FINALITY_CONFIRMATIONS` JSON env (fail-closed on parse error)
+
+**Fail-closed invariants:**
+- RPC error → adapter returns current non-completed status (never `completed` or `failed` on transient errors)
+- Missing dest-verification contract (testnet Outbox/Portal) → holds `confirming` → operator completes manually (Scenario B1)
+- Stargate guid unrecoverable → holds `confirming` (operator completion)
+
+**Finality columns** (migration `043`): `source_confirmations`, `required_confirmations`, `destination_confirmations`, `finalized_at`. Snapshotted at submit (`required_confirmations`), updated each poll cycle.
 
 ## Bridge Adapters
 
@@ -55,6 +77,10 @@ Adapter resolution: `BridgeAdapterFactoryService.resolve(bridgeKey)`
 | `failedAt` | TIMESTAMPTZ | Failure timestamp |
 | `timeoutAt` | TIMESTAMPTZ | Deadline (2× estimated relay) |
 | `errorMessage` | TEXT | Error description |
+| `sourceConfirmations` | INTEGER | Source-chain confirmations observed (L5, migration 043) |
+| `requiredConfirmations` | INTEGER | Chain-specific threshold snapshotted at submit (L5) |
+| `destinationConfirmations` | INTEGER | Destination-chain confirmations of the fill tx (L5) |
+| `finalizedAt` | TIMESTAMPTZ | When destination delivery was proven on-chain (L5) |
 
 ## Diagnosis
 
@@ -422,17 +448,23 @@ curl -X PUT http://localhost:3019/policy/configurations/dex.limits \
 - Typical relay time: 1–5 minutes for L2→L1, 1–3 minutes for L2→L2
 - Uses optimistic verification — relayer submits and waits for challenge period
 - `bridgeId` = Across deposit ID
+- **Verification (L5):** `completed` requires `SpokePool.filledDeposits(depositId) > 0` on the destination chain AND the `FilledV3Relay` event located → `destinationTxHash`. Source TX must first reach chain-specific confirmations.
 
 ### Stargate (LayerZero)
 - Typical relay time: 5–15 minutes depending on verification
 - Supports multiple chains via LayerZero messaging
-- `bridgeId` = LayerZero GUID
+- `bridgeId` = source tx hash + log index
+- **Verification (L5):** `completed` requires LayerZero V2 `Endpoint.delivered(guid) = true` on the destination chain. The guid is recovered by parsing the source `PacketSent` event (header: `dstEid | sender | nonce` → `keccak256`). If the guid cannot be recovered, the transfer holds `confirming` (operator manual completion) — never false-completes.
 
 ### Native L2 Bridges
 - Official bridges (e.g., Arbitrum Bridge, Base Bridge)
 - Typical relay time: 10–60 minutes (L2→L1 requires challenge period)
-- `bridgeId` = bridge-specific withdrawal/claim ID
+- `bridgeId` = source tx hash + `:native`
 - **L2→L1 withdrawals may take up to 7 days** for finality
+- **Verification (L5):**
+  - L1→L2 (Arbitrum Inbox / OP L1StandardBridge): source finality → holds `confirming` (auto-executing, fast)
+  - L2→L1 Arbitrum: `Outbox.outboxEntryExists` / `OutBoxTransactionExecuted` event on L1 (mainnet Outbox `0x667e...`; testnet holds `confirming`)
+  - L2→L1 OP/Base: `OptimismPortal.WithdrawalFinalized` event on L1 (mainnet Portal `0xbEb5...`; testnet holds `confirming`)
 
 ---
 
@@ -444,6 +476,9 @@ curl -X PUT http://localhost:3019/policy/configurations/dex.limits \
 4. **Automatic polling:** `BridgeTransferPollingWorker` polls active transfers on configurable interval
 5. **Reconciliation:** `CrossChainReconWorker` runs periodic full-cycle checks
 6. **Terminal state protection:** Failed/timed_out transfers require operator approval for retry
+7. **Source finality (L5):** chain-specific confirmations (`CHAIN_FINALITY_CONFIRMATIONS`) gate `completed` — reorg-safe
+8. **Destination delivery proof (L5):** `completed` requires on-chain proof (Across `FilledV3Relay` / LayerZero `delivered` / Outbox entry / Portal finalization), not just timeout
+9. **Fail-closed adapters (L5):** RPC errors hold the current non-completed status — never false-complete
 
 ## Related Documentation
 
