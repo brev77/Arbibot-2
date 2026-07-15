@@ -75,6 +75,7 @@ GitHub Actions job `graphify-check`: runs after `build`, rebuilds graph, uploads
 
 #### Когда использовать
 
+- **Before planning/implementing a step** — `graphify:query` для навигации по коду шага (callers, single-writer boundaries, affected communities) **до** запуска тяжёлых Explore-агентов. Это снижает расход токенов: graphify-query стоит ~0 токенов (локальный AST-grep), тогда как Explore-агенты — десятки-сотни K токенов. Graphify покрывает навигацию (где код, какие файлы в community), Explore-агенты оставлять для семантических задач (понять поведение, спроектировать подход). Рабочий процесс: `graphify:rebuild` (если watch-хук не сработал) → `graphify:query` → точечное чтение нужных функций (не целых файлов).
 - Before architecture reviews and `/review-step`
 - After major refactors or shared-package changes
 - When validating `single-writer`, `reservation-first`, and shared-package boundaries
