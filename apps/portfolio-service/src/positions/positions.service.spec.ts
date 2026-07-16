@@ -71,7 +71,7 @@ describe('PositionsService', () => {
           // clause: fill-dedup uses { legId, idempotencyKey }, close-dedup
           // uses { positionId, idempotencyKey }, positions use anything else
           // ({ id } | { planId, instrumentKey }).
-          const where = opts.where as Record<string, unknown>;
+          const where = opts.where;
           let store: Array<Record<string, unknown>>;
           if ('legId' in where && 'idempotencyKey' in where) {
             store = fillDedup as unknown as Array<Record<string, unknown>>;
