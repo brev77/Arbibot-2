@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 
+import { signedFetch } from '@arbibot/nest-platform';
+
 export type PaperPromotionEnqueueBody = {
   readonly instrumentKey: string;
   readonly opportunityId: string;
@@ -33,7 +35,7 @@ export class PaperClientService {
       return false;
     }
     const url = `${base}/paper/promotion-candidates`;
-    const res = await fetch(url, {
+    const res = await signedFetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify({

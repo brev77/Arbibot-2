@@ -8,6 +8,8 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 
+import { signedFetch } from '@arbibot/nest-platform';
+
 export type EvaluateRiskHttpResponse = {
   riskDecisionId: string;
   outboxMessageId?: string;
@@ -51,7 +53,7 @@ export class RiskClientService {
 
     let res: Response;
     try {
-      res = await fetch(`${this.baseUrl}/evaluate-risk`, {
+      res = await signedFetch(`${this.baseUrl}/evaluate-risk`, {
         method: 'POST',
         headers,
         body: JSON.stringify({

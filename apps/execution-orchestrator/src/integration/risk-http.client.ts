@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import { getCorrelationId } from '@arbibot/nest-platform';
+import { getCorrelationId, signedFetch } from '@arbibot/nest-platform';
 
 /** Authoritative read model from risk-service GET /risk-decisions/:id */
 export type RiskDecisionSnapshot = {
@@ -60,7 +60,7 @@ export class RiskHttpClient {
     }
     let res: Response;
     try {
-      res = await fetch(url, { method: 'GET', headers });
+      res = await signedFetch(url, { method: 'GET', headers });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       throw new BadGatewayException(

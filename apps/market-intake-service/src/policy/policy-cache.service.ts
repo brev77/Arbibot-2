@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 
+import { signedFetch } from '@arbibot/nest-platform';
+
 import { intakePolicyCacheHits, intakePolicyCacheMisses, intakePolicyFallbackTotal } from './intake-policy-metrics';
 import type {
   IntakeRoutingTiersConfig,
@@ -98,7 +100,7 @@ async function fetchJson(
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), timeoutMs);
   try {
-    const res = await fetch(url, { signal: ac.signal });
+    const res = await signedFetch(url, { signal: ac.signal });
     const status = res.status;
     if (!res.ok) {
       return { ok: false, status, body: null };

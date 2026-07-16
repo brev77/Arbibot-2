@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ServiceUnavailableException } from '@nestjs/common';
 
+import { signedFetch } from '@arbibot/nest-platform';
+
 /**
  * Capital Limits Service (D4-B-3-CEILING, L3).
  *
@@ -51,7 +53,7 @@ async function fetchJson(url: string): Promise<FetchJsonResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), HTTP_TIMEOUT_MS);
   try {
-    const res = await fetch(url, {
+    const res = await signedFetch(url, {
       signal: controller.signal,
       headers: { accept: 'application/json' },
     });

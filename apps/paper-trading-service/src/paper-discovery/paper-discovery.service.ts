@@ -7,7 +7,7 @@ import {
   PaperTradeEntity,
   type PaperDiscoveryCandidateStatus,
 } from '@arbibot/persistence';
-import { AuditClientService, type AuditRecordInput } from '@arbibot/nest-platform';
+import { AuditClientService, signedFetch, type AuditRecordInput } from '@arbibot/nest-platform';
 
 import {
   DEFAULT_PAPER_DISCOVERY_CONFIG_CACHE_MS,
@@ -161,7 +161,7 @@ export class PaperDiscoveryService {
       url.searchParams.set('tenantId', tenant);
     }
 
-    const response = await fetch(url.toString(), { method: 'GET' });
+    const response = await signedFetch(url.toString(), { method: 'GET' });
     if (!response.ok) {
       this.logger.warn(
         `Effective config ${PAPER_DISCOVERY_POLICY_KEY} HTTP ${response.status}; using env fallback`,
@@ -505,7 +505,7 @@ export class PaperDiscoveryService {
       const url = new URL('/snapshots/fresh', marketIntakeUrl);
       url.searchParams.set('limit', '100');
 
-      const response = await fetch(url.toString());
+      const response = await signedFetch(url.toString());
       if (!response.ok) {
         throw new Error(`Market intake returned ${response.status}`);
       }

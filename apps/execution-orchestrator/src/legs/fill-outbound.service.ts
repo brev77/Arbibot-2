@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import { PORTFOLIO_HTTP_ROUTES } from '@arbibot/contracts';
 import { Address } from '@arbibot/contracts-eth';
-import { getCorrelationId } from '@arbibot/nest-platform';
+import { getCorrelationId, signedFetch } from '@arbibot/nest-platform';
 
 import { PlansService } from '../plans/plans.service';
 import { PriceOracleService } from '../execution/price/price-oracle.service';
@@ -51,7 +51,7 @@ async function fetchWithRetry(
   const retries = opts?.retries ?? 4;
   let last: Response | undefined;
   for (let attempt = 0; attempt < retries; attempt++) {
-    last = await fetch(url, init);
+    last = await signedFetch(url, init);
     if (last.ok) {
       return last;
     }

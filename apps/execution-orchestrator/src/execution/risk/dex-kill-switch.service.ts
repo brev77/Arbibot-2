@@ -6,7 +6,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { Gauge } from 'prom-client';
-import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
+import { getArbibotMetricsRegistry, signedFetch } from '@arbibot/nest-platform';
 
 /**
  * DEX Live Kill-Switch (D4-B-1-KILLSWITCH, L1 critical).
@@ -106,7 +106,7 @@ async function fetchJson(url: string, timeoutMs: number): Promise<FetchJsonResul
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(url, {
+    const res = await signedFetch(url, {
       signal: controller.signal,
       headers: { accept: 'application/json' },
     });

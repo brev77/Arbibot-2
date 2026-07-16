@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Counter } from 'prom-client';
-import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
+import { getArbibotMetricsRegistry, signedFetch } from '@arbibot/nest-platform';
 import { DexDailyVolumeEntity } from '@arbibot/persistence';
 import { ChainId, Address } from '@arbibot/contracts-eth';
 import { DiscoveredPool } from '../pool/pool-discovery.service';
@@ -114,7 +114,7 @@ async function fetchJson(url: string): Promise<FetchJsonResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), HTTP_TIMEOUT_MS);
   try {
-    const res = await fetch(url, {
+    const res = await signedFetch(url, {
       signal: controller.signal,
       headers: { accept: 'application/json' },
     });

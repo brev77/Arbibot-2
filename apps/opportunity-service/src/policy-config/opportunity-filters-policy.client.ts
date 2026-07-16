@@ -1,3 +1,5 @@
+import { signedFetch } from '@arbibot/nest-platform';
+
 /**
  * Read-side helper for `opportunity.filters` from config-service (planned integration).
  *
@@ -36,7 +38,7 @@ export async function fetchOpportunityFiltersEffective(
   const timeoutMs = opts?.timeoutMs ?? 8000;
   const timer = setTimeout(() => ac.abort(), timeoutMs);
   try {
-    const res = await fetch(url, {
+    const res = await signedFetch(url, {
       signal: ac.signal,
       headers: { Accept: 'application/json' },
     });
