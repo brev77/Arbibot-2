@@ -301,6 +301,27 @@ else
   log_warn "CORS_ORIGINS — not set (defaults may not be safe for production)"
 fi
 
+# Service-to-service auth (D4-B-6-MTLS, finding L6). When enabled, every backend
+# service enforces an HMAC signature on inbound requests (fail-closed). A live
+# deploy MUST have it enabled with a >=32-byte secret — otherwise any container
+# on the arbibot-backend network can call any service unauthenticated.
+_service_auth_enabled="${ENV_VARS[ARBIBOT_SERVICE_AUTH_ENABLED]:-}"
+_service_auth_secret="${ENV_VARS[ARBIBOT_SERVICE_AUTH_SECRET]:-}"
+if [[ "${_service_auth_enabled}" == "true" ]]; then
+  if [[ -z "${_service_auth_secret}" ]]; then
+    log_fail "ARBIBOT_SERVICE_AUTH_ENABLED=true but ARBIBOT_SERVICE_AUTH_SECRET — not set (all protected routes return 503, fail-closed)"
+  elif [[ "${_service_auth_secret}" == *"<CHANGE_ME"* ]]; then
+    log_fail "ARBIBOT_SERVICE_AUTH_SECRET — still has placeholder value"
+  elif [[ "${#_service_auth_secret}" -lt 32 ]]; then
+    log_fail "ARBIBOT_SERVICE_AUTH_SECRET — too short (${#_service_auth_secret} chars, require 32+ for HMAC-SHA256)"
+  else
+    log_pass "ARBIBOT_SERVICE_AUTH — enabled with ${#_service_auth_secret}-char secret"
+  fi
+else
+  log_warn "ARBIBOT_SERVICE_AUTH_ENABLED not 'true' — service-to-service auth disabled (required for live-gate L6; any container can call any service)"
+fi
+unset _service_auth_enabled _service_auth_secret
+
 # ── 8. Optional but recommended ────────────────────────────────
 log_section "Optional (Recommended)"
 
