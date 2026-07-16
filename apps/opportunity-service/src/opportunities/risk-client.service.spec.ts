@@ -17,6 +17,8 @@ describe('RiskClientService', () => {
   afterEach(() => {
     global.fetch = originalFetch;
     delete process.env.RISK_SERVICE_URL;
+    delete process.env.ARBIBOT_SERVICE_AUTH_ENABLED;
+    delete process.env.ARBIBOT_SERVICE_AUTH_SECRET;
   });
 
   function validBody() {
@@ -78,5 +80,28 @@ describe('RiskClientService', () => {
     await expect(service.evaluateRisk(validBody())).rejects.toThrow(
       ServiceUnavailableException,
     );
+  });
+
+  // D4-B-6-MTLS: confirms the client is wired through signedFetch so that, when
+  // service auth is enabled, outbound calls carry the HMAC signature header.
+  it('attaches x-arbibot-signature when ARBIBOT_SERVICE_AUTH_ENABLED=true', async () => {
+    process.env.ARBIBOT_SERVICE_AUTH_ENABLED = 'true';
+    process.env.ARBIBOT_SERVICE_AUTH_SECRET = 'a'.repeat(64);
+
+    let capturedInit: RequestInit | undefined;
+    global.fetch = jest.fn((_input, init) => {
+      capturedInit = init;
+      return Promise.resolve(
+        new Response(JSON.stringify({ riskDecisionId: 'rd-1' }), { status: 200 }),
+      );
+    }) as typeof fetch;
+
+    const service = new RiskClientService();
+    await service.evaluateRisk(validBody());
+
+    expect(capturedInit).toBeDefined();
+    const headers = new Headers(capturedInit!.headers);
+    expect(headers.has('x-arbibot-signature')).toBe(true);
+    expect(headers.get('x-arbibot-signature')).toMatch(/^t=\d+,v1=[0-9a-f]{64}$/);
   });
 });
