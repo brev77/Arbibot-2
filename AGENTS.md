@@ -284,6 +284,8 @@ There is **no** `core-backend/` or `operator-frontend/` directory; older docs or
 
 ### Hermes Agent + MCP Server (Plan 3)
 
+> **Update (Plan 5, 2026-07-16):** агент переключён на **GLM 5.2** (Zhipu/Z.AI, через OpenAI-совместимый `base_url`, `provider: openai`) и **личный Telegram-бот** оператора (`HERMES_TELEGRAM_ENABLED=true`, whitelist `OPERATOR_TELEGRAM_ID`). Добавлен скилл `explain-bot` (объясняет работу бота по-русски), npm-скрипты `build:hermes-mcp` / `doctor:hermes` / `run:hermes` / `dev:stack:hermes-agent`, docker-профиль `hermes-agent`. MCP Server и Gateway без изменений. См. [`docs/adr-hermes-agent-glm-telegram.md`](docs/adr-hermes-agent-glm-telegram.md) и [`.cursor/plans/DEVELOPMENT_PLAN5.md`](.cursor/plans/DEVELOPMENT_PLAN5.md).
+
 - **MCP Server:** `packages/hermes-mcp-server/` (`@arbibot/hermes-mcp-server`) — TypeScript MCP server exposing 14 tools via stdio transport → Hermes Gateway HTTP API
 - **Agent config:** `tools/hermes-agent/` — Hermes Agent (NousResearch) YAML config + MCP connection config
   - `hermes-config.yaml` — LLM provider, messaging (Telegram/Discord), cron, skills path

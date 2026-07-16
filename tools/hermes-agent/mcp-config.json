@@ -6,7 +6,7 @@
       "args": ["../../packages/hermes-mcp-server/dist/index.js"],
       "env": {
         "HERMES_GATEWAY_URL": "http://localhost:3020",
-        "HERMES_API_KEY": "CHANGE_ME"
+        "HERMES_API_KEY": "${HERMES_API_KEY}"
       }
     }
   }

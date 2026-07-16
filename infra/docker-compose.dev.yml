@@ -20,6 +20,10 @@
 #   Grafana:     http://127.0.0.1:3001  (admin/admin)
 #   Loki:        http://127.0.0.1:3100
 #
+# Optional Hermes Agent (GLM 5.2 + Telegram, LLM-ассистент оператора):
+#   docker compose -f infra/docker-compose.dev.yml --profile hermes-agent up -d
+#   Требует собранный MCP-сервер (npm run build:hermes-mcp) и .env (секция hermes-agent).
+#
 # When you add app containers to this file, use:
 #   depends_on:
 #     postgres:
@@ -157,6 +161,48 @@ services:
     depends_on:
       - loki
 
+  # ── Hermes Agent (profile: hermes-agent) ───────────────────────────
+  # Внешний агент NousResearch Hermes Agent — LLM-ассистент оператора
+  # (GLM 5.2 + Telegram, см. docs/adr-hermes-agent-glm-telegram.md).
+  #
+  # Публичного официального Docker-образа Hermes Agent нет, поэтому сервис
+  # оставлен шаблоном: базовый python:3.11-slim + установка бинарника и
+  # `hermes run`. Подставьте вашу сборку/образ при необходимости.
+  #
+  # Запуск:
+  #   docker compose -f infra/docker-compose.dev.yml --profile hermes-agent up -d
+  #   npm run dev:stack:hermes-agent
+  #
+  # Пререквизиты: собранный MCP-сервер (npm run build:hermes-mcp) и заполненный
+  # .env (секция hermes-agent: HERMES_LLM_API_KEY, TELEGRAM_BOT_TOKEN,
+  # OPERATOR_TELEGRAM_ID, HERMES_API_KEY). Gateway (apps/hermes-gateway) должен
+  # быть доступен по HERMES_GATEWAY_URL.
+  hermes-agent:
+    image: python:3.11-slim
+    profiles: [hermes-agent]
+    working_dir: /workspace
+    # TODO(hermes-agent): заменить на образ вашей сборки агента, если есть.
+    # Универсальный путь: установить бинарник hermes и запустить с конфигом.
+    command: >
+      sh -c "apt-get update && apt-get install -y --no-install-recommends curl &&
+      curl -fsSL https://hermes-agent.nousresearch.com/install.sh | sh &&
+      hermes run --config /config/hermes-config.yaml"
+    env_file:
+      - ../.env
+    environment:
+      HERMES_GATEWAY_URL: ${HERMES_GATEWAY_URL:-http://host.docker.internal:3020}
+      HERMES_MCP_SERVER_PATH: /workspace/packages/hermes-mcp-server/dist/index.js
+    volumes:
+      # Конфиг + скиллы (read-only).
+      - ../tools/hermes-agent:/config:ro
+      # Собранный MCP-сервер монорепо (нужен пересборкой: npm run build:hermes-mcp).
+      - ../packages/hermes-mcp-server/dist:/workspace/packages/hermes-mcp-server/dist:ro
+      # SQLite-память агента (session/memory).
+      - arbibot_hermes_agent_data:/workspace/data
+    # В dev агент подключается к gateway, запущенному на хосте (npm run dev:hermes).
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+
 volumes:
   arbibot_pg_data:
   arbibot_redis_data:
@@ -164,3 +210,4 @@ volumes:
   arbibot_am_data:
   arbibot_grafana_data:
   arbibot_loki_data:
+  arbibot_hermes_agent_data:

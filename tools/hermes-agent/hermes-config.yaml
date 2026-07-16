@@ -1,16 +1,20 @@
 # Hermes Agent Configuration
-# See: docs/adr-hermes-agent-integration.md
+# See: docs/adr-hermes-agent-glm-telegram.md (Plan 5) and docs/adr-hermes-agent-integration.md (Plan 3)
 #
 # Copy to hermes-config.local.yaml and fill in secrets.
 # Never commit secrets to git.
 
 agent:
   name: arbibot-hermes-agent
-  description: "Arbibot 2 operator assistant via Telegram/Discord"
+  description: "Arbibot 2 operator assistant via Telegram"
 
-  # LLM Provider — choose one
-  provider: ${HERMES_LLM_PROVIDER:nousresearch}
-  model: ${HERMES_LLM_MODEL:hermes-3-llama-3.1-405b}
+  # LLM Provider — GLM 5.2 (Zhipu/Z.AI).
+  # У NousResearch Hermes Agent нет нативного плагина под GLM, но API GLM совместим с OpenAI
+  # Chat Completions, поэтому используем provider: openai + кастомный base_url.
+  # Значения берутся из env — ничего не зашито жёстко.
+  provider: ${HERMES_LLM_PROVIDER:openai}
+  model: ${HERMES_LLM_MODEL:glm-5.2}
+  base_url: ${HERMES_LLM_BASE_URL:https://open.bigmodel.cn/api/paas/v4}  # API Zhipu/Z.AI
   api_key: ${HERMES_LLM_API_KEY}  # pragma: allowlist secret
 
   # MCP Server connection
@@ -31,8 +35,10 @@ agent:
 
 # Messaging platforms
 messaging:
+  # Личный бот только для оператора (whitelist OPERATOR_TELEGRAM_ID).
+  # Токен создаётся через @BotFather в Telegram, ID оператора — у @userinfobot.
   telegram:
-    enabled: ${HERMES_TELEGRAM_ENABLED:false}
+    enabled: ${HERMES_TELEGRAM_ENABLED:true}
     token: ${TELEGRAM_BOT_TOKEN}
     allowed_users:
       - ${OPERATOR_TELEGRAM_ID}
@@ -43,7 +49,9 @@ messaging:
       - /incidents → skill:incident_management
       - /safe      → skill:safe_mode_control
       - /approve   → skill:approval_handler
+      - /explain   → skill:explain_bot
 
+  # Discord выключен по умолчанию (фокус на личном Telegram-боте).
   discord:
     enabled: ${HERMES_DISCORD_ENABLED:false}
     token: ${DISCORD_BOT_TOKEN}
@@ -75,9 +83,9 @@ security:
     - close_position
   approval_timeout_minutes: 5
 
-# Cron scheduling
+# Cron scheduling — периодические сводки в Telegram (агент «следит за ботом»).
 cron:
-  enabled: ${HERMES_CRON_ENABLED:false}
+  enabled: ${HERMES_CRON_ENABLED:true}
   timezone: UTC
   jobs:
     - name: status_heartbeat

@@ -1,6 +1,8 @@
 # Hermes Agent — Configuration
 
-Конфигурация для подключения Hermes Agent (Python) к Arbibot 2 через MCP Server.
+Конфигурация для подключения внешнего **Hermes Agent** (NousResearch) к Arbibot 2 через MCP Server.
+
+**Текущая конфигурация (Plan 5):** LLM = **GLM 5.2** (через Zhipu/Z.AI, OpenAI-совместимый `base_url`); messaging = **личный Telegram-бот** оператора. См. [`docs/adr-hermes-agent-glm-telegram.md`](../../docs/adr-hermes-agent-glm-telegram.md).
 
 ## Структура
 
@@ -8,10 +10,11 @@
 |------|-----------|
 | `hermes-config.yaml` | Основной конфиг Agent (LLM, messaging, cron, security) |
 | `mcp-config.json` | MCP Server connection config (stdio transport) |
+| `skills/*.md` | Arbibot-навыки агента (7 шт., включая `explain-bot`) |
 
 ## Быстрый старт
 
-### 1. Установить Hermes Agent
+### 1. Установить Hermes Agent (внешний бинарник)
 
 ```bash
 # Linux/macOS
@@ -21,65 +24,90 @@ curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
 irm https://hermes-agent.nousresearch.com/install.ps1 | iex
 ```
 
-### 2. Настроить переменные окружения
+### 2. Получить ключ GLM 5.2
+
+Зарегистрируйтесь на [https://open.bigmodel.cn](https://open.bigmodel.cn) и создайте API-ключ. Модель — `glm-5.2`. API совместим с OpenAI Chat Completions, base_url: `https://open.bigmodel.cn/api/paas/v4`.
+
+### 3. Создать Telegram-бота
+
+1. В Telegram откройте [@BotFather](https://t.me/BotFather) → `/newbot` → получите **токен**.
+2. Узнайте свой **Telegram ID** у [@userinfobot](https://t.me/userinfobot) (это whitelist — бот будет отвечать только вам).
+
+### 4. Заполнить переменные окружения
+
+Скопируйте `.env.example` в `.env` (из корня монорепо) и заполните секцию `hermes-agent`:
 
 ```bash
-# Обязательные
-export HERMES_LLM_API_KEY="your-llm-api-key"
-export HERMES_API_KEY="your-hermes-gateway-api-key"
+# GLM 5.2 (OpenAI-совместимый провайдер)
+HERMES_LLM_PROVIDER=openai
+HERMES_LLM_MODEL=glm-5.2
+HERMES_LLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4
+HERMES_LLM_API_KEY=<ваш ключ из open.bigmodel.cn>
 
-# Опциональные (Telegram)
-export TELEGRAM_BOT_TOKEN="your-bot-token"
-export OPERATOR_TELEGRAM_ID="your-telegram-id"
+# Telegram (личный бот)
+HERMES_TELEGRAM_ENABLED=true
+TELEGRAM_BOT_TOKEN=<токен от @BotFather>
+OPERATOR_TELEGRAM_ID=<ваш ID от @userinfobot>
 
-# Опциональные (Discord)
-export DISCORD_BOT_TOKEN="your-discord-token"
-export DISCORD_APP_ID="your-app-id"
+# MCP Server → Hermes Gateway
+HERMES_GATEWAY_URL=http://127.0.0.1:3020
+HERMES_API_KEY=<ключ из HERMES_API_KEYS на gateway>
 ```
 
-### 3. Собрать MCP Server
+### 5. Поднять Hermes Gateway и собрать MCP-сервер
 
 ```bash
-# Из корня monorepo
-npm run build -w @arbibot/hermes-mcp-server
+# Из корня монорепо
+npm run dev:hermes            # gateway на :3020 (в отдельном терминале)
+npm run build:hermes-mcp      # собрать MCP-сервер
 ```
 
-### 4. Запустить Agent
+### 6. Проверить готовность и запустить агента
 
 ```bash
-cd tools/hermes-agent
-hermes run --config hermes-config.yaml
+npm run doctor:hermes         # чек-лист: MCP собран ✓, env заданы ✓, gateway отвечает ✓
+npm run run:hermes            # запуск: hermes run --config tools/hermes-agent/hermes-config.yaml
 ```
 
-### 5. Проверить
-
-```bash
-hermes doctor    # диагностика подключения
-hermes tools     # список доступных MCP tools
-```
+После старта напишите боту в Telegram `/status` или спросите «объясни работу бота».
 
 ## Архитектура
 
 ```
-Operator → Telegram/Discord → Hermes Agent → MCP Server → Hermes Gateway → Domain Services
+Operator → Telegram → Hermes Agent (Python, GLM 5.2) → MCP Server (TS) → Hermes Gateway (NestJS) → Domain Services
 ```
 
-См. [`docs/adr-hermes-agent-integration.md`](../../docs/adr-hermes-agent-integration.md) для полного ADR.
+См. ADR-ы: [`adr-hermes-agent-glm-telegram.md`](../../docs/adr-hermes-agent-glm-telegram.md) (Plan 5), [`adr-hermes-agent-integration.md`](../../docs/adr-hermes-agent-integration.md) (Plan 3), [`adr-hermes-mcp-server.md`](../../docs/adr-hermes-mcp-server.md) (MCP-архитектура).
 
 ## Переменные окружения
 
 | Переменная | Обязательная | По умолчанию | Описание |
 |-----------|-------------|-------------|----------|
-| `HERMES_LLM_PROVIDER` | нет | `nousresearch` | LLM provider |
-| `HERMES_LLM_MODEL` | нет | `hermes-3-llama-3.1-405b` | Model name |
-| `HERMES_LLM_API_KEY` | **да** | — | API key для LLM |
-| `HERMES_API_KEY` | **да** | — | Hermes Gateway API key |
-| `HERMES_GATEWAY_URL` | нет | `http://localhost:3020` | Gateway URL |
-| `HERMES_MCP_SERVER_PATH` | нет | `../../packages/hermes-mcp-server/dist/index.js` | MCP server path |
-| `HERMES_TELEGRAM_ENABLED` | нет | `false` | Включить Telegram bot |
-| `HERMES_DISCORD_ENABLED` | нет | `false` | Включить Discord bot |
-| `HERMES_CRON_ENABLED` | нет | `false` | Включить cron jobs |
+| `HERMES_LLM_PROVIDER` | нет | `openai` | LLM provider (GLM подключается как `openai` + `base_url`) |
+| `HERMES_LLM_MODEL` | нет | `glm-5.2` | Модель |
+| `HERMES_LLM_BASE_URL` | нет | `https://open.bigmodel.cn/api/paas/v4` | base_url API Zhipu/Z.AI |
+| `HERMES_LLM_API_KEY` | **да** | — | Ключ из https://open.bigmodel.cn |
+| `HERMES_API_KEY` | **да** | — | Ключ для Hermes Gateway (из `HERMES_API_KEYS`) |
+| `HERMES_GATEWAY_URL` | нет | `http://localhost:3020` | URL gateway |
+| `HERMES_MCP_SERVER_PATH` | нет | `../../packages/hermes-mcp-server/dist/index.js` | Путь к собранному MCP-серверу |
+| `HERMES_TELEGRAM_ENABLED` | нет | `true` | Включить Telegram-бота |
+| `TELEGRAM_BOT_TOKEN` | **да** (если Telegram on) | — | Токен от @BotFather |
+| `OPERATOR_TELEGRAM_ID` | **да** (если Telegram on) | — | Ваш Telegram ID (whitelist) |
+| `HERMES_DISCORD_ENABLED` | нет | `false` | Включить Discord-бота |
+| `HERMES_CRON_ENABLED` | нет | `true` | Периодические сводки в Telegram («следит за ботом») |
 | `HERMES_LOG_LEVEL` | нет | `info` | Log level |
+
+## Команды Telegram
+
+| Команда | Навык | Назначение |
+|---------|-------|-----------|
+| `/status` | status_check | Обзор состояния системы |
+| `/plans` | plan_review | Анализ execution plans |
+| `/positions` | position_overview | Обзор портфеля |
+| `/incidents` | incident_management | Управление инцидентами |
+| `/safe` | safe_mode_control | Управление safe mode |
+| `/approve` | approval_handler | Очередь approvals |
+| `/explain` | explain_bot | Объяснение работы бота (Plan 5) |
 
 ## MCP Tools (14)
 
@@ -100,9 +128,31 @@ Operator → Telegram/Discord → Hermes Agent → MCP Server → Hermes Gateway
 | `get_approvals_queue` | GET | Очередь approvals |
 | `get_dashboard_summary` | GET | Сводка дашборда |
 
+## Устранение неполадок
+
+- **`base_url` не поддерживается вашей сборкой агента.** Поднимите локальный OpenAI-совместимый прокси (например, `litellm`), который слушает `http://localhost:8000/v1` и пробрасывает в `https://open.bigmodel.cn/api/paas/v4`. В `.env` поставьте `HERMES_LLM_BASE_URL=http://localhost:8000/v1`. См. fallback в [ADR](../../docs/adr-hermes-agent-glm-telegram.md#5-fallback).
+- **Gateway не отвечает / `npm run doctor:hermes` падает на шаге 4.** Запустите gateway: `npm run dev:hermes` и проверьте `HERMES_GATEWAY_URL`.
+- **Ключ HERMES_API_KEY отклонён (401/403).** Значение `HERMES_API_KEY` у агента должно совпадать с одним из значений `HERMES_API_KEYS` на gateway.
+- **Telegram-бот молчит.** Проверьте `TELEGRAM_BOT_TOKEN` и что `OPERATOR_TELEGRAM_ID` — именно ваш ID (число, у @userinfobot). Бот отвечает **только** пользователям из whitelist.
+- **Ошибки модели GLM (401/invalid api key).** Проверьте `HERMES_LLM_API_KEY` и что `HERMES_LLM_BASE_URL` указывает на `…/v4`.
+- **MCP-сервер не найден.** Запустите `npm run build:hermes-mcp`, проверьте файл `packages/hermes-mcp-server/dist/index.js`.
+
+## Запуск через Docker
+
+Профиль `hermes-agent` в `infra/docker-compose.dev.yml`:
+
+```bash
+npm run dev:stack:hermes-agent
+# или явно:
+docker compose -f infra/docker-compose.dev.yml --profile hermes-agent up -d
+```
+
+> Публичного официального образа NousResearch Hermes Agent нет, поэтому compose-сервис оставлен шаблоном с `# TODO` — подставьте образ вашей сборки агента.
+
 ## Безопасность
 
-- Mutation tools требуют explicit approval оператора
-- Все действия логируются через audit-service
-- API keys хранятся в env, не в конфигах
-- Telegram/Discord — whitelist операторов
+- Mutation tools требуют explicit approval оператора (наследуется от gateway/MCP).
+- Все actions логируются через audit-service с `sourceModule: hermes-agent`.
+- API keys хранятся в env, не в конфигах (никогда не коммитьте `.env` и `hermes-config.local.yaml`).
+- Telegram — whitelist операторов (только `OPERATOR_TELEGRAM_ID`).
+- HERMES — не источник истины: объясняет read-модели, но не принимает решений о капитале/риске/arm/execute (см. [`docs/hermes-operator-boundaries.md`](../../docs/hermes-operator-boundaries.md)).
