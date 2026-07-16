@@ -1,6 +1,6 @@
 # Arbibot 2 — План 4: Deployment Readiness (Paper → Live)
 
-**Прогресс:** 14/22 | **Обновлено:** 2026-07-16 | **Детали шагов:** `.cursor/plans/deploy-readiness/`
+**Прогресс:** 20/22 (1 descoped) | **Обновлено:** 2026-07-16 | **Детали шагов:** `.cursor/plans/deploy-readiness/`
 **Источник:** [`docs/deployment-readiness-review-2026-07.md`](../../docs/deployment-readiness-review-2026-07.md)
 
 ## Контекст
@@ -51,9 +51,9 @@
 | `D4-B-4-KEYS` | Ключи: убрать in-memory Wallet cache | done | `deploy-readiness/D4-B-4-KEYS.md` | L4 🔴 |
 | `D4-B-5-BRIDGE` | Bridge confirmation/finality | done | `deploy-readiness/D4-B-5-BRIDGE.md` | L5 🔴 |
 | `D4-B-6-MTLS` | Service-to-service auth enforce | done | `deploy-readiness/D4-B-6-MTLS.md` | L6 🔴 |
-| `D4-B-7-SECRET-SCAN` | secret-scan → blocking CI | planned | `deploy-readiness/D4-B-7-SECRET-SCAN.md` | L7 |
-| `D4-B-8-TWO-PERSON` | Backend two-person approval | planned | `deploy-readiness/D4-B-8-TWO-PERSON.md` | L8 🔴 |
-| `D4-B-9-IMPORT-GRAPH` | CI paper/live import-graph gate | planned | `deploy-readiness/D4-B-9-IMPORT-GRAPH.md` | C3 |
+| `D4-B-7-SECRET-SCAN` | secret-scan → blocking CI | done | `deploy-readiness/D4-B-7-SECRET-SCAN.md` | L7 |
+| `D4-B-8-TWO-PERSON` | Backend two-person approval | descoped | `deploy-readiness/D4-B-8-TWO-PERSON.md` | L8 🔴 |
+| `D4-B-9-IMPORT-GRAPH` | CI paper/live import-graph gate | done | `deploy-readiness/D4-B-9-IMPORT-GRAPH.md` | C3 |
 
 ### Фаза C: Day-2 + Live smoke (5 шагов)
 
@@ -61,11 +61,11 @@
 
 | step_id | Суть | status | details | из ревью |
 |---------|------|--------|---------|----------|
-| `D4-C-0-DAY2-ADR` | ADR: logging + versioning | planned | `deploy-readiness/D4-C-0-DAY2-ADR.md` | P4/P5 |
-| `D4-C-1-LOGGING` | Structured JSON logging (nestjs-pino) | planned | `deploy-readiness/D4-C-1-LOGGING.md` | P4 |
-| `D4-C-2-VERSIONING` | CHANGELOG + semver + git tags | planned | `deploy-readiness/D4-C-2-VERSIONING.md` | P5 |
-| `D4-C-3-PANIC` | Единая «красная кнопка» | planned | `deploy-readiness/D4-C-3-PANIC.md` | P6 |
-| `D4-C-4-LIVE-SMOKE` | Live (minimal capital) DoD + smoke | planned | `deploy-readiness/D4-C-4-LIVE-SMOKE.md` | go-live |
+| `D4-C-0-DAY2-ADR` | ADR: logging + versioning | done | `deploy-readiness/D4-C-0-DAY2-ADR.md` | P4/P5 |
+| `D4-C-1-LOGGING` | Structured JSON logging (nestjs-pino) | done | `deploy-readiness/D4-C-1-LOGGING.md` | P4 |
+| `D4-C-2-VERSIONING` | CHANGELOG + semver + git tags | done | `deploy-readiness/D4-C-2-VERSIONING.md` | P5 |
+| `D4-C-3-PANIC` | Единая «красная кнопка» | done | `deploy-readiness/D4-C-3-PANIC.md` | P6 |
+| `D4-C-4-LIVE-SMOKE` | Live (minimal capital) DoD + smoke | blocked | `deploy-readiness/D4-C-4-LIVE-SMOKE.md` | go-live |
 
 ## Dependency Graph
 

@@ -5,10 +5,18 @@
 | **depends_on** | `D4-B-1` … `D4-B-9`, `D4-C-1`, `D4-C-2`, `D4-C-3` |
 | **risk_level** | `high` |
 | **estimated_hours** | 6 |
-| **status** | `planned` |
+| **status** | `blocked` |
 
 ## Контекст
 Финальный гейт перед включением live с минимальным капиталом. Все live-blockers (L1–L8 + C3) должны быть закрыты, day-2 (logging/versioning/panic) — готовы.
+
+> **BLOCKED (2026-07-16):** Этот шаг — операционный гейт, не код-задача. Требует:
+> 1. Product-owner decision по D4-B-8-TWO-PERSON (descoped) — принят ли single-operator профиль для go-live.
+> 2. Testnet-прогон ≥ 24ч без capital-loss / unreconciled mismatches.
+> 3. Product-owner sign-off на live с минимальным капиталом.
+>
+> DoD-чеклист составлен в [`docs/live-deploy-dod.md`](../../../docs/live-deploy-dod.md) (все 4 gate'а).
+> Шаг остаётся `blocked` пока операторы не выполнят testnet-soak и не получат sign-off.
 
 ## Outputs
 - `docs/live-deploy-dod.md` — чеклист Definition of Done для live-deploy:
