@@ -62,6 +62,13 @@ start_svc() {
   PIDS+=($!)
 }
 
+# Capital ceiling env-override (D4-B-3-CEILING): capital-service runs in
+# NODE_ENV=production but config-service is NOT started in this scenario, so the
+# ceiling cannot be fetched. CAPITAL_MAX_ACTIVE_USD is the documented fallback
+# for exactly this case ("env can only tighten; exists for when config-service
+# is unreachable"). $100k is generous for the e2e notional amounts.
+export CAPITAL_MAX_ACTIVE_USD="${CAPITAL_MAX_ACTIVE_USD:-100000}"
+
 start_svc risk 3000 node "$ROOT/apps/risk-service/dist/main.js"
 start_svc opportunity 3010 node "$ROOT/apps/opportunity-service/dist/main.js"
 start_svc capital 3011 node "$ROOT/apps/capital-service/dist/main.js"
