@@ -7,6 +7,7 @@ import { SafeModeBanner } from '../../components/safe-mode-banner';
 import { OperatorAccessMessage } from '../../components/operator-access-message';
 import { OperatorFiltersBar } from '../../components/operator-filters-bar';
 import { OperatorNav } from '../../components/operator-nav';
+import { PanicButton } from '../../components/panic-button';
 import { getOperatorSession } from '../../lib/operator-session';
 
 import { Providers } from '../providers';
@@ -47,6 +48,12 @@ export default async function OperatorLayout({
     <Providers>
       <OperatorNav session={session} />
       <OperatorFiltersBar />
+      {/* Emergency-stop button: only operators/admins (viewers cannot mutate). */}
+      {(session.role === 'operator' || session.role === 'admin') && (
+        <div className="fixed bottom-4 right-4 z-40">
+          <PanicButton />
+        </div>
+      )}
       <DegradedStatusBanner />
       <DexHealthBanner />
       <SafeModeBanner />

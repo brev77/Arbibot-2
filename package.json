@@ -69,6 +69,8 @@
     "db:restore": "bash tools/backup-postgres.sh restore",
     "verify:deployment": "bash tools/verify-deployment.sh",
     "verify:env": "bash tools/validate-env.sh",
+    "panic:stop": "bash tools/panic-button.sh",
+    "panic:recover": "bash tools/panic-recover.sh",
     "validate:dependabot": "node tools/validate-dependabot.mjs",
     "generate:tls": "bash tools/generate-tls-certs.sh",
     "graphify:rebuild": "py -3 -c \"from graphify.watch import _rebuild_code; from pathlib import Path; _rebuild_code(Path('.'))\"",

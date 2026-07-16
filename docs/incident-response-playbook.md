@@ -167,14 +167,49 @@ curl -X POST http://localhost:3017/reconciliation/run
 
 ## 4. Kill Switches
 
-| Компонент | Переменная | Действие |
-|-----------|-----------|----------|
-| DEX live | `DEX_LIVE_KILL_SWITCH=true` | Блокирует все DEX execution |
-| DEX paper | `PAPER_DEX_MAINNET_ENABLED=false` | Блокирует paper DEX на mainnet |
-| Intake throttling | `INTAKE_THROTTLING_ENABLED=false` | Отключает throttle (пропускает всё) |
-| Paper discovery | `PAPER_DISCOVERY_ENABLED=false` | Останавливает discovery worker |
-| Policy writers | `RISK_POLICY_JOBS_ENABLED=false` | Останавливает watchlist/scoring jobs |
-| Audit | `AUDIT_CLIENT_ENABLED=false` | Отключает audit (экстренно) |
+### 4.1 Panic-button (первое действие при SEV-1/SEV-2)
+
+При критическом инциденте (capital loss, service down, data corruption) **первое
+действие** — остановить торговлю. Есть два способа:
+
+**CLI (полный panic, рекомендуется для production):**
+
+```bash
+npm run panic:stop           # атомарно flip'ает DEX_LIVE_KILL_SWITCH + PAPER_DISCOVERY_ENABLED + RISK_POLICY_JOBS_ENABLED, перезапускает сервисы, пишет audit
+npm run panic:recover -- --confirm "I UNDERSTAND THIS RESUMES TRADING"   # восстановление (требует typed confirm)
+```
+
+См. `docs/release-process.md`, `tools/panic-button.sh`, `tools/panic-recover.sh`.
+
+**UI-кнопка (быстрая остановка live-капитала):**
+
+Кнопка ⛔ **EMERGENCY STOP** в правом нижнем углу операторской панели
+(`PanicButton`). Flip'ает `dex.limits.killSwitch=true` через config-service
+(читается `DexKillSwitchService` в execution-orchestrator). **Не покрывает** полный
+panic — только live-капитал. После клика UI показывает инструкцию запустить CLI
+для остановки paper-discovery и risk-policy-jobs.
+
+> **Recovery** — никогда single-click. CLI требует
+> `--confirm "I UNDERSTAND THIS RESUMES TRADING"`, UI требует typed-phrase. Это
+> заменило two-person approval (D4-B-8-TWO-PERSON descoped для single-operator
+> профиля; см. `docs/adr-live-gate.md`).
+
+### 4.2 Индивидуальные kill-switches (для точечного контроля)
+
+| Компонент | Переменная / config | Действие | Backend enforcement |
+|-----------|---------------------|----------|---------------------|
+| DEX live | `DEX_LIVE_KILL_SWITCH=true` env ИЛИ `dex.limits.killSwitch=true` config | Блокирует все live DEX legs | ✅ `DexKillSwitchService.assertLiveNotHalted()` перед каждым live leg (D4-B-1) |
+| Paper discovery | `PAPER_DISCOVERY_ENABLED=false` env | Останавливает discovery worker | ✅ `PaperDiscoveryService` (D4-C-3) |
+| Policy writers | `RISK_POLICY_JOBS_ENABLED=false` env | Останавливает watchlist/scoring jobs | ✅ `PolicyJobsService` (D4-C-3) |
+| Intake throttling | `INTAKE_THROTTLING_ENABLED=false` env | Отключает throttle (пропускает всё) | ✅ `IntakeThrottleService` |
+| Audit | `AUDIT_CLIENT_ENABLED=false` env | Отключает audit (экстренно) | ✅ `AuditClientService` |
+| DEX paper mainnet | `PAPER_DEX_MAINNET_ENABLED=false` env | (документировано, но **не реализовано** — см. TODO ниже) | ❌ TODO |
+
+> **TODO (PAPER_DEX_MAINNET_ENABLED):** эта переменная документирована исторически,
+> но **ни один сервис её не читает** (verified в D4-C-3-PANIC research, 2026-07-16).
+> Panic-button скрипт намеренно её НЕ flip'ает — имитировать защиту, которой нет,
+> хуже честности. Когда paper-DEX mainnet станет реальным path, реализовать reader
+> и добавить в panic-button.sh.
 
 ---
 

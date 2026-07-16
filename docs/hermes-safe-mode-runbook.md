@@ -15,7 +15,14 @@
 
 ## Escalation
 
-Safe mode does **not** automatically halt execution or capital services; it is a **visible operator signal**. Pair with operational runbooks (execution gap, risk timeout) in [`docs/observability-tracing.md`](observability-tracing.md).
+Safe mode does **not** automatically halt execution or capital services; it is a **visible operator signal** — a banner that alerts operators to investigate. **It is not a panic-button.**
+
+For an actual emergency stop that halts trading, use the **panic-button** (D4-C-3-PANIC):
+- **UI:** ⛔ EMERGENCY STOP button (bottom-right of operator pages) — flips `dex.limits.killSwitch=true`.
+- **CLI:** `npm run panic:stop` — flips all real kill-switches + restarts services + audit.
+- Recovery: `npm run panic:recover -- --confirm "I UNDERSTAND THIS RESUMES TRADING"`.
+
+See [`docs/incident-response-playbook.md`](incident-response-playbook.md) §4.1 for the full procedure.
 
 ## Production / multi-instance checklist
 
