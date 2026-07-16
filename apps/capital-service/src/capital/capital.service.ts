@@ -74,10 +74,13 @@ export class CapitalService {
       // (ServiceUnavailableException) in prod when unresolved — no reservation.
       const ceiling = await this.limits.getMaxActiveCapitalUsd();
 
-      // SUM(active reservations) under FOR UPDATE serializes concurrent
-      // reserve() calls and closes the C1 race on the aggregate.
+      // SUM(active reservations) serializes concurrent reserve() calls and
+      // closes the C1 race on the aggregate. PostgreSQL forbids FOR UPDATE on
+      // an aggregate directly, so lock the underlying active rows in a subquery
+      // and sum over them — a concurrent reserve() blocks on those row locks
+      // until the first transaction commits, then re-reads the updated total.
       const reservationsRows: Array<{ sum: string }> = await em.query(
-        `SELECT COALESCE(SUM(amount_usd), 0) AS sum FROM capital_reservations WHERE state = 'active' FOR UPDATE`,
+        `SELECT COALESCE(SUM(amount_usd), 0) AS sum FROM (SELECT amount_usd FROM capital_reservations WHERE state = 'active' FOR UPDATE) locked`,
       );
       // SUM(open positions' USD notional). Open = quantity <> 0 (close sets
       // quantity to 0). capital-service is a read-only consumer of
