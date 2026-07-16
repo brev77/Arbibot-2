@@ -5,7 +5,7 @@
 | **depends_on** | `D4-B-8-TWO-PERSON` |
 | **risk_level** | `medium` |
 | **estimated_hours** | 2 |
-| **status** | `planned` |
+| **status** | `done` |
 
 ## Контекст (из ревью)
 - Нет structured JSON logging (Pino/winston/nestjs-pino отсутствуют). `packages/nest-platform/src/structured-logger.ts` только prepend'ит `[correlationId=...]` к text. Loki глотает plain text. Признано в `docs/observability-baseline.md` (P4).

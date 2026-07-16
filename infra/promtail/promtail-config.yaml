@@ -1,5 +1,14 @@
 # Arbibot 2 — Promtail configuration
-# Collects Docker container logs and ships to Loki
+# Collects Docker container logs and ships to Loki.
+#
+# Pipeline assumes NDJSON logs from PinoLoggerService (D4-C-1-LOGGING):
+#   {"level":"info","time":"2026-07-16T12:00:00.000Z","service":"risk-service",
+#    "correlationId":"...","msg":"...","context":"..."}
+# The `json` stage extracts level/msg/time; `labels` promotes level+service to Loki
+# labels so queries like `{service="risk-service",level="error"}` work directly.
+# If a line is NOT valid JSON (e.g. pre-pino Nest bootstrap logs), the json stage
+# silently skips it — those lines still ingest with the docker `container`/`service`
+# labels from relabel_configs, just without level/timestamp parsing.
 
 server:
   http_listen_port: 9080
@@ -25,7 +34,8 @@ scrape_configs:
       - source_labels: ["__meta_docker_container_name"]
         target_label: "container"
         regex: "/(.*)"
-      # Use compose service name
+      # Use compose service name as a fallback `service` label; the JSON stage
+      # below overrides it with the in-log `service` field when present.
       - source_labels: ["__meta_docker_container_label_com_docker_compose_service"]
         target_label: "service"
     pipeline_stages:
@@ -33,6 +43,8 @@ scrape_configs:
           expressions:
             level: level
             msg: msg
+            service: service
+            correlationId: correlationId
             timestamp: time
       - labels:
           level:

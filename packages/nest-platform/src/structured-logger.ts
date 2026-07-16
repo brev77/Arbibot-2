@@ -1,13 +1,19 @@
-import { LoggerService } from '@nestjs/common';
+import type { LoggerService } from '@nestjs/common';
 
 import { getCorrelationId } from './correlation';
 
 /**
- * Wraps Nest LoggerService to append correlationId from ALS when present (P1-1.1-OBS baseline).
+ * Wrap a Nest `LoggerService` so each call prepends the ALS correlation id
+ * (D4-C-1-LOGGING: legacy shim; new code should use `PinoLoggerService`, which
+ * emits structured JSON with `correlationId` as a field — no prefix needed).
+ *
+ * API preserved for backward compatibility. The wrapper is correlation-aware
+ * regardless of the underlying logger: if the base is the default Nest console
+ * logger, the prefix keeps logs traceable until that service switches to pino.
+ * Once a service uses `configureArbibotLogger`, `correlationId` is already a
+ * structured field and this wrapper becomes a no-op pass-through.
  */
-export function withCorrelation(
-  base: LoggerService,
-): LoggerService {
+export function withCorrelation(base: LoggerService): LoggerService {
   const prefix = (): string => {
     const c = getCorrelationId();
     return c ? `[correlationId=${c}] ` : '';

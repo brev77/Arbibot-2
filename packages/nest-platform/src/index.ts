@@ -28,6 +28,15 @@ export {
   type ArbibotHttpSecurityEnv,
 } from './http-security';
 export { withCorrelation } from './structured-logger';
+export {
+  PinoLoggerService,
+  type PinoLoggerServiceOptions,
+} from './logging/pino-logger.service';
+export { configureArbibotLogger } from './logging/configure-arbibot-logger';
+export {
+  ARBIBOT_LOG_REDACT_PATHS,
+  ARBIBOT_REDACT_CENSOR,
+} from './logging/redact.config';
 export { startOpenTelemetryNodeSdkIfConfigured } from './otel';
 export {
   KeyVaultModule,

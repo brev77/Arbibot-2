@@ -23,6 +23,56 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318
 
 `x-correlation-id` continues to be the primary cross-service log/metrics key; traces add span hierarchy and latency breakdown for execution and reconciliation reviews.
 
+## Structured logging (D4-C-1-LOGGING)
+
+All Nest services emit **NDJSON** via `PinoLoggerService` (`@arbibot/nest-platform`), installed in each `main.ts` via `configureArbibotLogger(app, serviceName)`. The `x-correlation-id` ALS value (`correlationIdPreHandler`) is attached as a structured field on every line — no per-call work needed.
+
+### Line format
+
+```json
+{"level":"info","time":"2026-07-16T12:00:00.000Z","service":"risk-service","correlationId":"9b3...","context":"RiskService","msg":"evaluated risk for plan p1","planId":"p1"}
+```
+
+- `level` — string label (`info`/`warn`/`error`/`debug`/`fatal`), promoted to a Loki label by Promtail.
+- `time` — ISO-8601 (RFC3339), parsed by Promtail's `timestamp` stage.
+- `service` — service name; same value as the `service.name` OTel resource attribute.
+- `correlationId` — the request correlation id (from `x-correlation-id` header or generated); absent outside a request scope.
+- `context` — Nest class name (the trailing string arg of `this.logger.log(msg, ClassName)`).
+- `msg` — the log message.
+- `err` — when an `Error` is passed, pino's error serializer expands it (message/type/stack).
+
+### Sensitive-field redaction
+
+Paths matching `ARBIBOT_LOG_REDACT_PATHS` (`packages/nest-platform/src/logging/redact.config.ts`) are replaced with `[Redacted]` at serialisation time — K1.1/K1.2 protection. Covers `privateKey`, `mnemonic`, `signingKey`, `secret`, `apiKey`, `authorization`, `req.headers.authorization`, etc. Complements `ci-key-leakage` (D4-B-7), which catches *literal* key leaks via static grep.
+
+### Configuration
+
+| Env var | Default | Effect |
+|---------|---------|--------|
+| `LOG_LEVEL` | `info` | Minimum level emitted (`fatal`/`error`/`warn`/`info`/`debug`/`trace`/`silent`). |
+| `ARBIBOT_LOG_PRETTY` | unset | `true` → force pino-pretty colourised text even in production (debugging only). |
+| `NODE_ENV` | — | `!== 'production'` → pretty-print automatically (dev convenience). Production → NDJSON. |
+
+### Loki queries (via Promtail pipeline)
+
+Promtail (`infra/promtail/promtail-config.yaml`) parses the JSON line and promotes `level` + `service` to labels. Common queries:
+
+```logql
+# All errors from execution-orchestrator in the last hour
+{service="execution-orchestrator",level="error"}
+
+# Lines for a specific correlation id across all services
+{job="docker"} |= "correlationId\":\"9b3..."
+
+# Bridge-related warnings across services
+{level="warn"} |= "bridge"
+
+# Count of error lines per service in the last 15m
+sum by (service) (count_over_time({level="error"}[15m]))
+```
+
+> Note: lines emitted before `configureArbibotLogger` runs (process bootstrap, top-level import errors) are plain text — Promtail's `json` stage silently skips them; they still ingest with the docker `container`/`service` labels but without `level`/`timestamp` parsing.
+
 ## Alert catalog (baseline, §26.2)
 
 These are **documentation targets** for Prometheus/Grafana (metrics already on `GET /metrics` per `P1-1.1-OBS`). Wire recording rules and notification policies in `P2-2.3-GRAF` / infra IaC.

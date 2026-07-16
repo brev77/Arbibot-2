@@ -148,7 +148,7 @@ services:
       - arbibot_loki_data:/loki
 
   promtail:
-    image: grafana/promtail:3.2.1
+    image: grafana/promtail:3.3.2
     profiles: [observability]
     command: ['-config.file=/etc/promtail/promtail-config.yaml']
     volumes:

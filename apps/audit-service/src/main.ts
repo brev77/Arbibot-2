@@ -9,6 +9,7 @@ import {
 
 import {
   applyArbibotHttpSecurity,
+  configureArbibotLogger,
   correlationIdPreHandler,
   installMetricsOnFastify,
   startOpenTelemetryNodeSdkIfConfigured,
@@ -23,6 +24,7 @@ async function bootstrap(): Promise<void> {
     AppModule,
     new FastifyAdapter(),
   );
+  configureArbibotLogger(app, 'audit-service');
   await applyArbibotHttpSecurity(app);
   const fastify = app.getHttpAdapter().getInstance();
   fastify.addHook('preHandler', correlationIdPreHandler);
