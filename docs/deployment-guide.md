@@ -729,6 +729,11 @@ npm run verify:deployment
 
 ### Откат на предыдущую версию
 
+Начиная с `v0.1.0-paper` (D4-C-2-VERSIONING), каждый релиз тегируется semver-тегом
+и образы в GHCR несут этот тег (`type=ref,event=tag` в `.github/workflows/cd.yml`).
+Откат = фиксация `IMAGE_TAG` на предыдущем semver-теге. Список релизов — в
+[`CHANGELOG.md`](../CHANGELOG.md), процедура — в [`docs/release-process.md`](release-process.md).
+
 ```bash
 # 1. Остановить всё
 docker compose -f infra/docker-compose.prod.yml down
@@ -740,10 +745,12 @@ npm run db:restore -- /path/to/backup.sql.gz
 # или без confirm-prompt (автоматизация): npm run db:restore -- /path/to/backup.sql.gz --force
 # После restore: npm run db:verify-migrations:all
 
-# 3. Запустить с предыдущим tag:
-IMAGE_TAG=<previous-sha> docker compose -f infra/docker-compose.prod.yml up -d
+# 3. Запустить с предыдущим semver-тегом (предпочтительно) или SHA:
+IMAGE_TAG=v0.1.0-paper docker compose -f infra/docker-compose.prod.yml up -d
+# Если откатываетесь на commit без semver-тега — используйте короткий SHA:
+# IMAGE_TAG=<previous-sha> docker compose -f infra/docker-compose.prod.yml up -d
 
-# 5. Верифицировать:
+# 4. Верифицировать:
 npm run verify:deployment
 ```
 

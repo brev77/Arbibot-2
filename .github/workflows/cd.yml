@@ -93,9 +93,15 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.service }}
+          # Tags produced per push:
+          #   - `latest` (or the workflow_dispatch `tag` input)
+          #   - `<git-sha>` for traceability
+          #   - `v<X.Y.Z>-<phase>` when a semver git tag is pushed (D4-C-2-VERSIONING:
+          #     enables rollback via IMAGE_TAG=v0.1.0-paper — see docs/release-process.md)
           tags: |
             type=raw,value=${{ github.event.inputs.tag || 'latest' }}
             type=sha,prefix=
+            type=ref,event=tag
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -135,9 +141,11 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-web
+          # See Nest-services job: semver git tag → semver image tag (D4-C-2-VERSIONING).
           tags: |
             type=raw,value=${{ github.event.inputs.tag || 'latest' }}
             type=sha,prefix=
+            type=ref,event=tag
 
       - name: Build and push
         uses: docker/build-push-action@v6

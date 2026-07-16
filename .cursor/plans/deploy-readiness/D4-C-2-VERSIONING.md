@@ -5,7 +5,7 @@
 | **depends_on** | `D4-C-0-DAY2-ADR` |
 | **risk_level** | `low` |
 | **estimated_hours** | 3 |
-| **status** | `planned` |
+| **status** | `done` |
 
 ## Контекст (из ревью)
 Нет `CHANGELOG.md`, нет git-тегов (`git tag` пусто), нет `version` в корневом `package.json`. Образы тегируются по commit SHA + `latest`. Нет release-process doc (P5). Audit-трейл изменений и откат «на прошлый релиз» затруднены.
@@ -24,12 +24,20 @@
 6. Обновить `docs/deployment-guide.md` §rollback — откат по semver-тегу
 
 ## Acceptance
-- [ ] `CHANGELOG.md` существует и описывает baseline
-- [ ] `package.json` имеет `version`
-- [ ] Минимум один git tag (`v0.1.0-paper`)
-- [ ] `docs/release-process.md` описывает процедуру
-- [ ] `cd.yml` тегирует образы semver на tag-push
-- [ ] Rollback-процедура в deployment-guide ссылается на semver-теги
+- [x] `CHANGELOG.md` существует и описывает baseline (Keep-a-Changelog, [0.1.0-paper] — 2026-07-16 + Unreleased)
+- [x] `package.json` имеет `version: "0.1.0"`
+- [x] `docs/release-process.md` описывает процедуру (cut / rollback / hotfix / pre-1.0 contract)
+- [x] `cd.yml` тегирует образы semver на tag-push (`type=ref,event=tag` добавлен к обоим metadata-action блокам: Nest services + web)
+- [x] Rollback-процедура в deployment-guide §11 ссылается на semver-теги (`IMAGE_TAG=v0.1.0-paper`)
+- [ ] Git tag `v0.1.0-paper` — будет создан и запушен отдельно (outward-facing action, требует явного подтверждения оператором перед push; скрипт в release-process.md описывает процедуру)
+
+## Implementation notes
+- `CHANGELOG.md` (root) — baseline release с полным списком Plan 4 Phase A/B, DEX, Hermes, Phase 1-4 изменений + Descoped секция для D4-B-8
+- `package.json` root — `"version": "0.1.0"` (раньше отсутствовало)
+- `docs/release-process.md` — процедура cut/rollback/hotfix, pre-1.0 instability contract
+- `.github/workflows/cd.yml` — `type=ref,event=tag` в обоих metadata-action шагах (Nest + web) → semver-тег образа
+- `docs/deployment-guide.md` §11 — обновлён rollback с примером semver-тега
+- Git tag `v0.1.0-paper` будет создан на коммите, закрывающем Фазу C (после всех D4-C шагов)
 
 ## Edge Cases
 - Pre-1.0 instability → minor bumps могут breaking (задокументировать)
