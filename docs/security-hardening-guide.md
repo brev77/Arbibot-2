@@ -37,20 +37,31 @@
 
 ## Phase C: Security Roadmap
 
-### C-1: mTLS между сервисами
+### C-1: Service-to-service auth (HMAC enforced) + mTLS (future)
 **Приоритет:** P1 (блокер для live)  
-**Срок:** До live capital
+**Срок:** До live capital  
+**Статус:** HMAC enforced (D4-B-6-MTLS done); mTLS deferred to Phase-2 hardening
 
-**Задачи:**
-- [ ] Генерация internal CA + service certificates
-- [ ] NestJS services: HTTPS server с mTLS
+**Решение (D4-B-6-MTLS, ADR `docs/adr-live-gate.md` §6):** live-gate L6 закрывается **HMAC ServiceAuth** (общий секрет ≥32 байт, подпись `x-arbibot-signature` на каждом внутреннем запросе), а не полным mTLS. HMAC уже реализован, протестирован и покрывает угрозу (любой контейнер в `arbibot-backend` вызывает любой сервис). mTLS добавляет overhead ротации сертификатов, несоразмерный single-host paper-deploy.
+
+**Задачи (HMAC — done):**
+- [x] Все 11 внутренних service-to-service клиентов используют `signedFetch` (`@arbibot/nest-platform`)
+- [x] Inbound guard wired во все 12 backend-сервисов через `applyArbibotHttpSecurity` (fail-closed при мисконфиге)
+- [x] `.env.production.example`: `ARBIBOT_SERVICE_AUTH_ENABLED=true` + `ARBIBOT_SERVICE_AUTH_SECRET` + `HERMES_SIGN_UPSTREAM=true`
+- [x] `tools/validate-env.sh` блокирует prod-deploy без auth-config (FAIL exit 1)
+- [x] Тесты: `fetch-signer.spec.ts` + `fastify-guard.spec.ts` (unsigned→401, signed→200, public-path exempt)
+
+**Задачи (mTLS — future Phase-2 hardening, НЕ блокер для initial live):**
+- [x] Генерация internal CA + service certificates (`tools/generate-internal-certs.sh` уже есть)
+- [ ] NestJS services: HTTPS server с mTLS (Fastify https-listener во всех сервисах)
 - [ ] Docker compose: volume mounts для certs
 - [ ] Service mesh consideration (Linkerd/Consul)
 
 **Артефакты:**
-- `tools/generate-internal-certs.sh` — CA + service certs
+- `tools/generate-internal-certs.sh` — CA + 12 service certs (готово)
 - `infra/nginx/ssl/internal/` — internal cert storage
-- Обновлённые `Dockerfile.nest` — SSL config
+- `packages/nest-platform/src/service-auth/` — HMAC sign/verify + Fastify guard + fetch-signer
+- `docs/adr-live-gate.md` §6 — решение + extension path
 
 ### C-2: External Secret Manager
 **Приоритет:** P1 (блокер для live)  

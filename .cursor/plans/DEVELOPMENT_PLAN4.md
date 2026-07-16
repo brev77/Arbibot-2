@@ -1,6 +1,6 @@
 # Arbibot 2 — План 4: Deployment Readiness (Paper → Live)
 
-**Прогресс:** 13/22 | **Обновлено:** 2026-07-15 | **Детали шагов:** `.cursor/plans/deploy-readiness/`
+**Прогресс:** 14/22 | **Обновлено:** 2026-07-16 | **Детали шагов:** `.cursor/plans/deploy-readiness/`
 **Источник:** [`docs/deployment-readiness-review-2026-07.md`](../../docs/deployment-readiness-review-2026-07.md)
 
 ## Контекст
@@ -50,7 +50,7 @@
 | `D4-B-3-CEILING` | Aggregate capital ceiling (C1) | done | `deploy-readiness/D4-B-3-CEILING.md` | L3 🔴 |
 | `D4-B-4-KEYS` | Ключи: убрать in-memory Wallet cache | done | `deploy-readiness/D4-B-4-KEYS.md` | L4 🔴 |
 | `D4-B-5-BRIDGE` | Bridge confirmation/finality | done | `deploy-readiness/D4-B-5-BRIDGE.md` | L5 🔴 |
-| `D4-B-6-MTLS` | Service-to-service auth enforce | planned | `deploy-readiness/D4-B-6-MTLS.md` | L6 🔴 |
+| `D4-B-6-MTLS` | Service-to-service auth enforce | done | `deploy-readiness/D4-B-6-MTLS.md` | L6 🔴 |
 | `D4-B-7-SECRET-SCAN` | secret-scan → blocking CI | planned | `deploy-readiness/D4-B-7-SECRET-SCAN.md` | L7 |
 | `D4-B-8-TWO-PERSON` | Backend two-person approval | planned | `deploy-readiness/D4-B-8-TWO-PERSON.md` | L8 🔴 |
 | `D4-B-9-IMPORT-GRAPH` | CI paper/live import-graph gate | planned | `deploy-readiness/D4-B-9-IMPORT-GRAPH.md` | C3 |

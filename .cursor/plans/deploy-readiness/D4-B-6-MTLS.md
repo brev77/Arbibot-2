@@ -5,7 +5,7 @@
 | **depends_on** | `D4-B-0-LIVE-ADR` |
 | **risk_level** | `high` |
 | **estimated_hours** | 5 |
-| **status** | `planned` |
+| **status** | `done` |
 
 ## Контекст (из ревью)
 `ServiceAuthModule` (HMAC, `packages/nest-platform/src/service-auth/fastify-guard.ts`) есть, но opt-in через `ARBIBOT_SERVICE_AUTH_ENABLED=true`. В `.env.production.example` **выключен**. Любой контейнер в сети `arbibot-backend` может вызывать любой сервис без auth. Finding **F1 (🔴)** в `docs/pre-deploy-review.md`. `tools/generate-internal-certs.sh` (12 service certs для mTLS) существует, но не enforced (L6).

@@ -75,11 +75,17 @@ The deployment-readiness review (2026-07) found 8 capital-critical blockers (L1�
 - **Idempotent claim (B1):** destination-side fill is keyed by `sourceTxHash + depositId` (unique constraint), so a replayed poll cannot double-process.
 - **Timeout:** existing `BridgeTransferService` timeout detection stays; add `expired` → operator-approve manual recovery.
 
-### 6. mTLS / service-to-service auth (L6) — `D4-B-6`
+### 6. mTLS / service-to-service auth (L6) — `D4-B-6` — **implemented**
 
 - **Decision:** enforce the existing **HMAC** guard (`ARBIBOT_SERVICE_AUTH_ENABLED=true` by default in prod), not full mTLS. Rationale: HMAC is already implemented, tested, and covers the threat (any container in `arbibot-backend` calling any service); mTLS adds cert-rotation overhead disproportionate to a single-host paper-deploy.
-- **Enforcement:** `.env.production.example` sets `ARBIBOT_SERVICE_AUTH_ENABLED=true` + `ARBIBOT_SERVICE_AUTH_SECRET=<CHANGE_ME_USE_VAULT>`; `validate-env.sh` fails if absent in prod; all internal clients sign outbound requests via `fetch-signer.ts`.
-- **Extension path (live scale):** mTLS via mutual cert-manager when multi-host. Documented, not implemented now.
+- **Implementation (done):**
+  - `.env.production.example` sets `ARBIBOT_SERVICE_AUTH_ENABLED=true` + `ARBIBOT_SERVICE_AUTH_SECRET=<CHANGE_ME_USE_VAULT_64_HEX>` + `HERMES_SIGN_UPSTREAM=true`.
+  - `tools/validate-env.sh` FAILs (exit 1) when enabled + secret unset/placeholder/`<32` chars, and WARNs when disabled.
+  - All **11 internal service-to-service clients** now route through `signedFetch` (`@arbibot/nest-platform`): capital-limits, dex-kill-switch, dex-risk-policy, capital-http, risk-http, fill-outbound, policy-cache, paper-client, risk-client, opportunity-filters-policy, paper-discovery. Outbound passthrough when auth disabled; fail-closed throw when enabled-but-no-secret.
+  - `hermes-gateway/HermesUpstreamService` signs outbound upstream calls env-gated via `HERMES_SIGN_UPSTREAM` (its gateway role means targets are caller-supplied; in live hermes targets MUST be internal services only).
+  - **NOT signed (external, by design):** `http-venue.adapter.ts` (external venue/lab stand), `hermes health.controller.ts` operator-web BFF probe (external + `/health/*`-exempt).
+  - Tests: `packages/nest-platform/src/service-auth/{fetch-signer,fastify-guard}.spec.ts` (44 cases incl. unsigned→401, signed→200, public-path exempt, stale/bad-signature rejection); `risk-client.service.spec.ts` wiring assertion.
+- **Extension path (live scale):** mTLS via mutual cert-manager when multi-host. `tools/generate-internal-certs.sh` (CA + 12 service certs) already exists; remaining work = Fastify https-listener in all services + outbound client certs + compose mounts. Documented, not implemented now — tracked as Phase-2 hardening.
 
 ### 7. Secret-scan blocking (L7) — `D4-B-7`
 
