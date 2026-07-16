@@ -1,13 +1,30 @@
 import { Injectable, Logger } from '@nestjs/common';
 
+import { signedFetch } from '@arbibot/nest-platform';
+
 export type UpstreamJsonResult = {
   status: number;
   json: unknown;
 };
 
+/**
+ * Whether outbound upstream calls should carry a service-auth HMAC signature.
+ *
+ * Hermes-gateway proxies to caller-supplied URLs (its gateway role), so signing
+ * is env-gated rather than unconditional: in dev/paper (`HERMES_SIGN_UPSTREAM`
+ * unset/false) calls are an unsigned passthrough; in live (`HERMES_SIGN_UPSTREAM=true`)
+ * every upstream call is signed with `ARBIBOT_SERVICE_AUTH_SECRET`. When signing
+ * is forced but the secret is missing, `signedFetch` throws (fail-closed) — see
+ * D4-B-6-MTLS / docs/adr-service-auth.md.
+ */
+function shouldSignUpstream(): boolean {
+  return process.env.HERMES_SIGN_UPSTREAM === 'true';
+}
+
 @Injectable()
 export class HermesUpstreamService {
   private readonly log = new Logger(HermesUpstreamService.name);
+  private readonly signUpstream = shouldSignUpstream();
 
   /**
    * GET JSON from an upstream service, forwarding correlation id when present.
@@ -23,7 +40,7 @@ export class HermesUpstreamService {
 
     let res: Response;
     try {
-      res = await fetch(url, { method: 'GET', headers });
+      res = await signedFetch(url, { method: 'GET', headers, forceSign: this.signUpstream });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       this.log.warn(`Upstream fetch failed: ${url} — ${message}`);
@@ -61,9 +78,10 @@ export class HermesUpstreamService {
 
     let res: Response;
     try {
-      res = await fetch(url, {
+      res = await signedFetch(url, {
         method: 'POST',
         headers,
+        forceSign: this.signUpstream,
         body:
           body !== undefined && Object.keys(body).length > 0
             ? JSON.stringify(body)
@@ -106,9 +124,10 @@ export class HermesUpstreamService {
 
     let res: Response;
     try {
-      res = await fetch(url, {
+      res = await signedFetch(url, {
         method: 'PATCH',
         headers,
+        forceSign: this.signUpstream,
         body: JSON.stringify(body),
       });
     } catch (err: unknown) {
