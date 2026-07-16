@@ -25,13 +25,26 @@ jobs:
     # Lightweight key-leakage grep guard (no npm ci needed). Pattern guard: catches logging a
     # decrypted key, decrypting outside KeyVaultService/wallet-manager, or hardcoding a key in
     # production code. Complements .github/gitleaks-config.toml (value guard).
-    # continue-on-error: review findings, but don't block until the guard is proven stable.
-    # Flip to false (or remove the flag) once zero findings hold for several PRs.
-    continue-on-error: true
+    # BLOCKING (D4-B-7-SECRET-SCAN): K1/K2 findings now fail the build. The guard has held at
+    # zero findings across multiple PRs; any future legitimate code that trips a pattern must
+    # extend the allowlist in tools/ci-key-leakage.sh with a justification comment.
     steps:
       - uses: actions/checkout@v4
       - name: Key-leakage static scan (K1/K2)
         run: bash tools/ci-key-leakage.sh
+
+  paper-live-boundary:
+    runs-on: ubuntu-latest
+    # Paper/live import-graph boundary guard (D4-B-9-IMPORT-GRAPH, threat C3). Pure grep over
+    # import statements — no npm ci needed. Enforces PL.1/PL.2 from
+    # .cursor/skills/dex-security-and-capital-safety/references/paper-live-boundary.md:
+    # paper-trading-service must not import live capital/execution/wallet modules, and live
+    # services must not depend on paper-only write artifacts. Shared types go via
+    # @arbibot/contracts (the boundary itself).
+    steps:
+      - uses: actions/checkout@v4
+      - name: Paper/live import-graph boundary scan (PL.1/PL.2)
+        run: bash tools/ci-paper-live-boundary.sh
 
   e2e-phase2:
     runs-on: ubuntu-latest
