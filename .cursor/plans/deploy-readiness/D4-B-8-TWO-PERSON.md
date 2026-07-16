@@ -1,11 +1,26 @@
 # D4-B-8-TWO-PERSON — Backend two-person approval для деструктивных операций
 
+> **DESCOPED (2026-07-16):** Шаг отменён product-owner'ом. Решение: two-person approval
+> (правило двух разных людей-операторов для подтверждения destructive-операций) не требуется
+> для текущего операционного профиля (единственный оператор). Существующие контроли остаются:
+> single-operator typed-phrase в `DestructiveOperatorAction` (frontend), audit-записи для всех
+> destructive-операций, kill-switch (D4-B-1), capital ceiling (D4-B-3).
+>
+> **Влияние на другие шаги:**
+> - `D4-C-3-PANIC` (panic-recover) — изначально требовал two-person для recovery; адаптирован:
+>   recovery требует явного typed-confirm аргумента + audit (см. `D4-C-3-PANIC.md`).
+> - `D4-C-4-LIVE-SMOKE` — формально зависит от этого шага; DoD-чеклист составлен без него,
+>   go-live гейт переносится на product-owner sign-off.
+>
+> Если контроль станет нужен (многооператорная команда, compliance-требования) — вернуться
+> к этому шагу; архитектурный анализ сохранён ниже.
+
 | Поле | Значение |
 |------|----------|
 | **depends_on** | `D4-B-0-LIVE-ADR` |
 | **risk_level** | `high` |
 | **estimated_hours** | 6 |
-| **status** | `planned` |
+| **status** | `descoped` |
 
 ## Контекст (из ревью)
 - `apps/web/components/domain/destructive-operator-action.tsx` — single-operator typed-phrase («CONFIRM»), не two-person rule.
