@@ -25,6 +25,10 @@ paths = [
   '''.*\.spec\.tsx''',
   '''.*\.test\.ts''',
   '''.*\.mock\.ts''',
+  # Env templates never carry real secrets by definition (placeholders only).
+  '''\.env\.example''',
+  '''\.env\.production\.example''',
+  '''.*\.env\.example''',
 ]
 regexes = [
   # Placeholders in env examples
@@ -48,6 +52,30 @@ regexes = [
   # Generic placeholder strings
   '''YOUR_.*_HERE''',
   '''REPLACE_.*_HERE''',
+  # Dev/placeholder example values in commented env templates
+  '''dev-[a-z-]*-(secret|key)-.*''',
+  '''your-[a-z-]*-(api-?)?key''',
+  # Well-known EVM token contract addresses (public mainnet/testnet). These are
+  # contract addresses (0x + 40 hex), not secrets — they appear in runbooks and
+  # e2e tools as tokenIn/tokenOut swap parameters. All are publicly indexed on
+  # Etherscan/block explorers.
+  '''0x82aF49447D8a07e3bd95BD0d56f35241523fBab1''',  # WETH Arbitrum
+  '''0x82aF49447D8a07e3bd95BD0d56f35241523fB691''',  # WETH Arbitrum (load-test variant)
+  '''0xaf88d065e77c8cC2239327C5EDb3A432268e5831''',  # USDC Arbitrum
+  '''0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8''',  # USDC.e Arbitrum
+  '''0x980B62Da83eEff3D24539965B7DCf7B2F093deD4''',  # WETH Sepolia
+  '''0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d''',  # USDC Sepolia
+  '''0x4200000000000000000000000000000000000006''',  # WETH Base
+  '''0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913''',  # USDC Base
+  '''0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c''',  # WBNB BSC
+  '''0x55d398326f99059fF775485246999027B3197955''',  # USDT BSC
+  # docker login example command in deployment-guide (password comes from stdin,
+  # not inline) — gitleaks `curl-auth-user` mis-flags the `-u <user>` form.
+  '''docker login .* -u .* --password-stdin''',
+  # Grafana curl example in deployment-guide: `-u admin:YOUR_GRAFANA_PASSWORD`
+  # is a placeholder credential in a runbook, not a real secret.
+  '''admin:YOUR_.*''',
+  '''YOUR_GRAFANA_PASSWORD''',
 ]
 commits = []
 
@@ -60,11 +88,21 @@ description = "Arbibot ENV secret assignment"
 regex = '''(?i)(DATABASE_URL|REDIS_URL|HERMES_API_KEYS|HERMES_API_KEY|JWT_SECRET|OPERATOR_SESSION_SECRET|OPERATOR_BOOTSTRAP_TOKEN|BRIDGE_.*_API_KEY|DEX_PRIVATE_KEY|WALLET_.*_KEY|GRPC_.*_TOKEN|SLACK_WEBHOOK|TELEGRAM_BOT_TOKEN|GRAFANA_ADMIN_PASSWORD|POSTGRES_PASSWORD|VAULT_TOKEN|VAULT_APPROLE_SECRET_ID)\s*=\s*['"]?[A-Za-z0-9+/=_\-]{16,}['"]?'''
 tags = ["arbibot", "env", "secret"]
 [rules.allowlist]
+paths = [
+  # Env templates are placeholders only — never real secrets.
+  '''\.env\.example''',
+  '''\.env\.production\.example''',
+  '''.*\.env\.example''',
+  # README snippets that export placeholder env vars.
+  '''tools/hermes-agent/README\.md''',
+]
 regexes = [
   '''<CHANGE_ME_USE_VAULT>''',
   '''\$\{.*\}''',
   '''change-me.*''',
   '''example.*''',
+  # Commented dev defaults (preceded by `#`).
+  '''^# .*dev-.*''',
 ]
 
 # Detect private keys (Ethereum / generic)
