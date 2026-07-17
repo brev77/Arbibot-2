@@ -373,7 +373,7 @@ curl http://localhost:9093/api/v2/status | jq '.data.versionInfo.version'
 - [ ] **H2** constant-time API key compare.
 - [x] **H3** panic.service покрыт тестами (panic.service.spec.ts, 14 tests, 100% all metrics — commit pending).
 - [ ] **H4** token-approve.service покрыт тестами.
-- [ ] **H5** paper-capital.service покрыт тестами.
+- [x] **H5** paper-capital.service покрыт тестами (paper-capital.service.spec.ts, 10 tests, 96.66% stmts / 100% branch — commit pending).
 
 **Switch sequence (см. [`docs/live-deploy-dod.md`](live-deploy-dod.md) Gate 4):**
 1. Backup БД (`pg_dump` через [`tools/backup-postgres.sh`](../tools/backup-postgres.sh)).
