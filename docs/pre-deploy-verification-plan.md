@@ -176,7 +176,7 @@ bash tools/ci-paper-live-boundary.sh
 
 **Чек-лист проверки (файл:вывод):**
 - [ ] **H1 закрыть или отложить:** `KeyVaultService` — проверить salt. Hardcoded → backlog (live only).
-- [ ] **H2:** `HermesAuthGuard` — заменить `===` на `crypto.timingSafeEqual` для сравнения API key.
+- [x] **H2:** `HermesAuthGuard` — заменён `Array.includes` на constant-time `safeKeyEquals` (`crypto.timingSafeEqual` с length-guarded dummy compare, без early-exit), spec расширен до 12 тестов / 100% coverage — commit pending.
 - [ ] `decryptPrivateKey` используется **только** в `KeyVaultService`/`WalletManagerService` (`grep -rn "decryptPrivateKey" apps/ packages/`).
 - [ ] Нет `console.log`/`logger.*` рядом с `privateKey`/`mnemonic`/`signingKey` (K1 из dex-security SKILL).
 - [ ] Нет raw 64-hex литералов в production коде (K2).
@@ -370,7 +370,7 @@ curl http://localhost:9093/api/v2/status | jq '.data.versionInfo.version'
 - [ ] **C2** тесты N/N подтверждены на CI, нет утечек handles.
 - [ ] **C3** audit-service имеет unit-тесты.
 - [ ] **H1** salt per-deploy / KMS.
-- [ ] **H2** constant-time API key compare.
+- [x] **H2** constant-time API key compare (safeKeyEquals via crypto.timingSafeEqual, 12 tests / 100% — commit pending).
 - [x] **H3** panic.service покрыт тестами (panic.service.spec.ts, 14 tests, 100% all metrics — commit pending).
 - [ ] **H4** token-approve.service покрыт тестами.
 - [x] **H5** paper-capital.service покрыт тестами (paper-capital.service.spec.ts, 10 tests, 96.66% stmts / 100% branch — commit pending).
