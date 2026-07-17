@@ -5,6 +5,7 @@ import { DataSource, Repository } from 'typeorm';
 import { AlertmanagerIncidentEntity } from '@arbibot/persistence';
 
 import { AlertIncidentsService } from './alert-incidents.service';
+import { AlertIncidentNotFoundError } from './alert-incidents.errors';
 import type { AlertmanagerAlertDto } from './dto/alertmanager-webhook.dto';
 
 type EntityStub = Partial<AlertmanagerIncidentEntity> &
@@ -171,6 +172,97 @@ describe('AlertIncidentsService', () => {
       where: {},
       order: { lastFiredAt: 'DESC' },
       take: 200,
+    });
+  });
+
+  it('ingestAlert returns inserted=false for a resolved webhook with no existing incident', async () => {
+    // No existing row -> resolved webhook for unknown fingerprint is ignored.
+    em.findOne.mockResolvedValueOnce(null);
+
+    const result = await service.ingestAlert(makeAlert({ status: 'resolved' }));
+
+    expect(result).toEqual({ inserted: false, fingerprint: 'fp-1', id: null });
+    expect(savedRows).toHaveLength(0);
+  });
+
+  describe('setStatus', () => {
+    it('resolves an incident: sets resolvedAt/resolvedBy, fills endsAt if null, bumps version', async () => {
+      const existing = makeEntity({ status: 'investigating', entityVersion: 2, endsAt: null });
+      em.findOne.mockResolvedValueOnce(existing);
+
+      const saved = await service.setStatus({
+        id: existing.id,
+        status: 'resolved',
+        expectedEntityVersion: 2,
+        resolvedBy: 'op-1',
+      });
+
+      expect(saved.status).toBe('resolved');
+      expect(saved.entityVersion).toBe(3);
+      expect(saved.resolvedBy).toBe('op-1');
+      expect(saved.resolvedAt).toBeInstanceOf(Date);
+      // endsAt was null -> filled with now.
+      expect(saved.endsAt).toBeInstanceOf(Date);
+    });
+
+    it('keeps existing endsAt when moving to resolved (does not overwrite)', async () => {
+      const existingEnds = new Date('2026-06-15T11:00:00Z');
+      const existing = makeEntity({ status: 'firing', entityVersion: 1, endsAt: existingEnds });
+      em.findOne.mockResolvedValueOnce(existing);
+
+      const saved = await service.setStatus({
+        id: existing.id,
+        status: 'resolved',
+        expectedEntityVersion: 1,
+        resolvedBy: null,
+      });
+
+      expect(saved.endsAt).toBe(existingEnds);
+      expect(saved.resolvedBy).toBeNull();
+    });
+
+    it('moving to investigating clears stale resolution metadata', async () => {
+      const existing = makeEntity({
+        status: 'resolved',
+        entityVersion: 3,
+        resolvedAt: new Date(),
+        resolvedBy: 'op-old',
+      });
+      em.findOne.mockResolvedValueOnce(existing);
+
+      const saved = await service.setStatus({
+        id: existing.id,
+        status: 'investigating',
+        expectedEntityVersion: 3,
+      });
+
+      expect(saved.status).toBe('investigating');
+      expect(saved.resolvedAt).toBeNull();
+      expect(saved.resolvedBy).toBeNull();
+    });
+
+    it('throws AlertIncidentNotFoundError when the id does not exist', async () => {
+      em.findOne.mockResolvedValueOnce(null);
+
+      await expect(
+        service.setStatus({
+          id: 'missing',
+          status: 'resolved',
+          expectedEntityVersion: 1,
+        }),
+      ).rejects.toThrow(AlertIncidentNotFoundError);
+    });
+
+    it('throws AlertIncidentVersionMismatchError on stale expectedEntityVersion', async () => {
+      em.findOne.mockResolvedValueOnce(makeEntity({ entityVersion: 5 }));
+
+      await expect(
+        service.setStatus({
+          id: '11111111-1111-1111-1111-111111111111',
+          status: 'resolved',
+          expectedEntityVersion: 1,
+        }),
+      ).rejects.toThrow(/version mismatch: expected 1, actual 5/);
     });
   });
 });
