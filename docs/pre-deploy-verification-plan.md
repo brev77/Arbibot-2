@@ -371,7 +371,7 @@ curl http://localhost:9093/api/v2/status | jq '.data.versionInfo.version'
 - [ ] **C3** audit-service имеет unit-тесты.
 - [ ] **H1** salt per-deploy / KMS.
 - [ ] **H2** constant-time API key compare.
-- [ ] **H3** panic.service покрыт тестами.
+- [x] **H3** panic.service покрыт тестами (panic.service.spec.ts, 14 tests, 100% all metrics — commit pending).
 - [ ] **H4** token-approve.service покрыт тестами.
 - [ ] **H5** paper-capital.service покрыт тестами.
 
