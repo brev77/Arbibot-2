@@ -14,6 +14,14 @@ Release procedure: [`docs/release-process.md`](docs/release-process.md).
 
 ### Added
 - **D4-C-1-LOGGING** — Structured NDJSON logging via `PinoLoggerService` (`@arbibot/nest-platform`), wired into all 12 Nest service `main.ts` files via `configureArbibotLogger`. Fields: `level`, `time` (ISO-8601), `service`, `correlationId`, `context`, `msg`. Sensitive-field redaction (K1.1/K1.2). Env: `LOG_LEVEL`, `ARBIBOT_LOG_PRETTY`. Promtail pipeline updated; Loki queries documented in `docs/observability-tracing.md`.
+- **D4-C-2-VERSIONING** — `CHANGELOG.md` (Keep-a-Changelog), `package.json` version `0.1.0`, semver git tag `v0.1.0-paper` (annotated), `docs/release-process.md`. Pre-1.0 contract: `v<major>.<minor>.<patch>-<phase>` (`paper`/`live`).
+- **D4-C-3-PANIC** — Unified emergency-stop / panic-stop: `npm run panic:stop` (`tools/panic-button.sh`) flips `DEX_LIVE_KILL_SWITCH=true` via config-service + UI banner; `npm run panic:recover` (`tools/panic-recover.sh`) clears it.
+- **D4-C-4-LIVE-SMOKE** — Live-deploy DoD checklist (`docs/live-deploy-dod.md`). **Status: blocked** — awaiting product-owner sign-off + 24h testnet soak.
+- **Plan 5 — Hermes Agent GLM 5.2 + Telegram** — agent rewired from NousResearch to GLM 5.2 (Z.AI, OpenAI-compatible `base_url`, `provider: openai`); personal Telegram bot for operator (`HERMES_TELEGRAM_ENABLED`, whitelist `OPERATOR_TELEGRAM_ID`); new skill `explain-bot` (explains bot operation in Russian); npm scripts `build:hermes-mcp` / `doctor:hermes` / `run:hermes` / `dev:stack:hermes-agent`; docker profile `hermes-agent`. See `docs/adr-hermes-agent-glm-telegram.md`, `.cursor/plans/DEVELOPMENT_PLAN5.md`.
+
+### Documentation
+- **Documentation audit (2026-07-17)** — full refresh of ~30 files after D4 deploy-readiness: migration range `001–036` → `001–043`, real quality metrics on `df2177a` (Build 22/22, Lint 29/29, Tests 778/778 in 74 suites), `hermes` casing unified, 5 stale deploy docs marked SUPERSEDED by `paper-deploy-dod.md` / `live-deploy-dod.md`, D4 plan acceptance checkboxes synced with code. Report: `docs/documentation-audit-2026-07.md`.
+- New `docs/DOCUMENTS_INDEX.md` — unified clickable index of ~160 project documents.
 
 ### Changed
 - Promtail image pinned to `3.3.2` in both dev and prod compose (was drifted 3.2.1 dev / 3.3.2 prod).
@@ -66,7 +74,7 @@ Release procedure: [`docs/release-process.md`](docs/release-process.md).
 - Reconciliation P0 procedures; SLO v1 + on-call doc.
 
 ### Added — Phase 1 (foundation)
-- 13 NestJS services on Fastify + TypeORM (PostgreSQL). `@arbibot/persistence`, `@arbibot/messaging`, `@arbibot/nest-platform`, `@arbibot/outbox-kafka-bridge`.
+- 12 NestJS backend services on Fastify + TypeORM (PostgreSQL) + Next.js `apps/web` (13 apps total). `@arbibot/persistence`, `@arbibot/messaging`, `@arbibot/nest-platform`, `@arbibot/outbox-kafka-bridge`, `@arbibot/contracts-eth`, `@arbibot/hermes-mcp-server`.
 - Outbox relay (opportunity → paper-trading over HTTP); Kafka bridge (publishes `SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, `PlanCompleted`).
 
 ### Added — Observability + security

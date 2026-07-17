@@ -25,10 +25,10 @@
 - `docs/security-hardening-guide.md` — отметить C-1 mTLS как `[x]`
 
 ## Acceptance
-- [ ] В prod все backend-services требуют auth от caller'ов
-- [ ] Запрос без подписи/cert → 401/503 (fail-closed уже есть в guard)
-- [ ] `tools/validate-env.sh` блокирует prod-deploy без auth-config
-- [ ] Юнит/интеграционный тест: запрос без auth отклонён
+- [x] В prod все backend-services требуют auth от caller'ов — все 12 backend `main.ts` используют `createServiceAuthPreHandler`/`applyArbibotHttpSecurity`; `.env.production.example:121` `ARBIBOT_SERVICE_AUTH_ENABLED=true` (HMAC ServiceAuth-путь)
+- [x] Запрос без подписи/cert → 401/503 (fail-closed уже есть в guard) — `packages/nest-platform/src/service-auth/fastify-guard.ts:116-132`
+- [ ] `tools/validate-env.sh` блокирует prod-deploy без auth-config — частично: при `ARBIBOT_SERVICE_AUTH_ENABLED != 'true'` скрипт вызывает `log_warn` (`validate-env.sh:308-321`), НЕ `log_fail`; нужен hardened-режим
+- [x] Юнит/интеграционный тест: запрос без auth отклонён — `fastify-guard.spec.ts` (6), `signature.spec.ts` (28), `fetch-signer.spec.ts` (10)
 
 ## Edge Cases
 - web BFF → backend: должен подписывать/иметь cert (единый mechanism для всех caller'ов)

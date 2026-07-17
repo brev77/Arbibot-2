@@ -6,7 +6,7 @@
 
 ## Overview
 
-This document describes the rollback strategy for DEX-related database migrations (032–036) and application-level features in the Arbibot 2 execution pipeline.
+This document describes the rollback strategy for DEX-related database migrations (032–043) and application-level features in the Arbibot 2 execution pipeline.
 
 ## Rollback Principles
 

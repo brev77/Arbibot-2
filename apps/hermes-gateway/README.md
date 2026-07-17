@@ -14,6 +14,8 @@ npm run dev:hermes
 
 Default listen port: **3020** (`HERMES_GATEWAY_PORT` / `PORT`).
 
+> **Live / prod (D4-B-6-MTLS):** set `HERMES_SIGN_UPSTREAM=true` + `ARBIBOT_SERVICE_AUTH_ENABLED=true` + `ARBIBOT_SERVICE_AUTH_SECRET=<vault>` so every upstream call is HMAC-signed and inbound callers are authenticated. Dev/paper runs unsigned.
+
 ## Environment
 
 | Variable | Purpose |
@@ -28,6 +30,9 @@ Default listen port: **3020** (`HERMES_GATEWAY_PORT` / `PORT`).
 | `HERMES_MUTATION_RATE_LIMIT_WINDOW_MS` | Rate limit window ms (default `60000`) |
 | `HERMES_MUTATION_RATE_LIMIT_ENABLED` | Set `false` to disable mutation rate limit |
 | `METRICS_ENABLED` | Set `false` to disable Prometheus (default on) |
+| `HERMES_SIGN_UPSTREAM` | D4-B-6-MTLS: set `true` in **live** to sign every upstream `fetch` via HMAC (`signedFetch`); in dev/paper unset → unsigned passthrough |
+| `ARBIBOT_SERVICE_AUTH_ENABLED` | D4-B-6: enables the inbound Fastify guard (`createServiceAuthPreHandler`) that validates `x-arbibot-signature` on caller requests; set `true` in prod |
+| `ARBIBOT_SERVICE_AUTH_SECRET` | D4-B-6: shared HMAC secret for inbound guard + outbound `signedFetch`; required when auth enabled |
 
 Correlation: incoming `x-correlation-id` is forwarded to upstream `fetch` calls when present (`@arbibot/nest-platform` pre-handler).
 

@@ -29,7 +29,7 @@
 - [x] `docs/release-process.md` описывает процедуру (cut / rollback / hotfix / pre-1.0 contract)
 - [x] `cd.yml` тегирует образы semver на tag-push (`type=ref,event=tag` добавлен к обоим metadata-action блокам: Nest services + web)
 - [x] Rollback-процедура в deployment-guide §11 ссылается на semver-теги (`IMAGE_TAG=v0.1.0-paper`)
-- [ ] Git tag `v0.1.0-paper` — будет создан и запушен отдельно (outward-facing action, требует явного подтверждения оператором перед push; скрипт в release-process.md описывает процедуру)
+- [x] Git tag `v0.1.0-paper` — создан локально (annotated tag "v0.1.0-paper — paper-deploy baseline" dated 2026-07-16; `git tag -l 'v*'` → `v0.1.0-paper`). Push на remote — отдельная операторская задача (см. `docs/release-process.md`).
 
 ## Implementation notes
 - `CHANGELOG.md` (root) — baseline release с полным списком Plan 4 Phase A/B, DEX, Hermes, Phase 1-4 изменений + Descoped секция для D4-B-8

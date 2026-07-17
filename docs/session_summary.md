@@ -1,5 +1,7 @@
 # Session Summary
 
+> ℹ️ **Refresh note (2026-07-17):** исторический журнал сессий. Записи — снимки на даты сессий; актуальный статус и метрики — в [`AGENTS.md`](../AGENTS.md) и [`documentation-audit-2026-07.md`](documentation-audit-2026-07.md). Цифры миграций (001–036) в записях ниже отражают состояние на дату тех сессий; на HEAD df2177a миграции 001–043.
+
 ## Session 41 — 2026-06-11: Plan 3 — OpenClaw → Hermes — COMPLETE (17/17) ✅
 
 ### What was done

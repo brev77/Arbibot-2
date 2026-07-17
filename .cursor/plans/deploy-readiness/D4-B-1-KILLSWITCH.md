@@ -20,12 +20,12 @@
 - Обновить `docs/dex-rollback-strategy.md` — привести код-пример в соответствие с реализацией
 
 ## Acceptance
-- [ ] При `dex.limits.killSwitch=true` (config-service) новые live-leg блокируются
-- [ ] При `DEX_LIVE_KILL_SWITCH=true` (env) блокируются даже без config-service
-- [ ] Paper-path **не** затронут (kill-switch только для live)
-- [ ] Метрика `arb_dex_live_halt_active` отражает состояние
-- [ ] Юнит-тесты: kill on → throws; kill off → pass; config-service down → fail-closed
-- [ ] Латентность проверки < 5ms (кешированный)
+- [x] При `dex.limits.killSwitch=true` (config-service) новые live-leg блокируются — `dex-kill-switch.service.ts:216-223,253-256`, `legs.service.ts:290-291`
+- [x] При `DEX_LIVE_KILL_SWITCH=true` (env) блокируются даже без config-service — `dex-kill-switch.service.ts:90-102,238-243` (env override)
+- [x] Paper-path **не** затронут (kill-switch только для live) — `legs.service.ts:280-292` (gate только для `isBridgeLeg || isLiveVenueKey`)
+- [x] Метрика `arb_dex_live_halt_active` отражает состояние — `dex-kill-switch.service.ts:33,166-179,287-289`, alert `infra/prometheus/alerts.yml:90`
+- [x] Юнит-тесты: kill on → throws; kill off → pass; config-service down → fail-closed — `dex-kill-switch.service.spec.ts` (18 `it()`, fail-closed `:153-162`)
+- [x] Латентность проверки < 5ms (кешированный) — background-refresh `dex-kill-switch.service.ts:147-156` (in-memory read)
 
 ## Edge Cases
 - In-flight leg в момент включения → ADR-решение (D4-B-0): рекомендация — довыполнить начатый, блокировать новые

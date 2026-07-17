@@ -1,8 +1,8 @@
 ﻿# HERMES в Arbibot 2 — справка по функциям и границам
 
-Краткая сводка по проекту: **что HERMES делает**, **чего не делает**, **как встраивается**. Канон деталей — `!Arbibot_2_Architecture_v1_final_docs_settings.md` (§42–§48), границы API — [HERMES-operator-boundaries.md](HERMES-operator-boundaries.md), дорожная карта — [.cursor/plans/DEVELOPMENT_PLAN.md](../.cursor/plans/DEVELOPMENT_PLAN.md) (Phase 5, шаги `P5-5-*`).
+Краткая сводка по проекту: **что HERMES делает**, **чего не делает**, **как встраивается**. Канон деталей — `!Arbibot_2_Architecture_v1_final_docs_settings.md` (§42–§48), границы API — [hermes-operator-boundaries.md](hermes-operator-boundaries.md), дорожная карта — [.cursor/plans/DEVELOPMENT_PLAN.md](../.cursor/plans/DEVELOPMENT_PLAN.md) (Phase 5, шаги `P5-5-*`).
 
-**Состояние реализации:** интеграция HERMES запланирована на **Phase 5**; в репозитории есть baseline-документы и заглушка UI [`/HERMES`](../apps/web/app/(operator)/HERMES/page.tsx) (роль `admin`). Отдельного сервиса `HERMES-gateway` / полноценного Operator API для агента пока нет.
+**Состояние реализации:** интеграция hermes реализована в **Phase 5** — отдельный сервис [`hermes-gateway`](../apps/hermes-gateway/) (NestJS + Fastify, порт 3020, `HERMESAuthGuard`, 14 tools MCP-сервер `@arbibot/hermes-mcp-server`), UI [`/hermes`](../apps/web/app/(operator)/hermes/page.tsx) (роль `admin`) и интеграция с Hermes Agent (Plan 3/5: NousResearch → GLM 5.2 + Telegram). См. [adr-hermes-rename.md](adr-hermes-rename.md), [adr-hermes-agent-glm-telegram.md](adr-hermes-agent-glm-telegram.md), [hermes-gateway-runbook.md](hermes-gateway-runbook.md).
 
 ---
 

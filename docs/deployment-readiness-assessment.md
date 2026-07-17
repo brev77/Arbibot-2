@@ -1,7 +1,11 @@
 ﻿# Оценка готовности к деплою — Arbibot 2
 
-**Дата оценки:** 2026-06-13 (обновлено: 2026-06-14 — sync §5 alert-каталога; Phase C Final)  
-**Статус проекта:** Feature-complete (Phase 0–5 + DEX-1/2/DOC)  
+> ⚠️ **SUPERSEDED (2026-07-17):** эта оценка от 2026-06-14 предшествует фазе **D4 deploy-readiness** (Plan 4, коммиты 2026-07-12→16), которая доставила значительную часть «LIVE-READY backlog» (B-1 kill-switch, B-3 capital ceiling, B-4 wallet keys, B-5 bridge finality, B-6 mTLS, B-7 secret-scan, C-1 logging, C-2 versioning, C-3 panic-stop).
+> Актуальные процедуры — [`paper-deploy-dod.md`](paper-deploy-dod.md) (paper) / [`live-deploy-dod.md`](live-deploy-dod.md) (live) / [`release-process.md`](release-process.md).
+> Документ сохранён для истории.
+
+**Дата оценки:** 2026-06-13 (обновлено: 2026-06-14 — sync §5 alert-каталога; Phase C Final)
+**Статус проекта:** Feature-complete (Phase 0–5 + DEX-1/2/DOC)
 **Сводная оценка:** **100/100** — ✅ READY для Paper Trading Deploy (LIVE-READY backlog explicit)
 
 > ⚠️ **Важно:** эта оценка — **PAPER-READY**, не LIVE-READY. Перед включением live capital обязательно прогоните consolidated gate [`docs/pre-deploy-review.md`](pre-deploy-review.md) с проверкой всех `[LIVE-ONLY]` пунктов (drills: mTLS enforcement между всеми сервисами, Vault rollout, key rotation drill, pen-test).
@@ -12,11 +16,11 @@
 
 ### Готово
 - **Feature-complete:** Phase 0–5 + DEX-1/2/DOC (46/46 шагов)
-- **Качество:** Build 21/21 ✅ | Lint 28/28 ✅ | Tests 392/392 ✅ (27 suites)
-- **Миграции БД:** 37 миграций (001–037, включая `037_fix_get_effective_config_value.sql`) покрывают все домены
+- **Качество:** Build 21/21 ✅ | Lint 28/28 ✅ | Tests 392/392 ✅ (27 suites) — *актуальные метрики на HEAD df2177a: Build 22/22, Lint 29/29, Tests 778/778 (74 suites); см. [`AGENTS.md`](../AGENTS.md)*
+- **Миграции БД:** 43 миграции (001–043) покрывают все домены — *обновлено 2026-07-17; в исходной оценке значилось 37*
 - **Архитектурные принципы:** single-writer, reservation-first, outbox/inbox, idempotency — реализованы
 - **E2E тесты:** 6 CI job'ов покрывают Phase 1–4 + bus-smoke
-- **Операторский UI:** все 10 маршрутов (`/dashboard`, `/portfolio`, `/opportunities`, `/execution`, `/tokens`, `/paper`, `/incidents`, `/runbooks`, `/HERMES`, `/settings`)
+- **Операторский UI:** все 10 маршрутов (`/dashboard`, `/portfolio`, `/opportunities`, `/execution`, `/tokens`, `/paper`, `/incidents`, `/runbooks`, `/hermes`, `/settings`)
 - **DEX:** 3 bridge adapter (Across, Stargate, Native L2), MultiLegPlanBuilder, cross-chain reconciliation
 - **13 сервисов** + shared packages + Next.js dashboard
 

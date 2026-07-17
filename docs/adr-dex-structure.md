@@ -1,7 +1,7 @@
 # ADR: DEX component architecture — placement, DI, and single-writer boundaries
 
-**Status:** proposed — pending Architecture Guard review  
-**Date:** 2026-04-28
+**Status:** accepted — DEX-1 + DEX-2 + DEX-DOC complete (46/46 steps `done` per `DEVELOPMENT_PLAN-DEX.md`)
+**Date:** 2026-04-28 (accepted 2026-05-21)
 
 ## Context
 
@@ -154,7 +154,7 @@ interface DexVenueAdapter extends VenueAdapter {
 ### Observability
 - Metrics prefix: `arb_dex_*` (latency, gas price, swap success rate)
 - Health endpoint: `GET /health/dex` — RPC, vault, wallets status
-- Grafana dashboard: `infra/grafana/dashboards/arbibot-dex-overview.json` (to be created)
+- Grafana dashboard: `infra/grafana/dashboards/arbibot-dex-overview.json` (created)
 
 ## Links
 

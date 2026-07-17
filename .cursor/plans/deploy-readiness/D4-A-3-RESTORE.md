@@ -22,10 +22,10 @@
 - (Опц.) `tools/verify-backup.sh` — выкачать свежий бэкап, восстановить во временную БД, прогнать `db:verify-migrations:all`
 
 ## Acceptance
-- [ ] `bash tools/backup-postgres.sh restore <dump>` восстанавливает БД (проверено на dev-стеке)
-- [ ] `npm run db:restore` работает
-- [ ] Документы не содержат ссылок на несуществующий `migrations/rollback/`
-- [ ] DR-план описывает реальную процедуру restore, протестированную хотя бы на dev
+- [ ] `bash tools/backup-postgres.sh restore <dump>` восстанавливает БД (проверено на dev-стеке) — код реализован `tools/backup-postgres.sh:101-182` (`do_restore`); операционная проверка на dev-стеке pending
+- [x] `npm run db:restore` работает — `package.json:73` `"db:restore": "bash tools/backup-postgres.sh restore"`
+- [x] Документы не содержат ссылок на несуществующий `migrations/rollback/` — `grep -rn "migrations/rollback" docs/` (deploy/deployment-guide, disaster-recovery) → нет
+- [ ] DR-план описывает реальную процедуру restore, протестированную хотя бы на dev — `docs/disaster-recovery-plan.md:172` ссылается на `npm run db:restore`; операционная проверка pending
 
 ## Edge Cases
 - Восстановление в БД с уже применёнными миграциями — `pg_dump --clean --if-exists` для drop-before-create

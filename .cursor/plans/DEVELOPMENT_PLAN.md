@@ -327,7 +327,7 @@ flowchart LR
 - **changed_areas:** `docs/`
 - **review_required:** `architecture`
 - **status:** `done`
-- **Зафиксировано (2026-04-11):** черновик [`docs/HERMES-operator-boundaries.md`](../../docs/HERMES-operator-boundaries.md) (HERMES не SoT, read/write только через Operator API и RBAC/approval).
+- **Зафиксировано (2026-04-11):** черновик [`docs/hermes-operator-boundaries.md`](../../docs/hermes-operator-boundaries.md) (hermes не SoT, read/write только через Operator API и RBAC/approval).
 - **Ревью (2026-04-12):** границы согласованы с текущим operator UI; корневой lint/build/test — успех; `review_passed` → `done`.
 
 ### 0.4 Инфраструктура и репозиторий
@@ -599,7 +599,7 @@ flowchart LR
 - **step_id:** `P1-1.3-STUBS`
 - **phase:** `1`
 - **service:** `apps/web`
-- **goal:** Заглушки `/portfolio`, `/opportunities`, `/execution`, `/tokens`, `/paper`, `/incidents`, `/runbooks`, `/HERMES`, `/settings`.
+- **goal:** Заглушки `/portfolio`, `/opportunities`, `/execution`, `/tokens`, `/paper`, `/incidents`, `/runbooks`, `/hermes`, `/settings`.
 - **acceptance_criteria:**
   - Каждый роут из спеки §4 открывается (placeholder UI); навигация из layout.
 - **changed_areas:** `apps/web/app/...`
@@ -982,15 +982,15 @@ flowchart LR
 
 - **step_id:** `P5-5-GW`
 - **phase:** `5`
-- **service:** `HERMES-gateway`
-- **goal:** Self-hosted gateway, интеграция по стеку HERMES layer.
+- **service:** `hermes-gateway`
+- **goal:** Self-hosted gateway, интеграция по стеку hermes layer.
 - **acceptance_criteria:**
   - Развёртывание документировано; безопасное подключение к Operator API.
 - **changed_areas:** `infra/`, gateway сервис
 - **review_required:** `architecture`
 - **status:** `done`
-- **Зафиксировано (2026-04-20):** `GET /HERMES/v1/plans` (cursor `limit`/`cursor`), `GET /HERMES/v1/plans/:id` (plan + legs), `GET /HERMES/v1/positions`, `GET /HERMES/v1/incidents` (reconciliation mismatches), `GET /HERMES/v1/dashboard/summary` (operator BFF); **`HERMESAuthGuard`** — `x-HERMES-api-key` + `HERMES_API_KEYS`; **`HERMESUpstreamService`** — upstream `fetch` с `x-correlation-id`; **`apps/web`** BFF **`GET /api/operator/HERMES/v1/[[...path]]`** + env `HERMES_GATEWAY_URL`, `HERMES_BFF_API_KEY`; read-only **`/HERMES`** UI; документы [`apps/HERMES-gateway/README.md`](../../apps/HERMES-gateway/README.md), [`docs/HERMES-gateway-runbook.md`](../../docs/HERMES-gateway-runbook.md).
-- **Ревью (2026-04-20):** architecture + backend checklist (read-only proxy, no domain writes, API key gate); корневой `npm run lint` / `build` / `test` для `@arbibot/HERMES-gateway` — успех; `review_passed` → `done`.
+- **Зафиксировано (2026-04-20):** `GET /hermes/v1/plans` (cursor `limit`/`cursor`), `GET /hermes/v1/plans/:id` (plan + legs), `GET /hermes/v1/positions`, `GET /hermes/v1/incidents` (reconciliation mismatches), `GET /hermes/v1/dashboard/summary` (operator BFF); **`HermesAuthGuard`** — `x-hermes-api-key` + `HERMES_API_KEYS`; **`HermesUpstreamService`** — upstream `fetch` с `x-correlation-id`; **`apps/web`** BFF **`GET /api/operator/hermes/v1/[[...path]]`** + env `HERMES_GATEWAY_URL`, `HERMES_BFF_API_KEY`; read-only **`/hermes`** UI; документы [`apps/hermes-gateway/README.md`](../../apps/hermes-gateway/README.md), [`docs/hermes-gateway-runbook.md`](../../docs/hermes-gateway-runbook.md).
+- **Ревью (2026-04-20):** architecture + backend checklist (read-only proxy, no domain writes, API key gate); корневой `npm run lint` / `build` / `test` для `@arbibot/hermes-gateway` — успех; `review_passed` → `done`.
 
 #### `P5-5-OAPI` — Operator API для HERMES
 
@@ -1003,9 +1003,9 @@ flowchart LR
 - **changed_areas:** новый API слой
 - **review_required:** `backend`
 - **status:** `done`
-- **Зафиксировано (2026-04-20):** `POST /HERMES/v1/plans/:id/arm`, `POST .../execute` (begin-execution), `POST .../positions/:id/close` → **501** до API portfolio, `POST .../incidents/:id/resolve` → `PATCH` reconciliation; `POST .../safe-mode/enable|disable`; audit через `AuditClientService`; rate limit per API key (`HERMESRateLimitService`); BFF `POST`/`PATCH` на `/api/operator/HERMES/v1/*` с merge `operatorId` из сессии; env `AUDIT_API_BASE`, `HERMES_MUTATION_RATE_LIMIT_*`.
+- **Зафиксировано (2026-04-20):** `POST /hermes/v1/plans/:id/arm`, `POST .../execute` (begin-execution), `POST .../positions/:id/close` → **501** до API portfolio, `POST .../incidents/:id/resolve` → `PATCH` reconciliation; `POST .../safe-mode/enable|disable`; audit через `AuditClientService`; rate limit per API key (`HermesRateLimitService`); BFF `POST`/`PATCH` на `/api/operator/hermes/v1/*` с merge `operatorId` из сессии; env `AUDIT_API_BASE`, `HERMES_MUTATION_RATE_LIMIT_*`.
 
-#### `P5-5-OCUI` — UI `/HERMES`
+#### `P5-5-OCUI` — UI `/hermes`
 
 - **step_id:** `P5-5-OCUI`
 - **phase:** `5`
@@ -1022,14 +1022,14 @@ flowchart LR
 
 - **step_id:** `P5-5-BRIEF`
 - **phase:** `5`
-- **service:** `HERMES-gateway` / `operator-api`
+- **service:** `hermes-gateway` / `operator-api`
 - **goal:** Briefs, safe mode и сценарии §48.
 - **acceptance_criteria:**
   - Сценарии описаны и покрыты тестами/ручным чеклистом; policy не обходится.
 - **changed_areas:** gateway, docs
 - **review_required:** `architecture`
 - **status:** `done`
-- **Зафиксировано (2026-04-20):** `GET /HERMES/v1/incident-briefs`, `GET .../safe-mode/status`, in-process `SafeModeService` + runbook [`docs/HERMES-safe-mode-runbook.md`](../../docs/HERMES-safe-mode-runbook.md); unit tests `safe-mode.service.spec.ts`, `incident-briefs.service.spec.ts`.
+- **Зафиксировано (2026-04-20):** `GET /hermes/v1/incident-briefs`, `GET .../safe-mode/status`, in-process `SafeModeService` + runbook [`docs/hermes-safe-mode-runbook.md`](../../docs/hermes-safe-mode-runbook.md); unit tests `safe-mode.service.spec.ts`, `incident-briefs.service.spec.ts`.
 
 **Definition of Done (§50.7):** HERMES читает read models и запускает только approve-required workflows; policy control plane не обходится.
 
@@ -1552,16 +1552,16 @@ flowchart LR
 - **status:** `done`
 - **Ревью (2026-04-12):** см. канон `P2-2.3-INCRB`; корневой lint/build/test — успех.
 
-#### `FE-ROUTE-HERMES` — `/HERMES`
+#### `FE-ROUTE-HERMES` — `/hermes`
 
 - **step_id:** `FE-ROUTE-HERMES`
 - **phase:** `5`
 - **service:** `apps/web`
-- **goal:** Роут `/HERMES` §4. Канон: `P1-1.3-STUBS`, `P5-5-OCUI`.
+- **goal:** Роут `/hermes` §4. Канон: `P1-1.3-STUBS`, `P5-5-OCUI`.
 - **acceptance_criteria:**
   - Экраны §5.8 подключены к gateway/Operator API.
   - Текущий checkpoint в репо: route доступен как placeholder из `P1-1.3-STUBS`; функциональный UI — только после канона **`P5-5-OCUI`** (Phase 5).
-  - Зафиксировано (2026-04-17): маршрут `/HERMES` и placeholder-страница закрывают критерий «роут §4» в объёме stub; интеграция с gateway/Operator API — **`P5-5-OCUI`**.
+  - Зафиксировано (2026-04-17): маршрут `/hermes` и placeholder-страница закрывают критерий «роут §4» в объёме stub; интеграция с gateway/Operator API — **`P5-5-OCUI`**.
 - **changed_areas:** `apps/web`
 - **review_required:** `frontend`
 - **status:** `done`
@@ -1616,7 +1616,7 @@ flowchart LR
 | /paper | operator | approve/reject trade (single-step approval) |
 | /incidents | operator | mark resolved (two-step approval required) |
 | /runbooks | operator | run playbook (two-step approval required) |
-| /HERMES | admin | gateway mutations and approvals (минимальная роль — **`admin`**, см. `apps/web/lib/operator-role.ts`) |
+| /hermes | admin | gateway mutations and approvals (минимальная роль — **`admin`**, см. `apps/web/lib/operator-role.ts`) |
 | /settings | admin | policy configurations and sensitive keys (BFF + `DestructiveOperatorAction`; минимальная роль — **`admin`**, см. `apps/web/lib/operator-role.ts`) |
 
 **Role hierarchy:** `viewer` < `operator` < `admin` (future)

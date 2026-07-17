@@ -20,9 +20,9 @@
 - Заполнить on-call контакты в `docs/incident-response-playbook.md` (сейчас TBD)
 
 ## Acceptance
-- [ ] Critical-алёрт (например `ServiceDown`) → доходит до реального канала (Slack/PagerDuty)
-- [ ] Receiver больше не указывает на `localhost:5001` в prod-конфиге
-- [ ] Секреты (`SLACK_WEBHOOK_URL`/`PAGERDUTY_ROUTING_KEY`) → через env, не в репо
+- [ ] Critical-алёрт (например `ServiceDown`) → доходит до реального канала (Slack/PagerDuty) — операционная проверка (требует живого webhook/PagerDuty); wiring готов: `infra/alertmanager/alertmanager.yml.tpl:39-44,105-117`
+- [x] Receiver больше не указывает на `localhost:5001` в prod-конфиге — prod-template использует `${SLACK_WEBHOOK_URL}`/`${PAGERDUTY_ROUTING_KEY}`; `localhost:5001` остался только в DEV-конфиге
+- [x] Секреты (`SLACK_WEBHOOK_URL`/`PAGERDUTY_ROUTING_KEY`) → через env, не в репо — `.env.production.example` помечает как `<CHANGE_ME_USE_VAULT>`, envsubst в `entrypoint.alertmanager.sh`
 
 ## Edge Cases
 - Дабл-пейджинг Alertmanager + `/incidents` UI — оставить оба (UI как audit-trail)

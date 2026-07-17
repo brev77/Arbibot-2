@@ -18,10 +18,10 @@
 - **(Опц., ADR)** `infra/` — добавить ACME-автоматизацию (certbot sidecar или Traefik/Let's Encrypt), решить в ADR; для paper можно отложить
 
 ## Acceptance
-- [ ] Документ описывает, откуда брать сертификат для прод-хоста (Let's Encrypt/manual)
-- [ ] После установки сертификата `https://<host>/` работает без browser-warning
-- [ ] HSTS включён в prod (после подтверждения, что HTTPS стабилен)
-- [ ] `infra/nginx/ssl/*.pem` в `.gitignore` (уже есть — проверить)
+- [x] Документ описывает, откуда брать сертификат для прод-хоста (Let's Encrypt/manual) — `docs/deployment-guide.md:254-312` (Variants A/B + paper-deploy)
+- [ ] После установки сертификата `https://<host>/` работает без browser-warning — операционная проверка на реальном хосте pending
+- [ ] HSTS включён в prod (после подтверждения, что HTTPS стабилен) — `infra/nginx/nginx.conf:89` директива активна, НО inline-комментарий `:83-88` предписывает закомментировать для paper-deploy с self-signed; решение pending
+- [x] `infra/nginx/ssl/*.pem` в `.gitignore` (уже есть — проверить) — `.gitignore:32`
 
 ## Edge Cases
 - Self-signed для paper: задокументировать импорт CA в браузер оператора

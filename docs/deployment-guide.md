@@ -1,7 +1,10 @@
 ﻿# Arbibot 2 — Руководство по деплою (Paper Trading)
 
-**Версия:** 1.0  
-**Дата:** 2026-05-21  
+> ⚠️ **SUPERSEDED (2026-07-17):** актуальная paper-процедура — [`paper-deploy-dod.md`](paper-deploy-dod.md) (Definition of Done, 2026-07-12); для live — [`live-deploy-dod.md`](live-deploy-dod.md).
+> Это руководство (v1.0, 2026-05-21) предшествует фазе D4 deploy-readiness и не учитывает operator auth, restore, panic-stop, versioning. Документ сохранён для развёрнутых процедурных деталей (TLS, rollback, migrations ordering), которые актуальны.
+
+**Версия:** 1.0
+**Дата:** 2026-05-21
 **Цель:** Пошаговая инструкция для первого деплоя Arbibot 2 в режиме paper trading
 
 ---

@@ -1,5 +1,9 @@
 # Pre-Deploy Code Review — Arbibot 2
 
+> ⚠️ **SUPERSEDED (2026-07-17):** значительная часть finding'ов (включая F1/mTLS, F6 alert-каталог, миграции) пересмотрена фазой **D4 deploy-readiness** (Plan 4, 2026-07-12→16).
+> Актуальные процедуры — [`paper-deploy-dod.md`](paper-deploy-dod.md) (paper) / [`live-deploy-dod.md`](live-deploy-dod.md) (live) / [`release-process.md`](release-process.md).
+> Документ сохранён как исторический consolidated gate; цифры миграций и метрик обновлены инлайн.
+
 > **Single consolidated pre-deploy gate.** Этот документ консолидирует чеклист из 10 разделов (база/контракты/бизнес-потоки/API security/data security/execution safety/observability/frontend/приоритеты/порядок запуска) и отображает каждый пункт на конкретные артефакты, команды и находки этого репозитория. Он **не дублирует** существующие runbook-документы, а ссылается на них как на авторитетные источники.
 
 **Версия документа:** 1.2 (2026-06-14) — sync §8.3 alert-каталога с фактическим `alerts.yml` (17 правил с mapping целевых имён → реализованные), F6 narrowed до единственного оставшегося backlog-alert (`KafkaPublishFailures`). v1.1 (2026-06-13): corrections pass по итогам аудита: N1 (nginx 80→80+443), N2 (network isolation nuance), N3 (миграции 036→037), sync alert-каталога 8.3 с `alerts.yml`, усиление F4/F3 бонусами реализации.
@@ -123,7 +127,7 @@ Dev-default `'operator'` отключается в prod (`NODE_ENV !== 'producti
 | 1.1 | `npm run lint` | Turbo lint — 0 errors (28/28 packages green по AGENTS.md) | Не деплоить. Пофиксить lint. |
 | 1.2 | `npm run build` | Turbo build — 21/21 packages green | Проверить `tsconfig.build.json`, `dist/main.js` под `apps/*/dist/`. |
 | 1.3 | `npm run test` | Turbo test — 392/392 tests, 27 suites green | Изолировать падающий suite, прогнать локально `-w @arbibot/<pkg>`. |
-| 1.4 | `npm run db:migrate` | Миграции 001–037 применены без ошибок (включая `037_fix_get_effective_config_value.sql`) | Проверить `DATABASE_URL`, `infra/postgres/migrations/`. |
+| 1.4 | `npm run db:migrate` | Миграции 001–043 применены без ошибок (включая `037_fix_get_effective_config_value.sql`, `038_alertmanager_incidents.sql`, `039_dex_daily_volume.sql`, `040_portfolio_positions_notional_usd.sql`, `041_capital_limits_seed.sql`, `042_wallet_keys.sql`, `043_bridge_finality.sql`) | Проверить `DATABASE_URL`, `infra/postgres/migrations/`. |
 | 1.5 | `npm run db:verify-migrations:all` | Все 37 строк в `schema_migrations` | Если номер < 37 — повторить 1.4. |
 
 ### Дополнительные проверки
@@ -607,7 +611,7 @@ ENV_FILE=infra/.env npm run verify:env
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │ STAGE 1 — Schema gate                                           │
-│   npm run db:migrate             → 001–037 applied               │
+│   npm run db:migrate             → 001–043 applied               │
 │   npm run db:verify-migrations:all → all rows in schema_migrations│
 └─────────────────────────────────────────────────────────────────┘
                               │

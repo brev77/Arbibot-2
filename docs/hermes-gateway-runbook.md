@@ -1,13 +1,13 @@
 ﻿# HERMES gateway — deployment & monitoring
 
-**Related:** [`docs/HERMES-operator-api-spec.md`](HERMES-operator-api-spec.md), [`apps/HERMES-gateway/README.md`](../apps/HERMES-gateway/README.md)
+**Related:** [`docs/hermes-operator-api-spec.md`](hermes-operator-api-spec.md), [`apps/hermes-gateway/README.md`](../apps/hermes-gateway/README.md)
 
 ## Deployment
 
-1. Run `HERMES-gateway` as its own process (port **3020** by default).
+1. Run `hermes-gateway` as its own process (port **3020** by default).
 2. Set `HERMES_API_KEYS` to one or more comma-separated secrets; rotate by overlap (add new key, deploy clients, remove old key).
 3. Point upstream env vars at reachable HTTP bases for execution, portfolio, reconciliation, and the operator **`apps/web`** instance (`OPERATOR_WEB_BFF_BASE`) for dashboard summary.
-4. For **`apps/web`**, set `HERMES_GATEWAY_URL` and `HERMES_BFF_API_KEY` so the BFF route `/api/operator/HERMES/v1/*` can authenticate to the gateway. Never expose these keys to client bundles.
+4. For **`apps/web`**, set `HERMES_GATEWAY_URL` and `HERMES_BFF_API_KEY` so the BFF route `/api/operator/hermes/v1/*` can authenticate to the gateway. Never expose these keys to client bundles.
 
 ## Security
 

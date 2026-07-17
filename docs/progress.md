@@ -1,19 +1,24 @@
 # Progress Arbibot 2
 
+> ℹ️ **Refresh note (2026-07-17):** этот файл — исторический журнал сессий. Текущий статус проекта и метрики — в [`AGENTS.md`](../AGENTS.md) (раздел "Current status"). Записи ниже — снимки состояния на даты соответствующих сессий и не переиздавались; цифры миграций/метрик в них могут отставать (актуально: миграции 001–043, Build 22/22, Lint 29/29, Tests 778/778). См. также [`documentation-audit-2026-07.md`](documentation-audit-2026-07.md).
+
 **Обновлено:** 2026-05-21
 
 ---
 
 ## Текущий статус
 
-**Проект feature-complete.** Все формальные шаги обоих планов выполнены. Awaiting product decisions for deployment.
+**Проект feature-complete.** Все формальные шаги планов 1–5 + DEX выполнены; D4 deploy-readiness доставлен (2026-07-12→16). Awaiting product decisions for live deployment.
 
 | План | Шаги | Статус |
 |------|-------|--------|
 | DEVELOPMENT_PLAN.md (Phases 0–5, CFG, PRIO, FE) | Все | ✅ done (АРХИВ) |
 | DEVELOPMENT_PLAN-DEX.md (DEX-1, DEX-2, DEX-DOC) | 46/46 | ✅ done |
+| DEVELOPMENT_PLAN3.md (hermes Agent + MCP) | 17/17 | ✅ done |
+| DEVELOPMENT_PLAN4.md (D4 deploy-readiness) | 20/22 | ✅ 20 done, B-8 descoped, C-4 blocked |
+| DEVELOPMENT_PLAN5.md (hermes Agent GLM+Telegram) | 7/7 | ✅ done |
 
-**Build:** 21/21 ✅ | **Lint:** 28/28 ✅ (0 errors) | **Tests:** 392/392 ✅ (27 suites) | **Migrations:** 001–036
+**Build:** 22/22 ✅ | **Lint:** 29/29 ✅ (0 errors) | **Tests:** 778/778 ✅ (74 suites) | **Migrations:** 001–043 — *на коммите df2177a (2026-07-16)*
 
 ---
 
@@ -565,7 +570,7 @@
 ---
 (архив и справочная информация — в начале файла)
 
-**Total migrations:** 001–036
+**Total migrations:** 001–043 *(обновлено 2026-07-17)*
 **CI jobs:** build, lint, test, e2e-phase2, e2e-phase2-watchlist-route-scoring, e2e-phase3-paper-promotion, e2e-phase3-paper-discovery, e2e-phase4-tier-routing, bus-smoke
 
 ---

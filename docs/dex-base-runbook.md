@@ -100,7 +100,7 @@ RPC_BASE_TESTNET_URL=https://base-sepolia.g.alchemy.com/v2/YOUR_KEY \
 ### Prerequisites
 
 - Running services: market-intake, opportunity, capital, execution-orchestrator
-- Migrated database (migrations 001–035)
+- Migrated database (migrations 001–043)
 - For testnet: funded wallet on Base Sepolia with WETH approval
 
 ## Bug Fix (DEX-1-4-BASE)

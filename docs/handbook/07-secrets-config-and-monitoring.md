@@ -50,7 +50,7 @@
 
 ### Слой D — HERMES и BFF
 
-Переменные **`HERMES_*`**, **`OPERATOR_WEB_BFF_BASE`** и смежные — в хвосте `.env.example` и в [apps/HERMES-gateway/README.md](../../apps/HERMES-gateway/README.md).
+Переменные **`HERMES_*`**, **`OPERATOR_WEB_BFF_BASE`** и смежные — в хвосте `.env.example` и в [apps/hermes-gateway/README.md](../../apps/hermes-gateway/README.md).
 
 ## 3. За какими данными следить (операторский чеклист)
 

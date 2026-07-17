@@ -1,7 +1,11 @@
 ﻿# Arbibot 2 — Deployment Checklist
 
-**Версия:** 1.0  
-**Обновлено:** 2026-05-21  
+> ⚠️ **SUPERSEDED (2026-07-17):** актуальная paper-процедура — [`paper-deploy-dod.md`](paper-deploy-dod.md) (Definition of Done, 2026-07-12).
+> Этот чеклист (v1.0, 2026-05-21) предшествует фазе D4 deploy-readiness и не учитывает operator auth (D4-A-1), restore (D4-A-3), panic-stop (D4-C-3), versioning (D4-C-2).
+> Документ сохранён для истории; цифры миграций/метрик обновлены инлайн.
+
+**Версия:** 1.0
+**Обновлено:** 2026-05-21 *(migration/metric figures refreshed 2026-07-17)*
 **Цель:** Пошаговый чеклист для деплоя paper trading
 
 ---
@@ -9,10 +13,10 @@
 ## Pre-Deploy Checklist
 
 ### 1. Код и сборка
-- [ ] `npm run build` — 21/21 пакетов собирается без ошибок
-- [ ] `npm run lint` — 28/28 пакетов проходит без ошибок
-- [ ] `npm run test` — 392/392 тестов проходит (27 suites)
-- [ ] `npm run db:verify-migrations:all` — все миграции 001–037 применены (включая `037_fix_get_effective_config_value.sql`)
+- [ ] `npm run build` — 22/22 пакетов собирается без ошибок
+- [ ] `npm run lint` — 29/29 пакетов проходит без ошибок
+- [ ] `npm run test` — 778/778 тестов проходит (74 suites)
+- [ ] `npm run db:verify-migrations:all` — все миграции 001–043 применены
 - [ ] Нет незакоммиченных изменений в production ветке
 
 ### 2. Environment

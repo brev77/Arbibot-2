@@ -92,24 +92,28 @@ Arbibot 2 is a **Turborepo monorepo** (`npm` workspaces: `apps/*`, `packages/*`)
 
 There is **no** `core-backend/` or `operator-frontend/` directory; older docs or audits may refer to that layout.
 
-**Current status (2026-05-21):**
+**Current status (2026-07-16):**
 
-**Проект feature-complete.** Все формальные шаги обоих планов выполнены. Awaiting product decisions for deployment.
+**Проект feature-complete.** Все формальные шаги планов 1–5 + DEX выполнены; фаза **D4 deploy-readiness** (Plan 4) доставлена (20/22 done + D4-B-8 descoped + D4-C-4 blocked). Awaiting product decisions for live deployment.
 
-**Quality Metrics:** Build 21/21 ✅ | Lint 28/28 ✅ (0 errors) | Tests 392/392 ✅ (27 suites) | Migrations 001–036
+**Quality Metrics (на коммите `df2177a`, 2026-07-16):** Build 22/22 ✅ | Lint 29/29 ✅ (0 errors) | Tests 778/778 ✅ (74 suites) | Migrations 001–043
 
 **Current Focus:**
-- CI verification на GitHub Actions (не верифицирован удалённо)
-- Product decision: testnet deployment → paper-first validation → mainnet minimal capital
-- Deployment prep по product decision
+- Product decision: paper-first validation → mainnet minimal capital
+- D4-C-4-LIVE-SMOKE (live testnet soak) — заблокирован по product decision
+- Operator-run smoke на целевом paper-хосте (`docs/paper-deploy-dod.md`)
 
 - **Phase 0–2** (foundation + controlled execution): **done** ✅
 - **Phase 3** (paper trading engine): **done** ✅
 - **Phase 4** (wide-universe scaling — all formal `P4-4-*` steps `done`): **done** ✅
-- **Phase 5** (HERMES-assisted operations — all formal `P5-5-*` steps `done`): **done** ✅
+- **Phase 5** (hermes-assisted operations — all formal `P5-5-*` steps `done`): **done** ✅
 - **DEX-1 + DEX-2 + DEX-DOC** (46/46 steps): **done** ✅
+- **Plan 3** (hermes Agent + MCP Server, 17/17): **done** ✅
+- **Plan 4 / D4 deploy-readiness** (20/22: D4-A 8/8, D4-B 8/9 + B-8 descoped, D4-C 4/4 + C-4 blocked): **delivered** ✅ — operator auth (A-1), alertmanager paging (A-2), backup/restore (A-3), migrations collision fix (A-4), health probes (A-5), TLS (A-6), paper-smoke DoD (A-7); live-gate ADR + kill-switch (B-0, B-1), dex.limits + daily-volume DB (B-2), aggregate capital ceiling (B-3), wallet keys in DB (B-4), bridge finality (B-5), HMAC service-auth/mTLS (B-6), blocking secret-scan (B-7), two-person descoped (B-8), paper-live-boundary CI (B-9); structured pino logging (C-1), CHANGELOG + semver + git tag `v0.1.0-paper` (C-2), unified panic/emergency-stop CLI+UI (C-3), live-smoke DoD blocked (C-4)
+- **Plan 5** (hermes Agent → GLM 5.2 + Telegram, 7/7): **done** ✅ — see [`docs/adr-hermes-agent-glm-telegram.md`](docs/adr-hermes-agent-glm-telegram.md)
 - **Phase 2.2 short-term slice:** risk-service — token/route profile services, **`adaptiveRisk`** on `POST /evaluate-risk`, read APIs **`GET /policy/watchlist/tiers`**, **`GET /policy/route-scoring-history/:routeKey`**, **policy writer jobs** (`WatchlistTieringWriterService` / `RouteScoringWriterService`, optional `RISK_POLICY_JOBS_ENABLED`, **`POST /policy/jobs/watchlist-tiering`**, **`POST /policy/jobs/route-scoring`** with `x-arbibot-job-trigger` + `RISK_POLICY_JOB_TRIGGER_TOKEN`); docs **`docs/watchlist-tiering-logic.md`**, **`docs/route-scoring-logic.md`**; smoke **`npm run e2e:phase2-watchlist-route-scoring`**; CI — **`e2e-phase2-watchlist-route-scoring`** job, **`tools/ci-e2e-phase2-watchlist-route-scoring.sh`**, Grafana **`arbibot-risk-policy-writers.json`** with writer metrics; execution-orchestrator — **`playbook_config`** + `PartialFillPlaybookService`; paper-trading — promotion **`qualityTier`** / **`qualityScore`**, drift samples optional **`routeKey`**; **`tools/recalibration/`**; docs **`partial-fill-playbooks.md`**, **`recalibration-spec.md`**, **`paper-promotion-criteria.md`**; observability — histogram bucket reference in **`docs/observability-tracing.md`**; operator UI — **`/settings`** → «Watchlist tiers» + «Route scoring history», BFF **`GET /api/operator/settings/watchlist-tiers`**, **`GET /api/operator/settings/route-scoring/[routeKey]`**, offline export **`tools/export-route-scoring-history.mjs`**, **`npm run export:route-scoring-history`**
-- **Last major update (2026-05-21, session 38):** DEX **fully complete** — all 46/46 steps `done` (DEX-1 + DEX-2 + DEX-DOC); 3 bridge adapters (Across, Stargate, Native L2); `MultiLegPlanBuilder`; `CrossChainReconciliationService` + worker; multi-chain E2E (`tools/e2e-dex2-multichain.mjs`); bridge runbook (`docs/dex-runbook-bridge.md`); rollback strategy (`docs/dex-rollback-strategy.md`); **27 suites, 392/392 tests pass**; Build 21/21 ✅, Lint 28/28 ✅
+- **Last major update (2026-07-16, D4 deploy-readiness + Plan 5):** D4 deploy-readiness Phase A/B/C delivered (20/22 steps); hermes Agent wired to GLM 5.2 (Z.AI, OpenAI-compatible `base_url`) + personal Telegram bot (`HERMES_TELEGRAM_ENABLED`, `OPERATOR_TELEGRAM_ID`); skill `explain-bot`; npm scripts `build:hermes-mcp` / `doctor:hermes` / `run:hermes` / `dev:stack:hermes-agent`; docker profile `hermes-agent`. See [`docs/adr-hermes-agent-glm-telegram.md`](docs/adr-hermes-agent-glm-telegram.md), [`.cursor/plans/DEVELOPMENT_PLAN5.md`](.cursor/plans/DEVELOPMENT_PLAN5.md).
+- **DEX fully complete (2026-05-21, session 38):** all 46/46 steps `done` (DEX-1 + DEX-2 + DEX-DOC); 3 bridge adapters (Across, Stargate, Native L2); `MultiLegPlanBuilder`; `CrossChainReconciliationService` + worker; multi-chain E2E (`tools/e2e-dex2-multichain.mjs`); bridge runbook (`docs/dex-runbook-bridge.md`); rollback strategy (`docs/dex-rollback-strategy.md`)
 - **Bus-smoke verification (2026-04-19):** connection tests successful — Docker compose --profile bus running (Redpanda port 19092), `@arbibot/outbox-kafka-bridge` built, publisher/consumer connected to Kafka (consumer group: `arbibot-bus-smoke`), all artifacts from `docs/outbox-inbox.md` checklist verified
 - **CFG-3 UI in `/settings`:** promote/activate draft completed (promote/activate draft workflows with React Query, draft checkboxes, Promote modal, `DestructiveOperatorAction` integration)
 - **Paper discovery × config-service integration:** effective JSON on key `paper.discovery` with cache, env fallback, single-writer pattern respected
@@ -121,7 +125,7 @@ There is **no** `core-backend/` or `operator-frontend/` directory; older docs or
 - **Paper quality improvements:** completed (Grafana dashboards, drift alerts v1/v2, SLO v1)
 - **Paper Trading Complete (P3-1, P3-2, P3-3, P3-5, P3-6):** completed (paper trades mutations, promotion candidates mutations, virtual capital, drift gauges, E2E tests)
 - **Paper Discovery Pipeline (P3-4):** implemented (discovery worker, candidate entity, E2E tests, **config-service integration**, bug fixes for entity ID handling)
-- **Migrations:** 001–036 (в т.ч. **`024_fix_rollback_configuration_function.sql`**, **`025_execution_plan_playbook.sql`**, **`026_watchlist_tier_snapshots.sql`**, **`027_route_scoring_history.sql`**, **`028_paper_drift_route_key.sql`**, **`029_intake_policy_seed.sql`** — defaults `intake.throttling` / `intake.routing.tiers`; **`030_paper_promotion_quality_fields.sql`**, **`031_portfolio_position_close_idempotency.sql`**, **`032_dex_filters_seed.sql`** — DEX opportunity filters seed; **`033_dex_on_chain.sql`** — on-chain transactions, wallet states, DEX pools, approvals; **`034_on_chain_tx_leg_id_uuid.sql`** — OnChainTransaction.legId bigint→uuid; **`035_dex_live_limits_seed.sql`** — seed `dex.limits` + `dex.live` config; **`036_dex2_crosschain.sql`** — bridge transfers, cross-chain reconciliation tables); policy scope **`020_policy_configuration_scopes.sql`** (исправленный rollback / совместимость)
+- **Migrations:** 001–043 (в т.ч. **`024_fix_rollback_configuration_function.sql`**, **`025_execution_plan_playbook.sql`**, **`026_watchlist_tier_snapshots.sql`**, **`027_route_scoring_history.sql`**, **`028_paper_drift_route_key.sql`**, **`029_intake_policy_seed.sql`** — defaults `intake.throttling` / `intake.routing.tiers`; **`030_paper_promotion_quality_fields.sql`**, **`031_portfolio_position_close_idempotency.sql`**, **`032_dex_filters_seed.sql`** — DEX opportunity filters seed; **`033_dex_on_chain.sql`** — on-chain transactions, wallet states, DEX pools, approvals; **`034_on_chain_tx_leg_id_uuid.sql`** — OnChainTransaction.legId bigint→uuid; **`035_dex_live_limits_seed.sql`** — seed `dex.limits` + `dex.live` config; **`036_dex2_crosschain.sql`** — bridge transfers, cross-chain reconciliation tables; **`037_fix_get_effective_config_value.sql`** — fix rollback for effective config function; **`038_alertmanager_incidents.sql`** — alertmanager incident tracking (D4-A-2); **`039_dex_daily_volume.sql`** — DEX per-token daily volume (D4-B-2); **`040_portfolio_positions_notional_usd.sql`** — notional_usd on portfolio positions; **`041_capital_limits_seed.sql`** — seed `capital.limits` config (D4-B-3); **`042_wallet_keys.sql`** — wallet keys persistence in DB (D4-B-4); **`043_bridge_finality.sql`** — finality columns on `bridge_transfers` (D4-B-5)); policy scope **`020_policy_configuration_scopes.sql`** (исправленный rollback / совместимость)
 - **DEVELOPMENT_PLAN:** Phase 4 **`P4-4-*`** steps **`done`** (as of **2026-04-20**), including **`P4-4-SCORE`** ([`docs/route-scoring-replay.md`](docs/route-scoring-replay.md), `npm run replay:route-scoring-export`) and **`P4-4-CH`** ([`docs/adr-phase4-clickhouse-gate.md`](docs/adr-phase4-clickhouse-gate.md), analytics path latency in [`docs/observability-tracing.md`](docs/observability-tracing.md)); **`PRIO-P2-PAPERDISC`**, **`PRIO-P2-TIER`**, **`PRIO-P2-SCORE`** → **`done`**; **`P5-5-GW`**, **`P5-5-OAPI`**, **`P5-5-OCUI`**, **`P5-5-BRIEF`** → **`done`**; **DEX-1** 35/35 → **`done`**; **DEX-2** 7/7 → **`done`** — see [.cursor/plans/DEVELOPMENT_PLAN.md](.cursor/plans/DEVELOPMENT_PLAN.md) and [.cursor/plans/DEVELOPMENT_PLAN-DEX.md](.cursor/plans/DEVELOPMENT_PLAN-DEX.md) for details
 
 **Known issues:**
@@ -242,7 +246,7 @@ There is **no** `core-backend/` or `operator-frontend/` directory; older docs or
   - `PolicyCacheService` — policy cache via HTTP to config-service (`GET /policy/configurations/*/effective`) + risk `watchlist/tiers` + optional `route-scoring-history/:routeKey` (read-only, single-writer: risk-service)
   - `IntakeThrottleService` — throttling logic with env `INTAKE_THROTTLING_ENABLED`; returns **429** + explicit JSON `{ throttled: true }` on throttle (not silent drop); optional audit on `requireAuditOnThrottle` in `intake.throttling` JSON
   - `DegradationStateService` — tracks fallback mode, metrics `arb_intake_degradation_active`, `arb_intake_degradation_duration_seconds`
-  - Metrics: `arb_intake_throttled_total`, `arb_intake_samples_recorded_total`, `arb_intake_samples_dropped_total`, `arb_intake_tier_routing_total` (label: tier)
+  - Metrics: `arb_intake_throttled_snapshots_total`, `arb_intake_samples_recorded_total`, `arb_intake_samples_dropped_total`, `arb_intake_tier_routing_total` (label: tier)
   - Health: `GET /health/degradation` — returns `{ degraded, fallbackMode, degradationReasons }`
   - Config JSON keys: `intake.throttling` (enabled, samplesPerSecond, requireAuditOnThrottle), `intake.routing.tiers` (priority list of instrumentKey arrays + sampling intervals)
   - README: `apps/market-intake-service/README.md`; tests: `policy-cache.service.spec.ts`
@@ -255,32 +259,32 @@ There is **no** `core-backend/` or `operator-frontend/` directory; older docs or
   - `docs/adr-phase4-intake-throttling.md` — ADR for throttling architecture
   - `docs/phase4-ui-degraded-signals.md` — degraded signals design
   - `docs/paper-promotion-quality-criteria.md` — promotion quality criteria
-  - `docs/HERMES-operator-api-spec.md` — HERMES API specification
+  - `docs/hermes-operator-api-spec.md` — hermes API specification
 - **Grafana:**
   - `infra/grafana/dashboards/arbibot-risk-policy-writers.json` — intake panels added
   - `infra/grafana/README.md` — updated with intake metrics
 - **P2 prep:**
   - `tools/recalibration/main.py` — stub Python CLI, JSON output only
   - `tools/recalibration/README.md` — recalibration spec
-- **Phase 5 HERMES (`P5-5-GW` done):**
-  - `apps/HERMES-gateway/` — Nest+Fastify, port 3020; **`HERMESAuthGuard`** + **`GET /HERMES/v1/plans`**, **`plans/:id`** (plan+legs), **`positions`**, **`incidents`**, **`dashboard/summary`**
+- **Phase 5 hermes (`P5-5-GW` done):**
+  - `apps/hermes-gateway/` — Nest+Fastify, port 3020; **`HermesAuthGuard`** + **`GET /hermes/v1/plans`**, **`plans/:id`** (plan+legs), **`positions`**, **`incidents`**, **`dashboard/summary`**
   - `GET /health` — basic health; `GET /health/operator-bff` — BFF probe when `OPERATOR_WEB_BFF_BASE` set
-  - `apps/web`: **`GET /api/operator/HERMES/v1/*`** BFF → gateway (`HERMES_GATEWAY_URL`, `HERMES_BFF_API_KEY`); **`/HERMES`** page shows read-only summary + sample plans when configured
-  - `npm run dev:HERMES` — dev command; Jest tests: `HERMES-auth.guard.spec.ts`
-  - Docs: [`apps/HERMES-gateway/README.md`](apps/HERMES-gateway/README.md), [`docs/HERMES-gateway-runbook.md`](docs/HERMES-gateway-runbook.md)
+  - `apps/web`: **`GET /api/operator/hermes/v1/*`** BFF → gateway (`HERMES_GATEWAY_URL`, `HERMES_BFF_API_KEY`); **`/hermes`** page shows read-only summary + sample plans when configured
+  - `npm run dev:hermes` — dev command; Jest tests: `hermes-auth.guard.spec.ts`
+  - Docs: [`apps/hermes-gateway/README.md`](apps/hermes-gateway/README.md), [`docs/hermes-gateway-runbook.md`](docs/hermes-gateway-runbook.md)
 - **Env vars:**
   - `MARKET_INTAKE_API_BASE` — for web BFF
   - `INTAKE_THROTTLING_ENABLED` — feature flag
   - `INTAKE_POLICY_CACHE_MS` — policy cache TTL
-  - `HERMES_GATEWAY_PORT` — HERMES port (default 3020)
-  - `HERMES_API_KEYS` — comma-separated keys for `x-HERMES-api-key` on **`HERMES-gateway`**
+  - `HERMES_GATEWAY_PORT` — hermes port (default 3020)
+  - `HERMES_API_KEYS` — comma-separated keys for `x-hermes-api-key` on **`hermes-gateway`**
   - `HERMES_GATEWAY_URL` + `HERMES_BFF_API_KEY` — **`apps/web`** server-only BFF to gateway
   - `EXECUTION_API_BASE`, `PORTFOLIO_API_BASE`, `RECONCILIATION_API_BASE` — gateway upstream defaults
-  - `OPERATOR_WEB_BFF_BASE` — for HERMES gateway read-through + health probe
+  - `OPERATOR_WEB_BFF_BASE` — for hermes gateway read-through + health probe
 
 **Operational backlog (what / when):** [`docs/TODO.md`](docs/TODO.md) — живой список рядом с каноном [.cursor/plans/DEVELOPMENT_PLAN.md](.cursor/plans/DEVELOPMENT_PLAN.md).
 
-**HERMES:** сводка функций, запретов и Phase 5 — [`docs/HERMES-reference.md`](docs/HERMES-reference.md); границы API — [`docs/HERMES-operator-boundaries.md`](docs/HERMES-operator-boundaries.md).
+**hermes:** сводка функций, запретов и Phase 5 — [`docs/hermes-reference.md`](docs/hermes-reference.md); границы API — [`docs/hermes-operator-boundaries.md`](docs/hermes-operator-boundaries.md).
 
 ### Hermes Agent + MCP Server (Plan 3)
 
@@ -300,6 +304,19 @@ There is **no** `core-backend/` or `operator-frontend/` directory; older docs or
 - **MCP Tools (14):** list_plans, get_plan, arm_plan, execute_plan, list_positions, close_position, list_incidents, resolve_incident, list_incident_briefs, get_safe_mode_status, enable_safe_mode, disable_safe_mode, get_approvals_queue, get_dashboard_summary
 - **ADR:** [`docs/adr-hermes-agent-integration.md`](docs/adr-hermes-agent-integration.md)
 - **Env vars:** `HERMES_MCP_PORT` (default 4000), `HERMES_AGENT_API_KEY`
+- **D4 deploy-readiness env vars (added 2026-07-12→16):**
+  - **Operator auth (D4-A-1):** `OPERATOR_SESSION_SECRET` (required in prod, JWT signing), `OPERATOR_BOOTSTRAP_TOKEN`, `OPERATOR_SESSION_TTL_SECONDS` (default 28800)
+  - **Service auth / mTLS (D4-B-6):** `ARBIBOT_SERVICE_AUTH_ENABLED` (default `true` in prod), `ARBIBOT_SERVICE_AUTH_SECRET` (shared HMAC for inbound guard + outbound `signedFetch`), `HERMES_SIGN_UPSTREAM` (`true` in live → sign hermes-gateway upstream calls)
+  - **Logging (D4-C-1):** `LOG_LEVEL` (pino, default `info`), `ARBIBOT_LOG_PRETTY` (set `true` for dev pretty-print)
+  - **Kill-switch (D4-B-1):** `DEX_LIVE_KILL_SWITCH` (env override of `dex.limits.killSwitch`), `DEX_KILL_SWITCH_CACHE_TTL_MS`, `DEX_KILL_SWITCH_HTTP_TIMEOUT_MS`
+  - **Capital ceiling (D4-B-3):** `CAPITAL_MAX_ACTIVE_USD` (aggregate ceiling across reservations + open positions)
+  - **Bridge (D4-B-5):** `BRIDGE_FINALITY_CONFIRMATIONS`, `BRIDGE_POLLING_ENABLED`, `BRIDGE_POLLING_INTERVAL_MS`, `CROSS_CHAIN_RECON_*`
+  - **Panic-stop (D4-C-3):** handled via `panic:stop`/`panic:recover` scripts + `DEX_LIVE_KILL_SWITCH` flip
+- **Hermes Agent GLM/Telegram env vars (Plan 5, 2026-07-16):**
+  - `HERMES_LLM_PROVIDER` (default `openai`), `HERMES_LLM_MODEL` (default `glm-5.2`), `HERMES_LLM_BASE_URL` (Z.AI OpenAI-compatible endpoint), `HERMES_LLM_API_KEY`
+  - `HERMES_TELEGRAM_ENABLED`, `TELEGRAM_BOT_TOKEN`, `OPERATOR_TELEGRAM_ID` (whitelist)
+  - `HERMES_MCP_SERVER_PATH`, `HERMES_CRON_ENABLED`, `HERMES_MEMORY_PATH`, `HERMES_LOG_LEVEL`
+  - See [`docs/adr-hermes-agent-glm-telegram.md`](docs/adr-hermes-agent-glm-telegram.md), [`.env.example`](.env.example) hermes-agent section
 - **Plan:** [`.cursor/plans/DEVELOPMENT_PLAN3.md`](.cursor/plans/DEVELOPMENT_PLAN3.md) — 17 steps (A: rename, B: MCP server, C: agent integration)
 
 **Первичный запуск (paper → live):** по замыслу владельцев продукта **paper trading** на стадии первого вывода в эксплуатацию — **обязательный** сквозной тест всего стека (данные → возможности → риск → капитал → виртуальное исполнение → observability/UI) и накопление статистики **без** реальных потерь; после приёмки включается **live с минимальным капиталом**. Это зафиксировано в `DEVELOPMENT_PLAN.md` (раздел «Операционная последовательность первичного запуска»), в архитектурном и фронтенд-спек-документах в корне репозитория.
@@ -331,7 +348,7 @@ From the repo root:
 - `npm run lint` — Turbo lint (Nest apps, packages, `apps/web`)
 - `npm run build` — Turbo build
 - `npm run test` — Turbo test
-- `npm run db:migrate` — apply SQL migrations under `infra/postgres/migrations/` (001–036)
+- `npm run db:migrate` — apply SQL migrations under `infra/postgres/migrations/` (001–043)
 - `npm run e2e:phase1-foundation` — HTTP smoke for Phase 1 DoD §50.3 (snapshot → opportunity → risk → reserve → arm); optional `E2E_INCLUDE_EXECUTION_LEG=true` extends through `apply-fill`; requires migrated DB and running `market-intake`, `opportunity`, `risk`, `capital`, `execution-orchestrator` (see `tools/e2e-phase1-foundation-chain.mjs` for ports / env overrides)
 - `npm run e2e:phase2-controlled-execution` — extends the Phase 1 chain through **all** execution legs until the plan is `completed` (see `tools/e2e-phase2-controlled-execution.mjs`); use `EXECUTION_BEGIN_LEG_COUNT` on **execution-orchestrator** for multi-leg; optional settlement envs as in `docs/settlement-post-commit.md`
 - `npm run e2e:phase2-watchlist-route-scoring` — seeds `token_profiles` / `route_profiles` / `risk_decisions` via `DATABASE_URL`, triggers **`POST /policy/jobs/*`** on **risk-service** (`RISK_SERVICE_URL`, `RISK_POLICY_JOB_TRIGGER_TOKEN`); see `tools/e2e-phase2-watchlist-route-scoring.mjs`
@@ -344,7 +361,7 @@ From the repo root:
 - `npm run ci:e2e-phase4-tier-routing` — Postgres + risk + config + market-intake + `e2e:phase4-tier-routing` (`tools/ci-e2e-phase4-tier-routing.sh`); GitHub Actions job **`e2e-phase4-tier-routing`**
 - `npm run seed:intake-policy-config` — HTTP upsert `intake.*` keys via config-service (`tools/seed-intake-policy-config.mjs`; config may need `AUDIT_CLIENT_ENABLED=false` if audit is down)
 - `npm run ci:bus-smoke` — build `@arbibot/outbox-kafka-bridge` + optional Docker `--profile bus` (`tools/ci-bus-smoke.sh`); GitHub Actions job **`bus-smoke`**; optional `SEED_OUTBOX=1` with `DATABASE_URL` runs [`tools/seed-outbox-events.mjs`](tools/seed-outbox-events.mjs)
-- `npm run ci:key-leakage` — static grep guard for wallet key/mnemonic leakage patterns (K1/K2 from `dex-security-and-capital-safety` SKILL): logging a decrypted key, `decryptPrivateKey` outside `KeyVaultService`/`wallet-manager`, raw 64-hex key or BIP-39 mnemonic in production code (`tools/ci-key-leakage.sh`); GitHub Actions job **`secret-scan`** (`continue-on-error: true`, complements `.github/gitleaks-config.toml` value guard); excludes `*.spec.ts`/`*.d.ts`/`dist/`/mocks
+- `npm run ci:key-leakage` — static grep guard for wallet key/mnemonic leakage patterns (K1/K2 from `dex-security-and-capital-safety` SKILL): logging a decrypted key, `decryptPrivateKey` outside `KeyVaultService`/`wallet-manager`, raw 64-hex key or BIP-39 mnemonic in production code (`tools/ci-key-leakage.sh`); GitHub Actions job **`secret-scan`** (**blocking** since D4-B-7-SECRET-SCAN, complements `.github/gitleaks-config.toml` value guard); excludes `*.spec.ts`/`*.d.ts`/`dist/`/mocks
 - `npm run seed:outbox-smoke-events` — insert one `SnapshotUpdated` row into `outbox_events` for manual bus publish tests
 - `npm run seed:outbox-smoke-events:all` — insert one row per Kafka bridge `event_type` (`SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, `PlanCompleted`) for full bus smoke
 - `npm run db:verify-migrations` — verify `schema_migrations` contains **030** and **031** (override list: `node tools/verify-migrations-applied.mjs <file.sql> ...`)
@@ -354,6 +371,25 @@ From the repo root:
 - `npm run replay:route-scoring-export` — summarize or compare JSONL exports (`summary [file]` reads stdin if omitted; `compare <before> <after>`); see [`docs/route-scoring-replay.md`](docs/route-scoring-replay.md)
 - `npm run bus:publish` — build and publish outbox rows to Kafka/Redpanda for `SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, and `PlanCompleted` (see `@arbibot/outbox-kafka-bridge`); checklist in [`docs/outbox-inbox.md`](docs/outbox-inbox.md) (profile `bus`, `DATABASE_URL`, `KAFKA_BROKERS`).
 - `npm run bus:consume` — build and run smoke consumer with inbox claim (logs `eventName` and `entityType` on successful claim)
+- **D4 deploy-readiness scripts:**
+  - `npm run db:backup` — backup Postgres (`tools/backup-postgres.sh`)
+  - `npm run db:restore` — restore from dump (`tools/backup-postgres.sh restore`, D4-A-3)
+  - `npm run verify:env` — validate `.env` for prod/paper deploy (`tools/validate-env.sh`, D4-A-1/A-6/B-6); fails on missing `OPERATOR_SESSION_SECRET`, auth config, TLS, etc.
+  - `npm run verify:deployment` — composite pre-deploy verification (`tools/verify-deployment.sh`)
+  - `npm run generate:tls` — generate self-signed TLS certs for paper-deploy (`tools/generate-tls-certs.sh`, D4-A-6)
+  - `npm run panic:stop` — **unified emergency-stop** (D4-C-3): `tools/panic-button.sh` → flips `DEX_LIVE_KILL_SWITCH=true` via config-service + UI banner
+  - `npm run panic:recover` — clear panic state (`tools/panic-recover.sh`, D4-C-3)
+  - `npm run ci:paper-live-boundary` — CI guard for paper/live import-graph isolation (D4-B-9, `tools/ci-paper-live-boundary.sh`); GitHub Actions job **`paper-live-boundary`**
+- **DEX / Hermes Agent operational scripts:**
+  - `npm run dex:load-test` — concurrent DEX venue load test (`tools/dex-load-test.mjs`)
+  - `npm run e2e:dex2-multichain` — multi-chain bridge E2E (`tools/e2e-dex2-multichain.mjs`)
+  - `npm run e2e:dex-testnet` — DEX testnet E2E (`tools/e2e-dex1-testnet.mjs`)
+  - `npm run drill:1` — paper-incident operational drill (`tools/drill-1-paper-incident.mjs`)
+  - `npm run db:seed-canonical` — seed canonical registry tables (`tools/seed-canonical-registry.mjs`)
+  - `npm run build:hermes-mcp` — build `@arbibot/hermes-mcp-server` (Plan 5)
+  - `npm run doctor:hermes` — hermes-agent config/env diagnostics (`tools/doctor-hermes-agent.mjs`, Plan 5)
+  - `npm run run:hermes` — run hermes-agent locally (`tools/run-hermes-agent.mjs`, Plan 5)
+  - `npm run dev:stack` — Docker compose dev stack (`infra/docker-compose.dev.yml`); `npm run dev:stack:hermes-agent` adds the `hermes-agent` profile
 
 Copy [`.env.example`](.env.example) to `.env` and adjust URLs. Typical Nest env: `PORT`, `DATABASE_URL`, `REDIS_URL`, `CORS_ORIGINS`, `KAFKA_BROKERS`, and service-to-service URLs where applicable (e.g. **`RISK_SERVICE_URL`** for `opportunity-service` → risk; **`REDIS_URL`** also for **config-service** cache; optional **`PAPER_TRADING_SERVICE_URL`** for `opportunity-service` → paper promotion enqueue). **`apps/web`** uses **`RISK_API_BASE`**, **`OPPORTUNITY_API_BASE`**, **`CAPITAL_API_BASE`**, **`EXECUTION_API_BASE`**, **`AUDIT_API_BASE`**, **`CONFIG_API_BASE`**, **`PORTFOLIO_API_BASE`**, **`RECONCILIATION_API_BASE`**, **`PAPER_API_BASE`**, **`MARKET_INTAKE_API_BASE`** for upstream HTTP (same defaults as local ports; override per deploy).
 
@@ -368,13 +404,13 @@ Copy [`.env.example`](.env.example) to `.env` and adjust URLs. Typical Nest env:
 | audit-service | 3013 |
 | canonical-market-service | 3014 |
 | market-intake-service | 3015 |
-| HERMES-gateway | 3020 (`HERMES_GATEWAY_PORT`) |
+| hermes-gateway | 3020 (`HERMES_GATEWAY_PORT`) |
 | portfolio-service | 3016 |
 | reconciliation-service | 3017 |
 | paper-trading-service | 3018 |
 | config-service | 3019 |
 
-Each service: `npm run start:dev -w @arbibot/<name>` or use root scripts in [`package.json`](package.json): `dev:risk`, `dev:opportunity`, `dev:capital`, `dev:execution`, `dev:audit`, `dev:canonical`, `dev:intake`, `dev:portfolio`, `dev:reconciliation`, `dev:paper`, **`dev:config`**, **`dev:HERMES`**, `dev:web`.
+Each service: `npm run start:dev -w @arbibot/<name>` or use root scripts in [`package.json`](package.json): `dev:risk`, `dev:opportunity`, `dev:capital`, `dev:execution`, `dev:audit`, `dev:canonical`, `dev:intake`, `dev:portfolio`, `dev:reconciliation`, `dev:paper`, **`dev:config`**, **`dev:hermes`**, `dev:web`.
 
 Shared libraries live under [`packages/`](packages/), especially:
 
@@ -412,10 +448,10 @@ Shared libraries live under [`packages/`](packages/), especially:
   - `/api/operator/health/degradation` (read-only: **GET** → market-intake `GET /health/degradation` — returns `{ degraded, fallbackMode, degradationReasons }`)
 - **Health (DEX):**
   - `/api/operator/health/dex` (read-only: **GET** → execution-orchestrator `GET /health/dex` — composite DEX health: RPC, wallet, gas, pool discovery)
-- **HERMES (Phase 5 read-through + mutations):**
-  - `/api/operator/HERMES/v1/[[...path]]` (**GET** / **POST** / **PATCH** → `HERMES_GATEWAY_URL/HERMES/v1/...` with server `HERMES_BFF_API_KEY`; proxies reads + mutations; **POST/PATCH** require operator session and inject `operatorId`)
+- **hermes (Phase 5 read-through + mutations):**
+  - `/api/operator/hermes/v1/[[...path]]` (**GET** / **POST** / **PATCH** → `HERMES_GATEWAY_URL/hermes/v1/...` with server `HERMES_BFF_API_KEY`; proxies reads + mutations; **POST/PATCH** require operator session and inject `operatorId`)
 
-- UI routes: `/dashboard`, `/portfolio`, `/opportunities`, `/execution`, `/tokens`, `/paper`, `/incidents`, `/runbooks`, `/HERMES`, **`/settings`** (policy configurations via config-service BFF). Phase 3 slice: `/paper` and `/tokens` include paper trades, promotion candidates, drift samples, discovery candidates with proper mutation flows and operator safety.
+- UI routes: `/dashboard`, `/portfolio`, `/opportunities`, `/execution`, `/tokens`, `/paper`, `/incidents`, `/runbooks`, `/hermes`, **`/settings`** (policy configurations via config-service BFF). Phase 3 slice: `/paper` and `/tokens` include paper trades, promotion candidates, drift samples, discovery candidates with proper mutation flows and operator safety.
 
 Operator session in dev: see `apps/web` middleware / `getOperatorSession` — `ARBIBOT_DEV_ROLE` or `arbibot_role` cookie.
 
@@ -423,7 +459,7 @@ Operator session in dev: see `apps/web` middleware / `getOperatorSession` — `A
 
 - **`opportunity-service` in-DB outbox relay** (`OutboxRelayService`): forwards **`RiskDecisionIssued`** and **`PaperPromotionCandidateRequested`** to **paper-trading-service** over HTTP when `PAPER_TRADING_SERVICE_URL` is set (enqueue is **outbox-first** — no synchronous "fire POST from the handler" path for promotion). Relay and bridge each use their own **event-type allowlists**; do not assume Kafka covers relay-only types.
 - **`@arbibot/outbox-kafka-bridge`** publishes `SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, and `PlanCompleted` to Kafka/Redpanda (filtered `event_type` list). It is a **separate** publisher from the opportunity in-DB relay; keep filters documented and avoid double-publishing the same logical delivery. See [`docs/outbox-inbox.md`](docs/outbox-inbox.md).
-- SQL migrations are applied lexicographically by `tools/db-migrate.mjs`; current migrations **001–036** include: canonical market, market intake idempotency, outbox relay dead-letter fields, execution/portfolio/reconciliation, fill/idempotency, **token/route profiles and risk decision keys** (`015_token_route_profiles.sql`), **paper trading** (`016_paper_trading.sql`, `017_paper_promotion_enqueue_idempotency.sql`), **outbox dedup for `paper-enqueue`** (`018_outbox_paper_enqueue_dedup.sql`), **policy configurations** (`019_policy_configurations.sql`), **policy configuration scopes** (`020_policy_configuration_scopes.sql`, CFG-3), **paper capital reservations** (`021_paper_capital_reservations.sql`), **paper discovery candidates** (`022_paper_discovery_candidates.sql`, `023_paper_discovery_candidates_fixes.sql`), later **`024`–`028`** (execution playbooks, watchlist/scoring history, paper drift `route_key`), **`029_intake_policy_seed.sql`** (defaults for `intake.throttling` / `intake.routing.tiers`), **`030_paper_promotion_quality_fields.sql`**, **`031_portfolio_position_close_idempotency.sql`**, **`032_dex_filters_seed.sql`** (DEX opportunity filters seed), **`033_dex_on_chain.sql`** (`on_chain_transactions`, `wallet_states`, `dex_pools`, `approvals` + indexes + triggers), **`034_on_chain_tx_leg_id_uuid.sql`** (OnChainTransaction.legId bigint→uuid), **`035_dex_live_limits_seed.sql`** (seed `dex.limits` + `dex.live` config), **`036_dex2_crosschain.sql`** (`bridge_transfers`, `cross_chain_reconciliation` tables).
+- SQL migrations are applied lexicographically by `tools/db-migrate.mjs`; current migrations **001–043** include: canonical market, market intake idempotency, outbox relay dead-letter fields, execution/portfolio/reconciliation, fill/idempotency, **token/route profiles and risk decision keys** (`015_token_route_profiles.sql`), **paper trading** (`016_paper_trading.sql`, `017_paper_promotion_enqueue_idempotency.sql`), **outbox dedup for `paper-enqueue`** (`018_outbox_paper_enqueue_dedup.sql`), **policy configurations** (`019_policy_configurations.sql`), **policy configuration scopes** (`020_policy_configuration_scopes.sql`, CFG-3), **paper capital reservations** (`021_paper_capital_reservations.sql`), **paper discovery candidates** (`022_paper_discovery_candidates.sql`, `023_paper_discovery_candidates_fixes.sql`), later **`024`–`028`** (execution playbooks, watchlist/scoring history, paper drift `route_key`), **`029_intake_policy_seed.sql`** (defaults for `intake.throttling` / `intake.routing.tiers`), **`030_paper_promotion_quality_fields.sql`**, **`031_portfolio_position_close_idempotency.sql`**, **`032_dex_filters_seed.sql`** (DEX opportunity filters seed), **`033_dex_on_chain.sql`** (`on_chain_transactions`, `wallet_states`, `dex_pools`, `approvals` + indexes + triggers), **`034_on_chain_tx_leg_id_uuid.sql`** (OnChainTransaction.legId bigint→uuid), **`035_dex_live_limits_seed.sql`** (seed `dex.limits` + `dex.live` config), **`036_dex2_crosschain.sql`** (`bridge_transfers`, `cross_chain_reconciliation` tables), **`037_fix_get_effective_config_value.sql`** (effective config rollback fix), **`038_alertmanager_incidents.sql`** (D4-A-2 paging), **`039_dex_daily_volume.sql`** (D4-B-2 daily-volume), **`040_portfolio_positions_notional_usd.sql`** (notional_usd), **`041_capital_limits_seed.sql`** (D4-B-3 capital ceiling seed), **`042_wallet_keys.sql`** (D4-B-4 wallet keys persistence), **`043_bridge_finality.sql`** (D4-B-5 finality columns).
 - Canonical registry tables are not auto-seeded; after migrations, `venue_refs`, `canonical_instruments`, and `canonical_routes` must be populated manually before `resolve-*` endpoints return data.
 
 ### Phase 2 slice (controlled execution / policy)
@@ -520,7 +556,7 @@ Operator session in dev: see `apps/web` middleware / `getOperatorSession` — `A
 5. **`e2e-phase3-paper-discovery`** — after `npm ci` + `npm run build`, runs `npm run ci:e2e-phase3-paper-discovery` / `bash tools/ci-e2e-phase3-paper-discovery.sh` (Postgres + **paper-trading-service** + **market-intake-service**, then `node tools/e2e-p3-paper-discovery.mjs`).
 6. **`e2e-phase4-tier-routing`** — after `npm ci` + `npm run build`, runs `npm run ci:e2e-phase4-tier-routing` (Postgres + **risk-service** + **config-service** + **market-intake** + `tools/e2e-phase4-tier-routing.mjs`).
 7. **`bus-smoke`** — after `npm ci`, runs `npm run ci:bus-smoke` (bridge build + optional Docker `--profile bus`; no full monorepo `npm run build` in this job).
-8. **`secret-scan`** — after `actions/checkout` (no `npm ci` needed), runs `npm run ci:key-leakage` (`tools/ci-key-leakage.sh`); static grep for key-leakage patterns (K1/K2 from `dex-security-and-capital-safety` SKILL); `continue-on-error: true` (non-blocking); complements `.github/gitleaks-config.toml` (pattern guard vs value guard).
+8. **`secret-scan`** — after `actions/checkout` (no `npm ci` needed), runs `npm run ci:key-leakage` (`tools/ci-key-leakage.sh`); static grep for key-leakage patterns (K1/K2 from `dex-security-and-capital-safety` SKILL); **blocking since D4-B-7-SECRET-SCAN** (previously `continue-on-error: true`); complements `.github/gitleaks-config.toml` (pattern guard vs value guard).
 9. **`graphify-check`** — after `build`, rebuilds knowledge graph, uploads `GRAPH_REPORT.md` as artifact (non-blocking, 7-day retention).
 
 **Review gate (documentation, not a CI job):** [`docs/review-gate-cfg3-paper-discovery.md`](docs/review-gate-cfg3-paper-discovery.md) — required items completed 2026-04-19; optional full bus E2E deferred.
@@ -540,4 +576,4 @@ Operator session in dev: see `apps/web` middleware / `getOperatorSession` — `A
 - **`docs/phase4-ui-degraded-signals.md`** — Phase 4 degraded UI signals design (market-intake health, operator dashboard, banner)
 - **`docs/intake-policy-config-keys.md`** — config JSON keys `intake.throttling` / `intake.routing.tiers` (Phase 4)
 - **`docs/paper-promotion-quality-criteria.md`** — Paper promotion quality criteria (P2 prep)
-- **`docs/HERMES-operator-api-spec.md`** — HERMES operator API specification (Phase 5 gateway)
+- **`docs/hermes-operator-api-spec.md`** — hermes operator API specification (Phase 5 gateway)

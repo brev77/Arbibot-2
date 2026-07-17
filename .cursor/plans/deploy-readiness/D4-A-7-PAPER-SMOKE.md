@@ -25,8 +25,8 @@
 - Запись результата smoke в `docs/session_summary.md` (или новый `docs/paper-deploy-smoke-<date>.md`)
 
 ## Acceptance
-- [ ] DoD-чеклист полностью пройден на целевом paper-хосте
-- [ ] Любые найденные проблемы либо устранены, либо завёны как backlog-задачи
+- [ ] DoD-чеклист полностью пройден на целевом paper-хосте — `docs/paper-deploy-dod.md:7-8` (чеклист готов; прогон — операционная задача, требует хоста с БД/Docker/Slack/PagerDuty)
+- [ ] Любые найденные проблемы либо устранены, либо заведены как backlog-задачи — pending (требует smoke-прогона; result-файл `docs/paper-deploy-smoke-*.md` отсутствует)
 
 ## Edge Cases
 - Часть сервисов не отвечает → triage через `/health/ready` checks (видно, какая зависимость упала)

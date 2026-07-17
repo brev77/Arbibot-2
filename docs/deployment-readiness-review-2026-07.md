@@ -1,5 +1,9 @@
 # Deployment Readiness Review — 2026-07
 
+> ⚠️ **SUPERSEDED (2026-07-17):** все P3–P8 и L1–L8 находки этого ревью закрыты фазой **D4 deploy-readiness** (Plan 4, коммиты `bad30f9`..`df2177a`, 2026-07-12→16).
+> Актуальные процедуры деплоя — [`paper-deploy-dod.md`](paper-deploy-dod.md) (paper) / [`live-deploy-dod.md`](live-deploy-dod.md) (live) / [`release-process.md`](release-process.md).
+> Этот документ сохранён для истории аудита.
+
 - **Дата ревью:** 2026-07-11
 - **Объект:** Arbibot 2 monorepo (ветка `main`, коммит `622aeac`)
 - **Метод:** статический аудит артефактов деплоя (Dockerfiles, compose, CI/CD, миграции, observability, runbooks, код управления ключами/капиталом, auth/RBAC)

@@ -20,10 +20,10 @@
 3. **(Опц.) Автоматизация** — init-контейнер в `infra/docker-compose.prod.yml` или pre-deploy hook в `cd.yml`, запускающий `db:migrate` перед стартом сервисов. Решить в ADR: init-контейнер vs ручное (для paper — ручное допустимо).
 
 ## Acceptance
-- [ ] Нет двух файлов с одинаковым числовым префиксом в `infra/postgres/migrations/`
-- [ ] `npm run db:migrate` на чистой БД применяет все миграции детерминированно
-- [ ] `docs/deployment-guide.md` описывает порядок migrate→rollout + rollback-процедуру
-- [ ] (Если init-контейнер) compose-prod запускает миграции автоматически перед сервисами
+- [x] Нет двух файлов с одинаковым числовым префиксом в `infra/postgres/migrations/` — 43 файла `001`–`043`, дубликатов нет (коллизия `037`/`038` разрешена)
+- [ ] `npm run db:migrate` на чистой БД применяет все миграции детерминированно — операционная проверка на чистой БД pending (ordering hazard устранён)
+- [x] `docs/deployment-guide.md` описывает порядок migrate→rollout + rollback-процедуру — `:417-419,457-463`
+- [x] (Если init-контейнер) compose-prod запускает миграции автоматически перед сервисами — n/a: план помечал "(Опц.)"; для paper-deploy допустимо ручное `db:migrate`
 
 ## Edge Cases
 - Уже применённые среды: переименование `037` → `038` требует `UPDATE schema_migrations SET filename='038_...' WHERE filename='037_...'` на каждой среде (документировать!)

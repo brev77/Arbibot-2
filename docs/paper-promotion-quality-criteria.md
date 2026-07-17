@@ -1,6 +1,8 @@
 # Paper promotion — quality-based criteria (design)
 
-**Status:** design input for [`PRIO-P2-PROMO`](../.cursor/plans/DEVELOPMENT_PLAN.md)  
+> ℹ️ **DESIGN INPUT (2026-07-17):** это дизайн-документ для [`PRIO-P2-PROMO`](../.cursor/plans/DEVELOPMENT_PLAN.md). Реализованная (авторитетная) спецификация — [`paper-promotion-criteria.md`](paper-promotion-criteria.md) (`promotionQualityFor()` в `paper-trading-service`, миграция `030_paper_promotion_quality_fields.sql`).
+
+**Status:** design input for [`PRIO-P2-PROMO`](../.cursor/plans/DEVELOPMENT_PLAN.md)
 **Owner:** `paper-trading-service` (single-writer promotion queue) + operator `/tokens`
 
 ## Goals

@@ -59,6 +59,7 @@
 | `DEX-1-1-ADAPTER-UNI2` | Uniswap V2 адаптер | ✅ done |
 | `DEX-1-1-ADAPTER-UNI3` | Uniswap V3 адаптер | ✅ done |
 | `DEX-1-1-ADAPTER-SUSHI` | SushiSwap адаптер | ✅ done |
+| `DEX-1-1-VENUE-BIND` | DEX venue bind в execution-orchestrator | ✅ done |
 
 ### DEX-1.2 — Сверка и observability (7 шагов)
 
