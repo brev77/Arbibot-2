@@ -44,7 +44,7 @@ The repo uses custom Cursor skills in `.cursor/skills/` for architecture validat
 
 The repo uses [graphify](https://github.com/safishamsi/graphify): `graphify-out/` is listed in `.gitignore` and is generated locally, not committed.
 
-**Current graph state (2026-05-21, code-only AST refresh):** **1694** nodes, **1691** edges, **417** communities — details in `graphify-out/GRAPH_REPORT.md` (498 TypeScript/TS source files scanned).
+**Current graph state (2026-07-17, code-only AST refresh):** **1974** nodes, **2031** edges, **468** communities — details in `graphify-out/GRAPH_REPORT.md` (556 files scanned, ~338K words). ⚠️ **Full LLM-rebuild pending** — code-only covers `.ts` imports/structure but does not index markdown/docs or add semantic edges; run `/graphify .` in Cursor after large doc changes to refresh the full graph (doc↔code cross-references).
 
 **Full guide:** [`docs/graphify-guide.md`](docs/graphify-guide.md) — установка, команды, сценарии, интерпретация отчёта.
 
