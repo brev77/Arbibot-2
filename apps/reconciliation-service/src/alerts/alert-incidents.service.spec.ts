@@ -56,7 +56,7 @@ type EntityManagerLike = {
 
 describe('AlertIncidentsService', () => {
   let service: AlertIncidentsService;
-  let repo: jest.Mocked<Repository<AlertmanagerIncidentEntity>>;
+  let repo: jest.Mocked<Pick<Repository<AlertmanagerIncidentEntity>, 'find'>>;
   const repoToken = getRepositoryToken(AlertmanagerIncidentEntity);
   let em: EntityManagerLike;
   let createdRows: Partial<AlertmanagerIncidentEntity>[];

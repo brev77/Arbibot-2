@@ -93,9 +93,12 @@ describe('PaperDiscoveryWorker', () => {
 
   describe('triggerDiscovery', () => {
     it('should trigger discovery cycle when not running', async () => {
+      // runDiscoveryCycle is private; cast exposes it for spyOn (ESLint's
+      // type-info sees the member as accessible and flags a plain cast).
       jest
         .spyOn(
-          worker,
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+          worker as unknown as { runDiscoveryCycle: () => Promise<void> },
           'runDiscoveryCycle',
         )
         .mockResolvedValue(undefined);
@@ -119,7 +122,8 @@ describe('PaperDiscoveryWorker', () => {
       const error = new Error('Test error');
       jest
         .spyOn(
-          worker,
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+          worker as unknown as { runDiscoveryCycle: () => Promise<void> },
           'runDiscoveryCycle',
         )
         .mockRejectedValue(error);

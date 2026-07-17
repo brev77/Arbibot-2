@@ -76,10 +76,15 @@ describe('MarketService', () => {
         return { get: redisGet, setEx: redisSetEx };
       },
     } as unknown as RedisConnection;
+    // Casts required by TS (partial mock -> full Repository), but ESLint's
+    // type-info disagrees; suppress the false positive.
     service = new MarketService(
-      venueRepo,
-      instrumentRepo,
-      routeRepo,
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+      venueRepo as unknown as Repository<VenueRefEntity>,
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+      instrumentRepo as unknown as Repository<CanonicalInstrumentEntity>,
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+      routeRepo as unknown as Repository<CanonicalRouteEntity>,
       redisConnection,
     );
   });

@@ -30,7 +30,14 @@ const mockThrottle = {
 
 describe('SnapshotsService', () => {
   let service: SnapshotsService;
-  let dataSource: jest.Mocked<Pick<DataSource, 'transaction' | 'getRepository'>>;
+  // Loose typing: the mock only implements transaction()/getRepository(),
+  // but TypeORM's overloaded signatures (isolationLevel variant, EntityTarget
+  // generic) make a strict jest.Mocked<Pick<DataSource,...>> assignment fail.
+  // Casts to DataSource happen at the single construction site below.
+  let dataSource: {
+    transaction: jest.Mock;
+    getRepository: jest.Mock;
+  };
   const snapshots: MarketSnapshotEntity[] = [];
   const idempotencyRows: MarketSnapshotIngestIdempotencyEntity[] = [];
   let savedOutbox: OutboxEventEntity[] = [];
@@ -159,7 +166,7 @@ describe('SnapshotsService', () => {
 
     const audit = { record: jest.fn(), appendEntry: jest.fn() };
     service = new SnapshotsService(
-      dataSource,
+      dataSource as unknown as DataSource,
       mockThrottle as never,
       audit as never,
     );
