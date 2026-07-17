@@ -34,7 +34,7 @@
     "moduleFileExtensions": ["js", "json", "ts"],
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
-    "collectCoverageFrom": ["**/*.ts"],
+    "collectCoverageFrom": ["**/*.ts", "!**/*.module.ts", "!**/*.dto.ts", "!**/*.interface.ts", "!**/*.type.ts", "!**/*.constant.ts", "!main.ts", "!**/index.ts"],
     "coverageDirectory": "../coverage",
     "testPathIgnorePatterns": ["/dist/", "/node_modules/"],
     "modulePathIgnorePatterns": ["<rootDir>/../dist"],

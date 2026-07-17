@@ -15,6 +15,7 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "test": "turbo run test",
+    "test:coverage": "turbo run test -- --coverage --coverageReporters=json-summary --coverageReporters=text-summary --coverageReporters=lcov",
     "db:migrate": "node tools/db-migrate.mjs",
     "db:verify-migrations": "node tools/verify-migrations-applied.mjs",
     "db:verify-migrations:all": "node tools/verify-migrations-applied.mjs --all",
