@@ -106,7 +106,7 @@ D4-B-7-SECRET-SCAN удалил `continue-on-error: true`. В `AGENTS.md` (2 м�
   - **D4-A-6-TLS** — 2/4 SATISFIED, 2 OPEN (runtime TLS verify, HSTS-for-paper decision)
   - **D4-A-7-PAPER-SMOKE** — 0/2 SATISFIED (DoD checklist непройден — операционная задача)
   - **D4-B-1-KILLSWITCH** — все 6 SATISFIED `[x]`
-  - **D4-B-6-MTLS** — 3/4 SATISFIED, 1 OPEN (`validate-env` warn-only, не fail — backlog)
+  - **D4-B-6-MTLS** — все 4 SATISFIED `[x]` (после code-фикса `validate-env.sh` 2026-07-17: `log_warn` → `log_fail` при disabled auth)
   - **D4-C-2-VERSIONING** — git tag box теперь `[x]` (тег `v0.1.0-paper` существует)
 
 ### 8. DEX plan: недостающая строка в status-table (→ исправлено)
@@ -155,7 +155,7 @@ D4-B-7-SECRET-SCAN удалил `continue-on-error: true`. В `AGENTS.md` (2 м�
 3. **D4-A-4-MIGRATIONS** — `db:migrate` на чистой БД
 4. **D4-A-6-TLS** — runtime TLS verify + HSTS-for-paper решение
 5. **D4-A-7-PAPER-SMOKE** — полный paper-deploy DoD прогон на целевом хосте (`docs/paper-deploy-dod.md`)
-6. **D4-B-6-MTLS** — `validate-env` сделать fail (сейчас warn) при `ARBIBOT_SERVICE_AUTH_ENABLED != 'true'` (backlog)
+6. **D4-B-6-MTLS** — ~~`validate-env` сделать fail (сейчас warn) при `ARBIBOT_SERVICE_AUTH_ENABLED != 'true'` (backlog)~~ **✅ ИСПРАВЛЕНО 2026-07-17** (commit следуетующий): `validate-env.sh:320-322` теперь вызывает `log_fail` → exit 1 при disabled auth; проверено прогонами (auth-disabled → FAIL exit 1; auth-enabled → PASS).
 7. **D4-C-4-LIVE-SMOKE** — 24h testnet soak (blocked по product decision)
 8. **Git tag `v0.1.0-paper` push на remote** — тег создан локально, push — отдельная операция (см. `docs/release-process.md`)
 

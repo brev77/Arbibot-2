@@ -318,7 +318,7 @@ if [[ "${_service_auth_enabled}" == "true" ]]; then
     log_pass "ARBIBOT_SERVICE_AUTH — enabled with ${#_service_auth_secret}-char secret"
   fi
 else
-  log_warn "ARBIBOT_SERVICE_AUTH_ENABLED not 'true' — service-to-service auth disabled (required for live-gate L6; any container can call any service)"
+  log_fail "ARBIBOT_SERVICE_AUTH_ENABLED not 'true' — service-to-service auth disabled. Live-gate L6 requires HMAC auth on all backend services; without it, any container on the arbibot-backend network can call any service unauthenticated. Set ARBIBOT_SERVICE_AUTH_ENABLED=true + ARBIBOT_SERVICE_AUTH_SECRET (32+ chars)."
 fi
 unset _service_auth_enabled _service_auth_secret
 

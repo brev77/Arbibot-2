@@ -12,6 +12,9 @@ Release procedure: [`docs/release-process.md`](docs/release-process.md).
 
 ## [Unreleased]
 
+### Fixed
+- **D4-B-6-MTLS** — `tools/validate-env.sh` now **fails** (exit 1) when `ARBIBOT_SERVICE_AUTH_ENABLED != 'true'`, instead of warning. Previously a prod-deploy with service auth disabled passed validation with warnings only, contradicting the documented guarantee in `docs/live-deploy-dod.md` and the step's own acceptance. Verified: auth-disabled env → `FAIL: 1, exit 1`; auth-enabled env → `PASS, exit 2`.
+
 ### Added
 - **D4-C-1-LOGGING** — Structured NDJSON logging via `PinoLoggerService` (`@arbibot/nest-platform`), wired into all 12 Nest service `main.ts` files via `configureArbibotLogger`. Fields: `level`, `time` (ISO-8601), `service`, `correlationId`, `context`, `msg`. Sensitive-field redaction (K1.1/K1.2). Env: `LOG_LEVEL`, `ARBIBOT_LOG_PRETTY`. Promtail pipeline updated; Loki queries documented in `docs/observability-tracing.md`.
 - **D4-C-2-VERSIONING** — `CHANGELOG.md` (Keep-a-Changelog), `package.json` version `0.1.0`, semver git tag `v0.1.0-paper` (annotated), `docs/release-process.md`. Pre-1.0 contract: `v<major>.<minor>.<patch>-<phase>` (`paper`/`live`).
