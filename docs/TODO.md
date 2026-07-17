@@ -40,6 +40,65 @@
 
 ---
 
+## Pre-deploy risk tracker
+
+> **Назначение:** отслеживание рисков, выявленных разведкой кодовой базы (2026-07-17) перед деплоем.
+> Исполнительный план проверки (что/когда запускать) — [`docs/pre-deploy-verification-plan.md`](pre-deploy-verification-plan.md).
+> Канон PAPER/LIVE DoD — [`paper-deploy-dod.md`](paper-deploy-dod.md) / [`live-deploy-dod.md`](live-deploy-dod.md).
+> **Правило приоритета:** Critical/High = блокеры **live**; для **paper** — проверить или выключить.
+
+### 🔴 Critical (блокеры live-деплоя)
+
+| ID | Риск | Где | paper | live | Владелец | Статус |
+|----|------|-----|-------|------|----------|--------|
+| **C1** | Bridge fee estimation — заглушки (TODO в across + stargate). Реальные деньги при live bridge. | `apps/execution-orchestrator/src/execution/bridge/across-bridge.adapter.ts:395`, `stargate-bridge.adapter.ts:508` | ОК (paper = simulated) | Реализовать real-time fee ИЛИ disable cross-chain в live config | | ⬜ open |
+| **C2** | ~~Тесты `392/392` не подтверждены локально~~ → **✅ RESOLVED (2026-07-17):** Первичное заявление о «SIGTERM + утечках handles» было **false positive** — артефакт способа запуска `turbo run test -- --detectOpenHandles` (turbo форвардит флаги в no-op пакеты типа tsconfig/contracts, где `node -e` падает на неизвестных CLI-флагах). Прогон per-package с `--detectOpenHandles`: `@arbibot/messaging` PASS 3/3 за 6.2s, `canonical-market` PASS 11/11 за 13s, `market-intake` PASS 8/8 за 13s, `portfolio` PASS 13/13 за 13s — **0 утечек handles**. Turbo `npm run test` (с кэшем) → **29/29 пакетов green**. | — | — | | ✅ resolved |
+| **C3** | `audit-service` — 0 unit-тестов (compliance-trail непроверен). | `apps/audit-service/` | ОК (audit append-only, low risk) | Добавить spec на `audit.service.ts` | | ⬜ open |
+
+### 🟠 High (блокеры live-деплоя; для paper — проверить)
+
+| ID | Риск | Где | paper | live | Владелец | Статус |
+|----|------|-----|-------|------|----------|--------|
+| **H1** | ~~Hardcoded salt в `KeyVaultService`~~ → **сужен до Medium (2026-07-17):** hardcoded salt `'arbibot-vault-salt-v1'` используется только для master key derivation (`scryptSync` строка 84). Per-key encryption использует **random salt** (`randomBytes(32)` строка 125). Приемлемо, если `PRIVATE_KEY_ENCRYPTION_KEY` уникален per-deploy. | `packages/nest-platform/src/vault/key-vault.service.ts:84` | Принять | Подтвердить что `PRIVATE_KEY_ENCRYPTION_KEY` уникален per-deploy; (опц.) migrate на KMS | | ⬜ open (Medium) |
+| **H2** | API key comparison **timing-unsafe** в `HermesAuthGuard` (не constant-time). | `apps/hermes-gateway/src/.../hermes-auth.guard.ts` | Принять (network-isolated) | `crypto.timingSafeEqual` | | ⬜ open |
+| **H3** | `config-service/panic.service` без unit-тестов (panic button — деструктивный путь). | `apps/config-service/src/.../panic.service.ts` | Принять (UI tested) | Добавить spec | | ⬜ open |
+| **H4** | `token-approve.service` без unit-тестов (ERC-20 approve перед swap — ошибки = потеря средств). | `apps/execution-orchestrator/src/.../token-approve.service.ts` | Принять (paper = simulated) | Добавить spec | | ⬜ open |
+| **H5** | `paper-capital.service` без unit-тестов (резервирование виртуальных средств). | `apps/paper-trading-service/src/.../paper-capital.service.ts` | Принять (E2E покрывает) | Добавить spec | | ⬜ open |
+
+### 🟡 Medium (не блокеры; отслеживать)
+
+| ID | Риск | Действие | Статус |
+|----|------|----------|--------|
+| **M1** | Dev session secret fallback (fail-closed в prod, но проверить) | Проверить в Фазе 2 чек-листа | ⬜ open |
+| **M2** | Across `outputAmount = amount` (без учёта мостовой комиссии) | Связано с C1; закрыть вместе | ⬜ open |
+| **M3** | Native bridge dead address + OP withdrawal correlation | Review при live | ⬜ open |
+| **M5** | CD pipeline не имеет deploy step (только build+push в GHCR) | Документировать manual `docker compose pull && up -d` ИЛИ добавить deploy job | ⬜ open |
+| **M6** | Миграции не применяются автоматически при deploy (нет one-shot migrator контейнера) | Добавить migrator контейнер в compose ИЛИ запустить `npm run db:migrate` перед `up -d` | ⬜ open |
+| **M7** | TLS сертификаты должны предоставляться извне (`infra/nginx/ssl/` пустой) | Let's Encrypt ИЛИ `tools/generate-tls-certs.sh` для self-signed (paper) | ⬜ open |
+| **M8** | Backup стратегия не автоматизирована (нет pg_dump cron/WAL archiving в compose) | Добавить backup-сервис в compose (см. [`docs/disaster-recovery-plan.md`](disaster-recovery-plan.md)) | ⬜ open |
+| **M9** | `node_exporter` отсутствует → `DiskSpaceLow` alert будет без данных | Добавить node_exporter ИЛИ убрать `DiskSpaceLow` из `alerts.yml` | ⬜ open |
+| **M10** | Hermes Agent в compose — это шаблон на `python:3.11-slim` (публичного образа нет) | Собрать образ агента вручную | ⬜ open |
+
+### 🟢 Low (tech debt / cosmetic)
+
+| ID | Риск | Действие | Статус |
+|----|------|----------|--------|
+| **L1** | Test mnemonic allowlist | ОК (правильно исключён из сканов) | ✅ no-op |
+| **L2** | `console.error` в startup | Cleanup при возможности | ⬜ open |
+| **L3** | `PRIVATE_KEY_ENCRYPTION_KEY` не в validator | Добавить в `validate-env.sh` | ⬜ open |
+| **L4** | Prettier не настроен | Добавить `.prettierrc` + `format` скрипт | ⬜ open |
+| **L5** | Web UI ~3% test coverage (4 файла на 135 ts/tsx) | Нарастить UI-тесты (backlog) | ⬜ open |
+| **L6** | Крупные файлы execution-orchestrator (native-bridge 928 LOC) | Рефакторинг (backlog) | ⬜ open |
+| **L7** | Конфликт порта 3000: Next.js vs risk-service (локально) | Документировать (только dev) | ⬜ open |
+
+**Снято:** ~~M4 — корневые `*.log` файлы~~. Уже исключены через `*.log` в `.gitignore` — локальные артефакты, в git не попадают.
+
+### Легенда статусов
+
+- ⬜ open — не начато · 🔄 in-progress · ✅ done · ⏭️ descoped (с указанием причины)
+
+---
+
 ## В очереди (бэклог из плана / техдолг)
 
 | Когда | Что | Связь с планом |
@@ -104,4 +163,4 @@
 | 2026-06-15 | **Drill #1 first live run (session 43):** Полный прогон на поднятом dev-стеке. **Auto PASS (6/6):** preflight ✅, alert rule loaded ✅, baseline ✅, 25 drift samples injected (DRILL-BTC-USDC, 76 bps) via `POST /paper/drift-samples` ✅, `PaperDriftBpsHigh` firing @ t≈715s ✅, Alertmanager active ✅. **Manual PARTIAL:** Alertmanager UI ✅, `/paper` drift table ✅, `/incidents` GAP, `/hermes` GAP. **Cleanup:** DELETE 25 DRILL-* samples + restart paper-trading-service → `PaperDriftBpsHigh` RESOLVED @ T+~5m, `PaperDriftBpsSustainedHigh` RESOLVED @ T+~20m. Final verify: `max_15m`=0 series, `current`=0 series, DB drill_samples_left=0. **4 gaps** заведены в backlog выше. См. [`docs/drill-1-paper-incident.md`](drill-1-paper-incident.md). |
 | 2026-06-15 | **Drill #1 gaps closed (session 44):** Все 4 gap из drill #1 реализованы и верифицированы (lint 29/29 ✅, build 22/22 ✅, tests 392/392 ✅). **#1:** `AlertIncidentsService` + `AlertsController` в reconciliation-service (migration `037_alertmanager_incidents.sql`, `AlertmanagerIncidentEntity`, severity normalization, fingerprint dedup, `firing`↔`resolved_external` state machine, 14 unit tests в `alert-incidents.service.spec.ts`); `infra/alertmanager/alertmanager.yml` route → reconciliation webhook; BFF `/api/operator/alerts` в apps/web; `/incidents` UI merge reconciliation + alerts. **#2:** RBAC relaxed в BFF `/api/operator/hermes/v1/*` — GET доступен `OPERATOR`+, POST/PATCH требуют `ADMIN` (audit preserved). **#3:** `PaperDriftGaugesWorker` + `POST /paper/admin/drift-gauges/refresh` в paper-trading-service (configurable interval). **#4:** `infra/prometheus/alerts.yml` `PaperDriftBpsSustainedHigh` `for: 15m`→`for: 10m`. |
 
-*Последняя актуализация файла: 2026-06-15 (session 44 — drill #1 4 gaps closed).*
+*Последняя актуализация файла: 2026-07-17 (pre-deploy risk tracker C1–C3 / H1–H5 / M1–M10 / L1–L7 добавлен; исполнительный план — [`docs/pre-deploy-verification-plan.md`](pre-deploy-verification-plan.md)).*
