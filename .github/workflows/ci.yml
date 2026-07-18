@@ -236,7 +236,7 @@ jobs:
       - name: Graph summary
         run: cat graphify-out/GRAPH_REPORT.md
       - name: Upload graph artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: graphify-report
           path: graphify-out/GRAPH_REPORT.md
