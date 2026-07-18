@@ -17,29 +17,37 @@ describe('MCP Tools Registration', () => {
     client = new HermesClient({ gatewayUrl: 'http://localhost:3020', apiKey: 'test' });
   });
 
-  it('should register exactly 14 tools', () => {
+  it('should register exactly 22 tools', () => {
     registerTools(mockServer, client);
-    expect(registeredTools).toHaveLength(14);
+    expect(registeredTools).toHaveLength(22);
   });
 
   it('should register all expected tool names', () => {
     registerTools(mockServer, client);
     const names = registeredTools.map((t) => t.name).sort();
     expect(names).toEqual([
+      'activate_config',
       'arm_plan',
       'close_position',
       'disable_safe_mode',
       'enable_safe_mode',
+      'execute_plan',
       'get_approvals_queue',
+      'get_config',
+      'get_config_history',
       'get_dashboard_summary',
+      'get_effective_config',
       'get_plan',
       'get_safe_mode_status',
+      'list_configs',
       'list_incident_briefs',
       'list_incidents',
       'list_plans',
       'list_positions',
+      'promote_config',
       'resolve_incident',
-      'execute_plan',
+      'rollback_config',
+      'update_config',
     ].sort());
   });
 

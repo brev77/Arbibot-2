@@ -93,6 +93,7 @@ Operator → Telegram → Hermes Agent (Python, GLM 5.2) → MCP Server (TS) →
 | `HERMES_TELEGRAM_ENABLED` | нет | `true` | Включить Telegram-бота |
 | `TELEGRAM_BOT_TOKEN` | **да** (если Telegram on) | — | Токен от @BotFather |
 | `OPERATOR_TELEGRAM_ID` | **да** (если Telegram on) | — | Ваш Telegram ID (whitelist) |
+| `HERMES_OPERATOR_ID` | нет | `OPERATOR_TELEGRAM_ID` | operatorId для config-mutations (Plan 6) |
 | `HERMES_DISCORD_ENABLED` | нет | `false` | Включить Discord-бота |
 | `HERMES_CRON_ENABLED` | нет | `true` | Периодические сводки в Telegram («следит за ботом») |
 | `HERMES_LOG_LEVEL` | нет | `info` | Log level |
@@ -108,8 +109,11 @@ Operator → Telegram → Hermes Agent (Python, GLM 5.2) → MCP Server (TS) →
 | `/safe` | safe_mode_control | Управление safe mode |
 | `/approve` | approval_handler | Очередь approvals |
 | `/explain` | explain_bot | Объяснение работы бота (Plan 5) |
+| `/config` | config_management | Управление настройками бота (Plan 6, только безопасные ключи) |
 
-## MCP Tools (14)
+## MCP Tools (22)
+
+### Operational (14)
 
 | Tool | Метод | Описание |
 |------|-------|----------|
@@ -127,6 +131,21 @@ Operator → Telegram → Hermes Agent (Python, GLM 5.2) → MCP Server (TS) →
 | `disable_safe_mode` | POST | Выключить safe mode (requires approval) |
 | `get_approvals_queue` | GET | Очередь approvals |
 | `get_dashboard_summary` | GET | Сводка дашборда |
+
+### Config management (Plan 6, +8)
+
+Только безопасные ключи: `intake.*`, `paper.*`, `opportunity.*`, `dex.*`, `features.*`. Sensitive (`risk.*`/`execution.*`/`capital.*`) — только через UI `/settings`. Все mutations требуют подтверждения оператора в Telegram. См. [`docs/adr-hermes-config-management.md`](../../docs/adr-hermes-config-management.md).
+
+| Tool | Метод | Описание |
+|------|-------|----------|
+| `list_configs` | GET | Список ключей конфигурации |
+| `get_config` | GET | Текущее значение ключа |
+| `get_effective_config` | GET | Resolved-значение со scope-fallback |
+| `get_config_history` | GET | История версий ключа |
+| `update_config` | PUT | Изменить значение (requires approval) |
+| `rollback_config` | POST | Откатить к прошлой версии (requires approval) |
+| `promote_config` | POST | Промоут между scope (requires approval) |
+| `activate_config` | PATCH | Активировать draft (requires approval) |
 
 ## Устранение неполадок
 

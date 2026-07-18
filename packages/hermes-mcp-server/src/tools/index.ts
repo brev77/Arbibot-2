@@ -5,9 +5,11 @@ import { registerIncidentTools } from './incidents.js';
 import { registerSafeModeTools } from './safe-mode.js';
 import { registerAuditTools } from './audit.js';
 import { registerDashboardTools } from './dashboard.js';
+import { registerConfigTools } from './config.js';
 
 /**
- * Register all 14 MCP tools on the server.
+ * Register all MCP tools on the server.
+ * 22 tools total: 14 operational + 8 config-management (Plan 6).
  */
 export function registerTools(server: McpServerHandle, client: HermesClient): void {
   registerPlanTools(server, client);       // list_plans, get_plan, arm_plan, execute_plan
@@ -16,4 +18,6 @@ export function registerTools(server: McpServerHandle, client: HermesClient): vo
   registerSafeModeTools(server, client);   // get_safe_mode_status, enable_safe_mode, disable_safe_mode
   registerAuditTools(server, client);      // get_approvals_queue
   registerDashboardTools(server, client);  // get_dashboard_summary
+  registerConfigTools(server, client);     // list_configs, get_config, get_effective_config, get_config_history,
+  //                                        update_config, rollback_config, promote_config, activate_config
 }

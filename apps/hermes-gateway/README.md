@@ -26,6 +26,7 @@ Default listen port: **3020** (`HERMES_GATEWAY_PORT` / `PORT`).
 | `RECONCILIATION_API_BASE` | `reconciliation-service` base (default `http://127.0.0.1:3017`) |
 | `OPERATOR_WEB_BFF_BASE` | Next.js `apps/web` base for `GET /api/operator/dashboard/summary` (default `http://127.0.0.1:3000`) |
 | `AUDIT_API_BASE` | `audit-service` for `GET .../approvals-queue` → `/audit/entries` (default `http://127.0.0.1:3013`) |
+| `CONFIG_API_BASE` | Plan 6: `config-service` base for `/hermes/v1/config/*` → `/policy/configurations/*` (default `http://127.0.0.1:3019`) |
 | `HERMES_MUTATION_RATE_LIMIT_MAX` | Max mutation requests per window per API key (default `60`) |
 | `HERMES_MUTATION_RATE_LIMIT_WINDOW_MS` | Rate limit window ms (default `60000`) |
 | `HERMES_MUTATION_RATE_LIMIT_ENABLED` | Set `false` to disable mutation rate limit |
@@ -55,6 +56,16 @@ Correlation: incoming `x-correlation-id` is forwarded to upstream `fetch` calls 
 | POST | `/hermes/v1/incidents/:id/resolve` | `PATCH {RECONCILIATION}/mismatches/:id` `{ status: resolved }` + audit |
 | POST | `/hermes/v1/safe-mode/enable` | In-process safe mode + audit |
 | POST | `/hermes/v1/safe-mode/disable` | In-process safe mode + audit |
+| GET | `/hermes/v1/config` | Plan 6: `GET {CONFIG}/policy/configurations` (list) |
+| GET | `/hermes/v1/config/:configKey` | Plan 6: `GET {CONFIG}/policy/configurations/:key` |
+| GET | `/hermes/v1/config/:configKey/effective` | Plan 6: resolved value with scope fallback |
+| GET | `/hermes/v1/config/:configKey/history` | Plan 6: version history |
+| PUT | `/hermes/v1/config/:configKey` | Plan 6 mutation: `PUT {CONFIG}/policy/configurations/:key` + allowlist + audit |
+| POST | `/hermes/v1/config/:configKey/rollback` | Plan 6 mutation: rollback to version + audit |
+| POST | `/hermes/v1/config/:configKey/promote` | Plan 6 mutation: promote across scopes + audit |
+| PATCH | `/hermes/v1/config/:configKey/status` | Plan 6 mutation: activate latest draft + audit |
+
+> Plan 6 config mutations are allowlist-restricted to non-sensitive keys (`intake/paper/opportunity/dex/features`); `risk/execution/capital` return 403. See [`docs/adr-hermes-config-management.md`](../../docs/adr-hermes-config-management.md).
 
 Health (no API key):
 

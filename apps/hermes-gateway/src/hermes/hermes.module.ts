@@ -3,6 +3,11 @@ import { AuditClientService } from '@arbibot/nest-platform';
 
 import { IncidentBriefsService } from './incident-briefs.service';
 import { HermesAuthGuard } from './hermes-auth.guard';
+import {
+  HermesConfigMutationController,
+  HermesConfigReadController,
+} from './hermes-config.controller';
+import { HermesConfigService } from './hermes-config.service';
 import { HermesController } from './hermes.controller';
 import { HermesMutationController } from './hermes-mutation.controller';
 import { HermesMutationRateLimitGuard } from './hermes-mutation-rate-limit.guard';
@@ -12,7 +17,12 @@ import { HermesUpstreamService } from './hermes-upstream.service';
 import { SafeModeService } from './safe-mode.service';
 
 @Module({
-  controllers: [HermesController, HermesMutationController],
+  controllers: [
+    HermesController,
+    HermesMutationController,
+    HermesConfigReadController,
+    HermesConfigMutationController,
+  ],
   providers: [
     HermesUpstreamService,
     HermesAuthGuard,
@@ -22,6 +32,7 @@ import { SafeModeService } from './safe-mode.service';
     HermesMutationService,
     HermesRateLimitService,
     HermesMutationRateLimitGuard,
+    HermesConfigService,
   ],
 })
 export class HermesModule {}

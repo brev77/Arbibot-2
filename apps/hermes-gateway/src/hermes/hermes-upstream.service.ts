@@ -148,4 +148,47 @@ export class HermesUpstreamService {
 
     return { status: res.status, json };
   }
+
+  /**
+   * PUT JSON to an upstream service (Plan 6 — config-service `PUT /policy/configurations/:key`).
+   */
+  async putJson(
+    url: string,
+    body: Record<string, unknown>,
+    correlationId?: string,
+  ): Promise<UpstreamJsonResult> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    };
+    if (correlationId !== undefined && correlationId.length > 0) {
+      headers['x-correlation-id'] = correlationId;
+    }
+
+    let res: Response;
+    try {
+      res = await signedFetch(url, {
+        method: 'PUT',
+        headers,
+        forceSign: this.signUpstream,
+        body: JSON.stringify(body),
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.log.warn(`Upstream PUT failed: ${url} — ${message}`);
+      throw err;
+    }
+
+    const text = await res.text();
+    let json: unknown = null;
+    if (text.length > 0) {
+      try {
+        json = JSON.parse(text) as unknown;
+      } catch {
+        json = { raw: text };
+      }
+    }
+
+    return { status: res.status, json };
+  }
 }

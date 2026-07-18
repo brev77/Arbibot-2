@@ -50,6 +50,7 @@ messaging:
       - /safe      → skill:safe_mode_control
       - /approve   → skill:approval_handler
       - /explain   → skill:explain_bot
+      - /config    → skill:config_management
 
   # Discord выключен по умолчанию (фокус на личном Telegram-боте).
   discord:
@@ -81,6 +82,13 @@ security:
     - disable_safe_mode
     - resolve_incident
     - close_position
+    # Config-management mutations (Plan 6). Gateway additionally enforces an
+    # allowlist: only intake/paper/opportunity/dex/features keys are mutable;
+    # risk/execution/capital return 403. See docs/adr-hermes-config-management.md.
+    - update_config
+    - rollback_config
+    - promote_config
+    - activate_config
   approval_timeout_minutes: 5
 
 # Cron scheduling — периодические сводки в Telegram (агент «следит за ботом»).

@@ -32,3 +32,13 @@ export function getAuditApiBase(): string {
     process.env.AUDIT_API_BASE ?? 'http://127.0.0.1:3013',
   );
 }
+
+/**
+ * config-service base (Plan 6 — Hermes config management).
+ * Used by `/hermes/v1/config/*` routes to proxy to `/policy/configurations/*`.
+ */
+export function getConfigApiBase(): string {
+  return normalizeBase(
+    process.env.CONFIG_API_BASE ?? 'http://127.0.0.1:3019',
+  );
+}
