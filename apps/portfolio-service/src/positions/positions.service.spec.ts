@@ -207,4 +207,123 @@ describe('PositionsService', () => {
       service.close(positionId, closeDto({ expectedEntityVersion: 999 })),
     ).rejects.toBeInstanceOf(ConflictException);
   });
+
+  // ── Additional coverage paths ─────────────────────────────────────────
+
+  describe('list', () => {
+    it('returns rows ordered by updatedAt DESC (take 200)', async () => {
+      const find = jest.fn().mockResolvedValue([
+        mkPos({ id: 'p-2', updatedAt: new Date('2026-07-17T12:00:00Z') }),
+        mkPos({ id: 'p-1', updatedAt: new Date('2026-07-17T11:00:00Z') }),
+      ]);
+      const svc = new PositionsService(
+        {} as any,
+        { find } as any,
+        { appendEntry: jest.fn() } as any,
+      );
+      const result = await svc.list();
+      expect(result).toHaveLength(2);
+      expect(find).toHaveBeenCalledWith({
+        order: { updatedAt: 'DESC' },
+        take: 200,
+      });
+    });
+  });
+
+  describe('close — additional branches', () => {
+    it('returns idempotent row when idempotencyKey already applied', async () => {
+      await service.confirmFill(fillDto());
+      const positionId = positions[0]!.id;
+
+      // First close
+      await service.close(positionId, closeDto());
+
+      // Reset position quantity back to non-zero to verify idempotent replay
+      // doesn't re-close.
+      const pos = positions.find((p) => p.id === positionId)!;
+      pos.quantity = '100';
+      pos.entityVersion = 99;
+
+      const second = await service.close(positionId, closeDto());
+      // Idempotent path: returns the existing row without re-closing.
+      expect(second.id).toBe(positionId);
+      expect(second.quantity).toBe('100'); // unchanged (idempotent)
+    });
+
+    it('throws NotFound when idempotent replay finds no position row', async () => {
+      await service.confirmFill(fillDto());
+      const positionId = positions[0]!.id;
+      // First close populates closeDedup
+      await service.close(positionId, closeDto());
+
+      // Now simulate the position row being deleted before idempotent replay
+      positions.length = 0;
+
+      await expect(
+        service.close(positionId, closeDto()),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('treats NaN quantity as zero (idempotent close path)', async () => {
+      // Pre-populate a position with NaN quantity
+      positions.push(
+        mkPos({
+          id: 'pos-nan',
+          quantity: 'NaN',
+          entityVersion: 1,
+        }),
+      );
+
+      const result = await service.close('pos-nan', closeDto());
+
+      // NaN → isZeroQuantity → PORTFOLIO_POSITION_CLOSE_IDEMPOTENT audit + return
+      expect(result.id).toBe('pos-nan');
+      expect(auditAppendEntry).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'PORTFOLIO_POSITION_CLOSE_IDEMPOTENT',
+          payload: expect.objectContaining({ note: 'already_zero' }),
+        }),
+      );
+    });
+
+    it('skips dedup insert when idempotencyKey is whitespace-only', async () => {
+      await service.confirmFill(fillDto());
+      const positionId = positions[0]!.id;
+
+      await service.close(positionId, closeDto({ idempotencyKey: '   ' }));
+
+      // No closeDedup row was inserted (whitespace trimmed to empty)
+      expect(closeDedup).toHaveLength(0);
+    });
+
+    it('closes without idempotencyKey (no dedup insert)', async () => {
+      await service.confirmFill(fillDto());
+      const positionId = positions[0]!.id;
+
+      const closed = await service.close(positionId, {
+        operatorId: 'op-2',
+      });
+
+      expect(closed.quantity).toBe('0');
+      expect(closeDedup).toHaveLength(0);
+    });
+  });
+
+  // ── Helpers ───────────────────────────────────────────────────────────
+
+  function mkPos(
+    over: Partial<PortfolioPositionEntity> = {},
+  ): PortfolioPositionEntity {
+    return {
+      id: '11111111-1111-4111-8111-111111111111',
+      planId: '11111111-1111-4111-8111-111111111111',
+      instrumentKey: 'USDC-WETH-univ2',
+      quantity: '1000000000000000000',
+      notionalUsd: '0',
+      entityVersion: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      ...over,
+    };
+  }
 });

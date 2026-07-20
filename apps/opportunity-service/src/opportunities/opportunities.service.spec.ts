@@ -451,4 +451,409 @@ describe('OpportunitiesService', () => {
       expect(out.last24h.passedFilters).toBe(50 - out.last24h.rejectedByFilters);
     });
   });
+
+  // ───────────────────────────────────────────────────────────────────────
+  // Additional coverage: requestRiskEvaluation happy path + state-machine
+  // edge cases, previewFilters for every filter type.
+  // ───────────────────────────────────────────────────────────────────────
+
+  describe('requestRiskEvaluation — additional paths', () => {
+    function setupTx(rows: Array<Partial<ArbitrageOpportunityEntity> | null>) {
+      let callIdx = 0;
+      dataSource.transaction.mockImplementation(
+        (fn: (em: EntityManager) => Promise<unknown>) => {
+          const row = rows[callIdx] ?? rows[rows.length - 1];
+          callIdx++;
+          return fn(mkEm({ findOneRow: row as unknown as ArbitrageOpportunityEntity }));
+        },
+      );
+    }
+
+    it('happy path: detected → enriched → riskChecked, returns idempotentReplay=false', async () => {
+      // First repo.findOne (existing): detected
+      repo.findOne
+        .mockResolvedValueOnce({
+          id: 'o1',
+          state: OPPORTUNITY_STATES.detected,
+          correlationId: null,
+          riskDecisionId: null,
+        })
+        // afterPrepare: enriched (between two transactions)
+        .mockResolvedValueOnce({
+          id: 'o1',
+          state: OPPORTUNITY_STATES.enriched,
+          correlationId: null,
+          riskDecisionId: null,
+        });
+
+      // Both transactions return the detected/enriched row
+      setupTx([
+        { id: 'o1', state: OPPORTUNITY_STATES.detected, correlationId: null },
+        { id: 'o1', state: OPPORTUNITY_STATES.enriched, correlationId: null },
+      ]);
+
+      riskClient.evaluateRisk.mockResolvedValue({
+        riskDecisionId: 'rd-happy',
+        outcome: 'approved',
+      });
+
+      const out = await service.requestRiskEvaluation('o1', {
+        notionalUsd: 1000,
+        snapshotVersion: 1,
+      });
+
+      expect(out.idempotentReplay).toBe(false);
+      expect(out.riskDecisionId).toBe('rd-happy');
+      expect(out.riskOutcome).toBe('approved');
+    });
+
+    it('throws ConflictException when state after prepare is not enriched', async () => {
+      repo.findOne
+        .mockResolvedValueOnce({
+          id: 'o1',
+          state: OPPORTUNITY_STATES.detected,
+          correlationId: null,
+          riskDecisionId: null,
+        })
+        // afterPrepare: still detected (not enriched) → bypasses afterPrepare
+        // idempotent skip and continues to commit-tx where state is invalid.
+        .mockResolvedValueOnce({
+          id: 'o1',
+          state: OPPORTUNITY_STATES.detected,
+          correlationId: null,
+          riskDecisionId: null,
+        });
+
+      // First transaction returns detected → enriched transition.
+      // Second (commit) transaction returns a row whose state is not enriched.
+      setupTx([
+        { id: 'o1', state: OPPORTUNITY_STATES.detected, correlationId: null },
+        { id: 'o1', state: 'some_invalid_state', correlationId: null },
+      ]);
+
+      riskClient.evaluateRisk.mockResolvedValue({
+        riskDecisionId: 'rd-1',
+        outcome: 'approved',
+      });
+
+      await expect(
+        service.requestRiskEvaluation('o1', { notionalUsd: 1, snapshotVersion: 1 }),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('throws NotFoundException when prepare-tx finds nothing', async () => {
+      repo.findOne.mockResolvedValueOnce({
+        id: 'o1',
+        state: OPPORTUNITY_STATES.detected,
+        correlationId: null,
+      });
+      setupTx([null]);
+
+      await expect(
+        service.requestRiskEvaluation('o1', { notionalUsd: 1, snapshotVersion: 1 }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('returns idempotentReplay when afterPrepare is riskChecked', async () => {
+      repo.findOne
+        .mockResolvedValueOnce({
+          id: 'o1',
+          state: OPPORTUNITY_STATES.detected,
+          correlationId: null,
+        })
+        .mockResolvedValueOnce({
+          id: 'o1',
+          state: OPPORTUNITY_STATES.riskChecked,
+          riskDecisionId: 'rd-early',
+        });
+
+      // First tx returns detected → enriched transition
+      setupTx([
+        { id: 'o1', state: OPPORTUNITY_STATES.detected, correlationId: null },
+      ]);
+
+      const out = await service.requestRiskEvaluation('o1', {
+        notionalUsd: 1,
+        snapshotVersion: 1,
+      });
+
+      expect(out.idempotentReplay).toBe(true);
+      expect(out.riskDecisionId).toBe('rd-early');
+      expect(out.riskOutcome).toBe('skipped');
+      expect(riskClient.evaluateRisk).not.toHaveBeenCalled();
+    });
+
+    it('throws ConflictException when commit-tx row is riskChecked with different decisionId', async () => {
+      repo.findOne
+        .mockResolvedValueOnce({
+          id: 'o1',
+          state: OPPORTUNITY_STATES.detected,
+          correlationId: null,
+        })
+        .mockResolvedValueOnce({
+          id: 'o1',
+          state: OPPORTUNITY_STATES.enriched,
+        });
+
+      setupTx([
+        { id: 'o1', state: OPPORTUNITY_STATES.detected, correlationId: null },
+        { id: 'o1', state: OPPORTUNITY_STATES.riskChecked, riskDecisionId: 'rd-other' },
+      ]);
+
+      riskClient.evaluateRisk.mockResolvedValue({
+        riskDecisionId: 'rd-current',
+        outcome: 'approved',
+      });
+
+      await expect(
+        service.requestRiskEvaluation('o1', { notionalUsd: 1, snapshotVersion: 1 }),
+      ).rejects.toThrow(/different risk decision/);
+    });
+
+    it('throws ConflictException when commit-tx state is not enriched', async () => {
+      repo.findOne
+        .mockResolvedValueOnce({
+          id: 'o1',
+          state: OPPORTUNITY_STATES.detected,
+          correlationId: null,
+        })
+        .mockResolvedValueOnce({
+          id: 'o1',
+          state: OPPORTUNITY_STATES.enriched,
+        });
+
+      setupTx([
+        { id: 'o1', state: OPPORTUNITY_STATES.detected, correlationId: null },
+        { id: 'o1', state: 'bogus_state' },
+      ]);
+
+      riskClient.evaluateRisk.mockResolvedValue({
+        riskDecisionId: 'rd-1',
+        outcome: 'approved',
+      });
+
+      await expect(
+        service.requestRiskEvaluation('o1', { notionalUsd: 1, snapshotVersion: 1 }),
+      ).rejects.toThrow(/Risk evaluation requires state enriched/);
+    });
+
+    it('throws NotFoundException when commit-tx finds nothing', async () => {
+      repo.findOne
+        .mockResolvedValueOnce({
+          id: 'o1',
+          state: OPPORTUNITY_STATES.detected,
+          correlationId: null,
+        })
+        .mockResolvedValueOnce({
+          id: 'o1',
+          state: OPPORTUNITY_STATES.enriched,
+        });
+
+      setupTx([
+        { id: 'o1', state: OPPORTUNITY_STATES.detected, correlationId: null },
+        null,
+      ]);
+
+      riskClient.evaluateRisk.mockResolvedValue({
+        riskDecisionId: 'rd-1',
+        outcome: 'approved',
+      });
+
+      await expect(
+        service.requestRiskEvaluation('o1', { notionalUsd: 1, snapshotVersion: 1 }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('returns idempotentReplay when commit-tx row matches riskDecisionId', async () => {
+      repo.findOne
+        .mockResolvedValueOnce({
+          id: 'o1',
+          state: OPPORTUNITY_STATES.detected,
+          correlationId: null,
+        })
+        .mockResolvedValueOnce({
+          id: 'o1',
+          state: OPPORTUNITY_STATES.enriched,
+        });
+
+      setupTx([
+        { id: 'o1', state: OPPORTUNITY_STATES.detected, correlationId: null },
+        { id: 'o1', state: OPPORTUNITY_STATES.riskChecked, riskDecisionId: 'rd-match' },
+      ]);
+
+      riskClient.evaluateRisk.mockResolvedValue({
+        riskDecisionId: 'rd-match',
+        outcome: 'approved',
+      });
+
+      const out = await service.requestRiskEvaluation('o1', { notionalUsd: 1, snapshotVersion: 1 });
+      expect(out.idempotentReplay).toBe(true);
+    });
+
+    it('uses dto.correlationId when provided', async () => {
+      repo.findOne
+        .mockResolvedValueOnce({
+          id: 'o1',
+          state: OPPORTUNITY_STATES.detected,
+          correlationId: null,
+        })
+        .mockResolvedValueOnce({
+          id: 'o1',
+          state: OPPORTUNITY_STATES.enriched,
+        });
+
+      setupTx([
+        { id: 'o1', state: OPPORTUNITY_STATES.detected, correlationId: null },
+        { id: 'o1', state: OPPORTUNITY_STATES.enriched, correlationId: null },
+      ]);
+
+      riskClient.evaluateRisk.mockResolvedValue({
+        riskDecisionId: 'rd-1',
+        outcome: 'approved',
+      });
+
+      await service.requestRiskEvaluation('o1', {
+        notionalUsd: 1,
+        snapshotVersion: 1,
+        correlationId: '00000000-0000-4000-8000-000000000099',
+      });
+
+      expect(riskClient.evaluateRisk).toHaveBeenCalledWith(
+        expect.objectContaining({
+          correlationId: '00000000-0000-4000-8000-000000000099',
+        }),
+        expect.anything(),
+      );
+    });
+  });
+
+  describe('previewFilters — every filter type', () => {
+    const mkFiltersAll = (
+      overrides: Partial<{
+        minSpread: number;
+        minProfit: number;
+        maxFees: number;
+        volMin: number;
+        volMax: number;
+        blacklist: string[];
+        allowedChains: string[];
+        quoteAssets: string[];
+        maxRiskLevel: 'low' | 'medium' | 'high';
+      }> = {},
+    ): DexFiltersConfigDto => ({
+      enabled: true,
+      filters: {
+        minSpreadPct: { enabled: true, value: overrides.minSpread ?? 0 },
+        minProfitUsd: { enabled: true, value: overrides.minProfit ?? 0 },
+        maxFeesUsd: { enabled: true, value: overrides.maxFees ?? 0 },
+        volumeRange: {
+          enabled: true,
+          min: overrides.volMin ?? 0,
+          max: overrides.volMax ?? Number.MAX_SAFE_INTEGER,
+        },
+        blacklistTokens: { enabled: true, tokens: overrides.blacklist ?? [] },
+        allowedChains: { enabled: true, chains: overrides.allowedChains ?? [] },
+        quoteAssets: { enabled: true, assets: overrides.quoteAssets ?? [] },
+        highRisk: { enabled: true, maxRiskLevel: overrides.maxRiskLevel ?? 'high' },
+      },
+    });
+
+    it('counts minProfitUsd filter', async () => {
+      repo.find.mockResolvedValue([
+        { payload: { profitUsd: 5 }, createdAt: new Date() },
+        { payload: { profitUsd: 50 }, createdAt: new Date() },
+      ]);
+      const out = await service.previewFilters(
+        mkFiltersAll({ minProfit: 10 }),
+      );
+      expect(out.breakdown.minProfitUsd.count).toBe(1);
+    });
+
+    it('counts maxFeesUsd filter (greater-than direction)', async () => {
+      repo.find.mockResolvedValue([
+        { payload: { feesUsd: 5 }, createdAt: new Date() },
+        { payload: { feesUsd: 50 }, createdAt: new Date() },
+      ]);
+      const out = await service.previewFilters(
+        mkFiltersAll({ maxFees: 10 }),
+      );
+      expect(out.breakdown.maxFeesUsd.count).toBe(1); // 50 > 10 → filtered
+    });
+
+    it('counts volumeRange filter (outside min-max)', async () => {
+      repo.find.mockResolvedValue([
+        { payload: { volumeUsd: 100 }, createdAt: new Date() }, // inside
+        { payload: { volumeUsd: 5000 }, createdAt: new Date() }, // outside
+        { payload: { volumeUsd: 1 }, createdAt: new Date() }, // below min
+      ]);
+      const out = await service.previewFilters(
+        mkFiltersAll({ volMin: 50, volMax: 1000 }),
+      );
+      expect(out.breakdown.volumeRange.count).toBe(2);
+    });
+
+    it('counts blacklistTokens filter', async () => {
+      repo.find.mockResolvedValue([
+        { payload: { token: 'BTC' }, createdAt: new Date() },
+        { payload: { token: 'ETH' }, createdAt: new Date() },
+      ]);
+      const out = await service.previewFilters(
+        mkFiltersAll({ blacklist: ['BTC'] }),
+      );
+      expect(out.breakdown.blacklistTokens.count).toBe(1);
+    });
+
+    it('counts allowedChains filter (whitelist not-in)', async () => {
+      repo.find.mockResolvedValue([
+        { payload: { chain: 'arbitrum' }, createdAt: new Date() },
+        { payload: { chain: 'optimism' }, createdAt: new Date() },
+      ]);
+      const out = await service.previewFilters(
+        mkFiltersAll({ allowedChains: ['arbitrum'] }),
+      );
+      expect(out.breakdown.allowedChains.count).toBe(1); // optimism not in list
+    });
+
+    it('counts quoteAssets filter (whitelist not-in)', async () => {
+      repo.find.mockResolvedValue([
+        { payload: { quoteAsset: 'USDC' }, createdAt: new Date() },
+        { payload: { quoteAsset: 'WETH' }, createdAt: new Date() },
+      ]);
+      const out = await service.previewFilters(
+        mkFiltersAll({ quoteAssets: ['USDC'] }),
+      );
+      expect(out.breakdown.quoteAssets.count).toBe(1); // WETH not in list
+    });
+
+    it('counts highRisk filter (current level above max)', async () => {
+      repo.find.mockResolvedValue([
+        { payload: { riskLevel: 'low' }, createdAt: new Date() },
+        { payload: { riskLevel: 'high' }, createdAt: new Date() },
+      ]);
+      const out = await service.previewFilters(
+        mkFiltersAll({ maxRiskLevel: 'medium' }),
+      );
+      expect(out.breakdown.highRisk.count).toBe(1); // high > medium
+    });
+
+    it('multiple filters can flag the same row', async () => {
+      repo.find.mockResolvedValue([
+        {
+          payload: {
+            spreadPct: 0.1, // below minSpread 0.5
+            profitUsd: 1, // below minProfit 10
+            riskLevel: 'high', // above max medium
+          },
+          createdAt: new Date(),
+        },
+      ]);
+      const out = await service.previewFilters(
+        mkFiltersAll({ minSpread: 0.5, minProfit: 10, maxRiskLevel: 'medium' }),
+      );
+      expect(out.breakdown.minSpreadPct.count).toBe(1);
+      expect(out.breakdown.minProfitUsd.count).toBe(1);
+      expect(out.breakdown.highRisk.count).toBe(1);
+      expect(out.filteredOut).toBe(1);
+    });
+  });
 });
