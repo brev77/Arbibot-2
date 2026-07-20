@@ -19,7 +19,7 @@
     "@arbibot/persistence": "*",
     "kafkajs": "^2.2.4",
     "reflect-metadata": "^0.2.2",
-    "typeorm": "^0.3.30"
+    "typeorm": "^0.3.31"
   },
   "devDependencies": {
     "@arbibot/tsconfig": "*",
