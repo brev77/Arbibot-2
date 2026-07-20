@@ -538,4 +538,412 @@ describe('DexMempoolMonitorWorker', () => {
       expect(swaps[0]!.txHash).toBe('0xnew');
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Lifecycle: monitoring start/stop with provider
+  // ---------------------------------------------------------------------------
+
+  describe('monitoring lifecycle with provider', () => {
+    it('starts monitoring when enabled and provider is available', async () => {
+      const events = new Map<string, ((...args: unknown[]) => void)[]>();
+      const provider = {
+        on: jest.fn((event: string, handler: (...args: unknown[]) => void) => {
+          if (!events.has(event)) events.set(event, []);
+          events.get(event)!.push(handler);
+        }),
+        off: jest.fn(),
+      };
+      rpcManagerMock.getProvider = jest.fn().mockReturnValue(provider);
+
+      const w = await createWorker({
+        DEX_MEMPOOL_ENABLED: 'true',
+        DEX_MEMPOOL_CHAIN_IDS: '42161',
+        DEX_MEMPOOL_ROUTER_ADDRESSES: '0xrouter1',
+      });
+      w.onModuleInit();
+
+      expect(provider.on).toHaveBeenCalledWith('pending', expect.any(Function));
+      w.onModuleDestroy();
+      expect(provider.off).toHaveBeenCalled();
+    });
+
+    it('skips chain when provider is missing', async () => {
+      rpcManagerMock.getProvider = jest.fn().mockReturnValue(null);
+
+      const w = await createWorker({
+        DEX_MEMPOOL_ENABLED: 'true',
+        DEX_MEMPOOL_CHAIN_IDS: '42161',
+      });
+      expect(() => w.onModuleInit()).not.toThrow();
+      w.onModuleDestroy();
+    });
+
+    it('catches errors from provider.on during monitoring start', async () => {
+      rpcManagerMock.getProvider = jest.fn().mockImplementation(() => {
+        throw new Error('rpc init failed');
+      });
+
+      const w = await createWorker({
+        DEX_MEMPOOL_ENABLED: 'true',
+        DEX_MEMPOOL_CHAIN_IDS: '42161',
+      });
+      expect(() => w.onModuleInit()).not.toThrow();
+      w.onModuleDestroy();
+    });
+
+    it('stopMonitoring is a no-op when no subscriptions exist', async () => {
+      const w = await createWorker();
+      w.onModuleInit();
+      expect(() => w.onModuleDestroy()).not.toThrow();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // processPendingTx — swap ingestion
+  // ---------------------------------------------------------------------------
+
+  describe('processPendingTx', () => {
+    const ROUTER = '0xrouter1';
+
+    async function setupWithRouter(
+      getTxImpl?: jest.Mock,
+    ): Promise<{
+      w: DexMempoolMonitorWorker;
+      processPendingTx: (txHash: string, tx: unknown) => Promise<void>;
+      getPending: () => Map<number, unknown[]>;
+    }> {
+      const provider = {
+        on: jest.fn(),
+        off: jest.fn(),
+        getTransaction: getTxImpl ?? jest.fn(),
+      };
+      rpcManagerMock.getProvider = jest.fn().mockReturnValue(provider);
+
+      const w = await createWorker({
+        DEX_MEMPOOL_ENABLED: 'true',
+        DEX_MEMPOOL_CHAIN_IDS: '42161',
+        DEX_MEMPOOL_ROUTER_ADDRESSES: ROUTER,
+      });
+      w.onModuleInit();
+
+      return {
+        w,
+        processPendingTx: (txHash, tx) => {
+          provider.getTransaction.mockResolvedValueOnce(tx);
+          return (
+            w as unknown as {
+              processPendingTx: (
+                txHash: string,
+                chainId: number,
+                provider: unknown,
+              ) => Promise<void>;
+            }
+          ).processPendingTx(txHash, 42161, provider);
+        },
+        getPending: () =>
+          (w as unknown as { pendingSwaps: Map<number, unknown[]> }).pendingSwaps,
+      };
+    }
+
+    it('skips tx when getTransaction returns null', async () => {
+      const { processPendingTx, getPending } = await setupWithRouter();
+      await processPendingTx('0xtxhash', null);
+      expect(getPending().get(42161) ?? []).toHaveLength(0);
+    });
+
+    it('skips tx when tx.to is null', async () => {
+      const { processPendingTx, getPending } = await setupWithRouter();
+      await processPendingTx('0xtxhash', { hash: '0xtxhash', to: null });
+      expect(getPending().get(42161) ?? []).toHaveLength(0);
+    });
+
+    it('skips tx when tx.to is not in routerAddresses', async () => {
+      const { processPendingTx, getPending } = await setupWithRouter();
+      await processPendingTx('0xtxhash', {
+        hash: '0xtxhash',
+        to: '0xunknown-router',
+      });
+      expect(getPending().get(42161) ?? []).toHaveLength(0);
+    });
+
+    it('skips tx when calldata is not a known swap selector', async () => {
+      const { processPendingTx, getPending } = await setupWithRouter();
+      await processPendingTx('0xtxhash', {
+        hash: '0xtxhash',
+        to: ROUTER,
+        from: '0xs',
+        data: '0xdeadbeef' + '0'.repeat(64 * 6),
+        gasPrice: 1n,
+        nonce: 1,
+        blockNumber: null,
+      });
+      expect(getPending().get(42161) ?? []).toHaveLength(0);
+    });
+
+    it('records tx when calldata matches swapExactTokensForTokens selector', async () => {
+      const { processPendingTx, getPending } = await setupWithRouter();
+      await processPendingTx('0xtxhash', {
+        hash: '0xtxhash',
+        to: ROUTER,
+        from: '0xs',
+        data: '0x38ed1739' + '0'.repeat(64 * 6),
+        gasPrice: 1_000_000_000n,
+        nonce: 1,
+        blockNumber: null,
+      });
+      const swaps = getPending().get(42161) ?? [];
+      expect(swaps).toHaveLength(1);
+    });
+
+    it('swallows errors from getTransaction (transient RPC failure)', async () => {
+      const provider = {
+        on: jest.fn(),
+        off: jest.fn(),
+        getTransaction: jest.fn().mockRejectedValue(new Error('rpc timeout')),
+      };
+      rpcManagerMock.getProvider = jest.fn().mockReturnValue(provider);
+
+      const w = await createWorker({
+        DEX_MEMPOOL_ENABLED: 'true',
+        DEX_MEMPOOL_CHAIN_IDS: '42161',
+        DEX_MEMPOOL_ROUTER_ADDRESSES: ROUTER,
+      });
+      w.onModuleInit();
+
+      const processPendingTx = (
+        w as unknown as {
+          processPendingTx: (
+            txHash: string,
+            chainId: number,
+            provider: unknown,
+          ) => Promise<void>;
+        }
+      ).processPendingTx;
+
+      await expect(processPendingTx('0xtxhash', 42161, provider)).resolves.toBeUndefined();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // decodeSwap — calldata decoding
+  // ---------------------------------------------------------------------------
+
+  describe('decodeSwap', () => {
+    const ROUTER = '0xrouter1';
+
+    async function setupDecoder(): Promise<{
+      decode: (tx: unknown) => unknown;
+    }> {
+      rpcManagerMock.getProvider = jest.fn().mockReturnValue({
+        on: jest.fn(),
+        off: jest.fn(),
+      });
+      const w = await createWorker({
+        DEX_MEMPOOL_ENABLED: 'false',
+        DEX_MEMPOOL_ROUTER_ADDRESSES: ROUTER,
+      });
+      w.onModuleInit();
+      return {
+        decode: (tx) =>
+          (
+            w as unknown as { decodeSwap: (tx: unknown) => unknown }
+          ).decodeSwap(tx),
+      };
+    }
+
+    it('returns null when tx.data is undefined', async () => {
+      const { decode } = await setupDecoder();
+      expect(await decode({ hash: '0xt', data: undefined })).toBeNull();
+    });
+
+    it('returns null when tx.data is shorter than 10 chars', async () => {
+      const { decode } = await setupDecoder();
+      expect(await decode({ hash: '0xt', data: '0xabc' })).toBeNull();
+    });
+
+    it('returns null when selector is not in SWAP_SELECTORS', async () => {
+      const { decode } = await setupDecoder();
+      expect(
+        await decode({
+          hash: '0xt',
+          data: '0xdeadbeef' + '0'.repeat(64),
+          from: '0xs',
+          to: ROUTER,
+        }),
+      ).toBeNull();
+    });
+
+    it('decodes exactInputSingle (V3) selector (0x04e45aaf)', async () => {
+      const { decode } = await setupDecoder();
+      // 0x04e45aaf + 7 × 32-byte struct fields
+      // tokenIn at offset 4+32, tokenOut at offset 4+64
+      const addrA = 'a'.repeat(40);
+      const addrB = 'b'.repeat(40);
+      const data =
+        '0x04e45aaf' +
+        '0'.repeat(64) + // struct offset
+        '0'.repeat(24) + addrA + // tokenIn (left-padded address)
+        '0'.repeat(24) + addrB + // tokenOut
+        '0'.repeat(64) +
+        '0'.repeat(64) +
+        '0'.repeat(64) +
+        '0'.repeat(64) +
+        '0'.repeat(64);
+
+      const result = (await decode({
+        hash: '0xt',
+        data,
+        from: '0xs',
+        to: ROUTER,
+        gasPrice: 1n,
+        nonce: 0,
+        blockNumber: null,
+      })) as { tokenIn?: string; tokenOut?: string };
+
+      expect(result).not.toBeNull();
+      expect(result.tokenIn).toBe('0x' + addrA);
+      expect(result.tokenOut).toBe('0x' + addrB);
+    });
+
+    it('decodes swapExactTokensForTokens selector (0x38ed1739) with path', async () => {
+      const { decode } = await setupDecoder();
+      // Build calldata for swapExactTokensForTokens(uint,uint,address[],address,uint)
+      // ABI layout (offsets from start of data, byte units):
+      //   offset 4:   amountIn (32 bytes)
+      //   offset 36:  amountOutMin (32 bytes)
+      //   offset 68:  pathOffset (32 bytes) — value 0xa4 = 164
+      //   offset 100: to (recipient, 32 bytes)
+      //   offset 132: deadline (32 bytes)
+      //   offset 164: pathLen (32 bytes)
+      //   offset 196: path[0] (tokenIn, 32 bytes)
+      //   offset 228: path[1] (tokenOut, 32 bytes)
+      const addrA = 'a'.repeat(40);
+      const addrB = 'b'.repeat(40);
+      const data =
+        '0x38ed1739' +
+        '0'.repeat(64) + // amountIn
+        '0'.repeat(64) + // amountOutMin
+        '00000000000000000000000000000000000000000000000000000000000000a4' + // pathOffset=164
+        '0'.repeat(64) + // to (recipient)
+        '0'.repeat(64) + // deadline
+        // Path begins at byte offset 164:
+        '0000000000000000000000000000000000000000000000000000000000000002' + // pathLen=2
+        '0'.repeat(24) + addrA + // tokenIn
+        '0'.repeat(24) + addrB; // tokenOut
+
+      const result = (await decode({
+        hash: '0xt',
+        data,
+        from: '0xs',
+        to: ROUTER,
+        gasPrice: 1n,
+        nonce: 0,
+        blockNumber: null,
+      })) as { tokenIn?: string; tokenOut?: string };
+
+      expect(result).not.toBeNull();
+      expect(result.tokenIn).toBe('0x' + addrA);
+      expect(result.tokenOut).toBe('0x' + addrB);
+    });
+
+    it('catches errors during path decoding and still returns base struct', async () => {
+      const { decode } = await setupDecoder();
+      // Path offset points outside data length → triggers catch in decodeSwap
+      const result = (await decode({
+        hash: '0xt',
+        data: '0x38ed1739' + '0'.repeat(74), // 4 + 32 + 32 + 10 (>=74 threshold)
+        from: '0xs',
+        to: ROUTER,
+        gasPrice: 1n,
+        nonce: 0,
+        blockNumber: null,
+      })) as { txHash: string };
+      expect(result).not.toBeNull();
+      expect(result.txHash).toBe('0xt');
+    });
+
+    it('handles unknown selector gracefully (no decoding branch)', async () => {
+      const { decode } = await setupDecoder();
+      // exactInput selector (0xb858183f) — has no special decoder
+      const result = (await decode({
+        hash: '0xt',
+        data: '0xb858183f' + '0'.repeat(200),
+        from: '0xs',
+        to: ROUTER,
+        gasPrice: 1n,
+        nonce: 0,
+        blockNumber: null,
+      })) as { tokenIn?: string };
+      expect(result).not.toBeNull();
+      expect(result.tokenIn).toBeUndefined();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Risk level edge cases
+  // ---------------------------------------------------------------------------
+
+  describe('risk level branching', () => {
+    it('returns medium risk when only backrun threats detected', async () => {
+      const w = await createWorker({ DEX_MEMPOOL_ENABLED: 'false' });
+      w.onModuleInit();
+
+      const tokenA = '0xaaaa';
+      const tokenB = '0xbbbb';
+      const pendingSwaps = (
+        w as unknown as { pendingSwaps: Map<number, Array<Record<string, unknown>>> }
+      ).pendingSwaps;
+      pendingSwaps.set(42161, [
+        {
+          txHash: '0xback',
+          tokenIn: tokenA, tokenOut: tokenB,
+          gasPrice: 500_000_000n, // -5000 bps vs our 1 gwei → backrun only
+          timestamp: Date.now(),
+          from: '0xa',
+        },
+      ]);
+
+      const result = w.checkMevRisk({
+        chainId: 42161, tokenIn: tokenA, tokenOut: tokenB,
+        ourGasPrice: 1_000_000_000n,
+      });
+
+      // backrun threats only (no frontrun/sandwich) → medium
+      expect(result.riskLevel).toBe('medium');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Config defaults
+  // ---------------------------------------------------------------------------
+
+  describe('config defaults', () => {
+    it('uses default router addresses when env unset', async () => {
+      delete process.env.DEX_MEMPOOL_ROUTER_ADDRESSES;
+      const w = await createWorker({ DEX_MEMPOOL_ENABLED: 'false' });
+      const config = w.getConfig();
+      // 4 default routers
+      expect(config.routerAddresses.length).toBeGreaterThanOrEqual(4);
+      // Default to lowercase
+      expect(config.routerAddresses[0]).toMatch(/^0x[0-9a-f]+$/);
+    });
+
+    it('parses chain IDs from comma-separated env', async () => {
+      const w = await createWorker({
+        DEX_MEMPOOL_ENABLED: 'false',
+        DEX_MEMPOOL_CHAIN_IDS: '1, 137, 8453',
+      });
+      const config = w.getConfig();
+      expect(config.chainIds).toEqual([1, 137, 8453]);
+    });
+
+    it('filters NaN chainIds from config', async () => {
+      const w = await createWorker({
+        DEX_MEMPOOL_ENABLED: 'false',
+        DEX_MEMPOOL_CHAIN_IDS: '1,abc,8453',
+      });
+      const config = w.getConfig();
+      expect(config.chainIds).toEqual([1, 8453]);
+    });
+  });
 });

@@ -282,4 +282,261 @@ describe('WalletManagerService', () => {
       expect(result).toBe(false);
     });
   });
+
+  describe('additional coverage paths', () => {
+    beforeEach(async () => {
+      await service.onModuleInit();
+    });
+
+    it('throws when no wallet has sufficient balance (balance-based)', async () => {
+      process.env.WALLET_SELECTION_STRATEGY = 'balance-based';
+      getArbibotMetricsRegistry().clear();
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { Contract } = require('ethers');
+      Contract.mockImplementation(() => ({
+        balanceOf: jest.fn().mockResolvedValue(BigInt('100')), // very low
+      }));
+
+      const balanceMockVault = {
+        getWalletKeysByChain: jest.fn().mockReturnValue(mockWalletKeys),
+        getWalletKey: jest.fn().mockReturnValue(mockWalletKeys[0]),
+        retrieveEncryptedKey: jest.fn().mockResolvedValue(mockEncryptedKey),
+        decryptPrivateKey: jest.fn().mockResolvedValue('0x' + 'a'.repeat(64)),
+        updateKeyLastUsed: jest.fn().mockResolvedValue(undefined),
+      };
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          WalletManagerService,
+          { provide: KeyVaultService, useValue: balanceMockVault },
+          {
+            provide: getRepositoryToken(WalletState),
+            useValue: {
+              find: jest.fn().mockResolvedValue([]),
+              findOne: jest.fn().mockResolvedValue(null),
+              create: jest.fn().mockReturnValue({}),
+              save: jest.fn().mockResolvedValue({}),
+            },
+          },
+        ],
+      }).compile();
+      const svc = module.get<WalletManagerService>(WalletManagerService);
+      await svc.onModuleInit();
+
+      const mockProvider = {} as Provider;
+      await expect(
+        svc.selectWallet(
+          42161,
+          mockProvider,
+          '0xtoken1234567890abcdef1234567890abcdef12',
+          BigInt('1000000000000000000'),
+        ),
+      ).rejects.toThrow('No wallet has sufficient balance');
+
+      delete process.env.WALLET_SELECTION_STRATEGY;
+    });
+
+    it('selectByBalance swallows individual balanceOf errors', async () => {
+      process.env.WALLET_SELECTION_STRATEGY = 'balance-based';
+      getArbibotMetricsRegistry().clear();
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { Contract } = require('ethers');
+      let call = 0;
+      Contract.mockImplementation(() => ({
+        // First wallet fails, second wallet has enough
+        balanceOf: call++ === 0
+          ? jest.fn().mockRejectedValue(new Error('rpc fail'))
+          : jest.fn().mockResolvedValue(BigInt('1000000000000000000')),
+      }));
+
+      const balanceMockVault = {
+        getWalletKeysByChain: jest.fn().mockReturnValue(mockWalletKeys),
+        getWalletKey: jest.fn().mockReturnValue(mockWalletKeys[1]),
+        retrieveEncryptedKey: jest.fn().mockResolvedValue(mockEncryptedKey),
+        decryptPrivateKey: jest.fn().mockResolvedValue('0x' + 'a'.repeat(64)),
+        updateKeyLastUsed: jest.fn().mockResolvedValue(undefined),
+      };
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          WalletManagerService,
+          { provide: KeyVaultService, useValue: balanceMockVault },
+          {
+            provide: getRepositoryToken(WalletState),
+            useValue: {
+              find: jest.fn().mockResolvedValue([]),
+              findOne: jest.fn().mockResolvedValue(null),
+              create: jest.fn().mockReturnValue({}),
+              save: jest.fn().mockResolvedValue({}),
+            },
+          },
+        ],
+      }).compile();
+      const svc = module.get<WalletManagerService>(WalletManagerService);
+      await svc.onModuleInit();
+
+      const mockProvider = {} as Provider;
+      const result = await svc.selectWallet(
+        42161,
+        mockProvider,
+        '0xtoken1234567890abcdef1234567890abcdef12',
+        BigInt('500000000000000000'),
+      );
+
+      expect(result).toBeDefined();
+
+      delete process.env.WALLET_SELECTION_STRATEGY;
+    });
+
+    it('uses weighted strategy when WALLET_SELECTION_STRATEGY=weighted', async () => {
+      process.env.WALLET_SELECTION_STRATEGY = 'weighted';
+      getArbibotMetricsRegistry().clear();
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          WalletManagerService,
+          {
+            provide: KeyVaultService,
+            useValue: {
+              getWalletKeysByChain: jest.fn().mockReturnValue([
+                { keyId: 'k1', address: '0x' + 'a'.repeat(40), chainId: 42161, isActive: true, lastUsedAt: new Date('2026-01-05') },
+                { keyId: 'k2', address: '0x' + 'b'.repeat(40), chainId: 42161, isActive: true, lastUsedAt: new Date('2026-01-01') },
+              ]),
+              getWalletKey: jest.fn().mockReturnValue({ keyId: 'k2', chainId: 42161 }),
+              retrieveEncryptedKey: jest.fn().mockResolvedValue(mockEncryptedKey),
+              decryptPrivateKey: jest.fn().mockResolvedValue('0x' + 'c'.repeat(64)),
+              updateKeyLastUsed: jest.fn().mockResolvedValue(undefined),
+            },
+          },
+          {
+            provide: getRepositoryToken(WalletState),
+            useValue: {
+              find: jest.fn().mockResolvedValue([]),
+              findOne: jest.fn().mockResolvedValue(null),
+              create: jest.fn().mockReturnValue({}),
+              save: jest.fn().mockResolvedValue({}),
+            },
+          },
+        ],
+      }).compile();
+      const svc = module.get<WalletManagerService>(WalletManagerService);
+      await svc.onModuleInit();
+
+      const result = await svc.selectWallet(42161, {} as Provider);
+      // Weighted picks least-recently-used → k2 (older lastUsedAt)
+      expect(result.keyId).toBe('k2');
+
+      delete process.env.WALLET_SELECTION_STRATEGY;
+    });
+
+    it('uses weighted fallback when balance-based strategy set but no minBalance/tokenAddress', async () => {
+      process.env.WALLET_SELECTION_STRATEGY = 'balance-based';
+      getArbibotMetricsRegistry().clear();
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          WalletManagerService,
+          {
+            provide: KeyVaultService,
+            useValue: {
+              getWalletKeysByChain: jest.fn().mockReturnValue([
+                { keyId: 'k1', address: '0x' + 'a'.repeat(40), chainId: 42161, isActive: true, lastUsedAt: new Date('2026-01-05') },
+                { keyId: 'k2', address: '0x' + 'b'.repeat(40), chainId: 42161, isActive: true, lastUsedAt: new Date('2026-01-01') },
+              ]),
+              getWalletKey: jest.fn().mockReturnValue({ keyId: 'k2', chainId: 42161 }),
+              retrieveEncryptedKey: jest.fn().mockResolvedValue(mockEncryptedKey),
+              decryptPrivateKey: jest.fn().mockResolvedValue('0x' + 'c'.repeat(64)),
+              updateKeyLastUsed: jest.fn().mockResolvedValue(undefined),
+            },
+          },
+          {
+            provide: getRepositoryToken(WalletState),
+            useValue: {
+              find: jest.fn().mockResolvedValue([]),
+              findOne: jest.fn().mockResolvedValue(null),
+              create: jest.fn().mockReturnValue({}),
+              save: jest.fn().mockResolvedValue({}),
+            },
+          },
+        ],
+      }).compile();
+      const svc = module.get<WalletManagerService>(WalletManagerService);
+      await svc.onModuleInit();
+
+      // No tokenAddress/minBalance → falls back to weighted (LRU)
+      const result = await svc.selectWallet(42161, {} as Provider);
+      expect(result.keyId).toBe('k2');
+
+      delete process.env.WALLET_SELECTION_STRATEGY;
+    });
+
+    it('getWalletBalanceInfo returns formatted balance + chainId', async () => {
+      const mockProvider = {
+        getNetwork: jest.fn().mockResolvedValue({ chainId: 42161n }),
+      } as unknown as Provider;
+      const result = await service.getWalletBalanceInfo(
+        mockProvider,
+        '0x' + 'a'.repeat(40) as Address,
+        '0x' + 'b'.repeat(40) as Address,
+        'USDC',
+        6,
+      );
+      expect(result.tokenSymbol).toBe('USDC');
+      expect(result.chainId).toBe(42161);
+      expect(typeof result.formattedBalance).toBe('string');
+    });
+
+    it('getTokenBalance rethrows on contract error', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { Contract } = require('ethers');
+      Contract.mockImplementationOnce(() => ({
+        balanceOf: jest.fn().mockRejectedValue(new Error('contract fail')),
+      }));
+      const mockProvider = {} as Provider;
+      await expect(
+        service.getTokenBalance(
+          mockProvider,
+          '0x' + 'a'.repeat(40) as Address,
+          '0x' + 'b'.repeat(40) as Address,
+        ),
+      ).rejects.toThrow('contract fail');
+    });
+
+    it('throws when encryptedKey is missing for selected key', async () => {
+      keyVaultService.retrieveEncryptedKey.mockResolvedValueOnce(
+        undefined,
+      );
+      await expect(
+        service.selectWallet(42161, {} as Provider),
+      ).rejects.toThrow(/Encrypted key not found/);
+    });
+
+    it('updateWalletState updates existing row when found', async () => {
+      walletStateRepo.findOne.mockResolvedValueOnce({
+        walletAddress: '0x' + 'a'.repeat(40),
+        chainId: 42161,
+        nonce: 5,
+        status: 'active',
+      });
+      // Trigger selectWallet which calls updateWalletState
+      await service.selectWallet(42161, {} as Provider);
+      // Wait for the void updateWalletState promise to settle
+      await new Promise((r) => setImmediate(r));
+      expect(walletStateRepo.save).toHaveBeenCalled();
+    });
+
+    it('updateWalletState no-ops when getWalletKey returns undefined', async () => {
+      keyVaultService.getWalletKey.mockReturnValueOnce(undefined);
+      await service.selectWallet(42161, {} as Provider);
+      await new Promise((r) => setImmediate(r));
+      // save should NOT have been called for the missing-keyId branch
+      expect(walletStateRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('updateWalletState swallows errors from save', async () => {
+      walletStateRepo.save.mockRejectedValueOnce(new Error('db down'));
+      // selectWallet should still succeed (updateWalletState is fire-and-forget)
+      const result = await service.selectWallet(42161, {} as Provider);
+      expect(result).toBeDefined();
+      await new Promise((r) => setImmediate(r));
+    });
+  });
 });
