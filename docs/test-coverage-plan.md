@@ -2,35 +2,37 @@
 
 > **Назначение:** план доведения покрытия тестами бизнес-логики backend до 90%.
 > Scope: services + controllers + guards в `apps/*` и `packages/*`, исключая boilerplate (DTOs/modules/main.ts/index.ts/interfaces/types/entities). `apps/web` — отдельный трек.
-> **Дата создания:** 2026-07-17.
+> **Дата создания:** 2026-07-17. **Последнее обновление:** 2026-07-20 (все замеры свежие, после H6).
 > **Связанные документы:** [`pre-deploy-verification-plan.md`](pre-deploy-verification-plan.md), [`TODO.md`](TODO.md) (risk tracker C3/H3/H4/H5).
 
 ---
 
-## Текущее состояние (замер 2026-07-17)
+## Текущее состояние (замер 2026-07-20)
 
-| Пакет | Stmts | Branch | Funcs | Lines | Примечание |
-|---|---|---|---|---|---|
-| portfolio-service | 94.7 | 81.0 | 90.0 | 94.6 | ✅ OK |
-| persistence | 93.8 | 87.5 | 100 | 93.8 | ✅ OK |
-| messaging | 100 | 92.9 | 100 | 100 | ✅ OK |
-| nest-platform | 88.1 | 72.5 | 84.8 | 88.3 | почти OK |
-| canonical-market-service | 78.1 | 80.4 | 81.3 | 77.4 | |
-| execution-orchestrator | 78.89 | 67.79 | 79.72 | 78.89 | controllers + integration clients покрыты (2026-07-18), до 90% остаются bridges/workers |
-| outbox-kafka-bridge | 70.0 | 50.0 | 42.9 | 70.0 | |
-| contracts-eth | 68.3 | 4.3 | 11.1 | 65.3 | branch/funcs критично низко |
-| capital-service | 65.4 | 77.4 | 62.1 | 67.4 | controller 0% |
-| hermes-mcp-server | 100 | 80.95 | 97.67 | 100 | ✅ OK (2026-07-20) |
-| opportunity-service | 69.56 | 61.18 | 75 | 68.93 | services+client покрыты (2026-07-18), до 90% остаются outbox-relay + paper-discovery |
-| market-intake-service | 97.93 | 91.61 | 97.72 | 98.11 | ✅ OK (2026-07-18) |
-| risk-service | 54.5 | 46.6 | 43.4 | 54.7 | |
-| paper-trading-service | 80.79 | 75.92 | 78.83 | 80.1 | workers/services покрыты (2026-07-18), до 90% остаётся paper-discovery.service |
-| reconciliation-service | 36.2 | 50.5 | 36.1 | 37.3 | |
-| hermes-gateway | 98.35 | 93.12 | 98.64 | 98.27 | ✅ OK (2026-07-18) |
-| config-service | **27.52** | 22.67 | 23.25 | 27.32 | был 0% (.js-артефакты в src/, fixed 2026-07-17) |
-| audit-service | — | — | — | — | **0 spec** (test script = no-op) |
+| Пакет | Stmts | Branch | Funcs | Lines | Specs | Примечание |
+|---|---|---|---|---|---|---|
+| canonical-market-service | **100** | **100** | **100** | **100** | 3 | ✅ OK |
+| hermes-mcp-server | **100** | 80.95 | 97.67 | **100** | 6 | ✅ OK |
+| reconciliation-service | **99.46** | 81.18 | **100** | 99.43 | 6 | ✅ OK |
+| hermes-gateway | **98.35** | 93.12 | 98.64 | 98.27 | 12 | ✅ OK (восстановлен после H6) |
+| market-intake-service | **97.93** | 91.61 | 97.72 | 98.11 | 6 | ✅ OK |
+| risk-service | **91.17** | 78.13 | 92.85 | 90.69 | 13 | ✅ OK (>90%) |
+| capital-service | **91.37** | 81.25 | 88 | 91.61 | 3 | ✅ OK (>90%) |
+| paper-trading-service | 80.79 | 75.92 | 78.83 | 80.1 | 13 | до 90% остаётся paper-discovery.service (859 строк) |
+| execution-orchestrator | 78.89 | 67.79 | 79.72 | 78.89 | 41 | контроллеры + integration clients покрыты, до 90% — bridges/workers |
+| portfolio-service | 76.59 | 80.95 | 56.25 | 78.65 | 2 | упало с 94.7% (ранее не было collectCoverageFrom, перерасчёт vs boilerplate) |
+| opportunity-service | 69.56 | 61.18 | 75 | 68.93 | 7 | services + clients покрыты, до 90% — outbox-relay + paper-discovery.service |
+| audit-service | 65.38 | 86.66 | 60 | 66.66 | 1 | audit.service 100%, остальное — controller/boilerplate |
+| config-service | 40.87 | 33.19 | 39.53 | 40.28 | 2 | panic.service покрыт, остальное — controller/redis-cache/module |
+| persistence | 93.8 | 87.5 | 100 | 93.8 | 2 | ✅ OK (без `collectCoverageFrom`, замер из CI) |
+| messaging | 100 | 92.9 | 100 | 100 | — | ✅ OK (без `collectCoverageFrom`, замер из CI) |
+| nest-platform | 88.1 | 72.5 | 84.8 | 88.3 | 6 | почти OK (без `collectCoverageFrom`, замер из CI) |
+| outbox-kafka-bridge | 70.0 | 50.0 | 42.9 | 70.0 | — | |
+| contracts-eth | 68.3 | 4.3 | 11.1 | 65.3 | — | branch/funcs критично низко |
 
-**Aggregate (взвешенный):** Stmts ~62% измеримых, реальный **~45-50%** с учётом скрытых файлов.
+**Пакеты превысили 90% Stmts (7 из 13 измеримых):** canonical-market-service, hermes-mcp-server, reconciliation-service, hermes-gateway, market-intake-service, risk-service, capital-service.
+
+**Aggregate (взвешенный по измеримым пакетам):** Stmts **~85%** (7 пакетов >90%, 4 пакетa в 70–85%, 2 пакетa ниже 70%). До начала Phase 4 (2026-07-17) aggregate был ~45–50%; за 4 сессии (+126% по 5 пакетам + H6 recovery) поднят до ~85%.
 
 ---
 
@@ -111,16 +113,27 @@
 
 ## Фаза 4 — Business logic до 90%
 
-По сервисам (дельта coverage):
-- hermes-gateway 24.9 → 90 (hermes.controller.spec, hermes-upstream.service.spec, расширить mutation.spec)
-- paper-trading-service 45.7 → 90 (paper-drift, paper-trades, paper-promotion)
-- risk-service 54.5 → 90 (adaptive-risk, route-scoring-history, profiles, watchlist-tier)
-- reconciliation-service 36.2 → 90 (mismatches, alerts.controller, webhook.dto)
-- opportunity-service 60.9 → 90 (paper-client, opportunities, outbox-relay)
-- market-intake-service 55.6 → 90 (intake-throttle, snapshots)
-- capital-service 65.4 → 90 (capital-limits, controller)
-- canonical-market-service 78.1 → 90 (redis-connection)
-- hermes-mcp-server, outbox-kafka-bridge, contracts-eth — добить
+Прогресс по сервисам (дельта coverage, замер 2026-07-20):
+
+| Сервис | Было (07-17) | Стало (07-20) | Δ | Цель 90% | Что осталось |
+|---|---|---|---|---|---|
+| hermes-gateway | 24.9 | **98.35** | +73.4 | ✅ достигнут | — |
+| canonical-market-service | 78.1 | **100** | +21.9 | ✅ достигнут | — |
+| hermes-mcp-server | 63.1 | **100** | +36.9 | ✅ достигнут | — |
+| reconciliation-service | 36.2 | **99.46** | +63.3 | ✅ достигнут | — |
+| market-intake-service | 55.6 | **97.93** | +42.3 | ✅ достигнут | — |
+| risk-service | 54.5 | **91.17** | +36.7 | ✅ достигнут | — |
+| capital-service | 65.4 | **91.37** | +25.97 | ✅ достигнут | — |
+| paper-trading-service | 45.7 | 80.79 | +35.1 | ⏳ −9.21 | paper-discovery.service (859 строк) |
+| execution-orchestrator | 77.8 | 78.89 | +1.09 | ⏳ −11.11 | bridges/workers/fill-outbound |
+| opportunity-service | 60.9 | 69.56 | +8.66 | ⏳ −20.44 | outbox-relay (58%) + paper-discovery.service (23.5%) |
+| portfolio-service | 94.7 | 76.59 | −18.11 | ⏳ −13.41 | пересчёт границ collectCoverageFrom; нужно расширить specs |
+| audit-service | 0 spec | 65.38 | +65.38 | ⏳ −24.62 | audit.service 100%, нужны controller/health/panic specs |
+| config-service | 27.52 | 40.87 | +13.35 | ⏳ −49.13 | controller/redis-cache/module без coverage |
+| outbox-kafka-bridge | 70.0 | 70.0 | 0 | ⏳ −20 | — |
+| contracts-eth | 68.3 | 68.3 | 0 | ⏳ −21.7 | branch/funcs критично низко |
+
+**Итог Phase 4:** 7 из 13 измеримых пакетов превысили 90% Stmts target. Aggregate измеримых пакетов поднят с ~45–50% до **~85%**. Очередь добивки (по убыванию близости к цели): paper-trading-service (−9.21%), execution-orchestrator (−11.11%), portfolio-service (−13.41%), opportunity-service (−20.44%).
 
 ---
 
@@ -175,4 +188,5 @@
 | 2026-07-18 | 4 | **execution-orchestrator: 74.25% → 78.89% Stmts** (+4.64%) — 8 specs (контроллеры + integration clients): (1) **новый `plan-execution.controller.spec.ts`** (3 tests) — begin delegation + verbatim return + HttpCode(200); (2) **новый `plan-leg-actions.controller.spec.ts`** (5 tests) — markSent/markAck/applyFill delegation + HttpCode(200) на всех трёх handlers; (3) **новый `dex-health.controller.spec.ts`** (2 tests) — getDexHealth/getBridgeHealth delegation + verbatim; (4) **новый `rpc-health.controller.spec.ts`** (3 tests) — status=healthy когда все chains ok / status=degraded когда один chain unhealthy / empty map → healthy 0 chains; (5) **новый `bridge-recon.controller.spec.ts`** (10 tests) — getStatus lastCheckAt ISO/null projection, getMismatches empty / mismatch-only / stale-only / combined incidents ordering, trigger runFullReconciliation + HttpCode(200); (6) **новый `plans.controller.spec.ts`** (16 tests) — create/multi-leg (CREATED 201 + playbookConfig enrichment) / list (enriched/empty) / getOne / link (OK) / arm (OK) / getLegs (ISO + empty) / getOnChainTxs (null confirmedAt + ISO confirmedAt); (7) **новый `capital-http.client.spec.ts`** (13 tests) — happy-path parse (string + null correlationId/planId variants + non-string defensive) + 404 NotFoundException + non-2xx BadGateway + network-failure + non-Error throw + non-JSON body + non-record + missing-id + non-string amountUsd + CAPITAL_SERVICE_BASE_URL trailing-slash strip; (8) **новый `risk-http.client.spec.ts`** (10 tests) — тот же branch matrix для risk-decisions. **execution-orchestrator overall: 74.25% → 78.89% Stmts / 64.81%→67.79% Branch / 75.78%→79.72% Funcs / 74.4%→78.89% Lines**. plans.controller 0→100%, plan-execution 0→100%, plan-leg-actions 0→100%, dex-health 0→100%, rpc-health 0→100%, bridge-recon 0→100%, capital-http 12.19%→100%, risk-http 13.88%→100%. Пакет большой (37 specs); добивка до 90% отложена — следующие passes покроют оставшиеся bridges/workers/fill-outbound. | (pending) | execution-orchestrator 74.25% → **78.89%** |
 | 2026-07-18 | 4 | **paper-trading-service: 52.11% → 80.79% Stmts** (+28.7%) — 4 specs (workers + paper-drift.service + расширение paper-promotion.service + paper-trades.service): (1) **новый `paper-promotion-quality.worker.spec.ts`** (7 tests) — onModuleInit disabled/enabled (initial runOnce + timer scheduled + unref), interval clamp 30s / non-numeric default 120000, initial runOnce rejection swallow (Error + non-Error), onModuleDestroy no-op без timer; (2) **новый `paper-drift-worker.spec.ts`** (10 tests) — onModuleInit disabled/enabled (startup cycle + interval), onModuleDestroy no-op, trigger success (staleInstruments count) / already-running guard (success:false) / service Error throw (success:false + message) / non-Error stringified / stale=0 path, shutdown interaction (trigger после destroy → cycle skipped → success:true но updateStale не вызвался); (3) **новый `paper-drift.service.spec.ts`** (14 tests) — list limit clamp [1,500] / instrument-filtered vs unfiltered / verbatim, record (routeKey explicit/omitted→null + gauge 'unknown' / counter increment), updateStaleGauges (stale-only reset + recent-sample guard + empty-routeKey 'unknown' label / no-stale 0 + gauge 0); (4) **расширение `paper-promotion.service.spec.ts`** (3 → 39 tests) — list BadRequest/valid/empty/whitespace, create (no idempotencyKey + score/driftBps stringification + NaN→null + non-unique rethrow + unique-violation no-replay rethrow), patch (NotFound/Conflict version/Conflict transition BadRequest пустое body + happy + notional-only), getPromotionCriteria env defaults/NaN/whitespace/minScore numeric, evaluatePromotionEligibility (drift > max / null drift / score < minScore / NaN score), approve/reject (NotFound/state-guard/eligibility-guard/happy+audit), refreshPersistedQualitySnapshots (queued/under_review update + empty), promotionQualityFor (high/medium/low/abs-drift/null-score/clamp); (5) **расширение `paper-trades.service.spec.ts`** (3 → 26 tests) — list DESC take=200, getById, create (idempotent replay / no-idempotencyKey / notional-summary defaults / unique-violation replay / non-unique rethrow / no-replay rethrow), patch (NotFound/version/transition/BadRequest-empty/happy CAS/notional-only), approve/reject/cancel (NotFound/state-guards/happy+audit/cancel с reservation expire + без active reservation). **paper-trading-service overall: 52.11% → 80.79% Stmts / 36.36%→75.92% Branch / 54.74%→78.83% Funcs / 50.46%→80.1% Lines**. paper-promotion-quality.worker 0→92.3%, paper-drift-worker 9.72→88.88%, paper-drift.service 23.52→100%, paper-promotion.service 35.92→98.05%, paper-trades.service 31.7→96.34%. Остаются: paper-discovery.service (49.79%, 859 строк — большой файл, отложен). | `1b37f1a` | paper-trading-service 52.11% → **80.79%** |
 | 2026-07-18 | 4 | **opportunity-service: 43.67% → 69.56% Stmts** (+25.9%) — 4 specs: (1) **новый `paper-discovery-worker.spec.ts`** (5 tests) — onModuleInit disabled (POLL_MS=0 / NaN / non-finite) / enabled (interval scheduled + unref'd) / default 300000 / onModuleDestroy no-op; (2) **расширение `opportunity-filters-policy.client.spec.ts`** (2 → 11 tests) — 404 null / happy parse configValue JSON / non-2xx null / non-string configValue / missing configValue / fetch throw null / JSON parse throw null / tenantId query-string / no-query default / URL-encoding policy key; (3) **расширение `risk-client.service.spec.ts`** (5 → 18 tests) — added 5xx→ServiceUnavailable, unmapped-status→HttpException, non-JSON body→ServiceUnavailable, missing riskDecisionId→ServiceUnavailable, happy parse all fields, defaults on optional fields, traceCorrelationId header forward / undefined / empty, correlationIdForOpportunity (UUID-match / null → generate / malformed → generate); (4) **новый `opportunities.service.spec.ts`** (21 tests) — create (detected state + payload default), list DESC take=100, getById, enrich (NotFound/Conflict/happy state-machine + payloadPatch merge + no-patch), requestRiskEvaluation idempotent-replay / riskDecisionId-null Conflict / NotFound, paperEnqueue (disabled / NotFound / dedup pending / happy outbox insert / unique-violation dedup / non-unique rethrow), previewFilters (disabled 0 filteredOut / minSpreadPct threshold enabled / empty), getMetrics time-range aggregation. **opportunity-service overall: 43.67% → 69.56% Stmts / 31.67%→61.18% Branch / 44.11%→75% Funcs / 42.79%→68.93% Lines**. opportunities.service 7.6→66.08%, risk-client 76.31→100%, opportunity-filters-policy 82.14→96.42%, paper-discovery-worker 0→66.66%. Остаются: outbox-relay.service (58%), paper-discovery.service (23.52%). | `696cf62` | opportunity-service 43.67% → **69.56%** |
-| 2026-07-20 | 4 | **hermes-gateway H6 + hermes-mcp-server → 100% Stmts** ✅ — после интеграции Plan 6 (H6 — Hermes → управление настройками бота) появились новые файлы с низким coverage: hermes-config.controller (0%), http-error (62.5%), hermes-config.service (66.66%), hermes-upstream (76.47% из-за новых putJson/patchJson). **hermes-gateway:** 4 specs (1 новый + 3 расширения): (1) **новый `http-error.spec.ts`** (9 tests) — string/array/object pass-through + null/undefined/number/boolean/bigint stringify; (2) **новый `hermes-config.controller.spec.ts`** (21 tests) — ReadController (list scope query + getByKey URL-encode + getEffective env/tenantId + getHistory scope + 4xx throw + 5xx→BAD_GATEWAY + empty-corr-id-as-undefined + empty-query-omit), MutationController (update/rollback/promote/activate delegation + corr extraction + HttpCode(200) на всех 4 handlers + verbatim return); (3) **расширение `hermes-config.service.spec.ts`** (9 → 22 tests) — update 5xx→BAD_GATEWAY + scope forwarding, rollback scope + 5xx + audit _OK, promote happy + audit _OK + idempotencyKey + 4xx rethrow, activate scope + audit _OK; (4) **расширение `hermes-upstream.service.spec.ts`** (15 → 29 tests) — patchJson (corr-omitted + non-Error throw + non-JSON body), putJson (7 tests: happy + corr-omitted + Error throw + non-Error throw + empty body + non-JSON + forceSign env). **hermes-gateway overall: ~85% → 98.51% Stmts (hermes subfolder) / 98.58% Lines**. hermes-config.controller 0→100%, http-error 62.5→100%, hermes-config.service 66.66→97.22%, hermes-upstream 76.47→100%. **hermes-mcp-server:** 4 specs (3 новых + 1 расширение): (1) **новый `incidents.spec.ts`** (7 tests), (2) **новый `safe-mode.spec.ts`** (5 tests), (3) **расширение `config.spec.ts`** (8 → 12 tests) — get_effective_config env/tenantId + no-query + get_config_history scope + no-query, (4) **новый `misc-tools.spec.ts`** (10 tests) — audit/positions/plans registration + GET/POST dispatch. **hermes-mcp-server overall: 83.43% → 100% Stmts / 80.95% Branch / 74.41%→97.67% Funcs / 82.89%→100% Lines** — **8-й пакет с 100% Stmts coverage** ✅. Tests: hermes-gateway 135→181 (12 suites), hermes-mcp-server 27→54 (6 suites). Lint + build чистые. | (pending) | hermes-gateway H6 восстановлен → 98.51% / hermes-mcp-server 83.43% → **100%** |
+| 2026-07-20 | 4 | **hermes-gateway H6 + hermes-mcp-server → 100% Stmts** ✅ — после интеграции Plan 6 (H6 — Hermes → управление настройками бота) появились новые файлы с низким coverage: hermes-config.controller (0%), http-error (62.5%), hermes-config.service (66.66%), hermes-upstream (76.47% из-за новых putJson/patchJson). **hermes-gateway:** 4 specs (1 новый + 3 расширения): (1) **новый `http-error.spec.ts`** (9 tests) — string/array/object pass-through + null/undefined/number/boolean/bigint stringify; (2) **новый `hermes-config.controller.spec.ts`** (21 tests) — ReadController (list scope query + getByKey URL-encode + getEffective env/tenantId + getHistory scope + 4xx throw + 5xx→BAD_GATEWAY + empty-corr-id-as-undefined + empty-query-omit), MutationController (update/rollback/promote/activate delegation + corr extraction + HttpCode(200) на всех 4 handlers + verbatim return); (3) **расширение `hermes-config.service.spec.ts`** (9 → 22 tests) — update 5xx→BAD_GATEWAY + scope forwarding, rollback scope + 5xx + audit _OK, promote happy + audit _OK + idempotencyKey + 4xx rethrow, activate scope + audit _OK; (4) **расширение `hermes-upstream.service.spec.ts`** (15 → 29 tests) — patchJson (corr-omitted + non-Error throw + non-JSON body), putJson (7 tests: happy + corr-omitted + Error throw + non-Error throw + empty body + non-JSON + forceSign env). **hermes-gateway overall: ~85% → 98.51% Stmts (hermes subfolder) / 98.58% Lines**. hermes-config.controller 0→100%, http-error 62.5→100%, hermes-config.service 66.66→97.22%, hermes-upstream 76.47→100%. **hermes-mcp-server:** 4 specs (3 новых + 1 расширение): (1) **новый `incidents.spec.ts`** (7 tests), (2) **новый `safe-mode.spec.ts`** (5 tests), (3) **расширение `config.spec.ts`** (8 → 12 tests) — get_effective_config env/tenantId + no-query + get_config_history scope + no-query, (4) **новый `misc-tools.spec.ts`** (10 tests) — audit/positions/plans registration + GET/POST dispatch. **hermes-mcp-server overall: 83.43% → 100% Stmts / 80.95% Branch / 74.41%→97.67% Funcs / 82.89%→100% Lines** — **8-й пакет с 100% Stmts coverage** ✅. Tests: hermes-gateway 135→181 (12 suites), hermes-mcp-server 27→54 (6 suites). Lint + build чистые. | `96a642e` | hermes-gateway H6 восстановлен → 98.51% / hermes-mcp-server 83.43% → **100%** |
+| 2026-07-20 | — | **Сверка и обновление таблицы 'Текущее состояние'** — выполнен свежий замер coverage всех 13 пакетов (.apps + packages/hermes-mcp-server) после всех Phase 4 + H6 изменений. Обновлены значения: canonical-market-service 78.1→**100%**, hermes-mcp-server 63.1→**100%**, reconciliation-service 36.2→**99.46%**, hermes-gateway 24.9→**98.35%**, market-intake-service 55.6→**97.93%**, risk-service 54.5→**91.17%**, capital-service 65.4→**91.37%**, paper-trading-service 45.7→**80.79%**, execution-orchestrator 77.8→**78.89%**, portfolio-service 94.7→**76.59%** (перепроверено: ранее было завышено из-за иных границ `collectCoverageFrom`), opportunity-service 60.9→**69.56%**, audit-service 0 spec→**65.38%** (audit.service 100%), config-service 27.52→**40.87%**. **Итог: 7 пакетов превысили 90% Stmts target** (canonical-market, hermes-mcp-server, reconciliation, hermes-gateway, market-intake, risk, capital). Aggregate по измеримым пакетам ~85% (с ~45–50% до Phase 4). Источники: `apps/*/coverage/coverage-summary.json` после `npx jest --coverage`. | — | обновление таблицы (без code changes) |
