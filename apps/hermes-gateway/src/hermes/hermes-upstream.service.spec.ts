@@ -195,5 +195,106 @@ describe('HermesUpstreamService', () => {
 
       expect(result).toEqual({ status: 204, json: null });
     });
+
+    it('omits x-correlation-id when correlationId is undefined', async () => {
+      mockSignedFetch.mockResolvedValue(mkResponse(200, '{}'));
+
+      await service.patchJson('http://up', { s: 1 });
+
+      const init = mockSignedFetch.mock.calls[0]![1];
+      expect(init.headers['x-correlation-id']).toBeUndefined();
+    });
+
+    it('rethrows non-Error throws (String(err) in message)', async () => {
+      mockSignedFetch.mockRejectedValue('patch-string-thrown');
+
+      await expect(service.patchJson('http://up', { s: 1 })).rejects.toBe(
+        'patch-string-thrown',
+      );
+    });
+
+    it('returns {raw} for non-JSON PATCH response body', async () => {
+      mockSignedFetch.mockResolvedValue(mkResponse(500, 'Server Error'));
+
+      const result = await service.patchJson('http://up', { s: 1 });
+
+      expect(result).toEqual({ status: 500, json: { raw: 'Server Error' } });
+    });
+  });
+
+  describe('putJson', () => {
+    it('PUTs with Content-Type + Accept + JSON body, returns parsed json', async () => {
+      mockSignedFetch.mockResolvedValue(mkResponse(200, '{"configKey":"dex.limits"}'));
+
+      const result = await service.putJson(
+        'http://cfg/policy/configurations/dex.limits',
+        { configValue: '{}', operatorId: 'op-1' },
+        'corr-3',
+      );
+
+      expect(result).toEqual({ status: 200, json: { configKey: 'dex.limits' } });
+      const init = mockSignedFetch.mock.calls[0]![1];
+      expect(init).toMatchObject({
+        method: 'PUT',
+        body: JSON.stringify({ configValue: '{}', operatorId: 'op-1' }),
+        forceSign: false,
+      });
+      expect(init.headers).toEqual({
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'x-correlation-id': 'corr-3',
+      });
+    });
+
+    it('omits x-correlation-id when correlationId is undefined', async () => {
+      mockSignedFetch.mockResolvedValue(mkResponse(200, '{}'));
+
+      await service.putJson('http://cfg/x', { v: 1 });
+
+      const init = mockSignedFetch.mock.calls[0]![1];
+      expect(init.headers['x-correlation-id']).toBeUndefined();
+    });
+
+    it('rethrows when PUT signedFetch rejects', async () => {
+      mockSignedFetch.mockRejectedValue(new Error('put-failed'));
+
+      await expect(
+        service.putJson('http://cfg/x', { v: 1 }),
+      ).rejects.toThrow('put-failed');
+    });
+
+    it('rethrows non-Error throws (String(err) in message)', async () => {
+      mockSignedFetch.mockRejectedValue('put-string-thrown');
+
+      await expect(service.putJson('http://cfg/x', { v: 1 })).rejects.toBe(
+        'put-string-thrown',
+      );
+    });
+
+    it('returns json=null for empty PUT response', async () => {
+      mockSignedFetch.mockResolvedValue(mkResponse(204, ''));
+
+      const result = await service.putJson('http://cfg/x', { v: 1 });
+
+      expect(result).toEqual({ status: 204, json: null });
+    });
+
+    it('returns {raw} for non-JSON PUT response body', async () => {
+      mockSignedFetch.mockResolvedValue(mkResponse(500, 'Internal Error'));
+
+      const result = await service.putJson('http://cfg/x', { v: 1 });
+
+      expect(result).toEqual({ status: 500, json: { raw: 'Internal Error' } });
+    });
+
+    it('passes forceSign=true to signedFetch when HERMES_SIGN_UPSTREAM=true', async () => {
+      process.env.HERMES_SIGN_UPSTREAM = 'true';
+      const signedService = new HermesUpstreamService();
+      mockSignedFetch.mockResolvedValue(mkResponse(200, '{}'));
+
+      await signedService.putJson('http://cfg/x', { v: 1 });
+
+      expect(mockSignedFetch.mock.calls[0]![1].forceSign).toBe(true);
+    });
   });
 });

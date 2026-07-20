@@ -105,6 +105,77 @@ describe('config tools', () => {
     expect((init as RequestInit).method).toBe('GET');
   });
 
+  it('get_effective_config hits /config/:key/effective with environment/tenantId', async () => {
+    const client = buildClient('op-1');
+    registerConfigTools(mockServer, client);
+    const mockFetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ configKey: 'dex.limits', configValue: '{}' }),
+    });
+    jest.spyOn(globalThis, 'fetch').mockImplementation(mockFetch);
+
+    await captured.get('get_effective_config')!({
+      configKey: 'dex.limits',
+      environment: 'paper',
+      tenantId: 't-1',
+    });
+    const [url, init] = mockFetch.mock.calls[0]!;
+    expect(String(url)).toContain('/config/dex.limits/effective');
+    expect(String(url)).toContain('environment=paper');
+    expect(String(url)).toContain('tenantId=t-1');
+    expect((init as RequestInit).method).toBe('GET');
+  });
+
+  it('get_effective_config omits query when env/tenant unset', async () => {
+    const client = buildClient('op-1');
+    registerConfigTools(mockServer, client);
+    const mockFetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({}),
+    });
+    jest.spyOn(globalThis, 'fetch').mockImplementation(mockFetch);
+
+    await captured.get('get_effective_config')!({ configKey: 'paper.discovery' });
+    const [url] = mockFetch.mock.calls[0]!;
+    expect(String(url)).toContain('/config/paper.discovery/effective');
+    expect(String(url)).not.toContain('?');
+  });
+
+  it('get_config_history hits /config/:key/history with optional scope', async () => {
+    const client = buildClient('op-1');
+    registerConfigTools(mockServer, client);
+    const mockFetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve([{ version: 1 }]),
+    });
+    jest.spyOn(globalThis, 'fetch').mockImplementation(mockFetch);
+
+    await captured.get('get_config_history')!({
+      configKey: 'intake.throttling',
+      scopeType: 'environment',
+      scopeValue: 'paper',
+    });
+    const [url, init] = mockFetch.mock.calls[0]!;
+    expect(String(url)).toContain('/config/intake.throttling/history');
+    expect(String(url)).toContain('scopeType=environment');
+    expect(String(url)).toContain('scopeValue=paper');
+    expect((init as RequestInit).method).toBe('GET');
+  });
+
+  it('get_config_history omits query when scope unset', async () => {
+    const client = buildClient('op-1');
+    registerConfigTools(mockServer, client);
+    const mockFetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve([]),
+    });
+    jest.spyOn(globalThis, 'fetch').mockImplementation(mockFetch);
+
+    await captured.get('get_config_history')!({ configKey: 'dex.limits' });
+    const [url] = mockFetch.mock.calls[0]!;
+    expect(String(url)).not.toContain('?');
+  });
+
   it('update_config issues PUT with operatorId + approveReason', async () => {
     const client = buildClient('op-42');
     registerConfigTools(mockServer, client);
