@@ -291,6 +291,8 @@ There is **no** `core-backend/` or `operator-frontend/` directory; older docs or
 
 > **Update (Plan 5, 2026-07-16):** агент переключён на **GLM 5.2** (Zhipu/Z.AI, через OpenAI-совместимый `base_url`, `provider: openai`) и **личный Telegram-бот** оператора (`HERMES_TELEGRAM_ENABLED=true`, whitelist `OPERATOR_TELEGRAM_ID`). Добавлен скилл `explain-bot` (объясняет работу бота по-русски), npm-скрипты `build:hermes-mcp` / `doctor:hermes` / `run:hermes` / `dev:stack:hermes-agent`, docker-профиль `hermes-agent`. MCP Server и Gateway без изменений. См. [`docs/adr-hermes-agent-glm-telegram.md`](docs/adr-hermes-agent-glm-telegram.md) и [`.cursor/plans/DEVELOPMENT_PLAN5.md`](.cursor/plans/DEVELOPMENT_PLAN5.md).
 
+> ⚠️ **Runtime caveat (2026-07-22, найдено при paper-deploy на Aéza):** Plan 5 помечен 7/7 done, но **агент никогда не запускался end-to-end** — все DoD были статическими (существование файлов, grep, `node -c`). Выяснилось: (1) команда `hermes run` в `tools/run-hermes-agent.mjs` **не существует** в upstream hermes-agent (0.13–0.19) — исправлено на `hermes gateway run`; (2) Telegram adapter зацикливается на "Connecting to Telegram (attempt 1/8)". Добавлен шаг **`H5-G-RUNTIME`** с runtime DoD (статус `blocked`), CI smoke `npm run ci:hermes-agent-smoke` (job `hermes-agent-smoke`), и урок [`docs/lessons/hermes-agent-dod-failure.md`](docs/lessons/hermes-agent-dod-failure.md). Runtime round-trip (Operator → Telegram → Agent → ответ) требует прохождения H5-G-RUNTIME вручную — **без него Plan 5 не считается завершённым**.
+
 - **MCP Server:** `packages/hermes-mcp-server/` (`@arbibot/hermes-mcp-server`) — TypeScript MCP server exposing 14 tools via stdio transport → Hermes Gateway HTTP API
 - **Agent config:** `tools/hermes-agent/` — Hermes Agent (NousResearch) YAML config + MCP connection config
   - `hermes-config.yaml` — LLM provider, messaging (Telegram/Discord), cron, skills path
@@ -381,6 +383,7 @@ From the repo root:
   - `npm run panic:stop` — **unified emergency-stop** (D4-C-3): `tools/panic-button.sh` → flips `DEX_LIVE_KILL_SWITCH=true` via config-service + UI banner
   - `npm run panic:recover` — clear panic state (`tools/panic-recover.sh`, D4-C-3)
   - `npm run ci:paper-live-boundary` — CI guard for paper/live import-graph isolation (D4-B-9, `tools/ci-paper-live-boundary.sh`); GitHub Actions job **`paper-live-boundary`**
+- **Hermes Agent wiring smoke:** `npm run ci:hermes-agent-smoke` — regression guard for hermes-agent wiring (`tools/ci-hermes-agent-smoke.sh`): verifies `run-hermes-agent.mjs` invokes `gateway run` (not the non-existent `run`), doctor stays read-only, MCP builds + starts via stdio, config targets GLM 5.2 + Telegram; GitHub Actions job **`hermes-agent-smoke`**. Catches the class of bug that let Plan 5 ship "7/7 done" without the binary ever running — see [`docs/lessons/hermes-agent-dod-failure.md`](docs/lessons/hermes-agent-dod-failure.md). Does NOT test real Telegram/GLM round-trip (needs secrets) — that is the manual runtime DoD `H5-G-RUNTIME`.
 - **DEX / Hermes Agent operational scripts:**
   - `npm run dex:load-test` — concurrent DEX venue load test (`tools/dex-load-test.mjs`)
   - `npm run e2e:dex2-multichain` — multi-chain bridge E2E (`tools/e2e-dex2-multichain.mjs`)
@@ -559,6 +562,7 @@ Operator session in dev: see `apps/web` middleware / `getOperatorSession` — `A
 7. **`bus-smoke`** — after `npm ci`, runs `npm run ci:bus-smoke` (bridge build + optional Docker `--profile bus`; no full monorepo `npm run build` in this job).
 8. **`secret-scan`** — after `actions/checkout` (no `npm ci` needed), runs `npm run ci:key-leakage` (`tools/ci-key-leakage.sh`); static grep for key-leakage patterns (K1/K2 from `dex-security-and-capital-safety` SKILL); **blocking since D4-B-7-SECRET-SCAN** (previously `continue-on-error: true`); complements `.github/gitleaks-config.toml` (pattern guard vs value guard).
 9. **`graphify-check`** — after `build`, rebuilds knowledge graph, uploads `GRAPH_REPORT.md` as artifact (non-blocking, 7-day retention).
+10. **`hermes-agent-smoke`** — after `npm ci`, runs `npm run ci:hermes-agent-smoke` (`tools/ci-hermes-agent-smoke.sh`); regression guard for hermes-agent wiring (correct `gateway run` command, MCP builds + stdio, config shape, doctor read-only); added 2026-07-22 after Plan 5 shipped "7/7 done" without the binary ever running. Real Telegram/GLM round-trip is NOT covered by CI (needs secrets) — manual DoD `H5-G-RUNTIME`.
 
 **Review gate (documentation, not a CI job):** [`docs/review-gate-cfg3-paper-discovery.md`](docs/review-gate-cfg3-paper-discovery.md) — required items completed 2026-04-19; optional full bus E2E deferred.
 
