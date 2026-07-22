@@ -100,7 +100,7 @@
     "eslint": "^9.39.2",
     "pg": "^8.22.0",
     "turbo": "^2.10.4",
-    "typeorm": "^0.3.30",
+    "typeorm": "^0.3.31",
     "typescript-eslint": "^8.63.0"
   },
   "overrides": {
