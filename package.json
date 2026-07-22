@@ -35,6 +35,7 @@
     "ci:bus-smoke": "bash tools/ci-bus-smoke.sh",
     "ci:key-leakage": "bash tools/ci-key-leakage.sh",
     "ci:paper-live-boundary": "bash tools/ci-paper-live-boundary.sh",
+    "ci:hermes-agent-smoke": "bash tools/ci-hermes-agent-smoke.sh",
     "seed:outbox-smoke-events": "node tools/seed-outbox-events.mjs",
     "seed:outbox-smoke-events:all": "node tools/seed-outbox-events.mjs all",
     "venue:load-test": "node tools/venue-load-test.mjs",

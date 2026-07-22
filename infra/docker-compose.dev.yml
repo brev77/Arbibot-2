@@ -167,7 +167,7 @@ services:
   #
   # Публичного официального Docker-образа Hermes Agent нет, поэтому сервис
   # оставлен шаблоном: базовый python:3.11-slim + установка бинарника и
-  # `hermes run`. Подставьте вашу сборку/образ при необходимости.
+  # `hermes gateway run`. Подставьте вашу сборку/образ при необходимости.
   #
   # Запуск:
   #   docker compose -f infra/docker-compose.dev.yml --profile hermes-agent up -d
@@ -182,11 +182,12 @@ services:
     profiles: [hermes-agent]
     working_dir: /workspace
     # TODO(hermes-agent): заменить на образ вашей сборки агента, если есть.
-    # Универсальный путь: установить бинарник hermes и запустить с конфигом.
+    # Универсальный путь: установить бинарник hermes и запустить messaging gateway.
+    # ⚠️ `gateway run`, НЕ `run` — upstream hermes-agent (0.13–0.19) не имеет `run`.
     command: >
       sh -c "apt-get update && apt-get install -y --no-install-recommends curl &&
       curl -fsSL https://hermes-agent.nousresearch.com/install.sh | sh &&
-      hermes run --config /config/hermes-config.yaml"
+      hermes gateway run"
     env_file:
       - ../.env
     environment:

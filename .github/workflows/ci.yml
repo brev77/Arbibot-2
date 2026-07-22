@@ -46,6 +46,25 @@ jobs:
       - name: Paper/live import-graph boundary scan (PL.1/PL.2)
         run: bash tools/ci-paper-live-boundary.sh
 
+  hermes-agent-smoke:
+    runs-on: ubuntu-latest
+    # Hermes Agent wiring smoke (Plan 5 regression guard). Catches the class of bug that let
+    # Plan 5 ship as "7/7 done" while the external binary never ran: a non-existent `hermes run`
+    # subcommand in tools/run-hermes-agent.mjs. This smoke verifies the WIRING (correct command,
+    # MCP builds, config shape, doctor stays read-only) without needing real Telegram/GLM keys.
+    # Full runtime round-trip is the manual DoD in .cursor/plans/hermes-agent-glm/H5-G-RUNTIME.md.
+    # See docs/lessons/hermes-agent-dod-failure.md for the root-cause analysis.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Hermes Agent wiring smoke
+        run: bash tools/ci-hermes-agent-smoke.sh
+
   e2e-phase2:
     runs-on: ubuntu-latest
     needs: build

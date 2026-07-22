@@ -66,10 +66,16 @@ npm run build:hermes-mcp      # собрать MCP-сервер
 
 ```bash
 npm run doctor:hermes         # чек-лист: MCP собран ✓, env заданы ✓, gateway отвечает ✓
-npm run run:hermes            # запуск: hermes run --config tools/hermes-agent/hermes-config.yaml
+npm run run:hermes            # запуск: hermes gateway run (messaging gateway: Telegram polling + cron)
 ```
 
 После старта напишите боту в Telegram `/status` или спросите «объясни работу бота».
+
+> ⚠️ **Команда запуска:** `hermes gateway run`, а НЕ `hermes run`. Upstream hermes-agent
+> (NousResearch, версии 0.13–0.19) **не имеет** подкоманды `run` — messaging gateway
+> запускается через `gateway run`. Конфиг `hermes-config.yaml` читается агентом из
+> `~/.hermes/config.yaml` и `~/.hermes/.env`, поэтому секреты должны быть прописаны и там
+> (см. `tools/doctor-hermes-agent.mjs` — read-only проверка готовности).
 
 ## Архитектура
 

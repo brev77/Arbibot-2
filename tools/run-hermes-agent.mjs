@@ -1,11 +1,19 @@
 #!/usr/bin/env node
 /**
- * Hermes Agent — обёртка запуска внешнего агента (NousResearch Hermes Agent).
+ * Hermes Agent — обёртка запуска messaging gateway внешнего агента
+ * (NousResearch Hermes Agent).
  *
  * Что делает:
  *   1. Проверяет, что собран MCP-сервер (пререквизит).
  *   2. Проверяет обязательные env-переменные (GLM-ключ, Telegram-токен, ID оператора, ключ gateway).
- *   3. Запускает внешний бинарник `hermes` с конфигом tools/hermes-agent/hermes-config.yaml.
+ *   3. Запускает messaging gateway внешнего бинарника `hermes` командой `gateway run`.
+ *
+ * ⚠️ ВАЖНО про команду запуска:
+ *   Ранее здесь вызывалась `hermes run --config ...`, но такой команды НЕТ ни в одной
+ *   upstream версии hermes-agent (0.13–0.19 — проверено через pip install каждой).
+ *   Правильная команда для messaging gateway (Telegram/Discord/cron) — `hermes gateway run`.
+ *   Этот баг оставался незамеченным с Plan 5, т.к. ни один DoD/CI не запускал бинарник
+ *   end-to-end (см. docs/lessons/hermes-agent-dod-failure.md).
  *
  * Usage:
  *   npm run run:hermes
@@ -49,9 +57,11 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
-// 3. Запуск внешнего `hermes`.
-const args = ['run', '--config', CONFIG_YAML];
-console.log(`\u25b6 Запуск Hermes Agent:\n    hermes ${args.join(' ')}\n`);
+// 3. Запуск messaging gateway внешнего `hermes`.
+//    Команда `gateway run` запускает Telegram/Discord polling + cron scheduler.
+//    (НЕ `hermes run` — такой подкоманды не существует в upstream hermes-agent.)
+const args = ['gateway', 'run'];
+console.log(`\u25b6 Запуск Hermes Agent messaging gateway:\n    hermes ${args.join(' ')}\n`);
 
 const child = spawn('hermes', args, { stdio: 'inherit', shell: process.platform === 'win32' });
 
