@@ -169,21 +169,39 @@ cd /root/Arbibot-2 && npm run panic:stop
 
 **Correct invocation:** `hermes gateway run` (messaging gateway — Telegram/Discord/cron service).
 
-### ⚠️ БЛОКЕР: Telegram adapter зависает на "Connecting"
+### ⚠️ РЕШЕНО: Telegram adapter + GLM endpoint (все блокеры сняты 2026-07-22)
 
-Даже с правильной командой (`gateway run`) и версией v0.17.0 (Plan 5), Telegram adapter **зацикливается** на `"Connecting to Telegram (attempt 1/8)"` и никогда не печатает "Connected".
+**Pipeline полностью работает end-to-end:**
+```
+Operator → Telegram → Agent (v0.19.0) → GLM 5.2 (api.z.ai/api/coding/paas/v4) → MCP → Gateway → ответ в Telegram
+```
 
-**Что проверено (НЕ причина):**
-- ❌ Сеть: curl/aiohttp/urllib к `api.telegram.org` — все 0.1с
-- ❌ IPv6 hang: gai.conf пофикшен (Python 10с → 0.1с)
-- ❌ 409 Conflict: очищен, `getUpdates` → `ok:true`
-- ❌ Нерабочий fallback IP: pinned через /etc/hosts
-- ❌ Токен/бот: getMe → `ok:true`
-- ❌ DoH (1.1.1.1): отвечает за 13мс
-- ❌ Версия: проверены 0.13–0.19 — проблема во всех
-- ✅ strace подтвердил: TLS handshake РЕАЛЬНО происходит (fd 17, recvfrom/sendto 437/337/646 байт), но adapter не выходит из connecting-state в application-логике
+Было 3 блокера, все сняты последовательно:
 
-**Заключение:** внутренний баг `hermes_plugins.telegram_platform.adapter` — требует upstream issue к NousResearch или обходного решения. Agent оставлен в pm2 в статусе `stopped`.
+#### Блокер 1 — Telegram adapter зацикливался на "Connecting (attempt 1/8)"
+**Причина:** Hermes-agent v0.17+ НЕ активирует Telegram из env-vars — требует секцию `platforms.telegram` в `~/.hermes/config.yaml`. Доп. фактор: `/etc/hosts` pin на IP ломал TLS SNI.
+**Решение:** секция `platforms.telegram` в config.yaml + убрать `/etc/hosts` pin.
+GitHub issues: [#67498](https://github.com/NousResearch/hermes-agent/issues/67498), [#68465](https://github.com/NousResearch/hermes-agent/issues/68465).
+
+#### Блокер 2 — `open.bigmodel.cn` (Китай) timeout из EU
+**Причина:** Китайский endpoint недоступен из EU дата-центров (connect timeout). Международный `api.z.ai` работает (0.66с).
+**Решение:** `base_url: https://api.z.ai/api/coding/paas/v4` в config.yaml + `GLM_BASE_URL` env override (для hermes-agent v0.19 native zai provider, который игнорирует `HERMES_LLM_BASE_URL`).
+
+#### Блокер 3 — `HTTP 429 code 1113 "Insufficient balance"` с Coding Plan
+**Причина:** GLM Coding Plan (месячная подписка) работает **только** через `api.z.ai/api/coding/paas/v4`. На endpoint `/api/paas/v4` тот же ключ вернёт 429 code 1113 "Insufficient balance" (требует pay-per-token баланса).
+**Решение:** правильно выбран coding endpoint.
+Документация: [Z.AI API error codes](https://docs.z.ai/api-reference/api-code), [Usage Policy](https://docs.z.ai/devpack/usage-policy).
+
+#### Все обходы (server-specific, не в репо)
+1. `~/.hermes/config.yaml` → секция `platforms.telegram` (обход для v0.17/0.19)
+2. `~/.hermes/config.yaml` → `model.base_url: https://api.z.ai/api/coding/paas/v4`
+3. `~/.hermes/.env` → `GLM_BASE_URL=https://api.z.ai/api/coding/paas/v4` (override для native zai provider)
+4. `/etc/gai.conf` → IPv4 precedence (Python dual-stack hang fix)
+5. Удалён `/etc/hosts` pin (ломал TLS SNI)
+6. `~/.hermes/auth.json` → `credential_pool.zai[0].base_url: https://api.z.ai/api/coding/paas/v4`
+
+Подробное руководство по обходам: [H5-G-RUNTIME.md](../.cursor/plans/hermes-agent-glm/H5-G-RUNTIME.md).
+Backup конфигов v0.17: `/root/hermes-backup-v0.17/`.
 
 ### Секреты Hermes (хранение)
 
@@ -208,6 +226,6 @@ TG_TOKEN=$(ssh arbibot-paper "grep TELEGRAM_BOT_TOKEN /root/.hermes/.env | cut -
 curl -s "https://api.telegram.org/bot${TG_TOKEN}/getUpdates?timeout=3"
 ```
 
-### Влияние на paper validation: НУЛЕВОЕ
+### Влияние на paper validation
 
-Hermes — операторский слой (Telegram-сводки, config-mutations через Plan 6). Paper pipeline (discovery → candidates → paper trades) полностью работает без него. Все 12 доменных сервисов online, web UI доступен.
+Hermes — операторский слой (Telegram-сводки, config-mutations через Plan 6). После снятия всех блокеров (2026-07-22) **pipeline полностью работает**: operator отправляет `/status` боту `@Arbi2_hermes_bot` в Telegram → agent (GLM 5.2) отвечает, используя данные из gateway (dashboard, plans, positions, incidents). Требуется активная GLM Coding Plan подписка на https://z.ai.

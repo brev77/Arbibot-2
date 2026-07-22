@@ -12,9 +12,17 @@ agent:
   # У NousResearch Hermes Agent нет нативного плагина под GLM, но API GLM совместим с OpenAI
   # Chat Completions, поэтому используем provider: openai + кастомный base_url.
   # Значения берутся из env — ничего не зашито жёстко.
+  #
+  # ⚠️ ENDPOINT (найдено при paper-deploy 2026-07-22):
+  #   - `https://api.z.ai/api/coding/paas/v4` — для GLM Coding Plan subscription (мес. подписка)
+  #   - `https://api.z.ai/api/paas/v4` — pay-per-token (требует баланса)
+  #   - `https://open.bigmodel.cn/api/paas/v4` — китайский endpoint (timeout из EU дата-центров)
+  #   Coding Plan работает ТОЛЬКО через `/api/coding/paas/v4`. Использование `/api/paas/v4`
+  #   с Coding Plan-ключом даёт HTTP 429 code 1113 "Insufficient balance".
+  #   Китайский `open.bigmodel.cn` недоступен из EU (timeout). См. H5-G-RUNTIME.md.
   provider: ${HERMES_LLM_PROVIDER:openai}
   model: ${HERMES_LLM_MODEL:glm-5.2}
-  base_url: ${HERMES_LLM_BASE_URL:https://open.bigmodel.cn/api/paas/v4}  # API Zhipu/Z.AI
+  base_url: ${HERMES_LLM_BASE_URL:https://api.z.ai/api/coding/paas/v4}  # GLM Coding Plan (мес. подписка)
   api_key: ${HERMES_LLM_API_KEY}  # pragma: allowlist secret
 
   # MCP Server connection

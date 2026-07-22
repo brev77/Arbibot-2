@@ -291,7 +291,16 @@ There is **no** `core-backend/` or `operator-frontend/` directory; older docs or
 
 > **Update (Plan 5, 2026-07-16):** агент переключён на **GLM 5.2** (Zhipu/Z.AI, через OpenAI-совместимый `base_url`, `provider: openai`) и **личный Telegram-бот** оператора (`HERMES_TELEGRAM_ENABLED=true`, whitelist `OPERATOR_TELEGRAM_ID`). Добавлен скилл `explain-bot` (объясняет работу бота по-русски), npm-скрипты `build:hermes-mcp` / `doctor:hermes` / `run:hermes` / `dev:stack:hermes-agent`, docker-профиль `hermes-agent`. MCP Server и Gateway без изменений. См. [`docs/adr-hermes-agent-glm-telegram.md`](docs/adr-hermes-agent-glm-telegram.md) и [`.cursor/plans/DEVELOPMENT_PLAN5.md`](.cursor/plans/DEVELOPMENT_PLAN5.md).
 
-> ⚠️ **Runtime caveat (2026-07-22, найдено при paper-deploy на Aéza):** Plan 5 помечен 7/7 done, но **агент никогда не запускался end-to-end** — все DoD были статическими (существование файлов, grep, `node -c`). Выяснилось: (1) команда `hermes run` в `tools/run-hermes-agent.mjs` **не существует** в upstream hermes-agent (0.13–0.19) — исправлено на `hermes gateway run`; (2) Telegram adapter зацикливается на "Connecting to Telegram (attempt 1/8)". Добавлен шаг **`H5-G-RUNTIME`** с runtime DoD (статус `blocked`), CI smoke `npm run ci:hermes-agent-smoke` (job `hermes-agent-smoke`), и урок [`docs/lessons/hermes-agent-dod-failure.md`](docs/lessons/hermes-agent-dod-failure.md). Runtime round-trip (Operator → Telegram → Agent → ответ) требует прохождения H5-G-RUNTIME вручную — **без него Plan 5 не считается завершённым**.
+> ✅ **Plan 5 runtime — пройден (2026-07-22, Aéza Frankfurt).** Изначально Plan 5 был помечен
+> 7/7 done без запуска бинарника end-to-end (баг `hermes run` в `tools/run-hermes-agent.mjs`
+> — см. [`docs/lessons/hermes-agent-dod-failure.md`](docs/lessons/hermes-agent-dod-failure.md)).
+> При paper-deploy на Aéza сняты 3 блокера последовательно: (1) команда `hermes run` →
+> `hermes gateway run`; (2) Telegram adapter — секция `platforms` в `~/.hermes/config.yaml`;
+> (3) GLM endpoint — `open.bigmodel.cn` (timeout из EU) → `api.z.ai/api/coding/paas/v4`
+> (международный coding endpoint для Coding Plan). Agent обновлён до **v0.19.0 (Quicksilver)**.
+> Все 6 runtime критериев H5-G-RUNTIME — **PASS**. Pipeline полностью работает:
+> Operator → Telegram → Agent → GLM 5.2 → MCP → Gateway → ответ. Требуется активная
+> GLM Coding Plan подписка на https://z.ai. CI smoke: `npm run ci:hermes-agent-smoke`.
 
 - **MCP Server:** `packages/hermes-mcp-server/` (`@arbibot/hermes-mcp-server`) — TypeScript MCP server exposing 14 tools via stdio transport → Hermes Gateway HTTP API
 - **Agent config:** `tools/hermes-agent/` — Hermes Agent (NousResearch) YAML config + MCP connection config

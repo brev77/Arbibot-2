@@ -26,7 +26,14 @@ irm https://hermes-agent.nousresearch.com/install.ps1 | iex
 
 ### 2. Получить ключ GLM 5.2
 
-Зарегистрируйтесь на [https://open.bigmodel.cn](https://open.bigmodel.cn) и создайте API-ключ. Модель — `glm-5.2`. API совместим с OpenAI Chat Completions, base_url: `https://open.bigmodel.cn/api/paas/v4`.
+Зарегистрируйтесь на [https://z.ai](https://z.ai) (международный портал; тот же аккаунт Zhipu/Z.AI, что и `open.bigmodel.cn`) и оформите **GLM Coding Plan** (месячная подписка) ИЛИ пополните pay-per-token баланс. Создайте API-ключ. Модель — `glm-5.2`.
+
+**⚠️ Важно про endpoint (base_url):**
+- **Coding Plan (подписка):** `https://api.z.ai/api/coding/paas/v4` ← используйте этот для мес. подписки
+- **Pay-per-token:** `https://api.z.ai/api/paas/v4` ← требует положительного баланса
+- ~~`https://open.bigmodel.cn/api/paas/v4`~~ ← китайский endpoint, **timeout из EU дата-центров**
+
+Coding Plan-ключ работает **только** через `/api/coding/paas/v4`. На endpoint `/api/paas/v4` тот же ключ вернёт `HTTP 429 code 1113 "Insufficient balance"`. Подробности: [H5-G-RUNTIME.md](../../.cursor/plans/hermes-agent-glm/H5-G-RUNTIME.md).
 
 ### 3. Создать Telegram-бота
 
@@ -41,8 +48,10 @@ irm https://hermes-agent.nousresearch.com/install.ps1 | iex
 # GLM 5.2 (OpenAI-совместимый провайдер)
 HERMES_LLM_PROVIDER=openai
 HERMES_LLM_MODEL=glm-5.2
-HERMES_LLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4
-HERMES_LLM_API_KEY=<ваш ключ из open.bigmodel.cn>
+HERMES_LLM_BASE_URL=https://api.z.ai/api/coding/paas/v4   # Coding Plan (мес. подписка)
+# HERMES_LLM_BASE_URL=https://api.z.ai/api/paas/v4        # pay-per-token (нужен баланс)
+HERMES_LLM_API_KEY=<ваш ключ из z.ai>
+GLM_BASE_URL=https://api.z.ai/api/coding/paas/v4          # override для hermes-agent v0.19 zai provider
 
 # Telegram (личный бот)
 HERMES_TELEGRAM_ENABLED=true
@@ -91,8 +100,9 @@ Operator → Telegram → Hermes Agent (Python, GLM 5.2) → MCP Server (TS) →
 |-----------|-------------|-------------|----------|
 | `HERMES_LLM_PROVIDER` | нет | `openai` | LLM provider (GLM подключается как `openai` + `base_url`) |
 | `HERMES_LLM_MODEL` | нет | `glm-5.2` | Модель |
-| `HERMES_LLM_BASE_URL` | нет | `https://open.bigmodel.cn/api/paas/v4` | base_url API Zhipu/Z.AI |
-| `HERMES_LLM_API_KEY` | **да** | — | Ключ из https://open.bigmodel.cn |
+| `HERMES_LLM_BASE_URL` | нет | `https://api.z.ai/api/coding/paas/v4` | base_url API Z.AI (Coding Plan); для pay-per-token используйте `https://api.z.ai/api/paas/v4` |
+| `GLM_BASE_URL` | нет | — | Override base_url для hermes-agent v0.19 native `zai` provider (параллельно с `HERMES_LLM_BASE_URL`) |
+| `HERMES_LLM_API_KEY` | **да** | — | Ключ из https://z.ai (или https://open.bigmodel.cn — тот же аккаунт) |
 | `HERMES_API_KEY` | **да** | — | Ключ для Hermes Gateway (из `HERMES_API_KEYS`) |
 | `HERMES_GATEWAY_URL` | нет | `http://localhost:3020` | URL gateway |
 | `HERMES_MCP_SERVER_PATH` | нет | `../../packages/hermes-mcp-server/dist/index.js` | Путь к собранному MCP-серверу |
@@ -155,7 +165,10 @@ Operator → Telegram → Hermes Agent (Python, GLM 5.2) → MCP Server (TS) →
 
 ## Устранение неполадок
 
-- **`base_url` не поддерживается вашей сборкой агента.** Поднимите локальный OpenAI-совместимый прокси (например, `litellm`), который слушает `http://localhost:8000/v1` и пробрасывает в `https://open.bigmodel.cn/api/paas/v4`. В `.env` поставьте `HERMES_LLM_BASE_URL=http://localhost:8000/v1`. См. fallback в [ADR](../../docs/adr-hermes-agent-glm-telegram.md#5-fallback).
+- **`HTTP 429 code 1113 "Insufficient balance"`.** Ключ от GLM Coding Plan используется на неправильном endpoint. Coding Plan работает **только** через `https://api.z.ai/api/coding/paas/v4` (не `/api/paas/v4`). Убедитесь, что `HERMES_LLM_BASE_URL` и `GLM_BASE_URL` указывают на coding endpoint. Если ключ pay-per-token — нужен положительный баланс на https://z.ai.
+- **Timeout к `open.bigmodel.cn` из EU дата-центров.** Китайский endpoint недоступен из европейских серверов (connect timeout). Используйте международный `api.z.ai` ( оба варианта — `/api/coding/paas/v4` и `/api/paas/v4`).
+- **`base_url` не поддерживается вашей сборкой агента.** Поднимите локальный OpenAI-совместимый прокси (например, `litellm`), который слушает `http://localhost:8000/v1` и пробрасывает в `https://api.z.ai/api/coding/paas/v4`. В `.env` поставьте `HERMES_LLM_BASE_URL=http://localhost:8000/v1`. См. fallback в [ADR](../../docs/adr-hermes-agent-glm-telegram.md#5-fallback).
+- **"No env user allowlists configured" + цикл "Connecting to Telegram (attempt 1/8)".** Hermes-agent v0.17+ требует секцию `platforms.telegram` в `~/.hermes/config.yaml` (env-vars недостаточны для активации platform). См. обход в [H5-G-RUNTIME.md](../../.cursor/plans/hermes-agent-glm/H5-G-RUNTIME.md).
 - **Gateway не отвечает / `npm run doctor:hermes` падает на шаге 4.** Запустите gateway: `npm run dev:hermes` и проверьте `HERMES_GATEWAY_URL`.
 - **Ключ HERMES_API_KEY отклонён (401/403).** Значение `HERMES_API_KEY` у агента должно совпадать с одним из значений `HERMES_API_KEYS` на gateway.
 - **Telegram-бот молчит.** Проверьте `TELEGRAM_BOT_TOKEN` и что `OPERATOR_TELEGRAM_ID` — именно ваш ID (число, у @userinfobot). Бот отвечает **только** пользователям из whitelist.

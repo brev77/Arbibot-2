@@ -28,11 +28,20 @@ API GLM от Zhipu/Z.AI совместим с OpenAI Chat Completions. У NousRe
 agent:
   provider: openai                       # HERMES_LLM_PROVIDER=openai
   model: glm-5.2                         # HERMES_LLM_MODEL=glm-5.2
-  base_url: https://open.bigmodel.cn/api/paas/v4   # HERMES_LLM_BASE_URL
-  api_key: ${HERMES_LLM_API_KEY}         # ключ из https://open.bigmodel.cn
+  base_url: https://api.z.ai/api/coding/paas/v4   # HERMES_LLM_BASE_URL (Coding Plan; см. Addendum C)
+  api_key: ${HERMES_LLM_API_KEY}         # ключ из https://z.ai
 ```
 
 Поле `base_url` добавлено в конфиг (раньше его не было). Значения берутся из env, чтобы не зашивать жёстко.
+
+> **⚠️ Addendum C (2026-07-22, после paper-deploy):** Изначально в этом ADR был указан
+> `https://open.bigmodel.cn/api/paas/v4`. При первом реальном deploy на EU-сервер (Aéza
+> Frankfurt) выяснилось: (1) китайский `open.bigmodel.cn` **недоступен из EU** (connect timeout);
+> (2) международный `api.z.ai/api/paas/v4` работает, но требует pay-per-token баланса;
+> (3) **GLM Coding Plan** (месячная подписка) работает **только** через
+> `https://api.z.ai/api/coding/paas/v4` — на endpoint `/api/paas/v4` тот же ключ вернёт
+> `HTTP 429 code 1113 "Insufficient balance"`. Рекомендуемый endpoint для подписки —
+> `api.z.ai/api/coding/paas/v4`. См. [H5-G-RUNTIME.md](../.cursor/plans/hermes-agent-glm/H5-G-RUNTIME.md).
 
 ### Messaging = личный Telegram-бот
 
@@ -76,7 +85,7 @@ MCP Server и Gateway **не меняются** — это по-прежнему
 
 Если конкретная сборка внешнего Hermes Agent **не поддерживает** поле `base_url`:
 
-1. Поднять локальный OpenAI-совместимый прокси (например, `litellm` или простой реверс-прокси), который слушает `http://localhost:8000/v1` и пробрасывает в `https://open.bigmodel.cn/api/paas/v4`.
+1. Поднять локальный OpenAI-совместимый прокси (например, `litellm` или простой реверс-прокси), который слушает `http://localhost:8000/v1` и пробрасывает в `https://api.z.ai/api/coding/paas/v4`.
 2. В конфиге указать `base_url: http://localhost:8000/v1`.
 3. Всё остальное (provider=openai, model=glm-5.2, api_key) без изменений.
 
