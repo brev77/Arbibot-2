@@ -16,6 +16,7 @@ open Dependabot alert.
 | 2026-07-23 | `sharp` | GHSA-f88m-g3jw-g9cj (libvips overflow, HIGH) | `overrides: { sharp: "^0.35.0" }` → resolved `0.35.3` | (pending) |
 | 2026-07-23 | `fast-uri` | GHSA-v2hh-gcrm-f6hx (host confusion, HIGH) | `overrides: { fast-uri: "^3.1.4" }` → resolved `3.1.4` | (pending) |
 | 2026-07-23 | `typeorm` | GHSA-2rp8-mm9q-fp49 (`migration:generate` injection, MODERATE) | root `devDependencies` `^0.3.30` → `^0.3.31` | (pending) |
+| 2026-07-23 | `find-my-way` | GHSA-c96f-x56v-gq3h (HTTP/2 DDoS, HIGH) | `overrides: { find-my-way: "^9.7.0" }` → resolved `9.7.0` | (pending) |
 
 ## Accepted risks (open, justified)
 
