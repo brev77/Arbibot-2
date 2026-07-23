@@ -64,7 +64,36 @@ ssh -L 3001:127.0.0.1:3001 arbibot-paper
 
 Затем открыть в браузере: `http://localhost:3001`
 
-Первая загрузка потребует login. Для paper-фазы используется dev-role bypass через `ARBIBOT_DEV_ROLE=viewer` (для live убрать).
+### Аутентификация на paper-стенде (обновлено 2026-07-23)
+
+Раньше использовался dev-role bypass через `ARBIBOT_DEV_ROLE=viewer`. **Это больше не работает** при `NODE_ENV=production`: `ARBIBOT_DEV_ROLE` намеренно игнорируется в production (`apps/web/lib/operator-session.ts`, `apps/web/middleware.ts` — defense-in-depth, F4 закрыт). Поэтому paper-стенд требует полноценного operator login через `POST /api/auth/session`.
+
+Login (signed-JWT cookie `arbibot_session`) изначально ломался на этом стенде из-за трёх наложенных причин (см. [`docs/adr-operator-auth.md`](adr-operator-auth.md) §Operational notes). Безопасный путь на paper:
+
+1. **Канал уже зашифрован SSH-туннелем** (точка-точка, key-only SSH). Это и есть защита аутентификации для paper — internet-exposed TLS (nginx на 80/443) здесь **избыточен** и расширяет атакуемую поверхность; он нужен только если web будет доступен без туннеля.
+2. **Cookie `Secure` по HTTP-через-туннель.** Браузер ходит на `http://localhost:3001` — это HTTP, поэтому `Secure`-cookie молча дросится браузером. Решение — env `OPERATOR_COOKIE_SECURE=false` **только для этого стенда**. Канал защищён SSH-туннелем, поэтому отсутствие `Secure` здесь низкорисковое. Низко-усильный, безопасный для paper компромисс.
+3. **Bootstrap-логин:** в `.env` стенда задан `OPERATOR_BOOTSTRAP_TOKEN`; operator вводит его в login-форме (`/login`). Сервер подписывает JWT с `sub` оператора и `role` (clamped to `admin` для paper).
+
+> **Не делайте** правок `apps/web/lib/auth/session.ts` или HTML-заглушек прямо на сервере вне git — они пропадают при следующем `git pull`/redeploy. Все настройки управляются env-варом `OPERATOR_COOKIE_SECURE` в `.env` (см. [`docs/adr-operator-auth.md`](adr-operator-auth.md)).
+
+### Чеклист входа на paper (готов к вставке)
+
+```bash
+# На сервере, в /root/Arbibot-2/.env проверить/добавить:
+#   OPERATOR_SESSION_SECRET=<≥32 bytes, уже задан — JWT signing>
+#   OPERATOR_BOOTSTRAP_TOKEN=<paper-shared-secret>   # для логина через /login
+#   OPERATOR_COOKIE_SECURE=false                     # paper: HTTP через SSH-туннель
+# Убедиться, что НЕТ ARBIBOT_DEV_ROLE (он игнорируется в prod и лишь маскирует конфиг):
+
+# Перезапустить web под pm2 (нужен полный delete+start, не restart --update-env):
+pm2 delete web
+cd /root/Arbibot-2 && set -a && . ./.env && set +a && npm run build -w @arbibot/web
+pm2 start ecosystem.paper.config.cjs --only web
+
+# С локальной машины — туннель:
+ssh -L 3001:127.0.0.1:3001 arbibot-paper
+# Браузер: http://localhost:3001/login → bootstrap-токен → role
+```
 
 ## Ключевые env-vars (paper-фаза)
 
@@ -78,6 +107,8 @@ ssh -L 3001:127.0.0.1:3001 arbibot-paper
 | `PAPER_DISCOVERY_PAPER_ONLY_ROUTES` | `BTC-USDT-BIN-BYB,...` | paper-only routes |
 | `MARKET_INTAKE_SERVICE_URL` | `http://127.0.0.1:3015` | для discovery fetch snapshots |
 | `OPERATOR_SESSION_SECRET` | `<generated>` | JWT signing |
+| `OPERATOR_BOOTSTRAP_TOKEN` | `<generated>` | paper shared secret для `/login` (D4-A-1) |
+| `OPERATOR_COOKIE_SECURE` | `false` | paper: HTTP через SSH-туннель (см. выше); `true`/unset — для internet-TLS |
 | `ARBIBOT_SERVICE_AUTH_SECRET` | `<generated>` | HMAC (для live) |
 
 ## Smoke-тест (пройден 2026-07-22)
@@ -132,7 +163,7 @@ cd /root/Arbibot-2 && npm run panic:stop
 
 1. Убрать `ARBIBOT_DEV_ROLE` из `.env` (требует реальный operator login)
 2. Включить `ARBIBOT_SERVICE_AUTH_ENABLED=true` (HMAC между сервисами)
-3. Настроить TLS (домен + Let's Encrypt или self-signed через `npm run generate:tls`)
+3. Настроить TLS (домен + Let's Encrypt или self-signed через `npm run generate:tls`). Как только web доступен по HTTPS (напрямую или через nginx из `infra/docker-compose.prod.yml`), **убрать `OPERATOR_COOKIE_SECURE=false`** (или поставить `=true`) — `Secure`-cookie снова валидна на зашифрованном канале.
 4. Настроить alertmanager (Slack webhook или PagerDuty)
 5. Отдельный сервер под БД (`CLT-4`) для live (разделение ответственности)
 6. Ввести wallet keys через operator UI/CLI (НЕ через чат/SSH)

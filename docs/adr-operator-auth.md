@@ -28,7 +28,7 @@ The auth model must satisfy:
   - `role` — one of `viewer` / `operator` / `admin`
   - `iat`, `exp` — issued-at / expiry; **8h** lifetime (operator shift)
   - `jti` — unique session id (for future revocation list)
-- Cookie attributes: `httpOnly: true`, `secure: true` (prod), `sameSite: 'lax'`, `path: '/'`.
+- Cookie attributes: `httpOnly: true`, `secure: true` (prod), `sameSite: 'lax'`, `path: '/'`. The `secure` attribute is resolved by `cookieSecure()` — default `NODE_ENV === 'production'`, overridable per-deploy via **`OPERATOR_COOKIE_SECURE`** (see Operational notes).
 - Signing secret: **`OPERATOR_SESSION_SECRET`** (32+ bytes, base64), required in prod (fail-fast if missing, like `PRIVATE_KEY_ENCRYPTION_KEY`).
 - Algorithm: **HS256** for paper-deploy (single-tenant, single signer). Extension to **RS256 / ES256 + JWKS** deferred to live when an external IdP signs tokens.
 
@@ -70,8 +70,15 @@ The auth model must satisfy:
 ## Implementation notes
 
 - Code (in `D4-A-1-AUTH`, not this step): `apps/web/lib/operator-session-jwt.ts` (verify), `apps/web/app/api/auth/session/route.ts` (issue / revoke), wiring in `middleware.ts` + `operator-session.ts`.
-- Env: `OPERATOR_SESSION_SECRET`, `OPERATOR_BOOTSTRAP_TOKEN`, optional `OPERATOR_SESSION_TTL_SECONDS` (default 28800 = 8h).
+- Env: `OPERATOR_SESSION_SECRET`, `OPERATOR_BOOTSTRAP_TOKEN`, optional `OPERATOR_SESSION_TTL_SECONDS` (default 28800 = 8h), optional `OPERATOR_COOKIE_SECURE` (see Operational notes).
 - Tests: unit tests for sign/verify round-trip, expired-token rejection, role-tamper rejection, dev fallback; middleware spec for 401/redirect on missing/invalid session.
+
+## Operational notes
+
+- **`OPERATOR_COOKIE_SECURE` (added 2026-07-23):** the `Secure` cookie attribute is `NODE_ENV === 'production'` by default. A plain-HTTP host must opt out, because the browser silently drops a `Secure` cookie over HTTP and login never sticks. Set `OPERATOR_COOKIE_SECURE=false` there; flip to `true` (or unset) once the app is reached over TLS. This only controls the cookie attribute — JWT signing/verification (`getSessionSecret`) stays fail-closed in production.
+- **Paper-стенд (pm2 + SSH-туннель):** на Aéza web поднимается под **pm2** и доступен только через `ssh -L 3001:127.0.0.1:3001`, т.е. браузер ходит на `http://localhost:3001` по HTTP. В этом случае internet-exposed TLS (nginx) **избыточен** — канал уже зашифрован SSH-туннелем (точка-точка, key-only SSH), и выставление 80/443 наружу лишь расширяет атакуемую поверхность. Для этого стенда правильный путь — `OPERATOR_COOKIE_SECURE=false` + полноценный `/login` по bootstrap-токену (а не dev-role bypass, который в production игнорируется). См. [`docs/paper-deploy-aeza.md`](paper-deploy-aeza.md) §«Аутентификация на paper-стенде».
+- **Internet-exposed deploy (live / shared access):** когда web доступен не через туннель, обязательно TLS-terminating reverse proxy. Готовый вариант — nginx из `infra/docker-compose.prod.yml` (`infra/nginx/nginx.conf`: HTTP→HTTPS redirect, TLS 1.2/1.3, security headers, rate limiting, проксирование на `web:3000`); сертификаты через `npm run generate:tls` (self-signed) или Let's Encrypt. В этом режиме `OPERATOR_COOKIE_SECURE` оставить unset/`true`.
+- **Не правьте auth-код на сервере вне git.** Изменения `apps/web/lib/auth/session.ts` или HTML-заглушки, сделанные прямо на хосте, исчезают при следующем `git pull`/redeploy, из-за чего вход ломается снова. Все per-стенд настройки управляются env-варом `OPERATOR_COOKIE_SECURE` в `.env`.
 
 ## Links
 

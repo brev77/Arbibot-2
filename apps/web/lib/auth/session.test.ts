@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  cookieSecure,
   getSessionSecret,
   safeEqualStrings,
   signOperatorSession,
@@ -120,6 +121,51 @@ describe('auth/session — getSessionSecret fail-closed', () => {
     process.env.NODE_ENV = 'production';
     process.env.OPERATOR_SESSION_SECRET = TEST_SECRET;
     expect(getSessionSecret()).toBe(TEST_SECRET);
+  });
+});
+
+describe('auth/session — cookieSecure (OPERATOR_COOKIE_SECURE override)', () => {
+  afterEach(() => {
+    delete process.env.OPERATOR_COOKIE_SECURE;
+    process.env.NODE_ENV = 'test';
+  });
+
+  it('defaults to isProduction() when the env var is unset', () => {
+    delete process.env.OPERATOR_COOKIE_SECURE;
+    process.env.NODE_ENV = 'production';
+    expect(cookieSecure()).toBe(true);
+    process.env.NODE_ENV = 'development';
+    expect(cookieSecure()).toBe(false);
+  });
+
+  it('defaults to isProduction() when the env var is empty', () => {
+    process.env.OPERATOR_COOKIE_SECURE = '';
+    process.env.NODE_ENV = 'production';
+    expect(cookieSecure()).toBe(true);
+  });
+
+  it('explicit false/0 forces non-secure even in production (paper-HTTP)', () => {
+    process.env.NODE_ENV = 'production';
+    for (const val of ['false', '0', 'FALSE', 'False', ' 0 ']) {
+      process.env.OPERATOR_COOKIE_SECURE = val;
+      expect(cookieSecure()).toBe(false);
+    }
+  });
+
+  it('explicit true/1 forces secure even outside production (TLS-terminated)', () => {
+    process.env.NODE_ENV = 'development';
+    for (const val of ['true', '1', 'TRUE', 'True', ' 1 ']) {
+      process.env.OPERATOR_COOKIE_SECURE = val;
+      expect(cookieSecure()).toBe(true);
+    }
+  });
+
+  it('unrecognized value falls back to the safe default (isProduction)', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.OPERATOR_COOKIE_SECURE = 'yes';
+    expect(cookieSecure()).toBe(true);
+    process.env.NODE_ENV = 'development';
+    expect(cookieSecure()).toBe(false);
   });
 });
 

@@ -54,6 +54,38 @@ function isProduction(): boolean {
 }
 
 /**
+ * Whether the session cookie is sent with the `Secure` attribute. Defaults to
+ * `isProduction()` (fail-safe: Secure in prod, plain in dev). An explicit
+ * `OPERATOR_COOKIE_SECURE` override lets operators tailor the attribute per
+ * deploy without touching code:
+ *
+ *   - unset          → `isProduction()` (default; safe)
+ *   - `true` / `1`   → `true`  (live / TLS-terminated deploy)
+ *   - `false` / `0`  → `false` (paper-deploy on plain HTTP, e.g. Aéza before TLS)
+ *
+ * This does NOT touch JWT signing/verification (`getSessionSecret` stays
+ * fail-closed in prod). It only controls the `Secure` cookie attribute so a
+ * plain-HTTP paper host can keep its session cookie instead of having the
+ * browser silently drop it. Set `OPERATOR_COOKIE_SECURE=true` once TLS is in
+ * front of the app.
+ */
+export function cookieSecure(): boolean {
+  const raw = process.env.OPERATOR_COOKIE_SECURE;
+  if (raw === undefined || raw.length === 0) {
+    return isProduction();
+  }
+  const normalized = raw.trim().toLowerCase();
+  if (normalized === 'false' || normalized === '0') {
+    return false;
+  }
+  if (normalized === 'true' || normalized === '1') {
+    return true;
+  }
+  // Unrecognized value — fall back to the safe default rather than guessing.
+  return isProduction();
+}
+
+/**
  * Resolve the HMAC signing secret. In production the secret MUST be provided
  * via `OPERATOR_SESSION_SECRET` (>=32 bytes) — absence is a hard failure that
  * prevents the app from signing or verifying any session (fail-closed). In
@@ -131,7 +163,7 @@ export async function verifyOperatorSession(
 export function sessionCookieOptions(): SessionCookieOptions {
   return {
     httpOnly: true,
-    secure: isProduction(),
+    secure: cookieSecure(),
     sameSite: 'lax',
     path: '/',
     maxAge: ttlSeconds(),
@@ -142,7 +174,7 @@ export function sessionCookieOptions(): SessionCookieOptions {
 export function clearSessionCookieOptions(): Omit<SessionCookieOptions, 'maxAge'> {
   return {
     httpOnly: true,
-    secure: isProduction(),
+    secure: cookieSecure(),
     sameSite: 'lax',
     path: '/',
   };
