@@ -23,7 +23,9 @@ open Dependabot alert.
 ### `@hono/node-server < 2.0.5` — GHSA-frvp-7c67-39w9 (MODERATE)
 
 - **Advisory:** Path traversal in `serve-static` on Windows via encoded
-  backslash (`%5C`).
+  backslash (`%5C`). Unauthenticated read of static files under a
+  middleware-guarded prefix on Windows hosts; escape outside the configured
+  root is not possible. CVSS 3.1 **5.9** (`AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:N/A:N`).
 - **Severity:** moderate.
 - **Where:** transitive — `@modelcontextprotocol/sdk@1.29.0` →
   `@hono/node-server@^1.19.9` (resolved `1.19.14`), consumed by
