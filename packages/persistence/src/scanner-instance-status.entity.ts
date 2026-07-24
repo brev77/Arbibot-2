@@ -2,6 +2,7 @@ import {
   Column,
   Entity,
   PrimaryColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 
 /**
@@ -55,6 +56,10 @@ export class ScannerInstanceStatusEntity {
   /** Last error message (null when status != 'error'). */
   @Column({ type: 'text', name: 'last_error', nullable: true })
   lastError!: string | null;
+
+  /** DB-managed last-write timestamp; updated on every scanner-service upsert. */
+  @UpdateDateColumn({ type: 'timestamptz', name: 'updated_at' })
+  updatedAt!: Date;
 }
 
 export type ScannerInstanceStatus = 'idle' | 'running' | 'error';
