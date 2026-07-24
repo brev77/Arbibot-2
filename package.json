@@ -62,6 +62,7 @@
     "dev:config": "npm run start:dev -w @arbibot/config-service",
     "dev:web": "npm run dev -w @arbibot/web",
     "dev:hermes": "npm run start:dev -w @arbibot/hermes-gateway",
+    "dev:scanner": "npm run start:dev -w @arbibot/scanner-service",
     "build:hermes-mcp": "npm run build -w @arbibot/hermes-mcp-server",
     "doctor:hermes": "node tools/doctor-hermes-agent.mjs",
     "run:hermes": "node tools/run-hermes-agent.mjs",

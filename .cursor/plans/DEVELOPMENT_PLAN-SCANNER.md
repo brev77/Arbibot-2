@@ -1,8 +1,8 @@
 # Arbibot 2 — План: Scanner Service (cross-DEX детектор)
 
-**Прогресс:** 7/24 (Phase 0 ✅) | **Обновлено:** 2026-07-24 | **Детали шагов:** интегрированы в индекс ниже (план компактный, без подпапок шагов).
+**Прогресс:** 10/24 (Phase 0 ✅, S1-1/S1-2/S1-3 ✅) | **Обновлено:** 2026-07-24 | **Детали шагов:** интегрированы в индекс ниже (план компактный, без подпапок шагов).
 
-> **Статус плана:** Phase 0 (Contracts & Foundation) завершён. Next: Phase 1 (scanner-service core).
+> **Статус плана:** Phase 0 + Phase 1 bootable slice (S1-1/S1-2/S1-3) завершены. Next: S1-4-RPC → S1-5-POOL → S1-6-VOLUME → S1-7-API.
 > **Архитектурный план-источник:** [`docs/scanner-service-plan.md`](../../docs/scanner-service-plan.md) (v4, 17 зафиксированных решений).
 > **Harness-спутники:** [`docs/scanner-harness-runbook.md`](../../docs/scanner-harness-runbook.md) (CI/e2e/verify процессы), [`docs/review-gate-scanner.md`](../../docs/review-gate-scanner.md) (review-gate чеклист).
 
@@ -54,9 +54,9 @@
 
 | step_id | Суть | status | DoD |
 |---------|------|--------|-----|
-| `S1-1-SCAFFOLD` | NestJS+Fastify app skeleton: `main.ts` (port 3021, `installMetricsOnFastify` + `serviceName`), `app.module.ts`, package.json, tsconfig.build.json, nest-cli.json. Root scripts `dev:scanner`/`build:scanner`. `ARBIBOT_TYPEORM_ENTITIES` wired. | todo | `npm run build -w @arbibot/scanner-service` green; `npm run dev:scanner` стартует, `GET /health` → 200 |
-| `S1-2-CONFIG` | Config loader (mirror `paper-discovery.service.ts:255-289`): TTL-cache `scanner.*` из config-service, env fallback, `SCANNER_CONFIG_CACHE_TTL_MS` (30s), periodic reload. | todo | unit test: cache TTL, env fallback, reload reconcile |
-| `S1-3-WORKER` | Worker skeleton (mirror paper-discovery-worker): `OnModuleInit/OnModuleDestroy` + `setInterval(...).unref()` + `isRunning` guard + metrics `arb_scanner_*` с `registers:[getArbibotMetricsRegistry()]`. Per-instance timers. | todo | unit test: start/stop, isRunning guard, metrics registered |
+| `S1-1-SCAFFOLD` | NestJS+Fastify app skeleton: `main.ts` (port 3021, `installMetricsOnFastify` + `serviceName`), `app.module.ts`, package.json, tsconfig.build.json, nest-cli.json. Root scripts `dev:scanner`/`build:scanner`. `ARBIBOT_TYPEORM_ENTITIES` wired. | done | `npm run build -w @arbibot/scanner-service` green; `npm run dev:scanner` стартует, `GET /health` → 200 |
+| `S1-2-CONFIG` | Config loader (mirror `paper-discovery.service.ts:255-289`): TTL-cache `scanner.*` из config-service, env fallback, `SCANNER_CONFIG_CACHE_TTL_MS` (30s), periodic reload. | done | unit test: cache TTL, env fallback, reload reconcile |
+| `S1-3-WORKER` | Worker skeleton (mirror paper-discovery-worker): `OnModuleInit/OnModuleDestroy` + `setInterval(...).unref()` + `isRunning` guard + metrics `arb_scanner_*` с `registers:[getArbibotMetricsRegistry()]`. Per-instance timers. | done | unit test: start/stop, isRunning guard, metrics registered |
 | `S1-4-RPC` | RPC layer (read-only): provider из `RPC_SCANNER_*_URL` (fallback `RPC_*_URL`), **rate limiter** (`SCANNER_RPC_RATE_LIMIT_RPS`, token bucket), health check. | todo | unit test: rate limiter, fallback URL; `GET /health` показывает RPC статус |
 | `S1-5-POOL` | Pool Reader: getReserves (V2), slot0+liquidity (V3), `pool.factory()` для protocol mapping. **Собственный `UNI_V3_POOL_SCANNER_ABI`** с `volumeToken0`/`volumeToken1`. **Factory mapping table** (uniswap-v2/sushiswap incl. Arbitrum 0xc35DADB65012eC4126586465b0d79A6a5A93026C/pancakeswap-v2/biswap). In-memory pool-кэш. | todo | unit test: V2/V3 price parse, factory mapping, cache TTL; graceful revert на volumeToken для форков |
 | `S1-6-VOLUME` | Volume Reader: V3 `volumeToken0/1` cumulative (mainnet-canonical, graceful revert) + V2 `eth_getLogs` short-window (1h bounded). **Swap topic0 compute via `ethers.id()`** (V2 sig: `Swap(address,uint256,uint256,uint256,uint256,address)`; V3 sig: `Swap(address,address,int256,int256,uint160,uint128,int24)`). Дефолт OFF. | todo | unit test: V3 cumulative delta, V2 eth_getLogs bounded range, topic0 compute (не hardcode) |
