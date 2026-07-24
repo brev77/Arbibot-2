@@ -204,3 +204,45 @@ export type DexTransactionFailedPayloadV1 = {
 };
 
 export type DexTransactionFailedEnvelopeV1 = EventEnvelope<DexTransactionFailedPayloadV1>;
+
+// ---------------------------------------------------------------------------
+// OpportunityDetected outbox event (Phase 3b — opportunity-service.create())
+// ---------------------------------------------------------------------------
+// Today `opportunityDetected` in EVENT_NAMES is dead code (no payload schema, no producer).
+// This schema materializes the contract. Producer = opportunity-service.create() after
+// scanner-service (or any detector) POSTs a rich payload. Consumers: observability (Hermes,
+// UI async), future auto-enricher. NOTE: this event does NOT drive lifecycle detected→
+// risk_checked (that requires RiskDecisionIssued via request-risk-evaluation — separate flow).
+
+/** Outbox `schema_version` / envelope `version` for OpportunityDetected. */
+export const OPPORTUNITY_DETECTED_PAYLOAD_SCHEMA_VERSION = 1 as const;
+
+/** `sourceModule` indicating the opportunity was discovered by scanner-service. */
+export const OPPORTUNITY_SOURCE_SCANNER = 'scanner-service' as const;
+
+export type OpportunityDetectedPayloadV1 = {
+  readonly opportunityId: string;
+  /** Canonical instrument key (e.g. `arb:{chain}:{PAIR}`). May be absent for non-canonical sources. */
+  readonly instrumentKey: string | null;
+  /** Canonical route key. May be absent for non-canonical sources. */
+  readonly routeKey: string | null;
+  /** Originating module that fed the opportunity (e.g. 'scanner-service', 'manual', 'paper-discovery'). */
+  readonly sourceModule: string;
+  /** Cross-venue spread in basis points (null if not a cross-DEX opportunity). */
+  readonly spreadBps: number | null;
+  readonly grossProfitUsd: number | null;
+  readonly netProfitUsd: number | null;
+  readonly feesUsd: number | null;
+  /** Observed market volume in USD over the filter window (null if not measured). */
+  readonly volumeUsd: number | null;
+  /** Buy venue key (e.g. 'uniswap-v2') for cross-DEX opportunities. */
+  readonly buyVenue: string | null;
+  readonly sellVenue: string | null;
+  readonly chainId: number | null;
+  readonly token: string | null;
+  readonly quoteAsset: string | null;
+  /** Free-form evidence block (pool addresses, reserves, gas estimate, etc.). */
+  readonly evidence: Record<string, unknown>;
+};
+
+export type OpportunityDetectedEnvelopeV1 = EventEnvelope<OpportunityDetectedPayloadV1>;

@@ -44,6 +44,10 @@ export { WalletKeyEntity } from './wallet-key.entity';
 export { DexPool } from './dex-pool.entity';
 export { DexDailyVolumeEntity } from './dex-daily-volume.entity';
 export { Approval } from './approval.entity';
+export { ScannerInstanceStatusEntity } from './scanner-instance-status.entity';
+export type { ScannerInstanceStatus } from './scanner-instance-status.entity';
+export { ScannerFindingEntity } from './scanner-finding.entity';
+export type { ScannerFindingPublishStatus } from './scanner-finding.entity';
 
 import { AlertmanagerIncidentEntity } from './alertmanager-incident.entity';
 import { ArbitrageOpportunityEntity } from './arbitrage-opportunity.entity';
@@ -82,6 +86,8 @@ import { WalletKeyEntity } from './wallet-key.entity';
 import { DexPool } from './dex-pool.entity';
 import { DexDailyVolumeEntity } from './dex-daily-volume.entity';
 import { Approval } from './approval.entity';
+import { ScannerInstanceStatusEntity } from './scanner-instance-status.entity';
+import { ScannerFindingEntity } from './scanner-finding.entity';
 
 /** All entities for TypeORM `entities` array. */
 export const ARBIBOT_TYPEORM_ENTITIES = [
@@ -122,4 +128,6 @@ export const ARBIBOT_TYPEORM_ENTITIES = [
   DexPool,
   DexDailyVolumeEntity,
   Approval,
+  ScannerInstanceStatusEntity,
+  ScannerFindingEntity,
 ] as const;

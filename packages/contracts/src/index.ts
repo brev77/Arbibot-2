@@ -12,6 +12,7 @@ export const SERVICE_IDS = {
   portfolioService: 'portfolio-service',
   reconciliationService: 'reconciliation-service',
   paperTradingService: 'paper-trading-service',
+  scannerService: 'scanner-service',
 } as const;
 
 /** HTTP routes — mirror OpenAPI paths when added. */
@@ -92,4 +93,16 @@ export const CANONICAL_HTTP_ROUTES = {
 export const INTAKE_HTTP_ROUTES = {
   ingestSnapshot: 'POST /snapshots/ingest',
   getSnapshot: 'GET /snapshots',
+} as const;
+
+/** HTTP routes for scanner-service (cross-DEX detector). See docs/adr-scanner-service.md. */
+export const SCANNER_HTTP_ROUTES = {
+  listInstances: 'GET /scanner/instances',
+  getInstance: 'GET /scanner/instances/:id',
+  refreshInstanceConfig: 'POST /scanner/instances/:id/refresh-config',
+  triggerInstanceRun: 'POST /scanner/instances/:id/run',
+  listFindings: 'GET /scanner/findings',
+  getFinding: 'GET /scanner/findings/:id',
+  republishFinding: 'POST /scanner/findings/:id/re-publish',
+  getStatus: 'GET /scanner/status',
 } as const;

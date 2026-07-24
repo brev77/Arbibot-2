@@ -78,6 +78,59 @@ export const capitalReservationPolicySchema = z
 /** `features.flags` — loose feature map */
 export const featuresFlagsSchema = z.record(z.string(), z.unknown());
 
+/** `scanner.defaults` — see docs/scanner-service-plan.md §1. Global fallback filters + tuning. */
+const scannerVolumeRangeSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    min1hUsd: z.number().nonnegative().optional(),
+    max24hUsd: z.number().nonnegative().optional(),
+  })
+  .strict();
+
+const scannerFiltersSchema = z
+  .object({
+    minSpreadBps: z.number().nonnegative().optional(),
+    minLiquidityUsd: z.number().nonnegative().optional(),
+    volumeRange: scannerVolumeRangeSchema.optional(),
+    blacklistTokens: z.array(z.string()).optional(),
+    allowedChains: z.array(z.number().int()).optional(),
+    quoteAssets: z.array(z.string()).optional(),
+  })
+  .strict();
+
+export const scannerDefaultsSchema = z
+  .object({
+    findingsRetentionDays: z.number().int().positive().optional(),
+    rpcRateLimitRps: z.number().nonnegative().optional(),
+    poolCacheTtlMs: z.number().nonnegative().optional(),
+    dedupCooldownMs: z.number().nonnegative().optional(),
+    orphanRetryIntervalMs: z.number().nonnegative().optional(),
+    orphanMaxAttempts: z.number().int().nonnegative().optional(),
+    opportunityPublishTimeoutMs: z.number().nonnegative().optional(),
+    defaultFilters: scannerFiltersSchema.optional(),
+  })
+  .strict();
+
+/** `scanner.instances` — array of instance definitions. See docs/adr-scanner-service.md §3. */
+const scannerInstanceSchema = z
+  .object({
+    id: z.string().min(1),
+    name: z.string().min(1),
+    network: z.string().min(1),
+    strategy: z.string().min(1),
+    interval_ms: z.number().int().positive(),
+    filters: scannerFiltersSchema.optional(),
+    poolWhitelist: z.array(z.string()).optional(),
+    enabled: z.boolean(),
+  })
+  .strict();
+
+export const scannerInstancesSchema = z
+  .object({
+    instances: z.array(scannerInstanceSchema),
+  })
+  .strict();
+
 export type PolicyConfigRegistryEntry = {
   readonly configKey: string;
   readonly title: string;
@@ -170,6 +223,20 @@ export const POLICY_CONFIG_REGISTRY: readonly PolicyConfigRegistryEntry[] = [
     consumers: [],
     schema: featuresFlagsSchema,
     structuredEditor: false,
+  }),
+  entry({
+    configKey: 'scanner.defaults',
+    title: 'Scanner service defaults',
+    docPath: 'docs/adr-scanner-service.md',
+    consumers: ['scanner-service'],
+    schema: scannerDefaultsSchema,
+  }),
+  entry({
+    configKey: 'scanner.instances',
+    title: 'Scanner instances (cross-DEX detectors)',
+    docPath: 'docs/adr-scanner-service.md',
+    consumers: ['scanner-service'],
+    schema: scannerInstancesSchema,
   }),
 ];
 
