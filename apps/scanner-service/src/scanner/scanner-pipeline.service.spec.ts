@@ -66,6 +66,8 @@ describe('ScannerPipelineService', () => {
   let filterService: { apply: jest.Mock };
   let dedupService: { shouldEmit: jest.Mock };
   let findingsRepo: { create: jest.Mock; save: jest.Mock };
+  let publisher: { publish: jest.Mock };
+  let config: { getConfig: jest.Mock };
   let service: ScannerPipelineService;
 
   beforeEach(() => {
@@ -79,6 +81,8 @@ describe('ScannerPipelineService', () => {
       create: jest.fn((x: unknown) => x),
       save: jest.fn().mockResolvedValue(undefined),
     };
+    publisher = { publish: jest.fn().mockResolvedValue('opp-1') };
+    config = { getConfig: jest.fn().mockReturnValue({ defaults: { opportunityPublishTimeoutMs: 5000 } }) };
 
     service = new ScannerPipelineService(
       poolService as unknown as ScannerPoolService,
@@ -86,6 +90,8 @@ describe('ScannerPipelineService', () => {
       spreadService as unknown as ScannerSpreadService,
       filterService as unknown as ScannerFilterService,
       dedupService as unknown as ScannerDedupService,
+      publisher as never,
+      config as never,
       findingsRepo as never,
     );
   });

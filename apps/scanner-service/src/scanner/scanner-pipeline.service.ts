@@ -11,6 +11,8 @@ import { ScannerVolumeService } from './scanner-volume.service';
 import { ScannerSpreadService } from './scanner-spread.service';
 import { ScannerFilterService } from './scanner-filter.service';
 import { ScannerDedupService } from './scanner-dedup.service';
+import { ScannerPublisherService } from './scanner-publisher.service';
+import { ScannerConfigService } from './scanner-config.service';
 import type { PoolSnapshot } from './scanner-pool.service';
 import type { CrossVenueSpread } from './scanner-spread.service';
 
@@ -44,6 +46,8 @@ export class ScannerPipelineService {
     private readonly spreadService: ScannerSpreadService,
     private readonly filterService: ScannerFilterService,
     private readonly dedupService: ScannerDedupService,
+    private readonly publisher: ScannerPublisherService,
+    private readonly config: ScannerConfigService,
     @InjectRepository(ScannerFindingEntity)
     private readonly findingsRepo: Repository<ScannerFindingEntity>,
   ) {
@@ -115,10 +119,20 @@ export class ScannerPipelineService {
           continue;
         }
 
-        // Write finding (pending — Phase 3 publishes).
-        await this.writeFinding(instance.id, spread, volume?.volumeUsd ?? null);
+        // Write finding (pending), then publish to opportunity-service (S3-1-PUBLISH).
+        const finding = await this.writeFinding(instance.id, spread, volume?.volumeUsd ?? null);
         result.findingsWritten += 1;
         this.metrics.findingsWritten.inc({ instance: instance.id });
+
+        // Publish immediately; on failure the finding stays 'failed' and the orphan worker
+        // (S3-2-DEGRADE) retries it. Non-blocking for the cycle — a publish failure does not
+        // abort detection of other pairs in the same cycle.
+        const timeoutMs = this.config.getConfig().defaults.opportunityPublishTimeoutMs;
+        await this.publisher.publish(finding, spread, timeoutMs).catch((err: unknown) => {
+          this.logger.warn(
+            `Finding ${finding.id} publish threw: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        });
       }
 
       return result;
@@ -179,7 +193,7 @@ export class ScannerPipelineService {
     instanceId: string,
     spread: CrossVenueSpread,
     volume1hUsd: number | null,
-  ): Promise<void> {
+  ): Promise<ScannerFindingEntity> {
     const row = this.findingsRepo.create({
       instanceId,
       opportunityId: null,
@@ -198,6 +212,6 @@ export class ScannerPipelineService {
       volume1hUsd: volume1hUsd !== null ? String(volume1hUsd.toFixed(8)) : null,
       volume24hUsd: null,
     });
-    await this.findingsRepo.save(row);
+    return this.findingsRepo.save(row);
   }
 }
