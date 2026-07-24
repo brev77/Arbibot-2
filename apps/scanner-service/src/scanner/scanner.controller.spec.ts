@@ -22,6 +22,7 @@ describe('ScannerController', () => {
   let worker: { triggerInstanceRun: jest.Mock; getStatus: jest.Mock };
   let findings: { list: jest.Mock; getById: jest.Mock };
   let rpc: { getAllHealthStatus: jest.Mock };
+  let publisher: { publish: jest.Mock };
   let controller: ScannerController;
 
   beforeEach(() => {
@@ -29,7 +30,7 @@ describe('ScannerController', () => {
       getInstances: jest.fn().mockReturnValue([makeInstance()]),
       getEnabledInstances: jest.fn().mockReturnValue([makeInstance()]),
       forceRefresh: jest.fn().mockResolvedValue(undefined),
-      getConfig: jest.fn().mockReturnValue({ defaults: { configCacheTtlMs: 30000 } }),
+      getConfig: jest.fn().mockReturnValue({ defaults: { configCacheTtlMs: 30000, opportunityPublishTimeoutMs: 5000 } }),
     };
     worker = {
       triggerInstanceRun: jest.fn().mockResolvedValue({ success: true, message: 'cycle completed' }),
@@ -37,14 +38,20 @@ describe('ScannerController', () => {
     };
     findings = {
       list: jest.fn().mockResolvedValue([]),
-      getById: jest.fn().mockResolvedValue({ id: 'f-1' }),
+      getById: jest.fn().mockResolvedValue({
+        id: 'f-1', chainId: 42161, canonicalToken: '0xUSDC', buyVenue: 'uniswap-v2',
+        sellVenue: 'sushiswap', buyPoolAddr: '0xBUY', sellPoolAddr: '0xSELL', spreadBps: 50,
+        grossProfitUsd: '5', netProfitUsd: '4', feesUsd: '6',
+      }),
     };
     rpc = { getAllHealthStatus: jest.fn().mockReturnValue({ '42161': { healthy: true } }) };
+    publisher = { publish: jest.fn().mockResolvedValue('opp-1') };
     controller = new ScannerController(
       config as unknown as ScannerConfigService,
       worker as unknown as ScannerWorkerService,
       findings as unknown as ScannerFindingsService,
       rpc as unknown as ScannerRpcService,
+      publisher as never,
     );
   });
 
@@ -133,11 +140,18 @@ describe('ScannerController', () => {
     });
   });
 
-  describe('POST /scanner/findings/:id/re-publish (stub)', () => {
-    it('returns 501 Not Implemented', () => {
-      const result = controller.republishFinding('f-1');
-      expect(result.statusCode).toBe(501);
-      expect(result.message).toContain('Phase 3-2');
+  describe('POST /scanner/findings/:id/re-publish', () => {
+    it('publishes and returns opportunityId on success', async () => {
+      const result = await controller.republishFinding('f-1');
+      expect(result.published).toBe(true);
+      expect(result.opportunityId).toBe('opp-1');
+      expect(publisher.publish).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns published=false when publish fails', async () => {
+      publisher.publish.mockResolvedValue(null);
+      const result = await controller.republishFinding('f-1');
+      expect(result.published).toBe(false);
     });
   });
 

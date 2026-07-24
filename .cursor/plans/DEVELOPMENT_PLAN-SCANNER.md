@@ -1,8 +1,8 @@
 # Arbibot 2 — План: Scanner Service (cross-DEX детектор)
 
-**Прогресс:** 19/24 (Phase 0 ✅, Phase 1 ✅, Phase 2 ✅, S3-1 ✅) | **Обновлено:** 2026-07-24 | **Детали шагов:** интегрированы в индекс ниже (план компактный, без подпапок шагов).
+**Прогресс:** 20/24 (Phase 0 ✅, Phase 1 ✅, Phase 2 ✅, S3-1/S3-2 ✅) | **Обновлено:** 2026-07-24 | **Детали шагов:** интегрированы в индекс ниже (план компактный, без подпапок шагов).
 
-> **Статус плана:** Phase 0-2 + S3-1-PUBLISH завершены. Next: S3-2-DEGRADE → S3-3-PHASE3B.
+> **Статус плана:** Phase 0-2 + S3-1/S3-2 завершены. Next: S3-3-PHASE3B → Phase 4.
 > **Архитектурный план-источник:** [`docs/scanner-service-plan.md`](../../docs/scanner-service-plan.md) (v4, 17 зафиксированных решений).
 > **Harness-спутники:** [`docs/scanner-harness-runbook.md`](../../docs/scanner-harness-runbook.md) (CI/e2e/verify процессы), [`docs/review-gate-scanner.md`](../../docs/review-gate-scanner.md) (review-gate чеклист).
 
@@ -76,7 +76,7 @@
 | step_id | Суть | status | DoD |
 |---------|------|--------|-----|
 | `S3-1-PUBLISH` | Opportunity publisher: `POST /opportunities` с rich payload (заполняет spreadPct/profitUsd/feesUsd/volumeUsd/token/chain/quoteAsset/buyVenue/sellVenue/routeKey/instrumentKey). Save `opportunity_id` → `scanner_findings.opportunity_id`, `publish_status='published'`. | done | integration test: finding → POST /opportunities → opportunity_id saved |
-| `S3-2-DEGRADE` | Graceful degradation: retry (3 attempts, exp backoff 1s/2s/4s) + `publish_status`/`publish_attempts` + **orphan retry worker** (max 5 cumulative, hourly) + metric `arb_scanner_opportunity_publish_failed_total` + `POST /scanner/findings/:id/re-publish`. | todo | unit test: retry exhaustion → `failed`, orphan worker re-publishes, manual re-publish |
+| `S3-2-DEGRADE` | Graceful degradation: retry (3 attempts, exp backoff 1s/2s/4s) + `publish_status`/`publish_attempts` + **orphan retry worker** (max 5 cumulative, hourly) + metric `arb_scanner_opportunity_publish_failed_total` + `POST /scanner/findings/:id/re-publish`. | done | unit test: retry exhaustion → `failed`, orphan worker re-publishes, manual re-publish |
 | `S3-3-PHASE3B` | **Phase 3b (модификация opportunity-service):** `create()` обернуть в `dataSource.transaction` + outbox `OpportunityDetected`. Primary образец `paperEnqueue()` (opportunities.service.ts:199-319). Envelope fields по чеклисту `scanner-service-plan.md` Phase 3b. | todo | opportunity-service unit test: tx rollback, outbox written, envelope schema; regression: существующие create-тесты зелёные |
 
 ### Phase 4 — Observability + Operator UI + Hermes

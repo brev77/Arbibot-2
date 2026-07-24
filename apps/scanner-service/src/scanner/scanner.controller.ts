@@ -12,6 +12,7 @@ import { SCANNER_HTTP_ROUTES } from '@arbibot/contracts';
 
 import { ScannerConfigService } from './scanner-config.service';
 import { ScannerFindingsService } from './scanner-findings.service';
+import { ScannerPublisherService } from './scanner-publisher.service';
 import { ScannerWorkerService } from './scanner-worker.service';
 import { ScannerRpcService } from './scanner-rpc.service';
 
@@ -33,6 +34,7 @@ export class ScannerController {
     private readonly worker: ScannerWorkerService,
     private readonly findings: ScannerFindingsService,
     private readonly rpc: ScannerRpcService,
+    private readonly publisher: ScannerPublisherService,
   ) {}
 
   /** GET /scanner/instances — config definitions (runtime status join arrives in S4-2 BFF). */
@@ -105,16 +107,43 @@ export class ScannerController {
   }
 
   /**
-   * POST /scanner/findings/:id/re-publish — manual re-publish of an orphan finding.
-   * Stub until the orphan retry worker lands in Phase 3-2 (S3-2-DEGRADE).
+   * POST /scanner/findings/:id/re-publish — manual re-publish of a failed/pending finding
+   * to opportunity-service (S3-2-DEGRADE). Returns the opportunity id or an error shape.
    */
   @Post('findings/:id/re-publish')
-  @HttpCode(HttpStatus.NOT_IMPLEMENTED)
-  republishFinding(@Param('id') id: string) {
+  @HttpCode(HttpStatus.OK)
+  async republishFinding(@Param('id') id: string) {
+    const finding = await this.findings.getById(id);
+    const spread = {
+      chainId: finding.chainId,
+      canonicalToken: finding.canonicalToken,
+      token0: finding.buyPoolAddr,
+      token1: finding.canonicalToken,
+      buyVenue: finding.buyVenue,
+      buyPoolAddress: finding.buyPoolAddr,
+      buyPrice: 0,
+      sellVenue: finding.sellVenue,
+      sellPoolAddress: finding.sellPoolAddr,
+      sellPrice: 0,
+      spreadBps: finding.spreadBps,
+      feesUsd: Number(finding.feesUsd),
+      gasUsd: 0,
+      grossProfitUsd: Number(finding.grossProfitUsd),
+      netProfitUsd: Number(finding.netProfitUsd),
+    };
+    const timeoutMs = this.config.getConfig().defaults.opportunityPublishTimeoutMs;
+    const oppId = await this.publisher.publish(finding, spread, timeoutMs);
+    if (oppId === null) {
+      return {
+        findingId: id,
+        published: false,
+        message: 'Re-publish failed; finding remains in pending/failed state',
+      };
+    }
     return {
-      error: 'Not implemented',
-      message: `Re-publish for finding ${id} arrives in Phase 3-2 (S3-2-DEGRADE)`,
-      statusCode: HttpStatus.NOT_IMPLEMENTED,
+      findingId: id,
+      published: true,
+      opportunityId: oppId,
     };
   }
 
