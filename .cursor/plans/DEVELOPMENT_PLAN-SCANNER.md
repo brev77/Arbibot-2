@@ -1,8 +1,8 @@
 # Arbibot 2 — План: Scanner Service (cross-DEX детектор)
 
-**Прогресс:** 12/24 (Phase 0 ✅, S1-1…S1-5 ✅) | **Обновлено:** 2026-07-24 | **Детали шагов:** интегрированы в индекс ниже (план компактный, без подпапок шагов).
+**Прогресс:** 13/24 (Phase 0 ✅, S1-1…S1-6 ✅) | **Обновлено:** 2026-07-24 | **Детали шагов:** интегрированы в индекс ниже (план компактный, без подпапок шагов).
 
-> **Статус плана:** Phase 0 + Phase 1 (S1-1…S1-5) завершены. Next: S1-6-VOLUME → S1-7-API.
+> **Статус плана:** Phase 0 + Phase 1 (S1-1…S1-6) завершены. Next: S1-7-API → Phase 2.
 > **Архитектурный план-источник:** [`docs/scanner-service-plan.md`](../../docs/scanner-service-plan.md) (v4, 17 зафиксированных решений).
 > **Harness-спутники:** [`docs/scanner-harness-runbook.md`](../../docs/scanner-harness-runbook.md) (CI/e2e/verify процессы), [`docs/review-gate-scanner.md`](../../docs/review-gate-scanner.md) (review-gate чеклист).
 
@@ -59,7 +59,7 @@
 | `S1-3-WORKER` | Worker skeleton (mirror paper-discovery-worker): `OnModuleInit/OnModuleDestroy` + `setInterval(...).unref()` + `isRunning` guard + metrics `arb_scanner_*` с `registers:[getArbibotMetricsRegistry()]`. Per-instance timers. | done | unit test: start/stop, isRunning guard, metrics registered |
 | `S1-4-RPC` | RPC layer (read-only): provider из `RPC_SCANNER_*_URL` (fallback `RPC_*_URL`), **rate limiter** (`SCANNER_RPC_RATE_LIMIT_RPS`, token bucket), health check. | done | unit test: rate limiter, fallback URL; `GET /health` показывает RPC статус |
 | `S1-5-POOL` | Pool Reader: getReserves (V2), slot0+liquidity (V3), `pool.factory()` для protocol mapping. **Собственный `UNI_V3_POOL_SCANNER_ABI`** с `volumeToken0`/`volumeToken1`. **Factory mapping table** (uniswap-v2/sushiswap incl. Arbitrum 0xc35DADB65012eC5796536bD9864eD8773aBc74C4 — deployed-адрес, не plan-typo)/pancakeswap-v2/biswap). In-memory pool-кэш. | done | unit test: V2/V3 price parse, factory mapping, cache TTL; graceful revert на volumeToken для форков |
-| `S1-6-VOLUME` | Volume Reader: V3 `volumeToken0/1` cumulative (mainnet-canonical, graceful revert) + V2 `eth_getLogs` short-window (1h bounded). **Swap topic0 compute via `ethers.id()`** (V2 sig: `Swap(address,uint256,uint256,uint256,uint256,address)`; V3 sig: `Swap(address,address,int256,int256,uint160,uint128,int24)`). Дефолт OFF. | todo | unit test: V3 cumulative delta, V2 eth_getLogs bounded range, topic0 compute (не hardcode) |
+| `S1-6-VOLUME` | Volume Reader: V3 `volumeToken0/1` cumulative (mainnet-canonical, graceful revert) + V2 `eth_getLogs` short-window (1h bounded). **Swap topic0 compute via `ethers.id()`** (V2 sig: `Swap(address,uint256,uint256,uint256,uint256,address)`; V3 sig: `Swap(address,address,int256,int256,uint160,uint128,int24)`). Дефолт OFF. | done | unit test: V3 cumulative delta, V2 eth_getLogs bounded range, topic0 compute (не hardcode) |
 | `S1-7-API` | HTTP API: `GET /scanner/instances` (config join runtime), `/instances/:id`, `/instances/:id/refresh-config` (force-refresh), `POST /instances/:id/run`, `/findings`, `/findings/:id`, `/status`, `/health`, `/metrics`. | todo | manual smoke: все endpoints отвечают; metrics отдают `arb_scanner_*` |
 
 ### Phase 2 — Cross-DEX engine (same-chain 2-venue)
