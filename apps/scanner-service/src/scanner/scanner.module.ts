@@ -8,10 +8,12 @@ import {
 import { AuditClientService } from '@arbibot/nest-platform';
 
 import { ScannerConfigService } from './scanner-config.service';
+import { ScannerFindingsService } from './scanner-findings.service';
 import { ScannerPoolService } from './scanner-pool.service';
 import { ScannerRpcService } from './scanner-rpc.service';
 import { ScannerVolumeService } from './scanner-volume.service';
 import { ScannerWorkerService } from './scanner-worker.service';
+import { ScannerController } from './scanner.controller';
 
 /**
  * Scanner module (S1-1 / S1-3 / S1-4).
@@ -31,7 +33,8 @@ import { ScannerWorkerService } from './scanner-worker.service';
       ScannerFindingEntity,
     ]),
   ],
-  providers: [ScannerConfigService, ScannerRpcService, ScannerPoolService, ScannerVolumeService, ScannerWorkerService, AuditClientService],
+  providers: [ScannerConfigService, ScannerRpcService, ScannerPoolService, ScannerVolumeService, ScannerWorkerService, ScannerFindingsService, AuditClientService],
+  controllers: [ScannerController],
   exports: [ScannerConfigService, ScannerRpcService, ScannerPoolService, ScannerVolumeService],
 })
 export class ScannerModule {}
