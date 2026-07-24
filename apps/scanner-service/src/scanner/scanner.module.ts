@@ -11,6 +11,7 @@ import { ScannerConfigService } from './scanner-config.service';
 import { ScannerFindingsService } from './scanner-findings.service';
 import { ScannerPoolService } from './scanner-pool.service';
 import { ScannerRpcService } from './scanner-rpc.service';
+import { ScannerSpreadService } from './scanner-spread.service';
 import { ScannerVolumeService } from './scanner-volume.service';
 import { ScannerWorkerService } from './scanner-worker.service';
 import { ScannerController } from './scanner.controller';
@@ -33,7 +34,7 @@ import { ScannerController } from './scanner.controller';
       ScannerFindingEntity,
     ]),
   ],
-  providers: [ScannerConfigService, ScannerRpcService, ScannerPoolService, ScannerVolumeService, ScannerWorkerService, ScannerFindingsService, AuditClientService],
+  providers: [ScannerConfigService, ScannerRpcService, ScannerPoolService, ScannerVolumeService, ScannerSpreadService, ScannerWorkerService, ScannerFindingsService, AuditClientService],
   controllers: [ScannerController],
   exports: [ScannerConfigService, ScannerRpcService, ScannerPoolService, ScannerVolumeService],
 })

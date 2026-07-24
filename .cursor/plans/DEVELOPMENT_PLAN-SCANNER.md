@@ -1,8 +1,8 @@
 # Arbibot 2 — План: Scanner Service (cross-DEX детектор)
 
-**Прогресс:** 14/24 (Phase 0 ✅, Phase 1 ✅) | **Обновлено:** 2026-07-24 | **Детали шагов:** интегрированы в индекс ниже (план компактный, без подпапок шагов).
+**Прогресс:** 15/24 (Phase 0 ✅, Phase 1 ✅, S2-1 ✅) | **Обновлено:** 2026-07-24 | **Детали шагов:** интегрированы в индекс ниже (план компактный, без подпапок шагов).
 
-> **Статус плана:** Phase 0 + Phase 1 (S1-1…S1-7) завершены. Next: Phase 2 (cross-DEX engine).
+> **Статус плана:** Phase 0 + Phase 1 (S1-1…S1-7) + S2-1-SPREAD завершены. Next: S2-2-FILTER → S2-3-DEDUP → S2-4-INTEGRATE.
 > **Архитектурный план-источник:** [`docs/scanner-service-plan.md`](../../docs/scanner-service-plan.md) (v4, 17 зафиксированных решений).
 > **Harness-спутники:** [`docs/scanner-harness-runbook.md`](../../docs/scanner-harness-runbook.md) (CI/e2e/verify процессы), [`docs/review-gate-scanner.md`](../../docs/review-gate-scanner.md) (review-gate чеклист).
 
@@ -66,7 +66,7 @@
 
 | step_id | Суть | status | DoD |
 |---------|------|--------|-----|
-| `S2-1-SPREAD` | Spread Detector: join per-venue prices (same canonical token, same chain) → spread bps. Net = gross − pool fees − gas estimate (БЕЗ slippage). | todo | unit test: spread math, net profit, edge cases (zero spread, negative net) |
+| `S2-1-SPREAD` | Spread Detector: join per-venue prices (same canonical token, same chain) → spread bps. Net = gross − pool fees − gas estimate (БЕЗ slippage). | done | unit test: spread math, net profit, edge cases (zero spread, negative net) |
 | `S2-2-FILTER` | Filter engine: per-instance filters из config (minSpreadBps, minLiquidityUsd, volumeRange{1h,24h,enabled}, blacklistTokens, allowedChains, quoteAssets). Переиспользует типы `dex-filters.types.ts`. | todo | unit test: each filter, AND-combination, enabled toggle |
 | `S2-3-DEDUP` | Dedup cooldown per `(canonical_token, buy_venue, sell_venue)` (configurable, default 60s). | todo | unit test: cooldown window, bypass after expiry |
 | `S2-4-INTEGRATE` | Pipeline wiring: per cycle → read pools → spread → volume → filter → dedup → WRITE findings+instances → (Phase 3) publish. | todo | integration test: full cycle на whitelisted pools, findings written, instances updated |
