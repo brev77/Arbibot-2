@@ -47,6 +47,7 @@ describe('ScannerWorkerService', () => {
 
     worker = new ScannerWorkerService(
       config as unknown as ScannerConfigService,
+      { runCycle: jest.fn().mockResolvedValue({ poolsRead: 0, spreadsDetected: 0, findingsWritten: 0, findingsFiltered: 0, error: null }) } as never,
       statusRepo as unknown as Repository<ScannerInstanceStatusEntity>,
     );
   });

@@ -11,6 +11,7 @@ import { Counter, Gauge, Histogram } from 'prom-client';
 import { ScannerInstanceStatusEntity } from '@arbibot/persistence';
 
 import { ScannerConfigService } from './scanner-config.service';
+import { ScannerPipelineService } from './scanner-pipeline.service';
 import type { ScannerInstanceJson } from './scanner-config.types';
 
 /**
@@ -67,6 +68,7 @@ export class ScannerWorkerService implements OnModuleInit, OnModuleDestroy {
 
   constructor(
     private readonly config: ScannerConfigService,
+    private readonly pipeline: ScannerPipelineService,
     @InjectRepository(ScannerInstanceStatusEntity)
     private readonly statusRepo: Repository<ScannerInstanceStatusEntity>,
   ) {}
@@ -227,11 +229,24 @@ export class ScannerWorkerService implements OnModuleInit, OnModuleDestroy {
         );
       }
 
-      await this.upsertStatus(instance, startedAt, 'idle', null);
+      // Run the detection pipeline (S2-4-INTEGRATE): read pools → spread → volume → filter →
+      // dedup → write findings. Returns a summary; errors are captured (non-fatal).
+      const pipelineResult = await this.pipeline.runCycle(instance);
+
+      // Update counters on the runtime row from the pipeline summary.
+      await this.upsertStatus(
+        instance,
+        startedAt,
+        pipelineResult.error !== null ? 'error' : 'idle',
+        pipelineResult.error,
+        pipelineResult.findingsWritten,
+      );
 
       this.metrics.cyclesTotal.inc({ instance: instance.id, status: 'success' });
       this.logger.debug(
-        `Instance ${instance.id} idle cycle completed in ${Date.now() - startedAt}ms`,
+        `Instance ${instance.id} cycle completed in ${Date.now() - startedAt}ms: ` +
+          `${pipelineResult.poolsRead} pools, ${pipelineResult.spreadsDetected} spreads, ` +
+          `${pipelineResult.findingsWritten} findings written, ${pipelineResult.findingsFiltered} filtered`,
       );
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
@@ -259,6 +274,7 @@ export class ScannerWorkerService implements OnModuleInit, OnModuleDestroy {
     startedAt: number,
     status: 'idle' | 'error',
     lastError: string | null,
+    findingsDelta = 0,
   ): Promise<void> {
     const latencyMs = Date.now() - startedAt;
     const existing = await this.statusRepo.findOne({
@@ -266,12 +282,14 @@ export class ScannerWorkerService implements OnModuleInit, OnModuleDestroy {
     });
     const cyclesTotal =
       BigInt(existing?.cyclesTotal ?? '0') + BigInt(1);
+    const findingsTotal =
+      BigInt(existing?.findingsTotal ?? '0') + BigInt(findingsDelta);
 
     await this.statusRepo.save({
       instanceId: instance.id,
       status,
       cyclesTotal: cyclesTotal.toString(),
-      findingsTotal: existing?.findingsTotal ?? '0',
+      findingsTotal: findingsTotal.toString(),
       opportunitiesPublishedTotal:
         existing?.opportunitiesPublishedTotal ?? '0',
       lastCycleLatencyMs: latencyMs,
