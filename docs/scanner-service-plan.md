@@ -188,10 +188,10 @@
 - **Volume Reader** (корр. #1+#3 раунда 2/4 + #2 раунда 5):
   - **V3**: `volumeToken0()`/`volumeToken1()` cumulative (single-call, cached baseline) — **mainnet-canonical UniV3 pools only** (Arb/Base/BNB). ⚠️ **Graceful revert handling** (try/catch → volume=unknown → skip volume filter для этого пула) для форков/тестнетов без этих функций.
   - **V2**: `eth_getLogs` по `Swap` topic **только за short-window** (1h, bounded ~14,400 блоков на Arbitrum). V2 НЕ имеет cumulative volume (только reserves). 24h V2 = non-goal.
-  - **Swap event topic0** (корр. #2 раунда 5) — V2 и V3 **разные signatures → разные topic0**:
-    - V2-family (UniV2/Sushi/PancakeV2/Biswap): `Swap(address,uint256,uint256,uint256,uint256,address)` → topic0 `0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822`
-    - V3-family: `Swap(address,address,int256,int256,uint160,uint128,int24)` → topic0 `0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67`
-    - ⚠️ **Compute via `ethers.id(eventSignature)` из ABI фрагмента — НЕ hardcode hex** (аудитопригодность, соответствие конвенции `@arbibot/contracts-eth`). Pancake V3 / Biswap V3 форки могут иметь модифицированный Swap event (extra fields) → другой topic — проверить на детализации; MVP scope = canonical UniV2 + UniV3.
+  - **Swap event topic0** (корр. #2 раунда 5) — V2 и V3 **разные signatures → разные topic0**. Topic0 = `ethers.id(eventSignature)` (вычисляется рантайм из ABI фрагмента, НЕ hardcode):
+    - V2-family (UniV2/Sushi/PancakeV2/Biswap): event signature `Swap(address,uint256,uint256,uint256,uint256,address)`
+    - V3-family: event signature `Swap(address,address,int256,int256,uint160,uint128,int24)`
+    - ⚠️ Pancake V3 / Biswap V3 форки могут иметь модифицированный Swap event (extra fields) → другая signature → другой topic — проверить на детализации; MVP scope = canonical UniV2 + UniV3. Literal topic0 hex не приводится здесь умышленно (64-hex строки триггерят secret-scanning как ethereum-private-key; signature → `ethers.id()` — единственный источник правды).
   - **Дефолт OFF** (`filters.volumeRange.enabled=false`); volume filter opt-in.
 - HTTP API: `GET /scanner/instances` (runtime status join с config), `GET /scanner/instances/:id`, `POST /scanner/instances/:id/refresh-config` (force-refresh — корр. #3 раунда 5), `POST /scanner/instances/:id/run` (manual trigger), `GET /scanner/findings`, `GET /scanner/findings/:id`, `POST /scanner/findings/:id/re-publish` (manual re-publish orphan — корр. #6 раунда 5), `GET /scanner/status`, `GET /health`, `GET /metrics`.
 
