@@ -317,7 +317,7 @@ There is **no** `core-backend/` or `operator-frontend/` directory; older docs or
 - **ADR:** [`docs/adr-hermes-agent-integration.md`](docs/adr-hermes-agent-integration.md)
 - **Env vars:** `HERMES_MCP_PORT` (default 4000), `HERMES_AGENT_API_KEY`
 - **D4 deploy-readiness env vars (added 2026-07-12→16):**
-  - **Operator auth (D4-A-1):** `OPERATOR_SESSION_SECRET` (required in prod, JWT signing), `OPERATOR_BOOTSTRAP_TOKEN`, `OPERATOR_SESSION_TTL_SECONDS` (default 28800)
+  - **Operator auth (D4-A-1):** `OPERATOR_SESSION_SECRET` (required in prod, JWT signing), `OPERATOR_BOOTSTRAP_TOKEN`, `OPERATOR_SESSION_TTL_SECONDS` (default 28800), `OPERATOR_COOKIE_SECURE` (added 2026-07-23; `Secure` cookie attribute — default `NODE_ENV === 'production'`, set `false` on a plain-HTTP paper host such as Aéza via SSH-tunnel where the browser would otherwise drop the `Secure` cookie over HTTP; `true`/unset once TLS terminates in front of the app; JWT signing/verification stays fail-closed regardless)
   - **Service auth / mTLS (D4-B-6):** `ARBIBOT_SERVICE_AUTH_ENABLED` (default `true` in prod), `ARBIBOT_SERVICE_AUTH_SECRET` (shared HMAC for inbound guard + outbound `signedFetch`), `HERMES_SIGN_UPSTREAM` (`true` in live → sign hermes-gateway upstream calls)
   - **Logging (D4-C-1):** `LOG_LEVEL` (pino, default `info`), `ARBIBOT_LOG_PRETTY` (set `true` for dev pretty-print)
   - **Kill-switch (D4-B-1):** `DEX_LIVE_KILL_SWITCH` (env override of `dex.limits.killSwitch`), `DEX_KILL_SWITCH_CACHE_TTL_MS`, `DEX_KILL_SWITCH_HTTP_TIMEOUT_MS`
@@ -466,7 +466,7 @@ Shared libraries live under [`packages/`](packages/), especially:
 
 - UI routes: `/dashboard`, `/portfolio`, `/opportunities`, `/execution`, `/tokens`, `/paper`, `/incidents`, `/runbooks`, `/hermes`, **`/settings`** (policy configurations via config-service BFF). Phase 3 slice: `/paper` and `/tokens` include paper trades, promotion candidates, drift samples, discovery candidates with proper mutation flows and operator safety.
 
-Operator session in dev: see `apps/web` middleware / `getOperatorSession` — `ARBIBOT_DEV_ROLE` or `arbibot_role` cookie.
+Operator session in dev: see `apps/web` middleware / `getOperatorSession` — signed JWT cookie `arbibot_session` (D4-A-1), issued by `POST /api/auth/session` after verifying `OPERATOR_BOOTSTRAP_TOKEN`. In production `ARBIBOT_DEV_ROLE` is a no-op (defense-in-depth, F4); it works only when `NODE_ENV !== 'production'`. On a plain-HTTP paper host reachable through an SSH tunnel, set `OPERATOR_COOKIE_SECURE=false` so the browser keeps the `Secure`-less cookie (see [`docs/adr-operator-auth.md`](docs/adr-operator-auth.md) §Operational notes, [`docs/paper-deploy-aeza.md`](docs/paper-deploy-aeza.md) §«Аутентификация на paper-стенде»).
 
 ### Current Phase 1 notes (2026-04-19)
 
@@ -591,3 +591,10 @@ Operator session in dev: see `apps/web` middleware / `getOperatorSession` — `A
 - **`docs/intake-policy-config-keys.md`** — config JSON keys `intake.throttling` / `intake.routing.tiers` (Phase 4)
 - **`docs/paper-promotion-quality-criteria.md`** — Paper promotion quality criteria (P2 prep)
 - **`docs/hermes-operator-api-spec.md`** — hermes operator API specification (Phase 5 gateway)
+
+### Security Documentation
+
+- **[`docs/security-accepted-risks.md`](docs/security-accepted-risks.md)** — living record of Dependabot advisories: closure log (sharp, fast-uri, find-my-way, typeorm — fixed 2026-07-23 via `package.json` overrides) + accepted risks (`@hono/node-server` <2.0.5 — upstream-blocked by `@modelcontextprotocol/sdk@1.29.0` pinning `^1.x`; vulnerable `serve-static` HTTP path unreachable because `hermes-mcp-server` runs on stdio transport). Also documents the npm overrides gotcha (overrides only apply on a fresh resolve — stale `package-lock.json` silently reuses pinned versions).
+- **[`docs/adr-operator-auth.md`](docs/adr-operator-auth.md)** — operator authentication ADR (signed JWT cookie `arbibot_session`, D4-A-1). §Operational notes distinguishes paper-deploy (pm2 + SSH-tunnel, `OPERATOR_COOKIE_SECURE=false`) from internet-exposed deploy (nginx TLS, `Secure` cookie valid); warns against editing auth code on the host outside git.
+- **[`docs/paper-deploy-aeza.md`](docs/paper-deploy-aeza.md)** — Aéza Frankfurt paper-deploy runbook (pm2 stack, 13 services, Hermes runtime). §«Аутентификация на paper-стенде» — login flow (bootstrap-token `/login` + `OPERATOR_COOKIE_SECURE=false`), ready-to-paste checklist, live-path step 3 (re-enable `Secure` under TLS).
+
