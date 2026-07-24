@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@arbibot/contracts": "*",
+    "@arbibot/contracts-eth": "*",
     "@arbibot/nest-database": "*",
     "@arbibot/nest-platform": "*",
     "@arbibot/persistence": "*",

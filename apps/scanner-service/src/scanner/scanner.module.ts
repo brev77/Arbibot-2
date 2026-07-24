@@ -8,14 +8,17 @@ import {
 import { AuditClientService } from '@arbibot/nest-platform';
 
 import { ScannerConfigService } from './scanner-config.service';
+import { ScannerRpcService } from './scanner-rpc.service';
 import { ScannerWorkerService } from './scanner-worker.service';
 
 /**
- * Scanner module (S1-1 / S1-3).
+ * Scanner module (S1-1 / S1-3 / S1-4).
  *
- * Wires the config loader, the idle worker, and the repositories for the two scanner-owned
- * tables (single-writer: scanner-service). HTTP API controllers arrive in S1-7.
+ * Wires the config loader, the read-only RPC provider manager, the idle worker, and the
+ * repositories for the two scanner-owned tables (single-writer: scanner-service). HTTP API
+ * controllers arrive in S1-7.
  *
+ * ScannerRpcService is exported so the local HealthModule can inject it for `GET /health/rpc`.
  * AuditClientService is provided so that future config mutations / status writes can emit
  * audit entries (e.g. the operator force-refresh / manual-run endpoints).
  */
@@ -26,7 +29,7 @@ import { ScannerWorkerService } from './scanner-worker.service';
       ScannerFindingEntity,
     ]),
   ],
-  providers: [ScannerConfigService, ScannerWorkerService, AuditClientService],
-  exports: [ScannerConfigService],
+  providers: [ScannerConfigService, ScannerRpcService, ScannerWorkerService, AuditClientService],
+  exports: [ScannerConfigService, ScannerRpcService],
 })
 export class ScannerModule {}
