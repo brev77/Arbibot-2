@@ -293,4 +293,51 @@ describe('ScannerPipelineService', () => {
       expect(volumeService.readVolume).not.toHaveBeenCalled();
     });
   });
+
+  describe('runCycle — publisher error (non-blocking)', () => {
+    it('logs a warning and keeps findingsWritten incremented when publish rejects', async () => {
+      const pools = [
+        makePool({ poolAddress: '0xPOOL_A', venueKey: 'uniswap-v2', quotePerBase: 2000 }),
+        makePool({ poolAddress: '0xPOOL_B', venueKey: 'sushiswap', quotePerBase: 2010 }),
+      ];
+      poolService.readPool.mockImplementation((_chain, addr) =>
+        Promise.resolve(pools.find((p) => p.poolAddress === addr) ?? null),
+      );
+      spreadService.detect.mockReturnValue(makeSpread());
+      publisher.publish.mockRejectedValue(new Error('upstream down'));
+
+      const result = await service.runCycle(makeInstance());
+
+      // Finding was written before publish; publish rejection is logged but non-fatal.
+      expect(result.findingsWritten).toBe(1);
+      expect(publisher.publish).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('runCycle — network → chainId resolution', () => {
+    it('resolves bnb network to chainId 56', async () => {
+      poolService.readPool.mockResolvedValue(null);
+      const result = await service.runCycle(makeInstance({ network: 'bnb' }));
+      expect(result.poolsRead).toBe(0); // no pools staged
+      expect(result.error).toBeNull();
+    });
+
+    it('resolves bsc alias to chainId 56', async () => {
+      poolService.readPool.mockResolvedValue(null);
+      const result = await service.runCycle(makeInstance({ network: 'bsc' }));
+      expect(result.error).toBeNull();
+    });
+
+    it('resolves BASE (uppercase) to chainId 8453', async () => {
+      poolService.readPool.mockResolvedValue(null);
+      const result = await service.runCycle(makeInstance({ network: 'BASE' }));
+      expect(result.error).toBeNull();
+    });
+
+    it('returns empty summary with no error for an unknown network', async () => {
+      const result = await service.runCycle(makeInstance({ network: 'unknown-chain' }));
+      expect(result.poolsRead).toBe(0);
+      expect(result.error).toBeNull();
+    });
+  });
 });

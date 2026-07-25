@@ -205,6 +205,36 @@ describe('ScannerVolumeService', () => {
     });
   });
 
+  describe('readVolume — reader throws → noneResult (graceful degradation)', () => {
+    it('V3 reader rejection → noneResult via .catch', async () => {
+      const snap = makeSnapshot({ family: 'v3' });
+      // No staged contract → Contract methods reject → readV3Cumulative throws → .catch → none.
+      const vol = await service.readVolume(snap);
+      expect(vol.strategy).toBe('none');
+      expect(vol.volumeUsd).toBeNull();
+    });
+
+    it('V2 reader rejection → noneResult via .catch', async () => {
+      const snap = makeSnapshot({ family: 'v2' });
+      // rpc grants, but getBlockNumber rejects → readV2Logs throws → .catch → none.
+      rpc.tryAcquire.mockReturnValue(true);
+      rpc.getProvider.mockReturnValue({
+        getBlockNumber: jest.fn().mockRejectedValue(new Error('rpc down')),
+      });
+      const vol = await service.readVolume(snap);
+      expect(vol.strategy).toBe('none');
+    });
+  });
+
+  describe('readVolume — V2 tryAcquire denied', () => {
+    it('returns noneResult when the RPC rate budget denies', async () => {
+      const snap = makeSnapshot({ family: 'v2' });
+      rpc.tryAcquire.mockReturnValue(false);
+      const vol = await service.readVolume(snap);
+      expect(vol.strategy).toBe('none');
+    });
+  });
+
   describe('clearBaseline', () => {
     it('drops the V3 baseline so next read re-seeds', async () => {
       stageContract('0xpool', {

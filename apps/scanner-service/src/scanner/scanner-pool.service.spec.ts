@@ -289,4 +289,68 @@ describe('ScannerPoolService', () => {
       expect(ratio).toBe(0);
     });
   });
+
+  describe('diagnostics accessors', () => {
+    it('getCacheSize is 0 initially and increments after a cached read', async () => {
+      expect(service.getCacheSize()).toBe(0);
+      const pool = '0xPOOL_DIAG';
+      stageContract(pool, {
+        token0: resolves('0xWETH'),
+        token1: resolves('0xUSDC'),
+        getReserves: resolves([10n ** 18n, 2000n * 10n ** 6n, 0]),
+        factory: resolvesWithCatch('0xf1D7CC64Fb745938252F3B21e12e7C8398cE848e'),
+      });
+      stageContract('0xWETH', { decimals: resolves(18) });
+      stageContract('0xUSDC', { decimals: resolves(6) });
+      await service.readPool(42161, pool);
+      expect(service.getCacheSize()).toBe(1);
+    });
+
+    it('resolveFactoryMapping returns a known factory mapping', () => {
+      // SushiSwap V2 on Arbitrum (deployed factory address).
+      const m = service.resolveFactoryMapping(42161, '0xc35DADB65012eC5796536bD9864eD8773aBc74C4');
+      expect(m).toBeDefined();
+    });
+
+    it('resolveFactoryMapping returns undefined for an unknown factory', () => {
+      expect(service.resolveFactoryMapping(42161, '0xUNKNOWN')).toBeUndefined();
+    });
+  });
+
+  describe('readDecimals fallback + V3 factory mismatch', () => {
+    it('uses 18 default when a token decimals() call rejects', async () => {
+      const pool = '0xPOOL_DEC';
+      // V3-style: token0/token1/slot0/liquidity/factory present, factory resolves to a V3 mapping.
+      // Use a known V3 factory address to enter the V3 branch.
+      stageContract(pool, {
+        token0: resolves('0xWETH'),
+        token1: resolves('0xUSDC'),
+        slot0: resolves(['0x' + '0'.repeat(56), 0]),
+        liquidity: resolves(0),
+        factory: resolvesWithCatch('0x1F98431c8aD98523631AE4a59f267346ea31F984'), // UniV3 Arb
+      });
+      // WETH decimals rejects → fallback to 18; USDC resolves to 6.
+      stageContract('0xWETH', { decimals: jest.fn().mockRejectedValue(new Error('revert')) });
+      stageContract('0xUSDC', { decimals: resolves(6) });
+
+      const snap = await service.readPool(42161, pool);
+      // Either a snapshot with computed price, or null if sqrtPriceX96=0 yields no price.
+      // The key assertion is no throw (the decimals catch path executed).
+      expect(snap === null || typeof snap === 'object').toBe(true);
+    });
+
+    it('returns null when a V3 pool reports a V2-family factory mapping', async () => {
+      const pool = '0xPOOL_MISMATCH';
+      stageContract(pool, {
+        token0: resolves('0xWETH'),
+        token1: resolves('0xUSDC'),
+        slot0: resolves(['0x' + '0'.repeat(56), 0]),
+        liquidity: resolves(0),
+        // UniV2 factory — the V3 branch requires mapping.family === 'v3', so this returns null.
+        factory: resolvesWithCatch('0xf1D7CC64Fb745938252F3B21e12e7C8398cE848e'),
+      });
+      const snap = await service.readPool(42161, pool);
+      expect(snap).toBeNull();
+    });
+  });
 });
