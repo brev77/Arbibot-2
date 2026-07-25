@@ -403,8 +403,14 @@ From the repo root:
   - `npm run doctor:hermes` — hermes-agent config/env diagnostics (`tools/doctor-hermes-agent.mjs`, Plan 5)
   - `npm run run:hermes` — run hermes-agent locally (`tools/run-hermes-agent.mjs`, Plan 5)
   - `npm run dev:stack` — Docker compose dev stack (`infra/docker-compose.dev.yml`); `npm run dev:stack:hermes-agent` adds the `hermes-agent` profile
+- **Scanner-service operational scripts** (cross-DEX spread detector, port 3021):
+  - `npm run dev:scanner` — start scanner-service in dev mode
+  - `npm run build:scanner` — build `@arbibot/scanner-service`
+  - `npm run seed:scanner-config` — HTTP upsert `scanner.*` keys via config-service (`tools/seed-scanner-config.mjs`)
+  - `npm run ci:scanner-smoke` — static wiring smoke (10 checks; CI gate, `tools/ci-scanner-smoke.sh`)
+  - `npm run e2e:scanner-smoke` — runtime HTTP smoke (health + metrics + read-only endpoints; needs running scanner-service, `tools/e2e-scanner-smoke.mjs`)
 
-Copy [`.env.example`](.env.example) to `.env` and adjust URLs. Typical Nest env: `PORT`, `DATABASE_URL`, `REDIS_URL`, `CORS_ORIGINS`, `KAFKA_BROKERS`, and service-to-service URLs where applicable (e.g. **`RISK_SERVICE_URL`** for `opportunity-service` → risk; **`REDIS_URL`** also for **config-service** cache; optional **`PAPER_TRADING_SERVICE_URL`** for `opportunity-service` → paper promotion enqueue). **`apps/web`** uses **`RISK_API_BASE`**, **`OPPORTUNITY_API_BASE`**, **`CAPITAL_API_BASE`**, **`EXECUTION_API_BASE`**, **`AUDIT_API_BASE`**, **`CONFIG_API_BASE`**, **`PORTFOLIO_API_BASE`**, **`RECONCILIATION_API_BASE`**, **`PAPER_API_BASE`**, **`MARKET_INTAKE_API_BASE`** for upstream HTTP (same defaults as local ports; override per deploy).
+Copy [`.env.example`](.env.example) to `.env` and adjust URLs. Typical Nest env: `PORT`, `DATABASE_URL`, `REDIS_URL`, `CORS_ORIGINS`, `KAFKA_BROKERS`, and service-to-service URLs where applicable (e.g. **`RISK_SERVICE_URL`** for `opportunity-service` → risk; **`REDIS_URL`** also for **config-service** cache; optional **`PAPER_TRADING_SERVICE_URL`** for `opportunity-service` → paper promotion enqueue). **`apps/web`** uses **`RISK_API_BASE`**, **`OPPORTUNITY_API_BASE`**, **`CAPITAL_API_BASE`**, **`EXECUTION_API_BASE`**, **`AUDIT_API_BASE`**, **`CONFIG_API_BASE`**, **`PORTFOLIO_API_BASE`**, **`RECONCILIATION_API_BASE`**, **`PAPER_API_BASE`**, **`MARKET_INTAKE_API_BASE`**, **`SCANNER_API_BASE`** for upstream HTTP (same defaults as local ports; override per deploy).
 
 ### Backend services (`apps/*`)
 
@@ -422,8 +428,9 @@ Copy [`.env.example`](.env.example) to `.env` and adjust URLs. Typical Nest env:
 | reconciliation-service | 3017 |
 | paper-trading-service | 3018 |
 | config-service | 3019 |
+| scanner-service | 3021 |
 
-Each service: `npm run start:dev -w @arbibot/<name>` or use root scripts in [`package.json`](package.json): `dev:risk`, `dev:opportunity`, `dev:capital`, `dev:execution`, `dev:audit`, `dev:canonical`, `dev:intake`, `dev:portfolio`, `dev:reconciliation`, `dev:paper`, **`dev:config`**, **`dev:hermes`**, `dev:web`.
+Each service: `npm run start:dev -w @arbibot/<name>` or use root scripts in [`package.json`](package.json): `dev:risk`, `dev:opportunity`, `dev:capital`, `dev:execution`, `dev:audit`, `dev:canonical`, `dev:intake`, `dev:portfolio`, `dev:reconciliation`, `dev:paper`, **`dev:config`**, **`dev:hermes`**, **`dev:scanner`**, `dev:web`.
 
 Shared libraries live under [`packages/`](packages/), especially:
 
@@ -572,6 +579,7 @@ Operator session in dev: see `apps/web` middleware / `getOperatorSession` — si
 8. **`secret-scan`** — after `actions/checkout` (no `npm ci` needed), runs `npm run ci:key-leakage` (`tools/ci-key-leakage.sh`); static grep for key-leakage patterns (K1/K2 from `dex-security-and-capital-safety` SKILL); **blocking since D4-B-7-SECRET-SCAN** (previously `continue-on-error: true`); complements `.github/gitleaks-config.toml` (pattern guard vs value guard).
 9. **`graphify-check`** — after `build`, rebuilds knowledge graph, uploads `GRAPH_REPORT.md` as artifact (non-blocking, 7-day retention).
 10. **`hermes-agent-smoke`** — after `npm ci`, runs `npm run ci:hermes-agent-smoke` (`tools/ci-hermes-agent-smoke.sh`); regression guard for hermes-agent wiring (correct `gateway run` command, MCP builds + stdio, config shape, doctor read-only); added 2026-07-22 after Plan 5 shipped "7/7 done" without the binary ever running. Real Telegram/GLM round-trip is NOT covered by CI (needs secrets) — manual DoD `H5-G-RUNTIME`.
+11. **`scanner-smoke`** — after `npm ci`, runs `npm run ci:scanner-smoke` (`tools/ci-scanner-smoke.sh`); static wiring smoke for scanner-service (10 checks: build, 13 providers wired, 8 HTTP routes, 11 arb_scanner_* metrics, 8 web BFF routes, api-base, 3 Hermes gateway read-through endpoints, 2 MCP tools, paper-live-boundary PL.3/PL.4). Catches wiring regressions unit tests miss. Full RPC round-trip is the manual DoD in [`docs/scanner-harness-runbook.md`](docs/scanner-harness-runbook.md) §3.
 
 **Review gate (documentation, not a CI job):** [`docs/review-gate-cfg3-paper-discovery.md`](docs/review-gate-cfg3-paper-discovery.md) — required items completed 2026-04-19; optional full bus E2E deferred.
 

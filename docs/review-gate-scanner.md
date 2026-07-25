@@ -177,10 +177,10 @@
 
 ### Architecture / docs
 
-- [ ] Прогнать **architecture-guard-agent** — финальная проверка всех границ.
-- [ ] `docs/architecture-components.md` обновлен: новый сервис в таблице §1, новые single-writer таблицы (`scanner_instances`, `scanner_findings`), `scanner.*` config в §12.
-- [ ] `AGENTS.md` обновлен: порт 3021, env vars (Прил. A `scanner-service-plan.md`), npm scripts (`dev:scanner`, `build:scanner`, `e2e:scanner-smoke`, `ci:scanner-smoke`, `seed:scanner-config`), CI job `scanner-smoke`.
-- [ ] `docs/scanner-runbook.md` создан (operator runbook — deploy, troubleshooting, monitoring).
+- [x] Прогнать **architecture-guard-agent** — финальная проверка всех границ — **APPROVE** (2026-07-25, S5-5-DOCS): single-writer (scanner owns только scanner_instances/findings; opportunity-service sole writer arbitrage_opportunities + OpportunityDetected outbox in same tx; config-service owns scanner.*), mode-agnostic isolation (PL.3/PL.4 CI-гарантия), no capital/key/execution paths, reservation-first N/A (scanner не в execution path).
+- [x] `docs/architecture-components.md` обновлен: новый сервис в таблице §1, §13 hermes scanner endpoints + allowlist, §14a scanner-service full section (single-writer таблицы, HTTP API, config, pipeline, metrics, env), §14 web apiBases/pages/settings, §16 migrations 001-045, §17 pipeline cross-DEX ✅, §18 cross-DEX теперь реализован.
+- [x] `AGENTS.md` обновлен: порт 3021, npm scripts (`dev:scanner`, `build:scanner`, `seed:scanner-config`, `ci:scanner-smoke`, `e2e:scanner-smoke`), `SCANNER_API_BASE`, CI job `scanner-smoke` #11.
+- [x] `docs/scanner-runbook.md` создан (8 секций: что делает, запуск, operations, observability, CI, deploy, troubleshooting, single-writer границы).
 
 ---
 
@@ -188,21 +188,21 @@
 
 ### Single-writer invariant (критично)
 
-- [ ] Scanner пишет **только** `scanner_instances`, `scanner_findings`, in-memory pool-cache.
-- [ ] Scanner НЕ пишет: `market_snapshots`, `arbitrage_opportunities` (только POST /opportunities), `risk_decisions`, `paper_*`, `execution_*`, `capital_*`, `dex_daily_volume`, `dex_pools`.
-- [ ] Config (`scanner.*`) — single-writer config-service (scanner только читает).
+- [x] Scanner пишет **только** `scanner_instances`, `scanner_findings`, in-memory pool-cache — verified (grep: scanner-service не импортирует ArbitrageOpportunityEntity / чужие write-entities).
+- [x] Scanner НЕ пишет: `market_snapshots`, `arbitrage_opportunities` (только POST /opportunities), `risk_decisions`, `paper_*`, `execution_*`, `capital_*`, `dex_daily_volume`, `dex_pools`.
+- [x] Config (`scanner.*`) — single-writer config-service (scanner только читает с TTL cache + force-refresh).
 
 ### Paper/live isolation
 
-- [ ] Scanner НЕ импортирует `@arbibot/paper-trading-service`, paper-модули.
-- [ ] Scanner НЕ импортирует wallet/key path (`WalletManagerService`, `KeyVaultService`, `getEncryptedKey`, `decryptPrivateKey`).
-- [ ] RPC provider — read-only (без wallet, без sign).
-- [ ] `ci-paper-live-boundary.sh` pass (после расширения).
+- [x] Scanner НЕ импортирует `@arbibot/paper-trading-service`, paper-модули — PL.3 CI-гарантия.
+- [x] Scanner НЕ импортирует wallet/key path (`WalletManagerService`, `KeyVaultService`, `getEncryptedKey`, `decryptPrivateKey`) — scanner-service не имеет execution/key DI.
+- [x] RPC provider — read-only (без wallet, без sign).
+- [x] `ci-paper-live-boundary.sh` pass (PL.1-PL.4, incl. scanner↔paper симметрия).
 
 ### Service auth
 
-- [ ] Все outbound HTTP — через `signedFetch` (header `x-arbibot-signature`).
-- [ ] `ARBIBOT_SERVICE_AUTH_SECRET` / `ARBIBOT_SERVICE_AUTH_ENABLED` в env (как все сервисы).
+- [x] Все outbound HTTP — через `signedFetch` (header `x-arbibot-signature`) — publisher, config loader.
+- [x] `ARBIBOT_SERVICE_AUTH_SECRET` / `ARBIBOT_SERVICE_AUTH_ENABLED` в env (как все сервисы).
 
 ### Git workflow
 

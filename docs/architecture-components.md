@@ -38,6 +38,7 @@
 | paper-trading-service | 3018 | `paper_trades`, `paper_promotion_candidates`, `paper_drift_samples`, `paper_capital_reservations`, `paper_discovery_candidates` | Paper-режим: сделки, promotion, drift, discovery |
 | config-service | 3019 | `policy_configurations` | Single-writer конфигов, CRUD + scope/rollback/promote |
 | hermes-gateway | 3020 | — (stateless proxy) | API-gateway для Hermes Agent (GLM/Telegram), прокси + mutations |
+| scanner-service | 3021 | `scanner_instances` (runtime-only), `scanner_findings` | Cross-DEX spread detector → POST /opportunities (mode-agnostic data-provider) |
 
 `apps/web` — Next.js operator UI (порт 3000 Next default), BFF прокси к сервисам выше.
 
@@ -447,8 +448,9 @@ if (activeTotal + requestedUsd > ceiling) → CapitalCeilingExceededError (HTTP 
 ### HTTP API
 - **Read** (`hermes/hermes.controller.ts`, `@UseGuards(HermesAuthGuard)` через `HERMES_API_KEYS`):
   - `GET /hermes/v1/plans` (cursor pagination), `GET /hermes/v1/plans/:id` (+ legs), `GET /hermes/v1/positions`, `GET /hermes/v1/incidents`, `GET /hermes/v1/dashboard/summary` (read-through operator web BFF), `GET /hermes/v1/incident-briefs`, `GET /hermes/v1/approvals-queue`, `GET /hermes/v1/safe-mode/status`.
+  - **Scanner read-through** (S4-4-HERMES): `GET /hermes/v1/scanner/findings` (instanceId/publishStatus/limit), `/scanner/findings/:id`, `/scanner/status` → scanner-service `/scanner/*` via `getScannerApiBase()` (`SCANNER_API_BASE`).
 - **Config read** (`hermes/hermes-config.controller.ts` `HermesConfigReadController`): `GET /hermes/v1/config/*` — read-only proxy к config-service, **без allowlist** (можно читать sensitive).
-- **Config mutation** (`HermesConfigMutationController` + `HermesMutationRateLimitGuard`): `PUT /hermes/v1/config/:configKey`, `POST .../rollback`, `/promote`, `PATCH .../status`. **Apply allowlist** (`config-allowlist.ts`): только безопасные ключи (`intake.*`, `paper.*`, `opportunity.*`, `dex.*`, `features.*`); `risk.*`/`execution.*`/`capital.*` → **403**.
+- **Config mutation** (`HermesConfigMutationController` + `HermesMutationRateLimitGuard`): `PUT /hermes/v1/config/:configKey`, `POST .../rollback`, `/promote`, `PATCH .../status`. **Apply allowlist** (`config-allowlist.ts`): только безопасные ключи (`intake.*`, `paper.*`, `opportunity.*`, `dex.*`, `features.*`, `scanner.*`); `risk.*`/`execution.*`/`capital.*` → **403**.
 - **Operator mutations** (`hermes/hermes-mutation.controller.ts`): `POST /hermes/v1/plans/:id/arm`, `/execute`, `positions/:id/close`, `incidents/:id/resolve`, `safe-mode/enable`, `/disable`.
 - **Safe-mode** (`safe-mode.service.ts`) — stateful (in-memory or DB), gating mutations.
 
@@ -467,18 +469,17 @@ if (activeTotal + requestedUsd > ceiling) → CapitalCeilingExceededError (HTTP 
 Полный список (39 routes) — см. вывод find выше. Канон: `proxyUpstream(${apiBases.X}/path)` (`lib/operator-bff-proxy.ts`) ИЛИ session-checked manual fetch.
 
 ### apiBases (`lib/api-base.ts`)
-`risk, opportunity, capital, execution, audit, portfolio, reconciliation, paper, config, marketIntake` — из `*_API_BASE` env. **Нет scanner/canonical/hermes** (hermes через catch-all `[[...path]]`).
+`risk, opportunity, capital, execution, audit, portfolio, reconciliation, paper, config, marketIntake, scanner` — из `*_API_BASE` env. canonical/hermes не имеют apiBases-entrance (hermes через catch-all `[[...path]]`).
 
 ### Pages (`app/(operator)/`)
-`dashboard, portfolio, opportunities[/:id], execution[/:id], tokens, paper, incidents, runbooks, hermes, settings` + `login`, root redirect.
+`dashboard, portfolio, opportunities[/:id], execution[/:id], tokens, paper, scanners, incidents, runbooks, hermes, settings` + `login`, root redirect. **`/scanners`** (S4-3-UI) — таблица инстансов + findings drilldown (→ `/opportunities/[id]`), Run/Refresh-config/re-publish actions.
 
 ### Settings (`/settings`)
 - `components/settings-workspace.tsx` — tabs: overview, policies, intake, paper, dex, extensions, diagnostics.
 - **Policy registry** (`lib/policy-config-registry.ts`) — canonical список config-ключей с zod-схемами для валидации:
-  - Зарегистрированы: `intake.throttling`, `intake.routing.tiers`, `paper.discovery`, `opportunity.filters`, `risk.evaluation`, `risk.limits.bundle`, `execution.plan`, `capital.reservation`, `features.flags`.
-  - **`scanner.*` НЕ зарегистрирован** (нет в реестре → нет в Extensions catalog).
+  - Зарегистрированы: `intake.throttling`, `intake.routing.tiers`, `paper.discovery`, `opportunity.filters`, `risk.evaluation`, `risk.limits.bundle`, `execution.plan`, `capital.reservation`, `features.flags`, **`scanner.defaults`**, **`scanner.instances`** (S0-6-REGISTRY).
   - `validateConfigJson(key, rawJson)` — zod safeParse перед save.
-- Structured editors в `components/settings-policy-editor-panels.tsx` (например `PaperDiscoveryPanel`).
+- Structured editors в `components/settings-policy-editor-panels.tsx` (например `PaperDiscoveryPanel`). scanner.instances сегодня редактируется через Extensions catalog JSON editor (struct editor — backlog).
 
 ### React Query
 - `lib/query-client.ts` — `staleTime: 10s`, `gcTime: 5min`, `refetchOnWindowFocus: false`.
@@ -495,6 +496,44 @@ if (activeTotal + requestedUsd > ceiling) → CapitalCeilingExceededError (HTTP 
 - `ARBIBOT_DEV_ROLE` — **no-op в production** (defense-in-depth, F4: `NODE_ENV !== 'production'` guard). Работает только в dev.
 - Cookie-атрибуты: `httpOnly: true`, `sameSite: 'lax'`, `path: '/'`, **`secure`** — определяется `cookieSecure()` (`lib/auth/session.ts`): default `NODE_ENV === 'production'`, override через env **`OPERATOR_COOKIE_SECURE`** (`true`/`1` → secure; `false`/`0` → plain для paper-HTTP-через-SSH-туннель; невалидное → default). JWT signing/verification (`getSessionSecret`) остаётся fail-closed в production независимо.
 - `OPERATOR_SESSION_SECRET` (≥32 bytes, required in prod), `OPERATOR_BOOTSTRAP_TOKEN`, `OPERATOR_SESSION_TTL_SECONDS` (28800). На paper-стенде Aéza: `OPERATOR_COOKIE_SECURE=false` (см. [`docs/paper-deploy-aeza.md`](paper-deploy-aeza.md) §«Аутентификация»).
+
+---
+
+## 14a. scanner-service
+
+**Назначение:** автономный cross-DEX spread detector — **mode-agnostic data-provider** (ни paper, ни live). Запустили → ищет → публикует findings через `POST /opportunities` → STOP. Решение live/paper — в существующем pipeline (оператор/риск/execution). См. [`docs/scanner-service-plan.md`](scanner-service-plan.md), [`docs/adr-scanner-service.md`](adr-scanner-service.md).
+
+### Single-writer (владение)
+- `scanner_instances` (table) — runtime-only status (instance_id, last_run_at, status, cycles_total, findings_total, last_cycle_latency_ms). **Без config-полей, без `enabled`** (config в config-service). Upsert each cycle.
+- `scanner_findings` (table) — найденные cross-venue deals: spread_bps, gross/net_profit_usd, fees_usd, buy/sell_venue + pool_addr, opportunity_id (FK после POST /opportunities), publish_status (pending|published|failed), publish_attempts. Retention worker (S5-2) удаляет старше `scanner.defaults.findingsRetentionDays` (default 7).
+
+### HTTP API (`scanner.controller.ts`, `/scanner/*`)
+- **Read**: `GET /scanner/instances` (config join runtime), `/instances/:id`, `/findings` (instanceId/publishStatus/limit filters), `/findings/:id`, `/status` (worker runtime: scheduled/running ids, isShuttingDown).
+- **Mutations**: `POST /scanner/instances/:id/refresh-config` (force-refresh config cache), `/instances/:id/run` (manual cycle trigger), `/findings/:id/re-publish` (manual publish retry — operator fallback for orphan worker).
+- Health: `GET /health`, `GET /metrics` (arb_scanner_*).
+
+### Config (`scanner.*` in config-service)
+- `scanner.defaults` — fallback filters (minSpreadBps, minLiquidityUsd, volumeRange, blacklistTokens, allowedChains, quoteAssets) + RPC budget + retention + orphan retry settings.
+- `scanner.instances` — массив инстансов (id, network, strategy, interval_ms, filters, poolWhitelist, enabled). Operator управляет через `/settings` или Hermes (Telegram).
+
+### Pipeline (per cycle, per instance)
+read pools (RPC, rate-limited) → cross-venue spread → volume (if filter on) → filters → dedup → WRITE findings + UPSERT instances → POST /opportunities → save opportunity_id. На failure: retry (3× exp backoff) → `publish_status=failed` → orphan worker (max 5 cumulative) → manual re-publish.
+
+### Reads (не владеет)
+- On-chain RPC (Arb/Base/BNB) — read-only, изолированный budget `RPC_SCANNER_*_URL` (fallback shared `RPC_*_URL`).
+- config-service `scanner.*` (TTL cache 30s, force-refresh endpoint).
+- canonical-market-service `POST /market/resolve-instrument` (point-lookup; enumeration endpoint отсутствует — pool universe = whitelist в config).
+- risk-service (опц. pre-filter) `GET /policy/token-profiles`, `/route-profiles`.
+
+### Outbound (signedFetch)
+- `POST /opportunities` (rich payload — заполняет spreadBps/profitUsd/feesUsd/volumeUsd/token/chain/quoteAsset/buyVenue/sellVenue/routeKey/instrumentKey) → scanner-service (Phase 3b) пишет `arbitrage_opportunities` + `OpportunityDetected` outbox.
+- `POST /audit/entries` через `AuditClientService`.
+
+### Metrics (`arb_scanner_*`)
+cycles_total, spreads_detected_total, findings_written/filtered_total, spread_bps (hist), volume_usd (hist), rpc_latency_ms (hist), rpc_rate_limited_total, rpc_failures_total, rpc_tokens_available (gauge), opportunities_published_total, opportunity_publish_failed_total{reason: config/http_5xx/http_4xx/timeout/network/bad_response}, orphan_republish_total{status: success/failed/exhausted}, pool_cache_hits/misses_total, pool_cache_hit_ratio (gauge), volume_revert_total, volume_reads/log_scans_total, findings_cleaned_total.
+
+### Env vars
+`PORT` (3021), `DATABASE_URL`, `RPC_SCANNER_{ARBITRUM,BASE,BNB}_URL` (+ `_BACKUP_URL`), `SCANNER_RPC_RATE_LIMIT_RPS` (10), `CONFIG_API_BASE`/`CONFIG_SERVICE_URL` (3019), `OPPORTUNITY_SERVICE_URL` (3010), `CANONICAL_MARKET_SERVICE_URL` (3014), `RISK_SERVICE_URL` (3000, опц.), `SCANNER_POOL_CACHE_TTL_MS` (30000), `SCANNER_CONFIG_CACHE_TTL_MS` (30000), `SCANNER_FINDINGS_RETENTION_DAYS` (7), `SCANNER_RETENTION_INTERVAL_MS` (3600000), `SCANNER_RETENTION_ENABLED` (true), `SCANNER_ORPHAN_*`, `SCANNER_OPPORTUNITY_PUBLISH_TIMEOUT_MS` (5000), `ARBIBOT_SERVICE_AUTH_SECRET`/`ARBIBOT_SERVICE_AUTH_ENABLED`, `LOG_LEVEL`/`ARBIBOT_LOG_PRETTY`.
 
 ---
 
@@ -557,7 +596,7 @@ if (activeTotal + requestedUsd > ceiling) → CapitalCeilingExceededError (HTTP 
 - Применяется в `LegsService.markSent` только для live legs (`isLiveVenueKey(venueKey)` || bridge leg).
 
 ### Миграции
-001–043. Ключевые таблицы: см. раздел 1 (single-writer mapping).
+001–045. Ключевые таблицы: см. раздел 1 (single-writer mapping). **044_scanner.sql** + **045_scanner_config_seed.sql** — scanner-service tables + config seed (S0-4/S0-5).
 
 ### Dependency security (overrides, 2026-07-23)
 - `package.json` **`overrides`** пиннят transitive-зависимости для закрытия Dependabot advisories: `fast-uri ^3.1.4`, `find-my-way ^9.7.0`, `sharp ^0.35.0`, плюс nested `next.postcss`, `@istanbuljs/load-nyc-config.js-yaml`.
@@ -575,9 +614,11 @@ market-intake: POST /snapshots/ingest → market_snapshots + SnapshotUpdated out
   ↓ (paper-trading-service тянет /snapshots/fresh)
 paper-trading: paper_discovery_candidates → paper_trades (virtual)
 
-[opportunity detection — СЕГОДНЯ нет автоматического cross-DEX]
-  ↓
+[opportunity detection — cross-DEX spread detector: scanner-service (apps/scanner-service, port 3021)]
+  │ read on-chain RPC (per-venue prices) → spread → filters → dedup → scanner_findings
+  ↓ POST /opportunities (rich payload, signedFetch)
 opportunity-service: POST /opportunities → arbitrage_opportunities (state=detected)
+  └─ Phase 3b: writes OpportunityDetected outbox (observability; does NOT drive detected→risk_checked)
   ├─ enrich (detected→enriched)
   ├─ request-risk-evaluation → risk-service POST /evaluate-risk → risk_decisions + RiskDecisionIssued outbox
   │    ↓ (OutboxRelay: RiskDecisionIssued → opportunity state=risk_checked)
@@ -608,8 +649,8 @@ reconciliation-service: POST /mismatches/run-detectors → reconciliation_mismat
 
 | Возможность | Статус | Где проверено |
 |---|---|---|
-| **Cross-DEX арбитраж** (сравнение цен 2 venue → opportunity) | **0 кода** | grep `spread`/`buyVenue`/`comparePrice` = 0 producer |
-| **Scanner service / scanner.config / arbitrage_pairs** | **0** | grep `scanner`/`arbitrage_pairs` в apps/ = 0 |
+| **Cross-DEX арбитраж** (сравнение цен 2 venue → opportunity) | ✅ **scanner-service** (apps/scanner-service, port 3021) | Phase 0-5 done (2026-07-25). Cross-venue spread detector → POST /opportunities. См. §14a, [`docs/scanner-service-plan.md`](scanner-service-plan.md). |
+| **Scanner service / scanner.config / arbitrage_pairs** | ✅ **scanner-service** | `scanner.instances` + `scanner.defaults` config keys (config-service); `scanner_instances`/`scanner_findings` tables (migration 044). |
 | **Per-venue цены** (цена WETH на uniswap-v3 vs sushiswap отдельно) | **0** | `PriceOracle.getTokenPriceUsd` отдаёт 1 каноническую цену |
 | **`slot0()` для UniV3 pricing** | **не вызывается** | `pool-discovery.service.ts`: ABI декларирует slot0 (`:214`), но в `Promise.all` его нет — читается только `liquidity()` (`:229`), `reserve0=reserve1=BigInt(liquidity)` (`:236-237`) — это не цена, а фантомные равные числа. Цена V3-пула из `DiscoveredPool` **невозможна** |
 | **Различение Sushi от UniV2 в discovery-слое** | **нет** | `PoolDiscoveryService` ставит `protocol='uniswap-v2'` для обоих (`:192`). НО execution-слой различает их по venueKey (`venue-factory.service.ts:241`, `SushiSwapV2Adapter`, `allowedProtocols` включает `'sushiswap'`). **Разрыв между discovery и execution**: venueKey (execution) ≠ protocol (discovery) |
