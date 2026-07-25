@@ -17,9 +17,9 @@ describe('MCP Tools Registration', () => {
     client = new HermesClient({ gatewayUrl: 'http://localhost:3020', apiKey: 'test' });
   });
 
-  it('should register exactly 22 tools', () => {
+  it('should register exactly 24 tools', () => {
     registerTools(mockServer, client);
-    expect(registeredTools).toHaveLength(22);
+    expect(registeredTools).toHaveLength(24);
   });
 
   it('should register all expected tool names', () => {
@@ -39,11 +39,13 @@ describe('MCP Tools Registration', () => {
       'get_effective_config',
       'get_plan',
       'get_safe_mode_status',
+      'get_scanner_status',
       'list_configs',
       'list_incident_briefs',
       'list_incidents',
       'list_plans',
       'list_positions',
+      'list_scanner_findings',
       'promote_config',
       'resolve_incident',
       'rollback_config',
@@ -148,6 +150,37 @@ describe('MCP Tool Handlers', () => {
     const result = (await handler({})) as { content: Array<{ text: string }> };
     const parsed = JSON.parse(result.content[0]!.text);
     expect(parsed.incidents).toBe(3);
+  });
+
+  it('list_scanner_findings should call GET /scanner/findings with query', async () => {
+    const mockFetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve([{ id: 'f1', spreadBps: 30 }]),
+    });
+    jest.spyOn(globalThis, 'fetch').mockImplementation(mockFetch);
+
+    const handler = capturedHandlers.get('list_scanner_findings')!;
+    const result = (await handler({ instanceId: 'arb-2venue-1', limit: 5 })) as {
+      content: Array<{ text: string }>;
+    };
+    const parsed = JSON.parse(result.content[0]!.text);
+    expect(parsed).toEqual([{ id: 'f1', spreadBps: 30 }]);
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringMatching(/\/scanner\/findings\?instanceId=arb-2venue-1&limit=5/),
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('get_scanner_status should call GET /scanner/status', async () => {
+    jest.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ runningInstanceIds: ['arb-2venue-1'] }),
+    } as Response);
+
+    const handler = capturedHandlers.get('get_scanner_status')!;
+    const result = (await handler({})) as { content: Array<{ text: string }> };
+    const parsed = JSON.parse(result.content[0]!.text);
+    expect(parsed.runningInstanceIds).toEqual(['arb-2venue-1']);
   });
 
   it('tool handler should propagate gateway errors', async () => {

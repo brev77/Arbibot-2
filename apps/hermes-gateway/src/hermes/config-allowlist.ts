@@ -20,6 +20,7 @@ export const ALLOWED_CONFIG_KEY_PATTERNS: ReadonlyArray<RegExp> = [
   /^opportunity\./,
   /^dex\./,
   /^features\./,
+  /^scanner\./,
 ];
 
 /**
@@ -50,6 +51,6 @@ export function assertConfigKeyAllowed(configKey: string): void {
   const sensitive = BLOCKED_CONFIG_KEY_PATTERNS.some((re) => re.test(configKey));
   const reason = sensitive
     ? `Hermes не может менять sensitive-ключ «${configKey}» (risk/execution/capital). Используйте UI /settings.`
-    : `Hermes не может менять ключ «${configKey}» — нет в allowlist (intake/paper/opportunity/dex/features).`;
+    : `Hermes не может менять ключ «${configKey}» — нет в allowlist (intake/paper/opportunity/dex/features/scanner).`;
   throw new ForbiddenException({ error: 'CONFIG_KEY_NOT_ALLOWED', message: reason });
 }

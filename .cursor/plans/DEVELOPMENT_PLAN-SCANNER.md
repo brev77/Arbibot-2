@@ -1,8 +1,8 @@
 # Arbibot 2 — План: Scanner Service (cross-DEX детектор)
 
-**Прогресс:** 23/24 (Phase 0 ✅, Phase 1 ✅, Phase 2 ✅, Phase 3 ✅, S4-1 ✅, S4-2 ✅, S4-3 ✅) | **Обновлено:** 2026-07-25 | **Детали шагов:** интегрированы в индекс ниже (план компактный, без подпапок шагов).
+**Прогресс:** 24/24 (Phase 0 ✅, Phase 1 ✅, Phase 2 ✅, Phase 3 ✅, Phase 4 ✅) | **Обновлено:** 2026-07-25 | **Детали шагов:** интегрированы в индекс ниже (план компактный, без подпапок шагов).
 
-> **Статус плана:** Phase 0-3 + S4-1-METRICS + S4-2-BFF + S4-3-UI завершены. Next: S4-4-HERMES → Phase 5 (config seed, retention, PM2, CI, docs).
+> **Статус плана:** Phase 0-4 завершены (включая Hermes integration). Next: Phase 5 (config seed, retention, PM2, CI, docs) — ops readiness.
 > **Архитектурный план-источник:** [`docs/scanner-service-plan.md`](../../docs/scanner-service-plan.md) (v4, 17 зафиксированных решений).
 > **Harness-спутники:** [`docs/scanner-harness-runbook.md`](../../docs/scanner-harness-runbook.md) (CI/e2e/verify процессы), [`docs/review-gate-scanner.md`](../../docs/review-gate-scanner.md) (review-gate чеклист).
 
@@ -86,7 +86,7 @@
 | `S4-1-METRICS` | Все `arb_scanner_*` metrics (cycles, findings, spread_bps, volume_usd, rpc_latency, rpc_rate_limited, publish_failed, orphan_republish, pool_cache_hit_ratio, volume_revert). | done | `GET /metrics` отдаёт все метрики с labels — 184/184 tests pass (включая 14 новых metric-тестов); build + lint green. Новые: `opportunities_published_total{instance}`, `opportunity_publish_failed_total{instance,reason}` (reason: config/http_5xx/http_4xx/timeout/network/bad_response), `spread_bps{instance}` histogram, `volume_usd{instance,window}` histogram, `pool_cache_hit_ratio` gauge |
 | `S4-2-BFF` | `apps/web/app/api/operator/scanners/`: instances, instances/[id], findings, findings/[id], status. `scanner` в `apps/web/lib/api-base.ts`. | done | BFF routes проксируют, session-check работает — 8 routes зарегистрированы в build (instances/findings GET, refresh-config/run/re-publish POST, status); `scanner-bff.ts` helper + `getOperatorSession()` + `x-operator-id`; build + lint green; `SCANNER_API_BASE` в `.env.example` |
 | `S4-3-UI` | `/scanners` page: таблица инстансов (config join runtime), findings drilldown (→ opportunity link). nav link в `operator-nav.tsx`. `/settings`: `scanner.instances` editor. | done | frontend-review-agent pass; `/scanners` рендерится, drilldown работает — components (scanners-workspace + scanner-instances-table + scanner-findings-table), `scanner-types.ts`, query keys (`operatorKeys.scanner*`), React Query polling (status 5s, instances/findings 15s) + invalidation on mutations; nav link minRole:operator; `scanner.instances` уже виден в `/settings` Extensions catalog (struct editor — backlog enhancement); build + lint green (0 errors) |
-| `S4-4-HERMES` | Hermes integration: gateway read-through (`GET /hermes/v1/scanner/findings`, `/status`, `/findings/:id`) + `SCANNER_API_BASE`; MCP tool `list_scanner_findings` (+ опц. get_scanner_status, get_top_findings); config-allowlist добавить `scanner.*`; skill `tools/hermes-agent/skills/scanner-status.md`. | todo | hermes-agent-smoke CI pass; MCP tool отвечает; skill формат соответствует |
+| `S4-4-HERMES` | Hermes integration: gateway read-through (`GET /hermes/v1/scanner/findings`, `/status`, `/findings/:id`) + `SCANNER_API_BASE`; MCP tool `list_scanner_findings` (+ опц. get_scanner_status, get_top_findings); config-allowlist добавить `scanner.*`; skill `tools/hermes-agent/skills/scanner-status.md`. | done | hermes-agent-smoke CI pass; MCP tool отвечает; skill формат соответствует — 3 gateway endpoints + `getScannerApiBase()`; 2 MCP tools (list_scanner_findings, get_scanner_status) → 24 total; `scanner.*` в config-allowlist; skill `scanner-status.md`; build + lint + ci:hermes-agent-smoke pass (56 MCP tests) |
 
 ### Phase 5 — Config + Ops
 

@@ -42,3 +42,13 @@ export function getConfigApiBase(): string {
     process.env.CONFIG_API_BASE ?? 'http://127.0.0.1:3019',
   );
 }
+
+/**
+ * scanner-service base (S4-4-HERMES).
+ * Used by `/hermes/v1/scanner/*` read-through routes to proxy to `/scanner/*`.
+ */
+export function getScannerApiBase(): string {
+  return normalizeBase(
+    process.env.SCANNER_API_BASE ?? 'http://127.0.0.1:3021',
+  );
+}

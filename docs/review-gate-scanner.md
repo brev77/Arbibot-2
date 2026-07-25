@@ -144,10 +144,10 @@
 
 ### Hermes
 
-- [ ] Hermes Gateway read-through: `GET /hermes/v1/scanner/findings`, `/status`, `/findings/:id`. `SCANNER_API_BASE` в `hermes-env.ts`.
-- [ ] MCP tool `list_scanner_findings` (+ опц. `get_scanner_status`, `get_top_findings`) в `packages/hermes-mcp-server`.
-- [ ] Hermes config mutation allowlist (`config-allowlist.ts`): добавлен `scanner.*`.
-- [ ] Skill `tools/hermes-agent/skills/scanner-status.md` соответствует формату остальных skills.
+- [x] Hermes Gateway read-through: `GET /hermes/v1/scanner/findings`, `/scanner/findings/:id`, `/scanner/status`. `getScannerApiBase()` в `hermes-env.ts` (`SCANNER_API_BASE`, default 3021) — **S4-4 done (2026-07-25)**.
+- [x] MCP tool `list_scanner_findings` (+ `get_scanner_status`) в `packages/hermes-mcp-server/src/tools/scanner.ts` — 24 tools total (22→24); handler tests pass.
+- [x] Hermes config mutation allowlist (`config-allowlist.ts`): добавлен `scanner.*` (operator может менять `scanner.instances`/`scanner.defaults` через Telegram).
+- [x] Skill `tools/hermes-agent/skills/scanner-status.md` соответствует формату остальных skills (frontmatter name/description/readonly/tools + trigger patterns + call sequence + answer format).
 
 ### Verify
 

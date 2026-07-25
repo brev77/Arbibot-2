@@ -16,6 +16,7 @@ import {
   getOperatorWebBffBase,
   getPortfolioApiBase,
   getReconciliationApiBase,
+  getScannerApiBase,
 } from './hermes-env';
 import { IncidentBriefsService } from './incident-briefs.service';
 import { HermesUpstreamService } from './hermes-upstream.service';
@@ -239,6 +240,76 @@ export class HermesController {
   @Get('safe-mode/status')
   async safeModeStatus(): Promise<{ safeMode: Awaited<ReturnType<SafeModeService['getState']>> }> {
     return { safeMode: await this.safeMode.getState() };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Scanner-service read-through (S4-4-HERMES)
+  // Proxies `/hermes/v1/scanner/*` → scanner-service `/scanner/*`. Read-only —
+  // scanner mutations (run / refresh-config / re-publish) stay on the operator
+  // UI BFF where the operator session is enforced; Hermes only summarizes.
+  // ─────────────────────────────────────────────────────────────────────
+
+  /** Latest scanner findings, optionally filtered by instance / publish status. */
+  @Get('scanner/findings')
+  async scannerFindings(
+    @Req() req: ReqWithCorr,
+    @Query('instanceId') instanceId?: string,
+    @Query('publishStatus') publishStatus?: string,
+    @Query('limit') limitStr?: string,
+  ): Promise<unknown> {
+    const base = getScannerApiBase();
+    const params = new URLSearchParams();
+    if (instanceId !== undefined && instanceId.length > 0) {
+      params.set('instanceId', instanceId);
+    }
+    if (publishStatus !== undefined && publishStatus.length > 0) {
+      params.set('publishStatus', publishStatus);
+    }
+    const lim =
+      limitStr !== undefined && limitStr.length > 0
+        ? Math.min(100, Math.max(1, Number.parseInt(limitStr, 10) || 50))
+        : 50;
+    params.set('limit', String(lim));
+    const qs = params.toString().length > 0 ? `?${params.toString()}` : '';
+    const result = await this.upstream.getJson(
+      `${base}/scanner/findings${qs}`,
+      getCorrelationId(req),
+    );
+    if (result.status >= 400) {
+      throw new HttpException(asExceptionBody(result.json), result.status);
+    }
+    return result.json;
+  }
+
+  /** Single scanner finding by id (for drilldown from a summary). */
+  @Get('scanner/findings/:id')
+  async scannerFinding(
+    @Req() req: ReqWithCorr,
+    @Param('id') id: string,
+  ): Promise<unknown> {
+    const base = getScannerApiBase();
+    const result = await this.upstream.getJson(
+      `${base}/scanner/findings/${encodeURIComponent(id)}`,
+      getCorrelationId(req),
+    );
+    if (result.status >= 400) {
+      throw new HttpException(asExceptionBody(result.json), result.status);
+    }
+    return result.json;
+  }
+
+  /** Scanner worker runtime status (scheduled / running instance ids). */
+  @Get('scanner/status')
+  async scannerStatus(@Req() req: ReqWithCorr): Promise<unknown> {
+    const base = getScannerApiBase();
+    const result = await this.upstream.getJson(
+      `${base}/scanner/status`,
+      getCorrelationId(req),
+    );
+    if (result.status >= 400) {
+      throw new HttpException(asExceptionBody(result.json), result.status);
+    }
+    return result.json;
   }
 }
 
