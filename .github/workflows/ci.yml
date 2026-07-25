@@ -67,12 +67,18 @@ jobs:
 
   scanner-smoke:
     runs-on: ubuntu-latest
+    needs: build
     # Scanner-service wiring smoke (Phase 5 regression guard). Static checks that the module
     # wires all providers, the 8 HTTP routes exist, all arb_scanner_* metrics are registered,
     # the web BFF + Hermes gateway read-through + MCP tools are plumbed, and the paper-live
     # import boundary covers scanner↔paper symmetry (PL.3/PL.4). Catches the class of wiring
     # gap that unit tests miss. Full RPC round-trip is the manual DoD in
     # docs/scanner-harness-runbook.md §3 (needs RPC secrets + running services).
+    #
+    # `needs: build` gates on lint+build+test passing; we still rebuild here because each job
+    # starts from a fresh checkout (no dist/ carried over). scanner-service depends on
+    # @arbibot/contracts + @arbibot/persistence + @arbibot/nest-platform, so `npm run build`
+    # (turbo) must assemble those workspace packages before `tsc -p scanner-service` can resolve.
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -81,6 +87,8 @@ jobs:
           cache: 'npm'
       - name: Install dependencies
         run: npm ci
+      - name: Build workspace (contracts/persistence/nest-platform → scanner-service)
+        run: npm run build
       - name: Scanner-service wiring smoke
         run: bash tools/ci-scanner-smoke.sh
 
