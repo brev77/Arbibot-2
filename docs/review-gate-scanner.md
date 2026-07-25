@@ -138,7 +138,8 @@
 
 ### Observability
 
-- [ ] Все `arb_scanner_*` metrics отдаются на `/metrics` (cycles, findings, spread_bps, volume_usd, rpc_latency, rpc_rate_limited, publish_failed, orphan_republish, pool_cache_hit_ratio, volume_revert).
+- [x] Все `arb_scanner_*` metrics отдаются на `/metrics` (cycles, findings, spread_bps, volume_usd, rpc_latency, rpc_rate_limited, publish_failed, orphan_republish, pool_cache_hit_ratio, volume_revert) — **S4-1 done (2026-07-25)**: 184/184 tests, build+lint green.
+- [x] Metric `arb_scanner_opportunity_publish_failed_total{instance,reason}` — расширена с `{instance}` до `{instance,reason}` (reason: config/http_5xx/http_4xx/timeout/network/bad_response); publisher sole-owner failed-counter (orphan-worker больше не double-counts, использует `orphan_republish_total{status: success|failed|exhausted}`).
 - [ ] (опц.) Dashboard summary widget: top active findings count.
 
 ### Hermes

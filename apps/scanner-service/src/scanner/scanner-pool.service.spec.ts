@@ -249,5 +249,44 @@ describe('ScannerPoolService', () => {
       const snap = await service.readPool(42161, pool);
       expect(snap).toBeNull();
     });
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Metrics (S4-1-METRICS): pool cache hit-ratio gauge
+    // ─────────────────────────────────────────────────────────────────────
+    const cacheRatio = async (chainId: string): Promise<number> => {
+      const metrics = await getArbibotMetricsRegistry().getMetricsAsJSON();
+      const m = metrics.find((x) => x.name === 'arb_scanner_pool_cache_hit_ratio');
+      if (m === undefined) return 0;
+      const values = (m.values ?? []) as Array<{
+        labels: Record<string, string>;
+        value: number;
+      }>;
+      const hit = values.find((v) => v.labels.chain_id === chainId);
+      return hit?.value ?? 0;
+    };
+
+    it('exposes pool_cache_hit_ratio gauge reflecting hits/(hits+misses)', async () => {
+      const pool = '0xPOOL_RATIO';
+      stageContract(pool, {
+        token0: resolves('0xWETH'),
+        token1: resolves('0xUSDC'),
+        getReserves: resolves([10n ** 18n, 2000n * 10n ** 6n, 0]),
+        factory: resolvesWithCatch('0xf1D7CC64Fb745938252F3B21e12e7C8398cE848e'),
+      });
+      stageContract('0xWETH', { decimals: resolves(18) });
+      stageContract('0xUSDC', { decimals: resolves(6) });
+
+      // 1st read: miss (fetch). 2nd + 3rd: hits. → ratio = 2/3.
+      await service.readPool(42161, pool); // miss
+      await service.readPool(42161, pool); // hit
+      await service.readPool(42161, pool); // hit
+      const ratio = await cacheRatio('42161');
+      expect(ratio).toBeCloseTo(2 / 3, 5);
+    });
+
+    it('pool_cache_hit_ratio is 0 before any access', async () => {
+      const ratio = await cacheRatio('42161');
+      expect(ratio).toBe(0);
+    });
   });
 });

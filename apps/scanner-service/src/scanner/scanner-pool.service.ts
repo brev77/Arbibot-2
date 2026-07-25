@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Contract } from 'ethers';
-import { Counter } from 'prom-client';
+import { Counter, Gauge } from 'prom-client';
 import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
 
 import {
@@ -67,6 +67,7 @@ interface ScannerPoolMetrics {
   cacheHits: Counter<string>;
   cacheMisses: Counter<string>;
   volumeReverts: Counter<string>;
+  cacheHitRatio: Gauge<string>;
 }
 
 /** Build the scanner pool metrics on the shared registry (idempotent on re-registration). */
@@ -83,8 +84,31 @@ function createScannerPoolMetrics(): ScannerPoolMetrics {
   const cacheHits = make('arb_scanner_pool_cache_hits_total', 'Scanner pool-read cache hits');
   const cacheMisses = make('arb_scanner_pool_cache_misses_total', 'Scanner pool-read cache misses');
   const volumeReverts = make('arb_scanner_volume_revert_total', 'Scanner V3 volumeToken0/1 reverts (fork/testnet without the getter)');
-  const result: ScannerPoolMetrics = { cacheHits, cacheMisses, volumeReverts };
+  const cacheHitRatio =
+    (reg.getSingleMetric('arb_scanner_pool_cache_hit_ratio') as Gauge<string> | undefined) ??
+    new Gauge({
+      name: 'arb_scanner_pool_cache_hit_ratio',
+      help: 'Cumulative scanner pool-read cache hit ratio (hits / (hits + misses))',
+      labelNames: ['chain_id'],
+      registers: [reg],
+    });
+  const result: ScannerPoolMetrics = { cacheHits, cacheMisses, volumeReverts, cacheHitRatio };
   return result;
+}
+
+/**
+ * Recompute the cache hit ratio gauge from locally-tracked counters. We mirror hits/misses
+ * in plain numbers (rather than reading them back from the prom-client Counter, whose `.get()`
+ * is async) and set the gauge as hits/(hits+misses) per chain.
+ */
+function refreshCacheHitRatio(
+  m: ScannerPoolMetrics,
+  chainId: number,
+  hits: number,
+  misses: number,
+): void {
+  const total = hits + misses;
+  m.cacheHitRatio.set({ chain_id: String(chainId) }, total === 0 ? 0 : hits / total);
 }
 
 /**
@@ -103,6 +127,9 @@ export class ScannerPoolService {
   private readonly logger = new Logger(ScannerPoolService.name);
   private readonly cache = new Map<string, CacheEntry>();
   private readonly metrics: ScannerPoolMetrics;
+  /** Per-chain cache access counters mirrored locally for synchronous ratio computation. */
+  private readonly cacheHitsByChain = new Map<number, number>();
+  private readonly cacheMissesByChain = new Map<number, number>();
 
   constructor(private readonly rpc: ScannerRpcService) {
     this.metrics = createScannerPoolMetrics();
@@ -122,6 +149,7 @@ export class ScannerPoolService {
     const cached = this.cache.get(cacheKey);
     if (cached !== undefined && cached.expiresAt > Date.now()) {
       this.metrics.cacheHits.inc({ chain_id: String(chainId) });
+      this.recordCacheAccess(chainId, true);
       return cached.snapshot;
     }
 
@@ -132,6 +160,7 @@ export class ScannerPoolService {
     }
 
     this.metrics.cacheMisses.inc({ chain_id: String(chainId) });
+    this.recordCacheAccess(chainId, false);
     const snapshot = await this.fetchPool(chainId, poolAddress).catch((err: unknown) => {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`Pool read failed for ${cacheKey}: ${msg}`);
@@ -142,6 +171,15 @@ export class ScannerPoolService {
       this.cache.set(cacheKey, { snapshot, expiresAt: Date.now() + ttlMs });
     }
     return snapshot;
+  }
+
+  /** Bump the local mirror for one chain and refresh the hit-ratio gauge. */
+  private recordCacheAccess(chainId: number, hit: boolean): void {
+    const hits = (this.cacheHitsByChain.get(chainId) ?? 0) + (hit ? 1 : 0);
+    const misses = (this.cacheMissesByChain.get(chainId) ?? 0) + (hit ? 0 : 1);
+    this.cacheHitsByChain.set(chainId, hits);
+    this.cacheMissesByChain.set(chainId, misses);
+    refreshCacheHitRatio(this.metrics, chainId, hits, misses);
   }
 
   /** Drop all cached entries (e.g. on force-refresh). */

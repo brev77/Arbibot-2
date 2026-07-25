@@ -1,5 +1,5 @@
 import { ScannerFindingEntity } from '@arbibot/persistence';
-import { signedFetch } from '@arbibot/nest-platform';
+import { getArbibotMetricsRegistry, signedFetch } from '@arbibot/nest-platform';
 
 import { ScannerPublisherService } from './scanner-publisher.service';
 import type { CrossVenueSpread } from './scanner-spread.service';
@@ -10,6 +10,26 @@ jest.mock('@arbibot/nest-platform', () => {
 });
 
 const signedFetchMock = signedFetch as unknown as jest.Mock;
+
+const metricValue = async (
+  name: string,
+  labels: Record<string, string>,
+): Promise<number> => {
+  const metrics = await getArbibotMetricsRegistry().getMetricsAsJSON();
+  const m = metrics.find((x) => x.name === name);
+  if (m === undefined) return 0;
+  const values = (m.values ?? []) as Array<{
+    labels: Record<string, string>;
+    value: number;
+  }>;
+  const hit = values.find(
+    (v) =>
+      Object.entries(labels).every(
+        ([k, val]) => v.labels[k] === val,
+      ),
+  );
+  return hit?.value ?? 0;
+};
 
 const makeFinding = (overrides: Partial<ScannerFindingEntity> = {}): ScannerFindingEntity =>
   ({
@@ -62,6 +82,7 @@ describe('ScannerPublisherService', () => {
     process.env = { ...originalEnv };
     process.env.OPPORTUNITY_SERVICE_URL = 'http://127.0.0.1:3010';
     signedFetchMock.mockReset();
+    getArbibotMetricsRegistry().clear();
     findingsRepo = {
       findOne: jest.fn(),
       save: jest.fn().mockImplementation((x: ScannerFindingEntity) => Promise.resolve(x)),
@@ -180,6 +201,109 @@ describe('ScannerPublisherService', () => {
       findingsRepo.findOne.mockResolvedValue(null);
       const result = await service.republishById('missing', makeSpread(), 5000);
       expect(result).toBeNull();
+    });
+  });
+
+  // ───────────────────────────────────────────────────────────────────────
+  // Metrics (S4-1-METRICS): published_total + publish_failed_total{instance,reason}
+  // ───────────────────────────────────────────────────────────────────────
+  describe('publish metrics (S4-1)', () => {
+    it('increments opportunities_published_total{instance} on success', async () => {
+      signedFetchMock.mockResolvedValue({
+        ok: true,
+        status: 201,
+        json: () => Promise.resolve({ id: 'opp-ok' }),
+      });
+      await service.publish(makeFinding(), makeSpread(), 5000);
+      const v = await metricValue('arb_scanner_opportunities_published_total', {
+        instance: 'arb-2venue-1',
+      });
+      expect(v).toBe(1);
+    });
+
+    it('does NOT increment published_total on failure', async () => {
+      signedFetchMock.mockResolvedValue({ ok: false, status: 500, text: () => '' });
+      await service.publish(makeFinding(), makeSpread(), 5000);
+      const v = await metricValue('arb_scanner_opportunities_published_total', {
+        instance: 'arb-2venue-1',
+      });
+      expect(v).toBe(0);
+    });
+
+    it('classifies HTTP 5xx failure as reason=http_5xx', async () => {
+      signedFetchMock.mockResolvedValue({
+        ok: false,
+        status: 503,
+        text: () => Promise.resolve('upstream down'),
+      });
+      await service.publish(makeFinding(), makeSpread(), 5000);
+      const v = await metricValue(
+        'arb_scanner_opportunity_publish_failed_total',
+        { instance: 'arb-2venue-1', reason: 'http_5xx' },
+      );
+      expect(v).toBe(1);
+    });
+
+    it('classifies HTTP 4xx failure as reason=http_4xx', async () => {
+      signedFetchMock.mockResolvedValue({
+        ok: false,
+        status: 422,
+        text: () => Promise.resolve('bad payload'),
+      });
+      await service.publish(makeFinding(), makeSpread(), 5000);
+      const v = await metricValue(
+        'arb_scanner_opportunity_publish_failed_total',
+        { instance: 'arb-2venue-1', reason: 'http_4xx' },
+      );
+      expect(v).toBe(1);
+    });
+
+    it('classifies a thrown network error as reason=network', async () => {
+      signedFetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+      await service.publish(makeFinding(), makeSpread(), 5000);
+      const v = await metricValue(
+        'arb_scanner_opportunity_publish_failed_total',
+        { instance: 'arb-2venue-1', reason: 'network' },
+      );
+      expect(v).toBe(1);
+    });
+
+    it('classifies AbortSignal.timeout as reason=timeout', async () => {
+      // AbortSignal.timeout surfaces as a DOMException with name 'TimeoutError'
+      const timeoutErr = Object.assign(new Error('timed out'), {
+        name: 'TimeoutError',
+      });
+      signedFetchMock.mockRejectedValue(timeoutErr);
+      await service.publish(makeFinding(), makeSpread(), 5000);
+      const v = await metricValue(
+        'arb_scanner_opportunity_publish_failed_total',
+        { instance: 'arb-2venue-1', reason: 'timeout' },
+      );
+      expect(v).toBe(1);
+    });
+
+    it('classifies missing id in response as reason=bad_response', async () => {
+      signedFetchMock.mockResolvedValue({
+        ok: true,
+        status: 201,
+        json: () => Promise.resolve({}),
+      });
+      await service.publish(makeFinding(), makeSpread(), 5000);
+      const v = await metricValue(
+        'arb_scanner_opportunity_publish_failed_total',
+        { instance: 'arb-2venue-1', reason: 'bad_response' },
+      );
+      expect(v).toBe(1);
+    });
+
+    it('classifies unset OPPORTUNITY_SERVICE_URL as reason=config', async () => {
+      delete process.env.OPPORTUNITY_SERVICE_URL;
+      await service.publish(makeFinding(), makeSpread(), 5000);
+      const v = await metricValue(
+        'arb_scanner_opportunity_publish_failed_total',
+        { instance: 'arb-2venue-1', reason: 'config' },
+      );
+      expect(v).toBe(1);
     });
   });
 });

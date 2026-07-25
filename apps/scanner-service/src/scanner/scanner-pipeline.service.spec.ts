@@ -203,4 +203,94 @@ describe('ScannerPipelineService', () => {
       expect(result.error).toContain('spread crash');
     });
   });
+
+  // ───────────────────────────────────────────────────────────────────────
+  // Metrics (S4-1-METRICS): spread_bps + volume_usd histograms
+  // ───────────────────────────────────────────────────────────────────────
+  describe('runCycle metrics (S4-1)', () => {
+    const histogramSum = async (
+      name: string,
+      labels: Record<string, string>,
+    ): Promise<number> => {
+      const metrics = await getArbibotMetricsRegistry().getMetricsAsJSON();
+      const m = metrics.find((x) => x.name === name);
+      if (m === undefined) return 0;
+      const values = (m.values ?? []) as Array<{
+        labels: Record<string, string | number>;
+        value: number;
+      }>;
+      // The `_sum` aggregate is emitted as a value with no `le` bucket label
+      // (and no `__name__` in the JSON form — that only exists in the text exposition).
+      const sum = values.find(
+        (v) =>
+          v.labels.le === undefined &&
+          Object.entries(labels).every(([k, val]) => v.labels[k] === val),
+      );
+      return sum?.value ?? 0;
+    };
+
+    const setupDetectableSpread = (spreadBps: number, volumeUsd: number | null): void => {
+      const pools = [
+        makePool({ poolAddress: '0xPOOL_A', venueKey: 'uniswap-v2', quotePerBase: 2000 }),
+        makePool({ poolAddress: '0xPOOL_B', venueKey: 'sushiswap', quotePerBase: 2010 }),
+      ];
+      poolService.readPool.mockImplementation((_chain, addr) =>
+        Promise.resolve(pools.find((p) => p.poolAddress === addr) ?? null),
+      );
+      spreadService.detect.mockReturnValue(makeSpread({ spreadBps }));
+      volumeService.readVolume.mockResolvedValue({ volumeUsd, strategy: 'v3_cumulative' });
+    };
+
+    it('observes spread_bps histogram when a spread is detected', async () => {
+      setupDetectableSpread(42, null);
+      await service.runCycle({
+        ...makeInstance(),
+        filters: { volumeRange: { enabled: false, min1hUsd: 0, max24hUsd: 0 } },
+      });
+      const sum = await histogramSum('arb_scanner_spread_bps', {
+        instance: 'arb-2venue-1',
+      });
+      expect(sum).toBe(42);
+    });
+
+    it('does NOT observe spread_bps when no spread is detected', async () => {
+      poolService.readPool.mockResolvedValue(makePool());
+      spreadService.detect.mockReturnValue(null);
+      await service.runCycle(makeInstance());
+      const sum = await histogramSum('arb_scanner_spread_bps', {
+        instance: 'arb-2venue-1',
+      });
+      expect(sum).toBe(0);
+    });
+
+    it('observes volume_usd histogram when volume is read and filter enabled', async () => {
+      setupDetectableSpread(30, 250_000);
+      await service.runCycle({
+        ...makeInstance(),
+        filters: {
+          volumeRange: { enabled: true, min1hUsd: 0, max24hUsd: Number.MAX_SAFE_INTEGER },
+        },
+      });
+      const sum = await histogramSum('arb_scanner_volume_usd', {
+        instance: 'arb-2venue-1',
+        window: '1h',
+      });
+      expect(sum).toBe(250_000);
+    });
+
+    it('does NOT observe volume_usd when volume filter is disabled (no RPC)', async () => {
+      setupDetectableSpread(30, 250_000);
+      await service.runCycle({
+        ...makeInstance(),
+        filters: { volumeRange: { enabled: false, min1hUsd: 0, max24hUsd: 0 } },
+      });
+      const sum = await histogramSum('arb_scanner_volume_usd', {
+        instance: 'arb-2venue-1',
+        window: '1h',
+      });
+      expect(sum).toBe(0);
+      // volume reader must not even be called when the filter is off (S1-6 default OFF)
+      expect(volumeService.readVolume).not.toHaveBeenCalled();
+    });
+  });
 });

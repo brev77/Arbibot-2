@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Counter } from 'prom-client';
+import { Counter, Histogram } from 'prom-client';
 import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
 import { ScannerFindingEntity } from '@arbibot/persistence';
 
@@ -38,6 +38,8 @@ export class ScannerPipelineService {
     spreadsDetected: Counter<string>;
     findingsWritten: Counter<string>;
     findingsFiltered: Counter<string>;
+    spreadBps: Histogram<string>;
+    volumeUsd: Histogram<string>;
   };
 
   constructor(
@@ -52,14 +54,37 @@ export class ScannerPipelineService {
     private readonly findingsRepo: Repository<ScannerFindingEntity>,
   ) {
     const reg = getArbibotMetricsRegistry();
-    const existing = (name: string): Counter<string> | undefined =>
+    const existingCounter = (name: string): Counter<string> | undefined =>
       reg.getSingleMetric(name) as Counter<string> | undefined;
-    const make = (name: string, help: string, labels: string[]): Counter<string> =>
-      existing(name) ?? new Counter({ name, help, labelNames: labels, registers: [reg] });
+    const makeCounter = (name: string, help: string, labels: string[]): Counter<string> =>
+      existingCounter(name) ??
+      new Counter({ name, help, labelNames: labels, registers: [reg] });
+    const makeHistogram = (
+      name: string,
+      help: string,
+      labels: string[],
+      buckets: number[],
+    ): Histogram<string> =>
+      (reg.getSingleMetric(name) as Histogram<string> | undefined) ??
+      new Histogram({ name, help, labelNames: labels, buckets, registers: [reg] });
     this.metrics = {
-      spreadsDetected: make('arb_scanner_spreads_detected_total', 'Cross-venue spreads detected', ['instance']),
-      findingsWritten: make('arb_scanner_findings_written_total', 'Scanner findings written to DB', ['instance']),
-      findingsFiltered: make('arb_scanner_findings_filtered_total', 'Scanner findings filtered out', ['instance', 'reason']),
+      spreadsDetected: makeCounter('arb_scanner_spreads_detected_total', 'Cross-venue spreads detected', ['instance']),
+      findingsWritten: makeCounter('arb_scanner_findings_written_total', 'Scanner findings written to DB', ['instance']),
+      findingsFiltered: makeCounter('arb_scanner_findings_filtered_total', 'Scanner findings filtered out', ['instance', 'reason']),
+      // Spread distribution (bps) per instance — informs filter tuning (minSpreadBps).
+      spreadBps: makeHistogram(
+        'arb_scanner_spread_bps',
+        'Detected cross-venue spread in basis points',
+        ['instance'],
+        [5, 10, 20, 30, 50, 75, 100, 150, 200, 300, 500, 1000],
+      ),
+      // Observed volume (USD) over the filter window per instance + window label.
+      volumeUsd: makeHistogram(
+        'arb_scanner_volume_usd',
+        'Observed pool volume in USD over the filter window',
+        ['instance', 'window'],
+        [1000, 10_000, 50_000, 100_000, 250_000, 500_000, 1_000_000, 5_000_000],
+      ),
     };
   }
 
@@ -99,11 +124,21 @@ export class ScannerPipelineService {
         }
         result.spreadsDetected += 1;
         this.metrics.spreadsDetected.inc({ instance: instance.id });
+        // Record the spread distribution regardless of filter outcome — it informs tuning.
+        if (typeof spread.spreadBps === 'number' && Number.isFinite(spread.spreadBps)) {
+          this.metrics.spreadBps.observe({ instance: instance.id }, spread.spreadBps);
+        }
 
         // Volume (only when the filter needs it; skip RPC otherwise — S1-6 default OFF).
         const volume = volumeEnabled
           ? await this.volumeService.readVolume(spread as unknown as PoolSnapshot).catch(() => null)
           : null;
+        if (volume !== null && typeof volume.volumeUsd === 'number' && Number.isFinite(volume.volumeUsd)) {
+          this.metrics.volumeUsd.observe(
+            { instance: instance.id, window: '1h' },
+            volume.volumeUsd,
+          );
+        }
 
         // Filters.
         const filters = instance.filters ?? {};

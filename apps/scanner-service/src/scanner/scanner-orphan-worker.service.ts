@@ -40,7 +40,6 @@ export class ScannerOrphanWorkerService implements OnModuleInit, OnModuleDestroy
 
   private readonly metrics: {
     republishAttempts: Counter<string>;
-    republishFailed: Counter<string>;
   };
 
   constructor(
@@ -54,9 +53,11 @@ export class ScannerOrphanWorkerService implements OnModuleInit, OnModuleDestroy
       reg.getSingleMetric(name) as Counter<string> | undefined;
     const make = (name: string, help: string, labels: string[]): Counter<string> =>
       existing(name) ?? new Counter({ name, help, labelNames: labels, registers: [reg] });
+    // NOTE: per-attempt publish failures are counted by ScannerPublisherService
+    // (`arb_scanner_opportunity_publish_failed_total{instance,reason}`) — do NOT double-count
+    // here. This worker only tracks its own re-publish lifecycle (success / failed / exhausted).
     this.metrics = {
       republishAttempts: make('arb_scanner_orphan_republish_total', 'Scanner orphan re-publish attempts', ['status']),
-      republishFailed: make('arb_scanner_opportunity_publish_failed_total', 'Scanner opportunity publish failures (terminal after max attempts)', ['instance']),
     };
   }
 
@@ -121,7 +122,7 @@ export class ScannerOrphanWorkerService implements OnModuleInit, OnModuleDestroy
           this.metrics.republishAttempts.inc({ status: 'success' });
         } else if (finding.publishAttempts >= maxAttempts) {
           result.exhausted += 1;
-          this.metrics.republishFailed.inc({ instance: finding.instanceId });
+          this.metrics.republishAttempts.inc({ status: 'exhausted' });
         } else {
           this.metrics.republishAttempts.inc({ status: 'failed' });
         }
