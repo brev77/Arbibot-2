@@ -32,4 +32,18 @@ export const operatorKeys = {
   dexDashboardStats: () => ['operator', 'dashboard', 'dex-stats'] as const,
   dexLimits: () => ['operator', 'settings', 'dex', 'limits'] as const,
   dexLive: () => ['operator', 'settings', 'dex', 'live'] as const,
+
+  /* Scanner-service (cross-DEX spread detector) */
+  scannerInstances: ['operator', 'scanners', 'instances'] as const,
+  scannerInstance: (id: string) => ['operator', 'scanners', 'instances', id] as const,
+  scannerFindings: (instanceId?: string, publishStatus?: string) =>
+    [
+      'operator',
+      'scanners',
+      'findings',
+      instanceId ?? 'all',
+      publishStatus ?? 'all',
+    ] as const,
+  scannerFinding: (id: string) => ['operator', 'scanners', 'findings', id] as const,
+  scannerStatus: ['operator', 'scanners', 'status'] as const,
 };

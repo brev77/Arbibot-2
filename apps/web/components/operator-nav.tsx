@@ -11,6 +11,7 @@ const links = [
   { href: '/execution', label: 'Execution', minRole: 'operator' },
   { href: '/tokens', label: 'Tokens', minRole: 'operator' },
   { href: '/paper', label: 'Paper', minRole: 'operator' },
+  { href: '/scanners', label: 'Scanners', minRole: 'operator' },
   { href: '/incidents', label: 'Incidents', minRole: 'operator' },
   { href: '/runbooks', label: 'Runbooks', minRole: 'operator' },
   { href: '/hermes', label: 'Hermes', minRole: 'admin' },

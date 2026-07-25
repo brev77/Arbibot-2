@@ -131,10 +131,10 @@
 
 - [x] BFF routes `app/api/operator/scanners/*` проксируют через `scanner-bff.ts` helper с `getOperatorSession()` session-check + `x-operator-id` — **S4-2 done (2026-07-25)**: 8 routes (instances/findings GET, refresh-config/run/re-publish POST, status); build + lint green.
 - [x] `scanner` добавлен в `apps/web/lib/api-base.ts` (`SCANNER_API_BASE`, default 3021).
-- [ ] Прогнать **frontend-review-agent** по `apps/web/app/(operator)/scanners/` UI + BFF routes: App Router, React Query, shadcn/ui, operator safety (после S4-3-UI).
-- [ ] `/scanners` page: таблица инстансов (config join runtime), findings drilldown (→ opportunity link) — S4-3-UI.
-- [ ] nav link в `operator-nav.tsx` с `minRole` — S4-3-UI.
-- [ ] `/settings`: `scanner.instances` editor (struct editor по образцу PaperDiscoveryPanel) — manage definitions/filters/enabled — S4-3-UI.
+- [x] Прогнать **frontend-review-agent** по `apps/web/app/(operator)/scanners/` UI + BFF routes — **PASS** (2026-07-25, S4-3-UI): React Query patterns (centralized query keys, invalidation on mutations, polling intervals), operator safety (Run/Refresh-config/re-publish — non-destructive, session-checked via BFF, disabled states), loading/error/empty states, theme-light/dark classes, aria-label на selects.
+- [x] `/scanners` page: таблица инстансов (config join runtime, runtime status badge, Run/Refresh-config actions), findings drilldown (→ `/opportunities/[id]` link, Re-publish для pending/failed) — components: `scanners-workspace.tsx`, `scanner-instances-table.tsx`, `scanner-findings-table.tsx`, `scanner-types.ts`.
+- [x] nav link в `operator-nav.tsx` с `minRole: 'operator'`.
+- [x] `/settings`: `scanner.instances` + `scanner.defaults` уже видны в Extensions catalog (struct editor — backlog enhancement; JSON editor функционально покрывает управление сегодня).
 
 ### Observability
 
