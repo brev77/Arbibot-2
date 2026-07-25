@@ -129,12 +129,12 @@
 
 ### Frontend (`apps/web`)
 
-- [ ] Прогнать **frontend-review-agent** по `apps/web/app/(operator)/scanners/` + `components/` + BFF routes: App Router, React Query, shadcn/ui, operator safety.
-- [ ] BFF routes `app/api/operator/scanners/*` проксируют через `proxyUpstream` (session-checked).
-- [ ] `scanner` добавлен в `apps/web/lib/api-base.ts`.
-- [ ] `/scanners` page: таблица инстансов (config join runtime), findings drilldown (→ opportunity link).
-- [ ] nav link в `operator-nav.tsx` с `minRole`.
-- [ ] `/settings`: `scanner.instances` editor (struct editor по образцу PaperDiscoveryPanel) — manage definitions/filters/enabled.
+- [x] BFF routes `app/api/operator/scanners/*` проксируют через `scanner-bff.ts` helper с `getOperatorSession()` session-check + `x-operator-id` — **S4-2 done (2026-07-25)**: 8 routes (instances/findings GET, refresh-config/run/re-publish POST, status); build + lint green.
+- [x] `scanner` добавлен в `apps/web/lib/api-base.ts` (`SCANNER_API_BASE`, default 3021).
+- [ ] Прогнать **frontend-review-agent** по `apps/web/app/(operator)/scanners/` UI + BFF routes: App Router, React Query, shadcn/ui, operator safety (после S4-3-UI).
+- [ ] `/scanners` page: таблица инстансов (config join runtime), findings drilldown (→ opportunity link) — S4-3-UI.
+- [ ] nav link в `operator-nav.tsx` с `minRole` — S4-3-UI.
+- [ ] `/settings`: `scanner.instances` editor (struct editor по образцу PaperDiscoveryPanel) — manage definitions/filters/enabled — S4-3-UI.
 
 ### Observability
 

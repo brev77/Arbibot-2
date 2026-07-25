@@ -11,6 +11,8 @@ export const apiBases = {
   config: process.env.CONFIG_API_BASE ?? 'http://127.0.0.1:3019',
   /** market-intake-service (snapshots, Phase 4 degradation signals). */
   marketIntake: process.env.MARKET_INTAKE_API_BASE ?? 'http://127.0.0.1:3015',
+  /** scanner-service (cross-DEX spread detector, port 3021). */
+  scanner: process.env.SCANNER_API_BASE ?? 'http://127.0.0.1:3021',
 } as const;
 
 /** Alias for BFF routes targeting `config-service`. */
