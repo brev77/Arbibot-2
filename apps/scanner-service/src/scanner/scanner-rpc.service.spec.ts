@@ -170,4 +170,70 @@ describe('ScannerRpcService', () => {
       expect(names).toContain('arb_scanner_rpc_tokens_available');
     });
   });
+
+  describe('resolveRatePerSecond env parse', () => {
+    it('uses SCANNER_RPC_RATE_LIMIT_RPS when valid (>0)', async () => {
+      process.env.RPC_SCANNER_ARBITRUM_URL = 'http://arb.example';
+      process.env.SCANNER_RPC_RATE_LIMIT_RPS = '7';
+      service.onModuleInit();
+      // Drain the immediate health probe so afterEach destroy is clean.
+      await (service as unknown as { runHealthChecks: () => Promise<void> }).runHealthChecks();
+      // tryAcquire should reflect 7 rps budget: first call grants.
+      expect(service.tryAcquire(ChainId.ARBITRUM_ONE_MAINNET)).toBe(true);
+    });
+
+    it('falls back to default when SCANNER_RPC_RATE_LIMIT_RPS is invalid (NaN)', () => {
+      process.env.RPC_SCANNER_ARBITRUM_URL = 'http://arb.example';
+      process.env.SCANNER_RPC_RATE_LIMIT_RPS = 'abc';
+      service.onModuleInit();
+      expect(service.tryAcquire(ChainId.ARBITRUM_ONE_MAINNET)).toBe(true);
+    });
+
+    it('falls back to default when SCANNER_RPC_RATE_LIMIT_RPS <= 0', () => {
+      process.env.RPC_SCANNER_ARBITRUM_URL = 'http://arb.example';
+      process.env.SCANNER_RPC_RATE_LIMIT_RPS = '0';
+      service.onModuleInit();
+      expect(service.tryAcquire(ChainId.ARBITRUM_ONE_MAINNET)).toBe(true);
+    });
+  });
+
+  describe('checkProviderHealth — failure + latency paths', () => {
+    it('marks the chain unhealthy and increments failures when getBlockNumber rejects', async () => {
+      process.env.RPC_SCANNER_ARBITRUM_URL = 'http://arb.example';
+      // Override the mocked provider's getBlockNumber to reject after init.
+      service.onModuleInit();
+      const provider = service.getProvider(ChainId.ARBITRUM_ONE_MAINNET) as unknown as {
+        getBlockNumber: () => Promise<number>;
+      };
+      (provider).getBlockNumber = jest
+        .fn()
+        .mockRejectedValue(new Error('connection reset'));
+
+      await (service as unknown as { runHealthChecks: () => Promise<void> }).runHealthChecks();
+
+      const status = service.getHealthStatus(ChainId.ARBITRUM_ONE_MAINNET);
+      expect(status?.healthy).toBe(false);
+      expect(status?.error).toContain('connection reset');
+    });
+
+    it('records blockNumber + latency on a successful probe', async () => {
+      process.env.RPC_SCANNER_ARBITRUM_URL = 'http://arb.example';
+      service.onModuleInit();
+      await (service as unknown as { runHealthChecks: () => Promise<void> }).runHealthChecks();
+
+      const status = service.getHealthStatus(ChainId.ARBITRUM_ONE_MAINNET);
+      expect(status?.blockNumber).toBe(100);
+      expect(typeof status?.latency).toBe('number');
+    });
+  });
+
+  describe('onModuleDestroy', () => {
+    it('clears the health-check timer without throwing', () => {
+      process.env.RPC_SCANNER_ARBITRUM_URL = 'http://arb.example';
+      service.onModuleInit();
+      expect(() => service.onModuleDestroy()).not.toThrow();
+      // Re-instantiate to avoid afterEach double-destroy on the same instance.
+      service = new ScannerRpcService();
+    });
+  });
 });
