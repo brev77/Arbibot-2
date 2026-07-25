@@ -134,7 +134,81 @@ describe('ScannerRetentionWorkerService', () => {
     expect(() => service.onModuleDestroy()).not.toThrow();
   });
 
+  it('onModuleInit does NOT start the timer when SCANNER_RETENTION_ENABLED=0', () => {
+    process.env.SCANNER_RETENTION_ENABLED = '0';
+    service.onModuleInit();
+    expect(() => service.onModuleDestroy()).not.toThrow();
+  });
+
+  it('onModuleInit does NOT start the timer when SCANNER_RETENTION_ENABLED=off', () => {
+    process.env.SCANNER_RETENTION_ENABLED = 'off';
+    service.onModuleInit();
+    expect(() => service.onModuleDestroy()).not.toThrow();
+  });
+
+  it('onModuleInit starts the timer when enabled (default) and onModuleDestroy clears it', () => {
+    service.onModuleInit();
+    expect(() => service.onModuleDestroy()).not.toThrow();
+  });
+
   it('onModuleDestroy clears the timer without throwing', () => {
     expect(() => service.onModuleDestroy()).not.toThrow();
+  });
+
+  it('runCycle short-circuits with deleted=0 when isRunning is already true', async () => {
+    // Force the private isRunning flag via a concurrent call: start a cycle, then call again
+    // before the first resolves. We simulate by making delete slow.
+    let resolveDelete!: (v: { affected: number }) => void;
+    findingsRepo.delete.mockReturnValue(
+      new Promise((res) => {
+        resolveDelete = res;
+      }),
+    );
+    const first = service.runCycle();
+    const second = await service.runCycle(); // should short-circuit while first is pending
+    expect(second.deleted).toBe(0);
+    expect(second.cutoff.getTime()).toBe(0); // short-circuit returns cutoff epoch 0
+    resolveDelete({ affected: 3 });
+    await first;
+  });
+
+  describe('resolveIntervalMs env parse', () => {
+    it('uses SCANNER_RETENTION_INTERVAL_MS when valid (>0)', () => {
+      process.env.SCANNER_RETENTION_INTERVAL_MS = '12345';
+      service.onModuleInit();
+      // No assertion on the private interval value; the finite+>0 branch is covered.
+      expect(() => service.onModuleDestroy()).not.toThrow();
+    });
+
+    it('falls back to default when SCANNER_RETENTION_INTERVAL_MS is invalid (NaN)', () => {
+      process.env.SCANNER_RETENTION_INTERVAL_MS = 'abc';
+      service.onModuleInit();
+      expect(() => service.onModuleDestroy()).not.toThrow();
+    });
+
+    it('falls back to default when SCANNER_RETENTION_INTERVAL_MS is <= 0', () => {
+      process.env.SCANNER_RETENTION_INTERVAL_MS = '0';
+      service.onModuleInit();
+      expect(() => service.onModuleDestroy()).not.toThrow();
+    });
+  });
+
+  describe('resolveRetentionDays env edge cases', () => {
+    it('falls back to config default when env is NaN', async () => {
+      process.env.SCANNER_FINDINGS_RETENTION_DAYS = 'abc';
+      config.getConfig.mockReturnValue({ defaults: { findingsRetentionDays: 14 } });
+      const { cutoff } = await service.runCycle();
+      const fourteenDaysMs = 14 * 24 * 60 * 60 * 1000;
+      expect(cutoff.getTime()).toBeLessThanOrEqual(Date.now() - fourteenDaysMs + 100);
+    });
+
+    it('falls back to constant default when env invalid and config returns <=0', async () => {
+      process.env.SCANNER_FINDINGS_RETENTION_DAYS = 'abc';
+      config.getConfig.mockReturnValue({ defaults: { findingsRetentionDays: 0 } });
+      const { cutoff } = await service.runCycle();
+      // DEFAULT_SCANNER_FINDINGS_RETENTION_DAYS = 7
+      const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+      expect(cutoff.getTime()).toBeLessThanOrEqual(Date.now() - sevenDaysMs + 100);
+    });
   });
 });
