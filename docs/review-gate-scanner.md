@@ -170,7 +170,7 @@
 
 ### Ops
 
-- [ ] `tools/seed-scanner-config.mjs` создан; `npm run seed:scanner-config` upsert’ит `scanner.*`.
+- [x] `tools/seed-scanner-config.mjs` создан; `npm run seed:scanner-config` upsert’ит `scanner.*` — **S5-1 done (2026-07-25)**: mirror `seed-intake-policy-config.mjs`, values из migration 045 (`scanner.defaults` + `scanner.instances`), `node --check` green.
 - [ ] Retention cleanup worker: `DELETE FROM scanner_findings WHERE observed_at < now() - interval '<findingsRetentionDays> days'`, hourly. Metric `arb_scanner_findings_cleaned_total`. Unit test: cleanup deletes old, keeps recent.
 - [ ] PM2: `ecosystem.config.cjs` entry для scanner-service (mirror существующих). `pm2 start ... --only scanner-service` стартует.
 - [ ] `docs/paper-deploy-aeza.md` обновлен (14-й сервис в pm2 stack).

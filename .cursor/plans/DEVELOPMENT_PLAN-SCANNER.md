@@ -1,8 +1,8 @@
 # Arbibot 2 — План: Scanner Service (cross-DEX детектор)
 
-**Прогресс:** 24/24 (Phase 0 ✅, Phase 1 ✅, Phase 2 ✅, Phase 3 ✅, Phase 4 ✅) | **Обновлено:** 2026-07-25 | **Детали шагов:** интегрированы в индекс ниже (план компактный, без подпапок шагов).
+**Прогресс:** 24/24 (Phase 0-4 ✅) + S5-1 ✅ | **Обновлено:** 2026-07-25 | **Детали шагов:** интегрированы в индекс ниже (план компактный, без подпапок шагов).
 
-> **Статус плана:** Phase 0-4 завершены (включая Hermes integration). Next: Phase 5 (config seed, retention, PM2, CI, docs) — ops readiness.
+> **Статус плана:** Phase 0-4 + S5-1-SEED-SCRIPT завершены. Next: S5-2-RETENTION → S5-3-PM2 → S5-4-CI → S5-5-DOCS.
 > **Архитектурный план-источник:** [`docs/scanner-service-plan.md`](../../docs/scanner-service-plan.md) (v4, 17 зафиксированных решений).
 > **Harness-спутники:** [`docs/scanner-harness-runbook.md`](../../docs/scanner-harness-runbook.md) (CI/e2e/verify процессы), [`docs/review-gate-scanner.md`](../../docs/review-gate-scanner.md) (review-gate чеклист).
 
@@ -92,7 +92,7 @@
 
 | step_id | Суть | status | DoD |
 |---------|------|--------|-----|
-| `S5-1-SEED-SCRIPT` | `tools/seed-scanner-config.mjs` (по образцу `seed-intake-policy-config.mjs`). | todo | `npm run seed:scanner-config` upsert’ит `scanner.*` через config-service |
+| `S5-1-SEED-SCRIPT` | `tools/seed-scanner-config.mjs` (по образцу `seed-intake-policy-config.mjs`). | done | `npm run seed:scanner-config` upsert’ит `scanner.*` через config-service — скрипт создан, mirror migration 045 values (`scanner.defaults` + `scanner.instances`), npm script добавлен, `node --check` green |
 | `S5-2-RETENTION` | Retention cleanup worker (mirror worker skeleton): `DELETE FROM scanner_findings WHERE observed_at < now() - interval '<findingsRetentionDays> days'`, hourly. Metric `arb_scanner_findings_cleaned_total`. | todo | unit test: cleanup deletes old rows, keeps recent; bounded |
 | `S5-3-PM2` | `ecosystem.config.cjs` entry для scanner-service (mirror существующих). Обновить `docs/paper-deploy-aeza.md` (14-й сервис). npm script `pm2:scanner`. | todo | `pm2 start ecosystem.config.cjs --only scanner-service` стартует; runbook обновлён |
 | `S5-4-CI` | CI: расширить `ci-paper-live-boundary.sh` (scanner ↔ paper симметрично) + `ci-scanner-smoke.sh` + `e2e-scanner-smoke.mjs` stub + GitHub Actions job `scanner-smoke`. | todo | `npm run ci:scanner-smoke` pass в CI; paper-live-boundary расширен |
