@@ -153,4 +153,30 @@ describe('ScannerSpreadService', () => {
       expect(result.netProfitUsd).toBeCloseTo(100, 6);
     });
   });
+
+  describe('multi-pair grouping', () => {
+    it('skips a pair with only one pool and returns a spread from the populated pair', () => {
+      const pools = [
+        // Pair A: WETH-USDC with two venues → spread detectable.
+        makePool({ venueKey: 'uniswap-v2', quotePerBase: 2000 }),
+        makePool({ venueKey: 'sushiswap', quotePerBase: 2010 }),
+        // Pair B: WBTC-USDC with a single pool → skipped (< 2 pools).
+        makePool({ token0: '0xWBTC', venueKey: 'uniswap-v2', quotePerBase: 40000 }),
+      ];
+      const result = service.detect(pools);
+      expect(result).not.toBeNull();
+      // The returned spread must be from the WETH-USDC pair (the populated one).
+      expect((result as CrossVenueSpread).token0).toBe('0xWETH');
+      expect((result as CrossVenueSpread).buyVenue).toBe('uniswap-v2');
+      expect((result as CrossVenueSpread).sellVenue).toBe('sushiswap');
+    });
+
+    it('returns null when every pair has only a single pool', () => {
+      const pools = [
+        makePool({ token0: '0xA', venueKey: 'uniswap-v2' }),
+        makePool({ token0: '0xB', venueKey: 'uniswap-v2' }),
+      ];
+      expect(service.detect(pools)).toBeNull();
+    });
+  });
 });

@@ -335,6 +335,30 @@ describe('ScannerConfigService', () => {
       // Non-finite remote values are ignored → env baseline retained.
       expect(d.rpcRateLimitRps).toBe(DEFAULT_SCANNER_RPC_RATE_LIMIT_RPS);
     });
+
+    it('retains env baseline when dedupCooldownMs / orphanRetryIntervalMs / opportunityPublishTimeoutMs are non-finite', async () => {
+      process.env.CONFIG_SERVICE_URL = 'http://127.0.0.1:3019';
+      signedFetchMock.mockImplementation((url: string) => {
+        if (url.includes(SCANNER_DEFAULTS_POLICY_KEY)) {
+          return Promise.resolve(
+            effectiveResponse({
+              dedupCooldownMs: Number.NaN,
+              orphanRetryIntervalMs: Number.POSITIVE_INFINITY,
+              opportunityPublishTimeoutMs: 'bad' as unknown as number,
+            }),
+          );
+        }
+        return Promise.resolve(effectiveResponse({ instances: [] }));
+      });
+
+      await service.ensureEffectiveConfigLoaded();
+
+      // Each non-finite pick branch was skipped → env baseline values retained.
+      const d = service.getConfig().defaults;
+      expect(d.dedupCooldownMs).toBe(60000); // DEFAULT_SCANNER_DEDUP_COOLDOWN_MS
+      expect(d.orphanRetryIntervalMs).toBe(60000); // DEFAULT_SCANNER_ORPHAN_RETRY_INTERVAL_MS
+      expect(d.opportunityPublishTimeoutMs).toBe(5000); // DEFAULT_SCANNER_OPPORTUNITY_PUBLISH_TIMEOUT_MS
+    });
   });
 
   describe('extractInstances — normalization + clamp', () => {

@@ -253,4 +253,20 @@ describe('ScannerVolumeService', () => {
       expect(vol.volumeUsd).toBeNull();
     });
   });
+
+  describe('estimateVolumeUsd — quotePerBase guard', () => {
+    it('returns null volumeUsd when quotePerBase <= 0', async () => {
+      // V3 path with a seeded baseline; quotePerBase=0 forces estimateVolumeUsd to return null.
+      stageContract('0xpool', {
+        volumeToken0: jest.fn()
+          .mockResolvedValueOnce(1_000_000n)
+          .mockResolvedValueOnce(2_000_000n),
+        volumeToken1: jest.fn().mockResolvedValue(1_000_000_000n),
+      });
+      const snap = makeSnapshot({ quotePerBase: 0 });
+      await service.readVolume(snap); // seed
+      const vol = await service.readVolume(snap); // delta computed but estimate → null
+      expect(vol.volumeUsd).toBeNull();
+    });
+  });
 });

@@ -59,6 +59,30 @@ describe('ScannerOrphanWorkerService', () => {
       expect(result.scanned).toBe(0);
       expect(result.republished).toBe(0);
     });
+
+    it('short-circuits with zero summary when isRunning is already true', async () => {
+      // Force the private isRunning flag via a concurrent slow find.
+      let resolveFind!: (v: ScannerFindingEntity[]) => void;
+      findingsRepo.find.mockReturnValue(
+        new Promise((res) => {
+          resolveFind = res;
+        }),
+      );
+      const first = worker.runCycle();
+      const second = await worker.runCycle(); // short-circuits while first is in flight
+      expect(second.scanned).toBe(0);
+      expect(second.republished).toBe(0);
+      resolveFind([]);
+      await first;
+    });
+
+    it('short-circuits when isShuttingDown is true', async () => {
+      worker.onModuleDestroy(); // sets isShuttingDown
+      const result = await worker.runCycle();
+      expect(result.scanned).toBe(0);
+      // Re-init so afterEach destroy is clean.
+      (worker as unknown as { isShuttingDown: boolean }).isShuttingDown = false;
+    });
   });
 
   describe('runCycle — republish', () => {

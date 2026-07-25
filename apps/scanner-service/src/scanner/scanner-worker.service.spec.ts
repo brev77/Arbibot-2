@@ -237,6 +237,68 @@ describe('ScannerWorkerService', () => {
       // The cycle still completes (caught internally); triggerInstanceRun reports success.
       expect(result.success).toBe(true);
     });
+
+    it('returns already-in-progress when the timer entry has isRunning=true', async () => {
+      const instance = makeInstance();
+      config.getInstances.mockReturnValue([instance]);
+      timersOf(worker).set(instance.id, {
+        interval: setInterval(() => {}, 99999),
+        isRunning: true,
+      });
+      try {
+        const result = await worker.triggerInstanceRun(instance.id);
+        expect(result.success).toBe(false);
+        expect(result.message).toContain('already in progress');
+      } finally {
+        const entry = timersOf(worker).get(instance.id);
+        if (entry) clearInterval(entry.interval);
+      }
+    });
+  });
+
+  describe('reconcileTimers — add branch (idempotent when already scheduled)', () => {
+    it('does not double-schedule an already-present instance timer', async () => {
+      const inst = makeInstance();
+      config.getEnabledInstances.mockReturnValue([inst]);
+      worker.onModuleInit();
+      await new Promise((r) => setImmediate(r));
+      await new Promise((r) => setImmediate(r));
+      await new Promise((r) => setImmediate(r));
+      const firstTimer = timersOf(worker).get(inst.id);
+
+      // Second bootstrap with the same enabled set: the existing timer is kept (continue branch).
+      worker.onModuleInit();
+      await new Promise((r) => setImmediate(r));
+      await new Promise((r) => setImmediate(r));
+      const secondTimer = timersOf(worker).get(inst.id);
+      expect(secondTimer).toBe(firstTimer); // same interval object, not re-created
+    });
+  });
+
+  describe('runInstanceCycle — isRunning re-entrancy skip', () => {
+    it('skips a concurrent cycle (incremented skipped counter) when isRunning is true', async () => {
+      const inst = makeInstance();
+      timersOf(worker).set(inst.id, {
+        interval: setInterval(() => {}, 99999),
+        isRunning: true,
+      });
+      try {
+        await (
+          worker as unknown as { runInstanceCycle: (i: ScannerInstanceJson) => Promise<void> }
+        ).runInstanceCycle(inst);
+        const metrics = await getArbibotMetricsRegistry().getMetricsAsJSON();
+        const counter = metrics.find((m) => m.name === 'arb_scanner_cycles_total');
+        const skipped = (counter?.values ?? []).find(
+          (v) =>
+            (v as { labels?: Record<string, string> }).labels?.instance === inst.id &&
+            (v as { labels?: Record<string, string> }).labels?.status === 'skipped',
+        );
+        expect((skipped as { value?: number } | undefined)?.value).toBe(1);
+      } finally {
+        const entry = timersOf(worker).get(inst.id);
+        if (entry) clearInterval(entry.interval);
+      }
+    });
   });
 
   describe('getStatus', () => {

@@ -305,5 +305,46 @@ describe('ScannerPublisherService', () => {
       );
       expect(v).toBe(1);
     });
+
+    it('classifies a real DOMException(TimeoutError) as reason=timeout', async () => {
+      // Covers the `typeof DOMException !== 'undefined' && err instanceof DOMException` branch.
+      const err = new DOMException('signal timed out', 'TimeoutError');
+      signedFetchMock.mockRejectedValue(err);
+      await service.publish(makeFinding(), makeSpread(), 5000);
+      const v = await metricValue(
+        'arb_scanner_opportunity_publish_failed_total',
+        { instance: 'arb-2venue-1', reason: 'timeout' },
+      );
+      expect(v).toBe(1);
+    });
+  });
+
+  describe('buildPayload — volume + quoteAsset mapping', () => {
+    it('maps finding.volume1hUsd to payload.volumeUsd when present', async () => {
+      signedFetchMock.mockResolvedValue({
+        ok: true,
+        status: 201,
+        json: () => Promise.resolve({ id: 'opp-1' }),
+      });
+      const finding = makeFinding({ volume1hUsd: '50000.00000000' });
+      await service.publish(finding, makeSpread(), 5000);
+
+      const body = JSON.parse(signedFetchMock.mock.calls[0]?.[1].body as string);
+      expect(body.payload.volumeUsd).toBe(50000);
+      expect(body.payload.quoteAsset).toBe('0xUSDC'); // spread.token1
+    });
+
+    it('maps payload.volumeUsd to null when finding.volume1hUsd is null', async () => {
+      signedFetchMock.mockResolvedValue({
+        ok: true,
+        status: 201,
+        json: () => Promise.resolve({ id: 'opp-2' }),
+      });
+      const finding = makeFinding({ volume1hUsd: null });
+      await service.publish(finding, makeSpread(), 5000);
+
+      const body = JSON.parse(signedFetchMock.mock.calls[0]?.[1].body as string);
+      expect(body.payload.volumeUsd).toBeNull();
+    });
   });
 });

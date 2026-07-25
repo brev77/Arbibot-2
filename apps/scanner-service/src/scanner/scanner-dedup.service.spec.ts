@@ -112,4 +112,41 @@ describe('ScannerDedupService', () => {
       expect(service.shouldEmit(makeSpread(), 60_000)).toBe(true);
     });
   });
+
+  describe('resolveCooldownMs — env + override fallback', () => {
+    it('uses SCANNER_DEDUP_COOLDOWN_MS env when no override is provided', () => {
+      process.env.SCANNER_DEDUP_COOLDOWN_MS = '5000';
+      const spread = makeSpread();
+      expect(service.shouldEmit(spread)).toBe(true);
+      expect(service.shouldEmit(spread)).toBe(false); // suppressed within 5000ms env cooldown
+    });
+
+    it('falls back to default when SCANNER_DEDUP_COOLDOWN_MS is invalid (NaN)', () => {
+      process.env.SCANNER_DEDUP_COOLDOWN_MS = 'abc';
+      const spread = makeSpread();
+      expect(service.shouldEmit(spread)).toBe(true);
+      expect(service.shouldEmit(spread)).toBe(false); // default 60000 applies
+    });
+
+    it('falls back to default when SCANNER_DEDUP_COOLDOWN_MS is negative', () => {
+      process.env.SCANNER_DEDUP_COOLDOWN_MS = '-100';
+      const spread = makeSpread();
+      expect(service.shouldEmit(spread)).toBe(true);
+      expect(service.shouldEmit(spread)).toBe(false);
+    });
+
+    it('ignores a non-finite override and falls back to env', () => {
+      process.env.SCANNER_DEDUP_COOLDOWN_MS = '5000';
+      const spread = makeSpread();
+      expect(service.shouldEmit(spread, Number.NaN)).toBe(true);
+      expect(service.shouldEmit(spread, Number.NaN)).toBe(false);
+    });
+
+    it('ignores a negative override and falls back to env', () => {
+      process.env.SCANNER_DEDUP_COOLDOWN_MS = '5000';
+      const spread = makeSpread();
+      expect(service.shouldEmit(spread, -1)).toBe(true);
+      expect(service.shouldEmit(spread, -1)).toBe(false);
+    });
+  });
 });
