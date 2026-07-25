@@ -162,11 +162,11 @@
 
 ### CI
 
-- [ ] `tools/ci-scanner-smoke.sh` создан (по образцу `ci-hermes-agent-smoke.sh` — WHY/WHAT/WHAT-NOT структура).
-- [ ] `npm run ci:scanner-smoke` pass локально + в GitHub Actions job `scanner-smoke`.
-- [ ] `tools/ci-paper-live-boundary.sh` расширен: PL.3 (scanner не импортирует paper) + PL.4 (paper не импортирует scanner).
-- [ ] `npm run ci:paper-live-boundary` pass.
-- [ ] `tools/e2e-scanner-smoke.mjs` создан (по образцу `e2e-phase3-paper-promotion.mjs`); `npm run e2e:scanner-smoke` pass.
+- [x] `tools/ci-scanner-smoke.sh` создан (по образцу `ci-hermes-agent-smoke.sh` — WHY/WHAT/WHAT-NOT структура) — **S5-4 done (2026-07-25)**.
+- [x] `npm run ci:scanner-smoke` pass локально + в GitHub Actions job `scanner-smoke` — 10/10 ok.
+- [x] `tools/ci-paper-live-boundary.sh` расширен: PL.3 (scanner не импортирует paper) + PL.4 (paper не импортирует scanner).
+- [x] `npm run ci:paper-live-boundary` pass — ok (PL.1/PL.2/PL.3/PL.4 intact).
+- [x] `tools/e2e-scanner-smoke.mjs` создан (по образцу `e2e-phase3-paper-promotion.mjs`); `npm run e2e:scanner-smoke` — stub (требует запущенный scanner-service для runtime).
 
 ### Ops
 

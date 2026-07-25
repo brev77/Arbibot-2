@@ -94,11 +94,29 @@ scan_imports "PL2-capital-imports-paper" \
   "$CAPITAL_DIR" \
   "(@arbibot/paper-trading-service|PaperCapitalReservation|PaperCapitalService)"
 
+# ----- PL.3 + PL.4: scanner-service is a mode-agnostic data-provider -------------
+# scanner-service (apps/scanner-service, port 3021) is NEITHER paper NOR live — it is a
+# read-only cross-DEX spread detector that publishes findings via POST /opportunities.
+# To keep the paper/live isolation crisp, scanner must not import paper-only write
+# artifacts (PL.3) and paper must not import scanner internals (PL.4) — the integration
+# point is HTTP (POST /opportunities) and @arbibot/contracts (event payload types).
+SCANNER_DIR="apps/scanner-service/src"
+
+scan_imports "PL3-scanner-imports-paper" \
+  "scanner-service imports paper-only artifacts (paper write path — scanner is mode-agnostic)" \
+  "$SCANNER_DIR" \
+  "(@arbibot/paper-trading-service|PaperCapitalService|PaperTradeService|PaperCapitalReservation|paper-enqueue)"
+
+scan_imports "PL4-paper-imports-scanner" \
+  "paper-trading-service imports scanner-service internals (scanner is mode-agnostic; integration is HTTP)" \
+  "$PAPER_DIR" \
+  "(@arbibot/scanner-service|ScannerWorkerService|ScannerPublisherService|ScannerPipelineService)"
+
 # ----- Verdict --------------------------------------------------------------------
 
 if (( findings > 0 )); then
   printf '\n' >&2
-  printf 'ci-paper-live-boundary: FAIL — %d contamination group(s) above. See PL.1/PL.2 in\n' "$findings" >&2
+  printf 'ci-paper-live-boundary: FAIL — %d contamination group(s) above. See PL.1/PL.2/PL.3/PL.4 in\n' "$findings" >&2
   printf '  .cursor/skills/dex-security-and-capital-safety/references/paper-live-boundary.md\n' >&2
   printf 'Shared types must go through @arbibot/contracts, not direct cross-service imports.\n' >&2
   exit 1

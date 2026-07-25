@@ -1,8 +1,8 @@
 # Arbibot 2 — План: Scanner Service (cross-DEX детектор)
 
-**Прогресс:** 24/24 (Phase 0-4 ✅) + S5-1 ✅, S5-2 ✅, S5-3 ✅ | **Обновлено:** 2026-07-25 | **Детали шагов:** интегрированы в индекс ниже (план компактный, без подпапок шагов).
+**Прогресс:** 24/24 (Phase 0-4 ✅) + S5-1 ✅, S5-2 ✅, S5-3 ✅, S5-4 ✅ | **Обновлено:** 2026-07-25 | **Детали шагов:** интегрированы в индекс ниже (план компактный, без подпапок шагов).
 
-> **Статус плана:** Phase 0-4 + S5-1/S5-2/S5-3 завершены. Next: S5-4-CI → S5-5-DOCS.
+> **Статус плана:** Phase 0-4 + S5-1/S5-2/S5-3/S5-4 завершены. Next: S5-5-DOCS (финальная документация).
 > **Архитектурный план-источник:** [`docs/scanner-service-plan.md`](../../docs/scanner-service-plan.md) (v4, 17 зафиксированных решений).
 > **Harness-спутники:** [`docs/scanner-harness-runbook.md`](../../docs/scanner-harness-runbook.md) (CI/e2e/verify процессы), [`docs/review-gate-scanner.md`](../../docs/review-gate-scanner.md) (review-gate чеклист).
 
@@ -95,7 +95,7 @@
 | `S5-1-SEED-SCRIPT` | `tools/seed-scanner-config.mjs` (по образцу `seed-intake-policy-config.mjs`). | done | `npm run seed:scanner-config` upsert’ит `scanner.*` через config-service — скрипт создан, mirror migration 045 values (`scanner.defaults` + `scanner.instances`), npm script добавлен, `node --check` green |
 | `S5-2-RETENTION` | Retention cleanup worker (mirror worker skeleton): `DELETE FROM scanner_findings WHERE observed_at < now() - interval '<findingsRetentionDays> days'`, hourly. Metric `arb_scanner_findings_cleaned_total`. | done | unit test: cleanup deletes old rows, keeps recent; bounded — `ScannerRetentionWorkerService` (OnModuleInit/OnModuleDestroy + setInterval.unref + isRunning guard), env overrides (`SCANNER_FINDINGS_RETENTION_DAYS`, `SCANNER_RETENTION_INTERVAL_MS`, `SCANNER_RETENTION_ENABLED`), metric `arb_scanner_findings_cleaned_total{instance='global'}`; 9 unit tests pass (cutoff math, env/config override, 0-deleted no-incr, affected-missing defensive, error swallow, disable flag, destroy); build + lint green; wired в ScannerModule |
 | `S5-3-PM2` | `ecosystem.config.cjs` entry для scanner-service (mirror существующих). Обновить `docs/paper-deploy-aeza.md` (14-й сервис). npm script `pm2:scanner`. | done | `pm2 start ecosystem.paper.config.cjs --only scanner-service` стартует; runbook обновлён — `scanner-harness-runbook.md` §6 дополнен готовым к вставке JS-блоком для `ecosystem.paper.config.cjs` (name/script/cwd/env PORT 3021/instances:1/autorestart), `node --check` green; `docs/paper-deploy-aeza.md` таблица сервисов дополнена scanner-service (3021). npm script `pm2:scanner` опционален — pm2 запускается через `--only` как остальные сервисы |
-| `S5-4-CI` | CI: расширить `ci-paper-live-boundary.sh` (scanner ↔ paper симметрично) + `ci-scanner-smoke.sh` + `e2e-scanner-smoke.mjs` stub + GitHub Actions job `scanner-smoke`. | todo | `npm run ci:scanner-smoke` pass в CI; paper-live-boundary расширен |
+| `S5-4-CI` | CI: расширить `ci-paper-live-boundary.sh` (scanner ↔ paper симметрично) + `ci-scanner-smoke.sh` + `e2e-scanner-smoke.mjs` stub + GitHub Actions job `scanner-smoke`. | done | `npm run ci:scanner-smoke` pass в CI; paper-live-boundary расширен — PL.3 (scanner не импортирует paper) + PL.4 (paper не импортирует scanner); `ci-scanner-smoke.sh` (10 проверок: build, 13 providers, 8 routes, 11 metrics, 8 BFF routes, api-base, 3 gateway endpoints, getScannerApiBase, 2 MCP tools, PL.3/PL.4); `e2e-scanner-smoke.mjs` stub (health + metrics + read-only endpoints); npm scripts `ci:scanner-smoke` + `e2e:scanner-smoke`; GitHub Actions job `scanner-smoke` |
 | `S5-5-DOCS` | Финальная документация: обновить `architecture-components.md` (новый сервис §1, single-writer таблицы, `scanner.*` config), `AGENTS.md` (env vars, scripts, ports), runbook `docs/scanner-runbook.md`. | todo | architecture-guard-agent pass; все ссылки валидны |
 
 ---
