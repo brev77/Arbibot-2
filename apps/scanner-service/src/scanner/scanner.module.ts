@@ -15,6 +15,7 @@ import { ScannerOrphanWorkerService } from './scanner-orphan-worker.service';
 import { ScannerPipelineService } from './scanner-pipeline.service';
 import { ScannerPoolService } from './scanner-pool.service';
 import { ScannerPublisherService } from './scanner-publisher.service';
+import { ScannerRetentionWorkerService } from './scanner-retention-worker.service';
 import { ScannerRpcService } from './scanner-rpc.service';
 import { ScannerSpreadService } from './scanner-spread.service';
 import { ScannerVolumeService } from './scanner-volume.service';
@@ -39,7 +40,7 @@ import { ScannerController } from './scanner.controller';
       ScannerFindingEntity,
     ]),
   ],
-  providers: [ScannerConfigService, ScannerRpcService, ScannerPoolService, ScannerVolumeService, ScannerSpreadService, ScannerFilterService, ScannerDedupService, ScannerPipelineService, ScannerPublisherService, ScannerOrphanWorkerService, ScannerWorkerService, ScannerFindingsService, AuditClientService],
+  providers: [ScannerConfigService, ScannerRpcService, ScannerPoolService, ScannerVolumeService, ScannerSpreadService, ScannerFilterService, ScannerDedupService, ScannerPipelineService, ScannerPublisherService, ScannerOrphanWorkerService, ScannerRetentionWorkerService, ScannerWorkerService, ScannerFindingsService, AuditClientService],
   controllers: [ScannerController],
   exports: [ScannerConfigService, ScannerRpcService, ScannerPoolService, ScannerVolumeService],
 })

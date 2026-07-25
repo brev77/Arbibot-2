@@ -23,6 +23,9 @@ export const DEFAULT_SCANNER_POOL_CACHE_TTL_MS = 30_000;
 /** Default findings retention (days) — cleanup worker deletes older rows. */
 export const DEFAULT_SCANNER_FINDINGS_RETENTION_DAYS = 7;
 
+/** Default retention cleanup worker interval (ms) — hourly. */
+export const DEFAULT_SCANNER_RETENTION_INTERVAL_MS = 60 * 60 * 1000;
+
 /** Default dedup cooldown (ms) per (canonical_token, buy_venue, sell_venue). */
 export const DEFAULT_SCANNER_DEDUP_COOLDOWN_MS = 60_000;
 
