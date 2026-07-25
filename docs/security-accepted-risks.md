@@ -64,6 +64,59 @@ open Dependabot alert.
   traversal may become reachable.
 - The deploy exposes `hermes-mcp-server` on the network → reassess.
 
+### `brace-expansion <= 5.0.7` — GHSA-mh99-v99m-4gvg (HIGH, Dependabot #68)
+
+- **Advisory:** DoS via unbounded expansion length causing an out-of-memory
+  process crash. CVSS high. Crafted brace pattern (e.g. `{a,b}{c,d}...` nested
+  thousands deep) blows up exponential expansion → OOM/ReDoS.
+- **Severity:** high.
+- **Where (transitive, dev/build-time only):**
+  - `1.1.16` ← `eslint` → `minimatch@3.1.5` (lint)
+  - `2.1.2` ← `jest@30.4.2` → `@jest/reporters|jest-config|jest-runtime` →
+    `glob@10.5.0` → `minimatch@9.0.9` (test runner); also
+    `typeorm@0.3.31` → `glob@10.5.0` → `minimatch@9.0.9` (migration runner)
+  - Already fixed in-tree: `5.0.8` ← `@nestjs/cli`, `typescript-eslint`
+    (via `minimatch@10.2.5` which requires `^5.0.5`).
+
+**Why it cannot be patched today (API break + upstream regression):**
+
+1. The fix landed in `5.0.8` and was **backported** to security-only releases
+   on older lines: `1.1.13`, `2.0.3`, `3.0.2`, `4.0.1`, `5.0.5`
+   ([issue #98](https://github.com/juliangruber/brace-expansion/issues/98)).
+2. However, the subsequent **feature releases on those lines shipped WITHOUT
+   the security fix**: `1.1.16` (2026-07-08, after `1.1.13`) and
+   `2.1.0`/`2.1.1`/`2.1.2` (2026-04→07, after `2.0.3`) all lack the guard.
+   `jest@30` and `typeorm@0.3` pull the latest `2.x` (`2.1.2`); `eslint@9`
+   pulls the latest `1.x` (`1.1.16`). Dependabot range `<= 5.0.7` correctly
+   flags them.
+3. An `overrides: { "brace-expansion": "^5.0.8" }` is a **major bump that
+   breaks the consumer API**: 2.x exports `module.exports = function`,
+   5.x exports `module.exports = { expand, EXPANSION_MAX, ... }` (named).
+   `minimatch@9` / `minimatch@3` call it as a function → runtime crash.
+   Verified empirically (5.x default export is `undefined`, 2.x is callable).
+4. Pinning to the security-only `2.0.3` / `1.1.13` would roll back features
+   that `jest@30` / `eslint@9` rely on and risk different breakage.
+
+**Why the residual risk is acceptable:**
+
+- **All vulnerable paths are dev/build-time**, not production runtime:
+  `jest` (test runner), `eslint` (linter), `typeorm` (migration runner).
+  No production service ships `brace-expansion` in its runtime bundle
+  (Nest services import neither jest nor eslint).
+- **Exploit requires attacker-controlled brace/glob input.** In our threat
+  model the patterns are static (test file paths, lint globs, migration
+  file globs) — no external user input reaches `brace-expansion`.
+- The vulnerable code is **not internet-reachable** in any deployed service.
+
+**Re-evaluation triggers:**
+
+- `jest@30` or `typeorm@0.3` publishes a release that bumps `minimatch@10`
+  (which requires `brace-expansion ^5.0.5`) → re-resolve, close.
+- `eslint@10` (offers `brace-expansion` bump per `npm audit fix`) is adopted
+  → close (note: semver-major, requires ESLint flat-config migration).
+- Upstream re-issues the security patch on `2.1.x` / `1.1.16+` lines
+  (the regression tracked in issue #98) → bump and close.
+
 ## Resolution mechanics (note for future fixes)
 
 - npm `overrides` in the root `package.json` are the mechanism used here.
