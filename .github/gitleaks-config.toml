@@ -29,6 +29,12 @@ paths = [
   '''\.env\.example''',
   '''\.env\.production\.example''',
   '''.*\.env\.example''',
+  # Scanner DEX factory-address mapping + runbook: these are publicly-indexed on-chain
+  # contract addresses (Etherscan), not secrets. gitleaks `telegram-bot-token` rule
+  # false-positives on the `<chainId>:0x<factory>` map keys (number:hex-35+ pattern).
+  '''apps/scanner-service/src/scanner/scanner-pool\.constants\.ts''',
+  '''apps/scanner-service/src/scanner/scanner-volume\.constants\.ts''',
+  '''docs/scanner-service-plan\.md''',
 ]
 regexes = [
   # Placeholders in env examples
