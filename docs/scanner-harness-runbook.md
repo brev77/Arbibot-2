@@ -213,8 +213,7 @@ Scanner-service **должен**:
 npm run build -w @arbibot/scanner-service
 
 # 2. PM2 (14-й сервис в stack)
-pm2 start ecosystem.config.cjs --only scanner-service
-# или npm run pm2:scanner
+pm2 start ecosystem.paper.config.cjs --only scanner-service
 
 # 3. Verify
 curl -s http://127.0.0.1:3021/health | jq .
@@ -222,6 +221,41 @@ pm2 logs scanner-service --lines 20
 
 # 4. UI check
 # /scanners в operator UI — инстансы видны, findings появляются
+```
+
+#### `ecosystem.paper.config.cjs` entry (mirror существующих сервисов)
+
+Файл `ecosystem.paper.config.cjs` живёт на сервере (`/root/Arbibot-2/`), не в git. Добавьте
+блок для scanner-service по образцу остальных Nest-сервисов (name/script/cwd/env/instances:1/
+autorestart:true):
+
+```js
+{
+  name: 'scanner-service',
+  script: 'dist/main.js',
+  cwd: '/root/Arbibot-2/apps/scanner-service',
+  instances: 1,
+  autorestart: true,
+  env: {
+    NODE_ENV: 'production',
+    PORT: 3021,
+    DATABASE_URL: process.env.DATABASE_URL,
+    CONFIG_API_BASE: 'http://127.0.0.1:3019',
+    OPPORTUNITY_SERVICE_URL: 'http://127.0.0.1:3010',
+    // RPC — read-only, изолированный budget от execution (fallback на shared RPC_*_URL)
+    RPC_SCANNER_ARBITRUM_URL: process.env.RPC_ARBITRUM_MAINNET_URL ?? '',
+    RPC_SCANNER_BASE_URL: process.env.RPC_BASE_MAINNET_URL ?? '',
+    RPC_SCANNER_BNB_URL: process.env.RPC_BNB_MAINNET_URL ?? '',
+    SCANNER_RPC_RATE_LIMIT_RPS: '10',
+    // Paper: service-auth disabled (см. docs/paper-deploy-aeza.md)
+    ARBIBOT_SERVICE_AUTH_ENABLED: 'false',
+    SCANNER_RETENTION_ENABLED: 'true',
+  },
+},
+```
+
+После правки конфига: `pm2 start ecosystem.paper.config.cjs --only scanner-service` затем
+`pm2 save` (чтобы `pm2 startup` подобрал сервис при ребуте).
 ```
 
 Env vars (см. `scanner-service-plan.md` Прил. A): `PORT`, `DATABASE_URL`, `RPC_SCANNER_*_URL`, `SCANNER_RPC_RATE_LIMIT_RPS`, `CONFIG_SERVICE_URL`, `OPPORTUNITY_SERVICE_URL`, `ARBIBOT_SERVICE_AUTH_SECRET`, и т.д.

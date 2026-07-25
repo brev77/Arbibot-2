@@ -50,6 +50,7 @@ Latency до ключевых endpoint'ов (измерено 2026-07-22):
 | market-intake-service | 3015 | ~129 MB | snapshots ingestion |
 | paper-trading-service | 3018 | ~134 MB | paper trades, discovery |
 | config-service | 3019 | ~128 MB | policy config |
+| scanner-service | 3021 | ~130 MB | cross-DEX spread detector (findings → opportunities) |
 | web (Next.js) | 3001 | ~158 MB | operator UI |
 
 pm2 startup настроен (systemd). При ребуте сервера все сервисы поднимаются автоматически (`pm2 save` выполнен).
