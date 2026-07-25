@@ -3,6 +3,12 @@ import { ArbitrageOpportunityEntity, OutboxEventEntity } from '@arbibot/persiste
 import type { DataSource, EntityManager } from 'typeorm';
 import { QueryFailedError } from 'typeorm';
 
+import {
+  EVENT_NAMES,
+  OPPORTUNITY_DETECTED_PAYLOAD_SCHEMA_VERSION,
+  SERVICE_IDS,
+} from '@arbibot/contracts';
+
 import { OpportunitiesService } from './opportunities.service';
 import { OPPORTUNITY_STATES } from './opportunity-states';
 import { PaperClientService } from './paper-client.service';
@@ -72,10 +78,43 @@ describe('OpportunitiesService', () => {
         (Entity: object, opts?: { where?: { id?: string } }) =>
           Promise.resolve(resolveOne(Entity, opts)),
       ),
-      save: jest.fn((entity, saved) => Promise.resolve(saved ?? entity)),
+      // For create(): when called with (ArbitrageOpportunityEntity, row),
+      // return the row as-is so the saved id from the DB round-trips. When called
+      // with an already-hydrated entity (enrich/paperEnqueue), echo it back.
+      save: jest.fn((entity, saved) => {
+        if (entity === ArbitrageOpportunityEntity) {
+          const row = saved ?? {};
+          // Stamp a stable id when the caller (create path) did not supply one,
+          // so outbox entityId can be populated in the same tx.
+          if ((row as { id?: string }).id === undefined) {
+            (row as { id?: string }).id = 'o-tx-1';
+          }
+          return Promise.resolve(row);
+        }
+        return Promise.resolve(saved ?? entity);
+      }),
       create: jest.fn((_e, p) => p),
     };
     return em as unknown as EntityManager;
+  };
+
+  /** Capture an EntityManager's calls to inspect what was saved inside a tx. */
+  type SavedCall = { entity: object; persisted: unknown };
+  const captureEm = (): EntityManager & { saved: SavedCall[] } => {
+    const saved: SavedCall[] = [];
+    const em = mkEm();
+    ((em as unknown as { save: jest.Mock }).save).mockImplementation(
+      (entity: object, persisted?: unknown) => {
+        saved.push({ entity, persisted: persisted ?? entity });
+        if (entity === ArbitrageOpportunityEntity) {
+          const row = (persisted ?? {}) as { id?: string };
+          if (row.id === undefined) row.id = 'o-tx-1';
+          return Promise.resolve(row);
+        }
+        return Promise.resolve(persisted ?? entity);
+      },
+    );
+    return Object.assign(em, { saved });
   };
 
   beforeEach(() => {
@@ -108,23 +147,38 @@ describe('OpportunitiesService', () => {
   });
 
   describe('create / list / getById', () => {
-    it('create persists a detected-state row', async () => {
-      const saved = { id: 'o1', state: OPPORTUNITY_STATES.detected };
-      repo.save.mockResolvedValue(saved);
+    it('create persists a detected-state row inside a transaction', async () => {
+      const em = captureEm();
+      dataSource.transaction.mockImplementation(
+        (fn: (em: EntityManager) => Promise<unknown>) =>
+          Promise.resolve(fn(em)),
+      );
       const out = await service.create({ payload: { spread: 1 } });
-      expect(repo.create.mock.calls[0]?.[0]).toMatchObject({
+      const oppSave = (em.saved.find(
+        (s) => s.entity === ArbitrageOpportunityEntity,
+      ) ?? {}) as { persisted?: Record<string, unknown> };
+      expect(oppSave.persisted).toMatchObject({
         state: OPPORTUNITY_STATES.detected,
         riskDecisionId: null,
         payload: { spread: 1 },
         entityVersion: 1,
       });
-      expect(out).toBe(saved);
+      expect((out as { state?: string }).state).toBe(
+        OPPORTUNITY_STATES.detected,
+      );
     });
 
     it('create defaults payload to {} when omitted', async () => {
-      repo.save.mockResolvedValue({ id: 'o1' });
+      const em = captureEm();
+      dataSource.transaction.mockImplementation(
+        (fn: (em: EntityManager) => Promise<unknown>) =>
+          Promise.resolve(fn(em)),
+      );
       await service.create({});
-      expect(repo.create.mock.calls[0]?.[0].payload).toEqual({});
+      const oppSave = (em.saved.find(
+        (s) => s.entity === ArbitrageOpportunityEntity,
+      ) ?? {}) as { persisted?: { payload?: Record<string, unknown> } };
+      expect(oppSave.persisted?.payload).toEqual({});
     });
 
     it('list forwards DESC createdAt take=100', async () => {
@@ -142,6 +196,148 @@ describe('OpportunitiesService', () => {
       expect(repo.findOne.mock.calls[0]?.[0]).toMatchObject({
         where: { id: 'o1' },
       });
+    });
+  });
+
+  describe('create — OpportunityDetected outbox (Phase 3b, S3-3)', () => {
+    type CapturedEm = EntityManager & { saved: SavedCall[] };
+    const runCreateWith = async (
+      payload: Record<string, unknown>,
+      correlationId?: string,
+    ): Promise<{ em: CapturedEm; out: unknown }> => {
+      const em = captureEm();
+      dataSource.transaction.mockImplementation(
+        (fn: (em: EntityManager) => Promise<unknown>) =>
+          Promise.resolve(fn(em)),
+      );
+      const out = await service.create(
+        correlationId !== undefined ? { payload, correlationId } : { payload },
+      );
+      return { em, out };
+    };
+
+    /** Find the outbox row that was persisted inside the create transaction. */
+    const outboxSaved = (em: CapturedEm): Record<string, unknown> => {
+      const ob = em.saved.find((s) => s.entity === OutboxEventEntity) ?? {};
+      return (ob as { persisted?: Record<string, unknown> }).persisted ?? {};
+    };
+
+    it('writes an OpportunityDetected outbox row inside the same tx as the opportunity', async () => {
+      const { em } = await runCreateWith({ spreadPct: 0.5 });
+      const ob = outboxSaved(em);
+      expect(ob.eventType).toBe(EVENT_NAMES.opportunityDetected);
+      expect(ob.entityType).toBe('ArbitrageOpportunity');
+      expect(ob.schemaVersion).toBe(OPPORTUNITY_DETECTED_PAYLOAD_SCHEMA_VERSION);
+      // entityId echoes the opportunity id stamped by the mocked em.save.
+      expect(ob.entityId).toBe('o-tx-1');
+      expect(ob.processedAt).toBeNull();
+    });
+
+    it('envelope fields match the Phase 3b contract (sourceModule=opportunityService)', async () => {
+      const { em } = await runCreateWith({
+        sourceModule: 'scanner-service',
+        spreadBps: 30,
+      });
+      const ob = outboxSaved(em);
+      const envelope = (ob.envelope ?? {}) as Record<string, unknown>;
+      expect(envelope.sourceModule).toBe(SERVICE_IDS.opportunityService);
+      expect(envelope.eventName).toBe(EVENT_NAMES.opportunityDetected);
+      expect(envelope.version).toBe(OPPORTUNITY_DETECTED_PAYLOAD_SCHEMA_VERSION);
+      expect(envelope.entityType).toBe('ArbitrageOpportunity');
+      expect(envelope.entityId).toBe('o-tx-1');
+      expect(envelope.messageId).toEqual(
+        expect.stringMatching(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+        ),
+      );
+      expect(envelope.eventTs).toEqual(
+        expect.stringMatching(/^\d{4}-\d{2}-\d{2}T.+Z$/),
+      );
+    });
+
+    it('payload.sourceModule reflects originating module from caller payload', async () => {
+      const { em } = await runCreateWith({
+        sourceModule: 'scanner-service',
+        spreadBps: 42,
+        profitUsd: 10,
+        buyVenue: 'uniswap-v2',
+        sellVenue: 'sushiswap',
+        chainId: 42161,
+        token: 'WETH',
+        quoteAsset: 'USDC',
+      });
+      const ob = outboxSaved(em);
+      const payload = (ob.payload ?? {}) as Record<string, unknown>;
+      expect(payload.sourceModule).toBe('scanner-service');
+      expect(payload.spreadBps).toBe(42);
+      expect(payload.grossProfitUsd).toBe(10); // falls back to profitUsd
+      expect(payload.netProfitUsd).toBe(10);
+      expect(payload.buyVenue).toBe('uniswap-v2');
+      expect(payload.sellVenue).toBe('sushiswap');
+      expect(payload.chainId).toBe(42161);
+      expect(payload.token).toBe('WETH');
+      expect(payload.quoteAsset).toBe('USDC');
+      expect(payload.opportunityId).toBe('o-tx-1');
+    });
+
+    it('payload defaults sourceModule to "manual" when caller omits it', async () => {
+      const { em } = await runCreateWith({});
+      const payload = (outboxSaved(em).payload ?? {}) as Record<
+        string,
+        unknown
+      >;
+      expect(payload.sourceModule).toBe('manual');
+      expect(payload.spreadBps).toBeNull();
+      expect(payload.grossProfitUsd).toBeNull();
+    });
+
+    it('falls back to opportunity id for correlationId when DTO omits it', async () => {
+      const { em } = await runCreateWith({});
+      const envelope = (outboxSaved(em).envelope ?? {}) as Record<
+        string,
+        unknown
+      >;
+      expect(envelope.correlationId).toBe('o-tx-1');
+      expect(envelope.causationId).toBe('o-tx-1');
+    });
+
+    it('uses the provided correlationId in the envelope', async () => {
+      const cid = '00000000-0000-4000-8000-0000000000ab';
+      const { em } = await runCreateWith({}, cid);
+      const envelope = (outboxSaved(em).envelope ?? {}) as Record<
+        string,
+        unknown
+      >;
+      expect(envelope.correlationId).toBe(cid);
+    });
+
+    it('passes an explicit evidence object through verbatim', async () => {
+      const { em } = await runCreateWith({
+        evidence: { buyPoolAddress: '0xabc', gasUsd: 1.5 },
+      });
+      const payload = (outboxSaved(em).payload ?? {}) as Record<
+        string,
+        unknown
+      >;
+      expect(payload.evidence).toEqual({ buyPoolAddress: '0xabc', gasUsd: 1.5 });
+    });
+
+    it('rolls back the opportunity when the outbox write fails (single tx)', async () => {
+      const em = mkEm();
+      (em as unknown as { save: jest.Mock }).save = jest.fn(
+        (entity: object) => {
+          if (entity === OutboxEventEntity) {
+            return Promise.reject(new Error('outbox connection refused'));
+          }
+          const row = { id: 'o-tx-1' };
+          return Promise.resolve(row);
+        },
+      );
+      dataSource.transaction.mockImplementation(
+        (fn: (em: EntityManager) => Promise<unknown>) =>
+          Promise.resolve(fn(em)),
+      );
+      await expect(service.create({})).rejects.toThrow('outbox connection refused');
     });
   });
 

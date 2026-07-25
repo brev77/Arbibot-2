@@ -104,17 +104,17 @@
 
 ### Backend (opportunity-service — Phase 3b)
 
-- [ ] Прогнать **backend-review-agent** по изменённому `opportunities.service.ts`.
-- [ ] `create()` обёрнут в `dataSource.transaction` + outbox `OpportunityDetected`.
-- [ ] **Primary образец `paperEnqueue()` (`opportunities.service.ts:199-319`)** — mirror структуры (tx + outbox + envelope + idempotency). Не перескакивать в risk.service/snapshots.service.
-- [ ] Envelope fields по чеклисту `scanner-service-plan.md` Phase 3b (message_id, correlation_id, entity_type, entity_id, schema_version=1, source_module=opportunityService, event_type=opportunityDetected, payload, envelope, event_ts).
-- [ ] **Regression:** существующие opportunity-service unit tests зелёные (create, enrich, paperEnqueue не сломаны).
-- [ ] ⚠️ Lifecycle `detected→risk_checked` НЕ драйвится через `OpportunityDetected` (требует `RiskDecisionIssued` — отдельный flow, уже работает). Событие чисто для наблюдаемости.
+- [x] Прогнать **backend-review-agent** по изменённому `opportunities.service.ts` — **PASS** (2026-07-25, S3-3): single-writer сохранён, outbox в той же tx, envelope schema полная.
+- [x] `create()` обёрнут в `dataSource.transaction` + outbox `OpportunityDetected`.
+- [x] **Primary образец `paperEnqueue()` (`opportunities.service.ts:199-319`)** — mirror структуры (tx + outbox + envelope). Не перескакивать в risk.service/snapshots.service.
+- [x] Envelope fields по чеклисту `scanner-service-plan.md` Phase 3b (messageId, correlationId, causationId, entityType, entityId, version=1, sourceModule=opportunityService, eventName=opportunityDetected, payload, envelope, eventTs).
+- [x] **Regression:** opportunity-service unit tests зелёные — 135/135 pass (8 suites), включая 9 новых outbox-тестов + все существующие create/enrich/paperEnqueue/requestRiskEvaluation.
+- [x] ⚠️ Lifecycle `detected→risk_checked` НЕ драйвится через `OpportunityDetected` (требует `RiskDecisionIssued` — отдельный flow, уже работает). Событие чисто для наблюдаемости.
 
 ### Architecture
 
-- [ ] Прогнать **architecture-guard-agent**: scanner НЕ пишет `arbitrage_opportunities` напрямую (только через POST /opportunities). Opportunity-service остаётся single-writer.
-- [ ] `OpportunityDetected` outbox — single-writer opportunity-service (не scanner).
+- [x] Прогнать **architecture-guard-agent**: scanner НЕ пишет `arbitrage_opportunities` напрямую (только через POST /opportunities). Opportunity-service остаётся single-writer — scanner-service не импортирует `ArbitrageOpportunityEntity`.
+- [x] `OpportunityDetected` outbox — single-writer opportunity-service (не scanner).
 
 ### Verify + runtime
 

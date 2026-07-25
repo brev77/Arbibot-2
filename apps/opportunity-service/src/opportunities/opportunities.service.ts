@@ -6,14 +6,23 @@
   import { randomUUID } from 'node:crypto';
 
   import { InjectRepository } from '@nestjs/typeorm';
-  import { DataSource, IsNull, MoreThanOrEqual, QueryFailedError, Repository } from 'typeorm';
+import {
+  DataSource,
+  EntityManager,
+  IsNull,
+  MoreThanOrEqual,
+  QueryFailedError,
+  Repository,
+} from 'typeorm';
 
-  import {
-    EVENT_NAMES,
-    PAPER_PROMOTION_CANDIDATE_REQUESTED_PAYLOAD_SCHEMA_VERSION,
-    type PaperPromotionCandidateRequestedPayloadV1,
-    SERVICE_IDS,
-  } from '@arbibot/contracts';
+import {
+  EVENT_NAMES,
+  OPPORTUNITY_DETECTED_PAYLOAD_SCHEMA_VERSION,
+  PAPER_PROMOTION_CANDIDATE_REQUESTED_PAYLOAD_SCHEMA_VERSION,
+  type OpportunityDetectedPayloadV1,
+  type PaperPromotionCandidateRequestedPayloadV1,
+  SERVICE_IDS,
+} from '@arbibot/contracts';
   import { getCorrelationId } from '@arbibot/nest-platform';
   import { ArbitrageOpportunityEntity, OutboxEventEntity } from '@arbibot/persistence';
 
@@ -37,6 +46,58 @@ function readStringFromPayload(
 ): string | undefined {
   const v = payload[key];
   return typeof v === 'string' && v.length > 0 ? v : undefined;
+}
+
+function readNumberFromPayload(
+  payload: Record<string, unknown>,
+  key: string,
+): number | null {
+  const v = payload[key];
+  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+
+/**
+ * Extract a free-form `evidence` block from the input payload. If the caller supplied an
+ * `evidence` object, pass it through verbatim; otherwise capture the raw input blob (minus the
+ * canonical fields already promoted to `OpportunityDetectedPayloadV1`) so pool addresses,
+ * reserves, gas estimates etc. survive for observability/future consumers.
+ */
+function extractEvidence(input: Record<string, unknown>): Record<string, unknown> {
+  const evidence = input['evidence'];
+  if (
+    typeof evidence === 'object' &&
+    evidence !== null &&
+    !Array.isArray(evidence)
+  ) {
+    return evidence as Record<string, unknown>;
+  }
+  const promoted = new Set([
+    'instrumentKey',
+    'routeKey',
+    'sourceModule',
+    'spreadBps',
+    'grossProfitUsd',
+    'netProfitUsd',
+    'profitUsd',
+    'feesUsd',
+    'volumeUsd',
+    'buyVenue',
+    'sellVenue',
+    'chainId',
+    'token',
+    'quoteAsset',
+    'evidence',
+    'spreadPct',
+    'riskLevel',
+    'poolAddresses',
+  ]);
+  const passthrough: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(input)) {
+    if (!promoted.has(k)) {
+      passthrough[k] = v;
+    }
+  }
+  return passthrough;
 }
 
 function isPostgresUniqueViolation(err: unknown): boolean {
@@ -64,15 +125,93 @@ export class OpportunitiesService {
     private readonly paperClient: PaperClientService,
   ) {}
 
+  /**
+   * Create a detected-state opportunity AND emit an `OpportunityDetected` outbox row in a
+   * single transaction (Phase 3b — S3-3-PHASE3B).
+   *
+   * Mirrors `paperEnqueue()` (opportunities.service.ts) — same file, same service, same
+   * dataSource + OutboxEventEntity wiring. `dataSource` already injected (constructor),
+   * `OutboxEventEntity` already imported — no new dependencies.
+   *
+   * `OpportunityDetected` is purely observational: 0 consumers today, but the contract is
+   * materialized for Hermes / UI async / future auto-enricher. It does NOT drive
+   * `detected → risk_checked` (that requires `RiskDecisionIssued` via request-risk-evaluation).
+   *
+   * Payload.sourceModule reflects the *originating* module (e.g. 'scanner-service') when the
+   * caller supplied it; envelope.sourceModule is always `SERVICE_IDS.opportunityService` because
+   * opportunity-service is the single-writer that emits the outbox row.
+   */
   async create(dto: CreateOpportunityDto): Promise<ArbitrageOpportunityEntity> {
-    const row = this.repo.create({
-      correlationId: dto.correlationId ?? null,
-      state: OPPORTUNITY_STATES.detected,
-      riskDecisionId: null,
-      payload: dto.payload ?? {},
-      entityVersion: 1,
+    return this.dataSource.transaction(async (em: EntityManager) => {
+      const row = em.create(ArbitrageOpportunityEntity, {
+        correlationId: dto.correlationId ?? null,
+        state: OPPORTUNITY_STATES.detected,
+        riskDecisionId: null,
+        payload: dto.payload ?? {},
+        entityVersion: 1,
+      });
+      const saved = await em.save(ArbitrageOpportunityEntity, row);
+      await this.writeOpportunityDetectedOutbox(em, saved);
+      return saved;
     });
-    return this.repo.save(row);
+  }
+
+  /**
+   * Write the `OpportunityDetected` outbox row (envelope + payload per contracts/events.ts).
+   * The payload is derived from the caller-supplied `payload` blob (scanner-service writes
+   * `OpportunityDetectedPayloadV1` fields there); fields absent on the row default to null.
+   */
+  private async writeOpportunityDetectedOutbox(
+    em: EntityManager,
+    opp: ArbitrageOpportunityEntity,
+  ): Promise<void> {
+    const messageId = randomUUID();
+    const createdAt = new Date();
+    const correlationId =
+      typeof opp.correlationId === 'string' && opp.correlationId.length > 0
+        ? opp.correlationId
+        : opp.id;
+    const input = (opp.payload ?? {});
+    const payload: OpportunityDetectedPayloadV1 = {
+      opportunityId: opp.id,
+      instrumentKey: readStringFromPayload(input, 'instrumentKey') ?? null,
+      routeKey: readStringFromPayload(input, 'routeKey') ?? null,
+      sourceModule: readStringFromPayload(input, 'sourceModule') ?? 'manual',
+      spreadBps: readNumberFromPayload(input, 'spreadBps'),
+      grossProfitUsd: readNumberFromPayload(input, 'grossProfitUsd') ?? readNumberFromPayload(input, 'profitUsd'),
+      netProfitUsd: readNumberFromPayload(input, 'netProfitUsd') ?? readNumberFromPayload(input, 'profitUsd'),
+      feesUsd: readNumberFromPayload(input, 'feesUsd'),
+      volumeUsd: readNumberFromPayload(input, 'volumeUsd'),
+      buyVenue: readStringFromPayload(input, 'buyVenue') ?? null,
+      sellVenue: readStringFromPayload(input, 'sellVenue') ?? null,
+      chainId: readNumberFromPayload(input, 'chainId'),
+      token: readStringFromPayload(input, 'token') ?? null,
+      quoteAsset: readStringFromPayload(input, 'quoteAsset') ?? null,
+      evidence: extractEvidence(input),
+    };
+    const envelope = {
+      messageId,
+      correlationId,
+      causationId: opp.id,
+      entityType: 'ArbitrageOpportunity',
+      entityId: opp.id,
+      version: OPPORTUNITY_DETECTED_PAYLOAD_SCHEMA_VERSION,
+      sourceModule: SERVICE_IDS.opportunityService,
+      eventTs: createdAt.toISOString(),
+      eventName: EVENT_NAMES.opportunityDetected,
+      payload,
+    };
+    const outbox = em.create(OutboxEventEntity, {
+      messageId,
+      eventType: EVENT_NAMES.opportunityDetected,
+      entityType: 'ArbitrageOpportunity',
+      entityId: opp.id,
+      schemaVersion: OPPORTUNITY_DETECTED_PAYLOAD_SCHEMA_VERSION,
+      payload: payload as unknown as Record<string, unknown>,
+      envelope: envelope as unknown as Record<string, unknown>,
+      processedAt: null,
+    });
+    await em.save(OutboxEventEntity, outbox);
   }
 
   async list(): Promise<ArbitrageOpportunityEntity[]> {
