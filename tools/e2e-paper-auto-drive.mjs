@@ -93,30 +93,34 @@ async function main() {
   assert.equal(promoted.status, 'promoted', `expected promoted, got ${promoted.status}`);
   console.log('>> candidate promoted (operator gate passed)');
 
-  // 3. Wait for phase A — draft paper trade created.
-  const draftTrade = await waitFor(async () => {
+  // 3. Wait for phase A — a paper trade created from the candidate (any non-terminal state).
+  // The pipeline runs fast at CI intervals (1s tick, 1s settle delay): by the time we poll,
+  // the trade may already be past draft/active. We assert the TRADE EXISTS (created by phase A
+  // with the auto-drive idempotency key), not its transient state.
+  const trade = await waitFor(async () => {
     const ts = await listTradesByOpportunity(opportunityId);
     return ts.length > 0 ? ts[0] : null;
-  }, PHASE_A_TIMEOUT_MS, 'phaseA-draft');
-  console.log(`>> phase A: draft paper trade created: ${draftTrade.id} (state=${draftTrade.state})`);
-  assert.equal(draftTrade.state, 'draft', `expected draft, got ${draftTrade.state}`);
-  assert.equal(draftTrade.idempotencyKey, `auto-drive:${candidate.id}`, 'idempotencyKey should be auto-drive:${candidate.id}');
+  }, PHASE_A_TIMEOUT_MS, 'phaseA-trade-created');
+  console.log(`>> phase A: paper trade created: ${trade.id} (state=${trade.state})`);
+  assert.equal(
+    trade.idempotencyKey,
+    `auto-drive:${candidate.id}`,
+    `idempotencyKey should be auto-drive:${candidate.id}, got ${trade.idempotencyKey}`,
+  );
 
-  // 4. Wait for phase B — draft → active (PAPER_AUTO_APPROVE=true).
-  const activeTrade = await waitFor(async () => {
-    const ts = await listTradesByOpportunity(opportunityId);
-    return ts.length > 0 && ts[0].state === 'active' ? ts[0] : null;
-  }, PHASE_BC_TIMEOUT_MS, 'phaseB-active');
-  console.log(`>> phase B: trade auto-approved → state=${activeTrade.state}`);
-
-  // 5. Wait for phase C — active → settled with P/L.
+  // 4+5. Wait for the pipeline to reach the terminal settled state with P/L populated.
+  // Phases B (auto-approve) and C (auto-settle after delay) run on subsequent ticks.
   const settledTrade = await waitFor(async () => {
     const ts = await listTradesByOpportunity(opportunityId);
     return ts.length > 0 && ts[0].state === 'settled' ? ts[0] : null;
-  }, PHASE_BC_TIMEOUT_MS, 'phaseC-settled');
-  console.log(`>> phase C: trade settled, profitUsd=${settledTrade.profitUsd}`);
+  }, PHASE_BC_TIMEOUT_MS, 'phaseBC-settled');
+  console.log(`>> phases B+C: trade settled, profitUsd=${settledTrade.profitUsd}`);
   assert.notEqual(settledTrade.profitUsd, null, 'profitUsd must be populated after settle');
-  assert.equal(settledTrade.entryPrice !== null && settledTrade.exitPrice !== null, true, 'entry/exit prices must be populated');
+  assert.equal(
+    settledTrade.entryPrice !== null && settledTrade.exitPrice !== null,
+    true,
+    'entry/exit prices must be populated',
+  );
 
   // 6. Verify /history and /stats expose the settled trade.
   const history = await api('GET', '/paper/trades/history?limit=50');
