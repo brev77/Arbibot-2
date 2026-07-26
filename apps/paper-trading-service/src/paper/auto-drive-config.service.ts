@@ -27,6 +27,8 @@ export interface AutoDriveConfig {
   batchSize: number;
   /** Opt-in: auto-approve drafts (draft → active). Default false (operator still gates paper→live). */
   autoApprove: boolean;
+  /** Opt-in: auto-promote queued candidates (queued → promoted). Default false (paper→live gate). */
+  autoPromote: boolean;
   /** Min delay (ms) an active trade must age before auto-settle fires. */
   autoSettleDelayMs: number;
 }
@@ -164,6 +166,7 @@ export class AutoDriveConfigService {
         1,
       ),
       autoApprove: parseBooleanEnv(process.env.PAPER_AUTO_APPROVE, false),
+      autoPromote: parseBooleanEnv(process.env.PAPER_AUTO_PROMOTE, false),
       autoSettleDelayMs: parsePositiveIntEnv(
         process.env.PAPER_AUTO_SETTLE_DELAY_MS,
         5000,

@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
 import { Counter, Histogram } from 'prom-client';
 
@@ -15,7 +15,8 @@ import { PaperTradesService } from './paper-trades.service';
  * Drives ONLY the post-operator-approval chain. Promotion (queued → under_review → promoted)
  * stays an explicit operator action because it is the paper→live gate (paper-live-boundary.md).
  *
- * Per tick (every PAPER_AUTO_DRIVE_INTERVAL_MS), three phases run in order:
+ * Per tick (every PAPER_AUTO_DRIVE_INTERVAL_MS), four phases run in order:
+ *   0. (opt-in, PAPER_AUTO_PROMOTE) queued → under_review → promoted.
  *   A. promoted candidates → draft paper_trades (skip if draft already exists for the candidate;
  *      idempotency_key = `auto-drive:${candidate.id}`). Filtered by minNetProfitUsd.
  *   B. (opt-in, PAPER_AUTO_APPROVE) draft → active via PaperTradesService.approve. Skipped entirely
@@ -120,10 +121,12 @@ export class AutoDriveWorker implements OnModuleInit, OnModuleDestroy {
     draftsCreated: number;
     approved: number;
     settled: number;
+    promoted: number;
+    cleaned: number;
     message: string;
   }> {
     if (this.isRunning) {
-      return { ran: false, draftsCreated: 0, approved: 0, settled: 0, message: 'cycle already running' };
+      return { ran: false, draftsCreated: 0, approved: 0, settled: 0, promoted: 0, cleaned: 0, message: 'cycle already running' };
     }
     const result = await this.runCycleInner('manual').catch((err) => {
       throw err;
@@ -133,7 +136,9 @@ export class AutoDriveWorker implements OnModuleInit, OnModuleDestroy {
       draftsCreated: result.draftsCreated,
       approved: result.approved,
       settled: result.settled,
-      message: `cycle complete (drafts=${result.draftsCreated}, approved=${result.approved}, settled=${result.settled})`,
+      promoted: result.promoted,
+      cleaned: result.cleaned,
+      message: `cycle complete (cleaned=${result.cleaned}, promoted=${result.promoted}, drafts=${result.draftsCreated}, approved=${result.approved}, settled=${result.settled})`,
     };
   }
 
@@ -173,9 +178,118 @@ export class AutoDriveWorker implements OnModuleInit, OnModuleDestroy {
 
   private async runCycleInner(
     _reason: 'startup' | 'interval' | 'manual',
-  ): Promise<{ draftsCreated: number; approved: number; settled: number }> {
+  ): Promise<{ draftsCreated: number; approved: number; settled: number; promoted: number; cleaned: number }> {
     const cfg = this.configService.getConfig();
     const batch = cfg.batchSize;
+
+    // --- Phase -1 (pre-filter): cleanup garbage + dedup ---
+    // Hard filter: reject candidates without economic evidence or with zero/negative profit.
+    // Dedup: keep only the best candidate per instrument_key.
+    let cleanedCount = 0;
+    try {
+      const allCandidates = await this.candidatesRepo.find({
+        where: { status: In(['queued' as const, 'under_review' as const]) },
+        take: 200,
+        order: { createdAt: 'ASC' },
+      });
+
+      // Group by instrument_key, keep only the best per group
+      const bestPerInstrument = new Map<string, PaperPromotionCandidateEntity>();
+      const toReject: PaperPromotionCandidateEntity[] = [];
+
+      for (const candidate of allCandidates) {
+        const pl = extractProfitLoss(candidate);
+
+        // Hard filter: no evidence → reject
+        if (pl.netProfitUsd === null) {
+          toReject.push(candidate);
+          continue;
+        }
+        // Hard filter: zero/negative profit → reject
+        if (pl.netProfitUsd <= 0) {
+          toReject.push(candidate);
+          continue;
+        }
+        // Hard filter: below min profit threshold → reject
+        if (pl.netProfitUsd < cfg.minNetProfitUsd) {
+          toReject.push(candidate);
+          continue;
+        }
+
+        // Dedup: keep only best per instrument_key
+        const existing = bestPerInstrument.get(candidate.instrumentKey);
+        if (existing === undefined) {
+          bestPerInstrument.set(candidate.instrumentKey, candidate);
+        } else {
+          const existingPl = extractProfitLoss(existing);
+          // If spread >= 100bps: keep the one with higher profit
+          // Otherwise: keep the newer one
+          const candidateSpread = pl.spreadBps ?? 0;
+          if (candidateSpread >= 100) {
+            if ((pl.netProfitUsd ?? 0) > (existingPl.netProfitUsd ?? 0)) {
+              toReject.push(existing);
+              bestPerInstrument.set(candidate.instrumentKey, candidate);
+            } else {
+              toReject.push(candidate);
+            }
+          } else {
+            // Keep newer (candidate is newer because we sort by createdAt ASC)
+            toReject.push(existing);
+            bestPerInstrument.set(candidate.instrumentKey, candidate);
+          }
+        }
+      }
+
+      // Reject all losers
+      for (const candidate of toReject) {
+        candidate.status = 'rejected' as const;
+        candidate.entityVersion += 1;
+      }
+      if (toReject.length > 0) {
+        await this.candidatesRepo.save(toReject);
+        cleanedCount = toReject.length;
+        this.metrics.promotedToDraft.inc({ outcome: 'filtered_out' }, cleanedCount);
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Phase -1: pre-filter failed: ${this.errorMessage(err)}`,
+      );
+    }
+
+    // --- Phase 0 (opt-in): queued → under_review → promoted ---
+    let promotedCount = 0;
+    if (cfg.autoPromote) {
+      const queued = await this.candidatesRepo.find({
+        where: { status: 'queued' as const },
+        take: batch,
+        order: { createdAt: 'ASC' },
+      });
+      for (const candidate of queued) {
+        // Filter by min profit (same gate as Phase A)
+        const pl = extractProfitLoss(candidate);
+        if (pl.netProfitUsd !== null && pl.netProfitUsd < cfg.minNetProfitUsd) {
+          this.metrics.promotedToDraft.inc({ outcome: 'skipped_min_profit' });
+          continue;
+        }
+        try {
+          // queued → under_review
+          candidate.status = 'under_review' as const;
+          candidate.entityVersion += 1;
+          await this.candidatesRepo.save(candidate);
+          // under_review → promoted
+          candidate.status = 'promoted' as const;
+          candidate.entityVersion += 1;
+          await this.candidatesRepo.save(candidate);
+          promotedCount += 1;
+          this.metrics.promotedToDraft.inc({ outcome: 'auto_promoted' });
+        } catch (err) {
+          this.metrics.promotedToDraft.inc({ outcome: 'auto_promote_failed' });
+          this.logger.warn(
+            `Phase 0: failed to auto-promote candidate ${candidate.id}: ${this.errorMessage(err)}`,
+          );
+        }
+      }
+    }
 
     // --- Phase A: promoted candidates → draft paper_trades ---
     const promoted = await this.candidatesRepo.find({
@@ -185,10 +299,10 @@ export class AutoDriveWorker implements OnModuleInit, OnModuleDestroy {
     });
     let draftsCreated = 0;
     for (const candidate of promoted) {
-      // Idempotency: a paper trade created from this candidate already exists.
+      // Idempotency: a non-terminal paper trade created from this candidate already exists.
       const idempotencyKey = `auto-drive:${candidate.id}`;
       const existing = await this.tradesRepo.findOne({ where: { idempotencyKey } });
-      if (existing !== null) {
+      if (existing !== null && existing.state !== 'canceled') {
         this.metrics.promotedToDraft.inc({ outcome: 'skipped_exists' });
         continue;
       }
@@ -310,12 +424,12 @@ export class AutoDriveWorker implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    if (draftsCreated > 0 || approved > 0 || settledCount > 0) {
+    if (draftsCreated > 0 || approved > 0 || settledCount > 0 || promotedCount > 0 || cleanedCount > 0) {
       this.logger.log(
-        `AutoDrive cycle (${_reason}): drafts=${draftsCreated} approved=${approved} settled=${settledCount}`,
+        `AutoDrive cycle (${_reason}): cleaned=${cleanedCount} promoted=${promotedCount} drafts=${draftsCreated} approved=${approved} settled=${settledCount}`,
       );
     }
-    return { draftsCreated, approved, settled: settledCount };
+    return { draftsCreated, approved, settled: settledCount, promoted: promotedCount, cleaned: cleanedCount };
   }
 
   private errorMessage(err: unknown): string {
