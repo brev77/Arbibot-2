@@ -334,6 +334,25 @@ describe('ScannerPipelineService', () => {
       expect(result.error).toBeNull();
     });
 
+    it('resolves ethereum network to chainId 1', async () => {
+      poolService.readPool.mockResolvedValue(null);
+      const result = await service.runCycle(makeInstance({ network: 'ethereum' }));
+      expect(result.poolsRead).toBe(0);
+      expect(result.error).toBeNull();
+    });
+
+    it('resolves eth alias to chainId 1', async () => {
+      poolService.readPool.mockResolvedValue(null);
+      const result = await service.runCycle(makeInstance({ network: 'eth' }));
+      expect(result.error).toBeNull();
+    });
+
+    it('resolves mainnet alias to chainId 1', async () => {
+      poolService.readPool.mockResolvedValue(null);
+      const result = await service.runCycle(makeInstance({ network: 'mainnet' }));
+      expect(result.error).toBeNull();
+    });
+
     it('returns empty summary with no error for an unknown network', async () => {
       const result = await service.runCycle(makeInstance({ network: 'unknown-chain' }));
       expect(result.poolsRead).toBe(0);

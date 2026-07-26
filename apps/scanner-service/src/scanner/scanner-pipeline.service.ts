@@ -219,6 +219,10 @@ export class ScannerPipelineService {
       case 'bnb':
       case 'bsc':
         return 56;
+      case 'ethereum':
+      case 'eth':
+      case 'mainnet':
+        return 1;
       default:
         return null;
     }

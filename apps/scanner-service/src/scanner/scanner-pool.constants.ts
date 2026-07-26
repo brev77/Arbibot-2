@@ -37,6 +37,11 @@ export const FACTORY_MAPPING: ReadonlyMap<string, FactoryMapping> = new Map<
   ['42161:0x1f98431c8ad98523631ae4a59f267346ea31f984', { venueKey: 'uniswap-v3', family: 'v3', defaultFeeBps: 0 }],
   ['42161:0xc35dadb65012ec5796536bd9864ed8773abc74c4', { venueKey: 'sushiswap', family: 'v2', defaultFeeBps: 30 }],
 
+  // --- Ethereum mainnet (1) ---
+  ['1:0x5c69bee701ef814a2b6a3edd4b1652cb9cc5aa6f', { venueKey: 'uniswap-v2', family: 'v2', defaultFeeBps: 30 }],
+  ['1:0x1f98431c8ad98523631ae4a59f267346ea31f984', { venueKey: 'uniswap-v3', family: 'v3', defaultFeeBps: 0 }],
+  ['1:0xc0aee478e3658e2610c5f7a4a2e1777ce9e4f2ac', { venueKey: 'sushiswap', family: 'v2', defaultFeeBps: 30 }],
+
   // --- Base (8453) ---
   ['8453:0x33128a8fc17869897dce68ed026d594dd274d2f3', { venueKey: 'uniswap-v3', family: 'v3', defaultFeeBps: 0 }],
   ['8453:0x7dae51ae332a0e1f979b1b1d01ed6d68468e41ec', { venueKey: 'sushiswap', family: 'v2', defaultFeeBps: 30 }],
