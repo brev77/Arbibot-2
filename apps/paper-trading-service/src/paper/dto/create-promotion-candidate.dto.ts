@@ -40,4 +40,24 @@ export class CreatePromotionCandidateDto {
   @MinLength(8)
   @MaxLength(512)
   enqueueIdempotencyKey?: string;
+
+  // --- Additive v1.1 P/L fields (copied from opportunity payload for paper settle) ---
+
+  @IsOptional()
+  @IsNumber()
+  netProfitUsd?: number;
+
+  @IsOptional()
+  @IsNumber()
+  spreadBps?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  buyVenue?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  sellVenue?: string;
 }

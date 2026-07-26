@@ -132,6 +132,9 @@ echo ">> Step 1/3: clearing kill-switches in $ENV_FILE" >&2
 unflip_env "DEX_LIVE_KILL_SWITCH" "false"
 unflip_env "PAPER_DISCOVERY_ENABLED" "true"
 unflip_env "RISK_POLICY_JOBS_ENABLED" "true"
+# PAPER_AUTO_DRIVE_ENABLED is intentionally NOT auto-restored: auto-drive is opt-in / safe-by-default.
+# After a panic the operator must explicitly re-enable it via /settings (paper.auto_drive.enabled=true)
+# or by setting the env var — recovery must not auto-restart automated paper trading.
 
 echo ">> Step 2/3: restarting services to re-read env" >&2
 if $DRY_RUN; then

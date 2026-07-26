@@ -505,4 +505,170 @@ describe('PaperTradesService', () => {
       expect(capital.expireReservation).not.toHaveBeenCalled();
     });
   });
+
+  describe('settle (PAD-2)', () => {
+    type Row = Partial<PaperTradeEntity>;
+    const mkSettleSvc = (
+      before: Row | null,
+      emRow: Row | null,
+      capital?: PaperCapitalService,
+      audit?: AuditClientService,
+    ) => {
+      const em = {
+        findOne: jest.fn().mockResolvedValue(emRow),
+        save: jest.fn((_e: unknown, saved: unknown) => Promise.resolve(saved)),
+      };
+      const repo = {
+        findOne: jest.fn().mockResolvedValue(before),
+        manager: {
+          transaction: jest.fn(
+            (fn: (em: unknown) => Promise<unknown>) => Promise.resolve(fn(em)),
+          ),
+        },
+      } as never;
+      return new PaperTradesService(
+        repo,
+        audit ?? mkAudit(),
+        capital ?? mkCapital(),
+      );
+    };
+
+    it('settle throws NotFoundException when trade missing', async () => {
+      const svc = mkSettleSvc(null, null);
+      await expect(
+        svc.settle('p1', { entryPrice: 100, exitPrice: 101, profitUsd: 1, expectedVersion: 1 }, 'auto-driver'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('settle throws BadRequestException when state is draft', async () => {
+      const svc = mkSettleSvc(
+        { id: 'p1', state: 'draft', entityVersion: 1, instrumentKey: 'BTC-USDT', notional: '100' },
+        null,
+      );
+      await expect(
+        svc.settle('p1', { entryPrice: 100, exitPrice: 101, profitUsd: 1, expectedVersion: 1 }, 'auto-driver'),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('settle is idempotent: already-settled returns the row without transition or audit', async () => {
+      const appendEntry = jest.fn().mockResolvedValue(undefined);
+      const audit = { appendEntry } as unknown as AuditClientService;
+      const capital = mkCapital();
+      const settled: Row = {
+        id: 'p1',
+        state: 'settled',
+        entityVersion: 3,
+        instrumentKey: 'BTC-USDT',
+        notional: '100',
+        entryPrice: '100',
+        exitPrice: '101',
+        profitUsd: '1',
+      };
+      const svc = mkSettleSvc(settled, null, capital, audit);
+      const out = await svc.settle(
+        'p1',
+        { entryPrice: 100, exitPrice: 101, profitUsd: 1, expectedVersion: 3 },
+        'auto-driver',
+      );
+      expect(out.state).toBe('settled');
+      // No capital mutation, no audit, no second settle attempt.
+      expect(capital.getActiveReservation).not.toHaveBeenCalled();
+      expect(appendEntry).not.toHaveBeenCalled();
+    });
+
+    it('settle expires active reservation, transitions active → settled, records P/L and audit', async () => {
+      const capital = mkCapital();
+      (capital.getActiveReservation as jest.Mock).mockResolvedValue({ id: 'resv-1' });
+      const appendEntry = jest.fn().mockResolvedValue(undefined);
+      const audit = { appendEntry } as unknown as AuditClientService;
+      const before: Row = {
+        id: 'p1',
+        state: 'active',
+        entityVersion: 2,
+        instrumentKey: 'BTC-USDT',
+        notional: '100',
+        summary: {},
+      };
+      const saved: Partial<PaperTradeEntity>[] = [];
+      const em = {
+        findOne: jest.fn().mockResolvedValue({ ...before }),
+        save: jest.fn((_e: unknown, row: unknown) => {
+          saved.push(row as Partial<PaperTradeEntity>);
+          return Promise.resolve(row);
+        }),
+      };
+      const repo = {
+        findOne: jest.fn().mockResolvedValue({ ...before }),
+        manager: {
+          transaction: jest.fn(
+            (fn: (em: unknown) => Promise<unknown>) => Promise.resolve(fn(em)),
+          ),
+        },
+      } as never;
+      const svc = new PaperTradesService(repo, audit, capital);
+      const out = (await svc.settle(
+        'p1',
+        { entryPrice: 100, exitPrice: 101.5, profitUsd: 1.5, spreadBps: 42, expectedVersion: 2 },
+        'auto-driver',
+      )) as Partial<PaperTradeEntity>;
+      expect(out.state).toBe('settled');
+      expect(capital.getActiveReservation).toHaveBeenCalledWith('BTC-USDT');
+      expect(capital.expireReservation).toHaveBeenCalledWith('resv-1');
+      // P/L persisted on the row inside the transaction.
+      const savedRow = saved[0]!;
+      expect(savedRow.entryPrice).toBe('100');
+      expect(savedRow.exitPrice).toBe('101.5');
+      expect(savedRow.profitUsd).toBe('1.5');
+      expect(savedRow.state).toBe('settled');
+      expect(savedRow.settledAt).toBeInstanceOf(Date);
+      expect((savedRow.summary as Record<string, unknown>)?.spreadBps).toBe(42);
+      // Audit recorded with paper_trade_settled action and P/L payload.
+      const entry = appendEntry.mock.calls[0]?.[0] as {
+        action: string;
+        resourceType: string;
+        payload: Record<string, unknown>;
+      };
+      expect(entry.action).toBe('paper_trade_settled');
+      expect(entry.resourceType).toBe('PaperTrade');
+      expect(entry.payload).toMatchObject({
+        fromState: 'active',
+        toState: 'settled',
+        entryPrice: 100,
+        exitPrice: 101.5,
+        profitUsd: 1.5,
+        spreadBps: 42,
+      });
+    });
+
+    it('settle throws ConflictException on entityVersion mismatch inside the transaction', async () => {
+      const before: Row = {
+        id: 'p1',
+        state: 'active',
+        entityVersion: 2,
+        instrumentKey: 'BTC-USDT',
+        notional: '100',
+      };
+      const emRow = { ...before, entityVersion: 3 }; // raced ahead
+      const em = {
+        findOne: jest.fn().mockResolvedValue(emRow),
+        save: jest.fn(),
+      };
+      const repo = {
+        findOne: jest.fn().mockResolvedValue({ ...before }),
+        manager: {
+          transaction: jest.fn(
+            (fn: (em: unknown) => Promise<unknown>) => Promise.resolve(fn(em)),
+          ),
+        },
+      } as never;
+      const svc = new PaperTradesService(repo, mkAudit(), mkCapital());
+      await expect(
+        svc.settle(
+          'p1',
+          { entryPrice: 100, exitPrice: 101, profitUsd: 1, expectedVersion: 2 },
+          'auto-driver',
+        ),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+  });
 });

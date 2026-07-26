@@ -32,6 +32,22 @@ export class PaperTradeEntity {
   @Column({ type: 'jsonb', default: () => "'{}'::jsonb" })
   summary!: Record<string, unknown>;
 
+  /** Entry (buy) price captured at settle. NULL until state = 'settled'. (PAD-2) */
+  @Column({ name: 'entry_price', type: 'numeric', precision: 38, scale: 18, nullable: true })
+  entryPrice!: string | null;
+
+  /** Exit (sell) price captured at settle. NULL until state = 'settled'. (PAD-2) */
+  @Column({ name: 'exit_price', type: 'numeric', precision: 38, scale: 18, nullable: true })
+  exitPrice!: string | null;
+
+  /** Realized paper P/L in USD at settle. NULL until state = 'settled'. (PAD-2) */
+  @Column({ name: 'profit_usd', type: 'numeric', precision: 24, scale: 8, nullable: true })
+  profitUsd!: string | null;
+
+  /** Wall-clock settle timestamp. NULL until state = 'settled'. (PAD-2) */
+  @Column({ name: 'settled_at', type: 'timestamptz', nullable: true })
+  settledAt!: Date | null;
+
   @Column({ name: 'entity_version', type: 'int', default: 1 })
   entityVersion!: number;
 

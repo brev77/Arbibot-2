@@ -102,6 +102,23 @@ export class PaperPromotionService {
       dto.driftBps !== undefined && !Number.isNaN(dto.driftBps)
         ? String(dto.driftBps)
         : null;
+    // Persist the additive v1.1 P/L fields inside `evidence` jsonb. These are read-only on the
+    // candidate (their authoritative source is the opportunity payload); keeping them in evidence
+    // avoids new typed columns on paper_promotion_candidates and lets AutoDriveWorker settle a
+    // paper trade without re-fetching the opportunity (no paper→live runtime coupling).
+    const evidence: Record<string, unknown> = { ...(dto.evidence ?? {}) };
+    if (dto.netProfitUsd !== undefined) {
+      evidence.netProfitUsd = dto.netProfitUsd;
+    }
+    if (dto.spreadBps !== undefined) {
+      evidence.spreadBps = dto.spreadBps;
+    }
+    if (dto.buyVenue !== undefined && dto.buyVenue.length > 0) {
+      evidence.buyVenue = dto.buyVenue;
+    }
+    if (dto.sellVenue !== undefined && dto.sellVenue.length > 0) {
+      evidence.sellVenue = dto.sellVenue;
+    }
     const row = this.repo.create({
       instrumentKey: dto.instrumentKey,
       opportunityId: dto.opportunityId ?? null,
@@ -109,7 +126,7 @@ export class PaperPromotionService {
       status: 'queued',
       score,
       driftBps,
-      evidence: dto.evidence ?? {},
+      evidence,
       entityVersion: 1,
       enqueueIdempotencyKey: idem !== undefined && idem.length > 0 ? idem : null,
     });

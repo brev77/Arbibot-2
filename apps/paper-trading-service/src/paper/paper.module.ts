@@ -23,6 +23,8 @@ import { PaperDiscoveryService } from '../paper-discovery/paper-discovery.servic
 import { PaperDiscoveryWorker } from '../paper-discovery/paper-discovery-worker';
 import { PaperDiscoveryController } from '../paper-discovery/paper-discovery.controller';
 import { PaperPromotionQualityWorker } from './paper-promotion-quality.worker';
+import { AutoDriveWorker } from './auto-drive.worker';
+import { AutoDriveConfigService } from './auto-drive-config.service';
 
 @Module({
   imports: [
@@ -50,6 +52,8 @@ import { PaperPromotionQualityWorker } from './paper-promotion-quality.worker';
     PaperDiscoveryService,
     PaperDiscoveryWorker,
     PaperPromotionQualityWorker,
+    AutoDriveConfigService,
+    AutoDriveWorker,
     AuditClientService,
   ],
   exports: [

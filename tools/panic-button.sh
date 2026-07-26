@@ -141,6 +141,7 @@ echo ">> Step 2/3: flipping kill-switches in $ENV_FILE" >&2
 flip_env "DEX_LIVE_KILL_SWITCH" "true"
 flip_env "PAPER_DISCOVERY_ENABLED" "false"
 flip_env "RISK_POLICY_JOBS_ENABLED" "false"
+flip_env "PAPER_AUTO_DRIVE_ENABLED" "false"
 echo "  (PAPER_DEX_MAINNET_ENABLED NOT flipped — documented but not read by any service; see playbook §4 TODO)" >&2
 
 echo ">> Step 3/3: restarting services to re-read env" >&2
