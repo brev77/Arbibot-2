@@ -182,11 +182,33 @@ export class AutoDriveWorker implements OnModuleInit, OnModuleDestroy {
     const cfg = this.configService.getConfig();
     const batch = cfg.batchSize;
 
-    // --- Phase -1 (pre-filter): cleanup garbage + dedup ---
+    // --- Phase -1 (pre-filter): cleanup garbage + dedup + stuck drafts ---
     // Hard filter: reject candidates without economic evidence or with zero/negative profit.
     // Dedup: keep only the best candidate per instrument_key.
+    // Stuck drafts: cancel drafts older than 2 minutes that couldn't be approved.
     let cleanedCount = 0;
     try {
+      // Cancel stuck drafts first
+      const stuckDrafts = await this.tradesRepo.find({
+        where: { state: 'draft' as const },
+        take: 50,
+        order: { createdAt: 'ASC' },
+      });
+      const nowMs = Date.now();
+      const toCancel: PaperTradeEntity[] = [];
+      for (const draft of stuckDrafts) {
+        if (nowMs - draft.createdAt.getTime() > 2 * 60 * 1000) {
+          toCancel.push(draft);
+        }
+      }
+      if (toCancel.length > 0) {
+        for (const draft of toCancel) {
+          draft.state = 'canceled' as const;
+          draft.entityVersion += 1;
+        }
+        await this.tradesRepo.save(toCancel);
+      }
+
       const allCandidates = await this.candidatesRepo.find({
         where: { status: In(['queued' as const, 'under_review' as const]) },
         take: 200,
@@ -349,22 +371,56 @@ export class AutoDriveWorker implements OnModuleInit, OnModuleDestroy {
           take: batch,
           order: { updatedAt: 'ASC' },
         });
+        // Track instruments already active to avoid duplicate capital reservation
+        const activeInstruments = new Set<string>();
+        const activeTrades = await this.tradesRepo.find({
+          where: { state: 'active' as const },
+          select: ['instrumentKey'],
+        });
+        for (const at of activeTrades) {
+          activeInstruments.add(at.instrumentKey);
+        }
         let headroom = cfg.maxConcurrentTrades - activeCount;
         for (const draft of drafts) {
           if (headroom <= 0) {
             this.metrics.approved.inc({ outcome: 'skipped_max_concurrent' });
             break;
           }
+          // Skip if another trade with same instrument is already active
+          if (activeInstruments.has(draft.instrumentKey)) {
+            // Cancel this duplicate draft
+            try {
+              draft.state = 'canceled' as const;
+              draft.entityVersion += 1;
+              await this.tradesRepo.save(draft);
+            } catch { /* ignore */
+            }
+            this.metrics.approved.inc({ outcome: 'skipped_duplicate_instrument' });
+            continue;
+          }
           try {
             await this.paperTradesService.approve(draft.id, 'auto-driver');
+            activeInstruments.add(draft.instrumentKey);
             approved += 1;
             headroom -= 1;
             this.metrics.approved.inc({ outcome: 'approved' });
           } catch (err) {
-            this.metrics.approved.inc({ outcome: 'failed' });
-            this.logger.warn(
-              `Phase B: failed to approve draft ${draft.id}: ${this.errorMessage(err)}`,
-            );
+            // If duplicate key — cancel the draft so it doesn't block future cycles
+            const msg = this.errorMessage(err);
+            if (msg.includes('duplicate key')) {
+              try {
+                draft.state = 'canceled' as const;
+                draft.entityVersion += 1;
+                await this.tradesRepo.save(draft);
+              } catch { /* ignore */
+              }
+              this.metrics.approved.inc({ outcome: 'canceled_duplicate' });
+            } else {
+              this.metrics.approved.inc({ outcome: 'failed' });
+              this.logger.warn(
+                `Phase B: failed to approve draft ${draft.id}: ${msg}`,
+              );
+            }
           }
         }
       }
