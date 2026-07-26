@@ -95,17 +95,18 @@ async function main() {
 
   // 3. Wait for phase A — a paper trade created from the candidate (any non-terminal state).
   // The pipeline runs fast at CI intervals (1s tick, 1s settle delay): by the time we poll,
-  // the trade may already be past draft/active. We assert the TRADE EXISTS (created by phase A
-  // with the auto-drive idempotency key), not its transient state.
+  // the trade may already be past draft/active. We assert the TRADE EXISTS linked to our
+  // candidate's opportunityId (the auto-drive idempotency key is internal — not exposed in
+  // tradeView, so we verify via opportunityId which IS in the API response).
   const trade = await waitFor(async () => {
     const ts = await listTradesByOpportunity(opportunityId);
     return ts.length > 0 ? ts[0] : null;
   }, PHASE_A_TIMEOUT_MS, 'phaseA-trade-created');
   console.log(`>> phase A: paper trade created: ${trade.id} (state=${trade.state})`);
   assert.equal(
-    trade.idempotencyKey,
-    `auto-drive:${candidate.id}`,
-    `idempotencyKey should be auto-drive:${candidate.id}, got ${trade.idempotencyKey}`,
+    trade.opportunityId,
+    opportunityId,
+    `trade.opportunityId should match the candidate's opportunityId`,
   );
 
   // 4+5. Wait for the pipeline to reach the terminal settled state with P/L populated.
