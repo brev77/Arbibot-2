@@ -11,6 +11,14 @@ export type PaperPromotionEnqueueBody = {
   readonly evidence?: Record<string, unknown>;
   /** Stable idempotency key; must match outbox payload for relay retries. */
   readonly enqueueIdempotencyKey: string;
+  /** Net opportunity profit in USD — copied through for paper settle (additive v1.1). */
+  readonly netProfitUsd?: number;
+  /** Cross-venue spread in basis points — copied through for paper settle. */
+  readonly spreadBps?: number;
+  /** Buy venue key — copied through for paper settle. */
+  readonly buyVenue?: string;
+  /** Sell venue key — copied through for paper settle. */
+  readonly sellVenue?: string;
 };
 
 @Injectable()
@@ -46,6 +54,11 @@ export class PaperClientService {
         driftBps: body.driftBps,
         evidence: body.evidence ?? {},
         enqueueIdempotencyKey: body.enqueueIdempotencyKey,
+        // Additive v1.1 P/L fields — paper-trading-service persists them onto the candidate.
+        ...(body.netProfitUsd !== undefined ? { netProfitUsd: body.netProfitUsd } : {}),
+        ...(body.spreadBps !== undefined ? { spreadBps: body.spreadBps } : {}),
+        ...(body.buyVenue !== undefined ? { buyVenue: body.buyVenue } : {}),
+        ...(body.sellVenue !== undefined ? { sellVenue: body.sellVenue } : {}),
       }),
     });
     if (!res.ok) {

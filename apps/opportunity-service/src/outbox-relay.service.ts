@@ -127,6 +127,11 @@ export class OutboxRelayService implements OnModuleInit, OnModuleDestroy {
           driftBps: payload.driftBps,
           evidence: payload.evidence,
           enqueueIdempotencyKey: payload.enqueueIdempotencyKey,
+          // Additive v1.1 P/L fields — forwarded verbatim if present.
+          netProfitUsd: payload.netProfitUsd,
+          spreadBps: payload.spreadBps,
+          buyVenue: payload.buyVenue,
+          sellVenue: payload.sellVenue,
         });
         await this.dataSource.transaction(async (em) => {
           await this.finalizePaperPromotionRelayAttempt(em, rowId, ok);
@@ -389,6 +394,10 @@ function parsePaperPromotionCandidateRequestedPayload(
   }
   const score = payload.score;
   const driftBps = payload.driftBps;
+  const netProfitUsd = payload.netProfitUsd;
+  const spreadBps = payload.spreadBps;
+  const buyVenue = payload.buyVenue;
+  const sellVenue = payload.sellVenue;
   return {
     opportunityId,
     instrumentKey,
@@ -397,5 +406,9 @@ function parsePaperPromotionCandidateRequestedPayload(
     evidence: evidence as Record<string, unknown>,
     ...(typeof score === 'number' ? { score } : {}),
     ...(typeof driftBps === 'number' ? { driftBps } : {}),
+    ...(typeof netProfitUsd === 'number' ? { netProfitUsd } : {}),
+    ...(typeof spreadBps === 'number' ? { spreadBps } : {}),
+    ...(typeof buyVenue === 'string' && buyVenue.length > 0 ? { buyVenue } : {}),
+    ...(typeof sellVenue === 'string' && sellVenue.length > 0 ? { sellVenue } : {}),
   };
 }

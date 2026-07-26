@@ -26,7 +26,16 @@ export const EVENT_NAMES = {
   dexTransactionFailed: 'DexTransactionFailed',
 } as const;
 
-/** Outbox `schema_version` / envelope `version` for PaperPromotionCandidateRequested (opportunity-service → relay → paper HTTP). */
+/**
+ * Outbox `schema_version` / envelope `version` for PaperPromotionCandidateRequested
+ * (opportunity-service → relay → paper HTTP).
+ *
+ * Schema is additive: v1 carried the core fields; the optional P/L fields (`netProfitUsd`,
+ * `spreadBps`, `buyVenue`, `sellVenue`) were added so the AutoDriveWorker in
+ * paper-trading-service can settle a paper trade WITHOUT a synchronous HTTP re-fetch of the
+ * opportunity (which would create a paper→live runtime coupling). Old producers/consumers
+ * that omit them remain compatible; consumers must treat all P/L fields as optional.
+ */
 export const PAPER_PROMOTION_CANDIDATE_REQUESTED_PAYLOAD_SCHEMA_VERSION = 1 as const;
 
 export type PaperPromotionCandidateRequestedPayloadV1 = {
@@ -37,6 +46,14 @@ export type PaperPromotionCandidateRequestedPayloadV1 = {
   readonly score?: number;
   readonly driftBps?: number;
   readonly evidence: Record<string, unknown>;
+  /** Net (post-fee, pre-slippage) opportunity profit in USD — copied from the opportunity payload for paper settle. */
+  readonly netProfitUsd?: number;
+  /** Cross-venue spread in basis points — copied from the opportunity payload for paper settle. */
+  readonly spreadBps?: number;
+  /** Buy venue key (e.g. 'uniswap-v2') — copied from the opportunity payload for paper settle. */
+  readonly buyVenue?: string;
+  /** Sell venue key — copied from the opportunity payload for paper settle. */
+  readonly sellVenue?: string;
 };
 
 export type RiskDecisionIssuedPayloadV1 = {

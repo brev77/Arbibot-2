@@ -422,6 +422,15 @@ export class OpportunitiesService {
         typeof opp.correlationId === 'string' && opp.correlationId.length > 0
           ? opp.correlationId
           : opp.id;
+      // P/L fields copied from the opportunity payload so the AutoDriveWorker can settle
+      // a paper trade without re-fetching the opportunity (no paper→live runtime coupling).
+      // All optional; absent for non-arbitrage or pre-enrichment opportunities.
+      const oppPayload =
+        opp.payload && typeof opp.payload === 'object' ? opp.payload : {};
+      const netProfitUsd = readNumberFromPayload(oppPayload, 'netProfitUsd') ?? undefined;
+      const spreadBpsNum = readNumberFromPayload(oppPayload, 'spreadBps');
+      const buyVenueStr = readStringFromPayload(oppPayload, 'buyVenue');
+      const sellVenueStr = readStringFromPayload(oppPayload, 'sellVenue');
       const payload: PaperPromotionCandidateRequestedPayloadV1 = {
         opportunityId: opp.id,
         instrumentKey,
@@ -430,6 +439,10 @@ export class OpportunitiesService {
         score: dto.score,
         driftBps: dto.driftBps,
         evidence: dto.evidence ?? {},
+        ...(netProfitUsd !== undefined ? { netProfitUsd } : {}),
+        ...(spreadBpsNum !== null ? { spreadBps: spreadBpsNum } : {}),
+        ...(buyVenueStr !== undefined ? { buyVenue: buyVenueStr } : {}),
+        ...(sellVenueStr !== undefined ? { sellVenue: sellVenueStr } : {}),
       };
       const envelope = {
         messageId,
