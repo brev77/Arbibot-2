@@ -52,6 +52,13 @@ export const FACTORY_MAPPING: ReadonlyMap<string, FactoryMapping> = new Map<
   ['56:0xdb1d10011ad0ff90774d0c6bb92e5c5c8b4461f7', { venueKey: 'uniswap-v3', family: 'v3', defaultFeeBps: 0 }],
   ['56:0xc35dadb65012ec5796536bd9864ed8773abc74c4', { venueKey: 'sushiswap', family: 'v2', defaultFeeBps: 30 }],
   ['56:0x858e3312ed3a876947ae49e6a8a2fa7a6b7819e8', { venueKey: 'biswap', family: 'v2', defaultFeeBps: 20 }],
+
+  // --- Optimism (10) ---
+  // Velodrome V2 (Solidly fork — volatile pools only; stable-pool pricing uses a flat curve).
+  // defaultFeeBps is approximate (Solidly fees are dynamic, set per-pool).
+  ['10:0xf1046053aa5682b4f9a81b5481394da16be5ff5a', { venueKey: 'velodrome', family: 'v2', defaultFeeBps: 30 }],
+  // Uniswap V3 on Optimism (same factory address as Ethereum/Arb/Base).
+  ['10:0x1f98431c8ad98523631ae4a59f267346ea31f984', { venueKey: 'uniswap-v3', family: 'v3', defaultFeeBps: 0 }],
 ]);
 
 /** Resolve the factory mapping for a chain + factory address. Returns undefined if unknown. */

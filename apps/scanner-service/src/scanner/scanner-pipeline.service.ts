@@ -223,6 +223,9 @@ export class ScannerPipelineService {
       case 'eth':
       case 'mainnet':
         return 1;
+      case 'optimism':
+      case 'op':
+        return 10;
       default:
         return null;
     }

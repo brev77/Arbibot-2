@@ -321,6 +321,13 @@ describe('ScannerPoolService', () => {
       expect(service.resolveFactoryMapping(1, '0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac')).toBeDefined();
     });
 
+    it('resolveFactoryMapping returns mappings for Optimism DEXes (Velodrome + UniV3)', () => {
+      // Velodrome V2 (Solidly fork) on Optimism mainnet.
+      expect(service.resolveFactoryMapping(10, '0xF1046053aa5682b4F9a81b5481394DA16BE5FF5a')).toBeDefined();
+      // Uniswap V3 on Optimism.
+      expect(service.resolveFactoryMapping(10, '0x1F98431c8aD98523631AE4a59f267346ea31F984')).toBeDefined();
+    });
+
     it('resolveFactoryMapping returns undefined for an unknown factory', () => {
       expect(service.resolveFactoryMapping(42161, '0xUNKNOWN')).toBeUndefined();
     });

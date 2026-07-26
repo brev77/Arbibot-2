@@ -353,6 +353,19 @@ describe('ScannerPipelineService', () => {
       expect(result.error).toBeNull();
     });
 
+    it('resolves optimism network to chainId 10', async () => {
+      poolService.readPool.mockResolvedValue(null);
+      const result = await service.runCycle(makeInstance({ network: 'optimism' }));
+      expect(result.poolsRead).toBe(0);
+      expect(result.error).toBeNull();
+    });
+
+    it('resolves op alias to chainId 10', async () => {
+      poolService.readPool.mockResolvedValue(null);
+      const result = await service.runCycle(makeInstance({ network: 'op' }));
+      expect(result.error).toBeNull();
+    });
+
     it('returns empty summary with no error for an unknown network', async () => {
       const result = await service.runCycle(makeInstance({ network: 'unknown-chain' }));
       expect(result.poolsRead).toBe(0);

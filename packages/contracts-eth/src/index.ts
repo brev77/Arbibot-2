@@ -39,6 +39,13 @@ export {
   getBnbAddresses,
 } from './addresses/bnb';
 
+// Addresses — Optimism
+export {
+  OptimismAddresses,
+  OptimismMainnetAddresses,
+  getOptimismAddresses,
+} from './addresses/optimism';
+
 // Addresses — Bridge (Across + Stargate + Native + LayerZero V2)
 export {
   AcrossAddresses,

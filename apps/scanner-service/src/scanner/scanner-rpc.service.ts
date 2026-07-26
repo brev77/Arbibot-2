@@ -12,12 +12,13 @@ import { ChainId } from '@arbibot/contracts-eth';
 import { DEFAULT_SCANNER_RPC_RATE_LIMIT_RPS } from './scanner-config.constants';
 import { TokenBucket } from './token-bucket';
 
-/** Maps a supported chain id to the env-var network token (ARBITRUM/BASE/BNB/ETHEREUM). */
+/** Maps a supported chain id to the env-var network token (ARBITRUM/BASE/BNB/ETHEREUM/OPTIMISM). */
 const CHAIN_ID_TO_RPC_NETWORK = new Map<number, string>([
   [ChainId.ARBITRUM_ONE_MAINNET, 'ARBITRUM'],
   [ChainId.BASE_MAINNET, 'BASE'],
   [ChainId.BNB_CHAIN_MAINNET, 'BNB'],
   [ChainId.ETHEREUM_MAINNET, 'ETHEREUM'],
+  [ChainId.OPTIMISM_MAINNET, 'OPTIMISM'],
 ]);
 
 /**
@@ -41,12 +42,13 @@ const CHAIN_ID_TO_RPC_NETWORK = new Map<number, string>([
 export class ScannerRpcService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ScannerRpcService.name);
 
-  /** Chains the scanner scans by default (Arb/Base/BNB/Ethereum mainnet). Driven by config poolWhitelist. */
+  /** Chains the scanner scans by default (Arb/Base/BNB/Ethereum/Optimism mainnet). Driven by config poolWhitelist. */
   private readonly SUPPORTED_CHAINS = [
     ChainId.ARBITRUM_ONE_MAINNET,
     ChainId.BASE_MAINNET,
     ChainId.BNB_CHAIN_MAINNET,
     ChainId.ETHEREUM_MAINNET,
+    ChainId.OPTIMISM_MAINNET,
   ];
 
   private readonly providers = new Map<

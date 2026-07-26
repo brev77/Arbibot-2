@@ -17,6 +17,9 @@ export enum ChainId {
   // BNB Chain
   BNB_CHAIN_MAINNET = 56,
   BNB_CHAIN_TESTNET = 97,
+
+  // Optimism
+  OPTIMISM_MAINNET = 10,
 }
 
 /**
@@ -31,6 +34,7 @@ export const CHAIN_ID_TO_NAME: Record<ChainId, string> = {
   [ChainId.BASE_SEPOLIA]: 'Base Sepolia Testnet',
   [ChainId.BNB_CHAIN_MAINNET]: 'BNB Chain Mainnet',
   [ChainId.BNB_CHAIN_TESTNET]: 'BNB Chain Testnet',
+  [ChainId.OPTIMISM_MAINNET]: 'Optimism Mainnet',
 };
 
 /**
@@ -45,6 +49,7 @@ export const CHAIN_ID_TO_EXPLORER: Record<ChainId, string> = {
   [ChainId.BASE_SEPOLIA]: 'https://sepolia.basescan.org',
   [ChainId.BNB_CHAIN_MAINNET]: 'https://bscscan.com',
   [ChainId.BNB_CHAIN_TESTNET]: 'https://testnet.bscscan.com',
+  [ChainId.OPTIMISM_MAINNET]: 'https://optimistic.etherscan.io',
 };
 
 /**
@@ -86,6 +91,7 @@ export function isMainnet(chainId: ChainId): boolean {
     ChainId.ARBITRUM_ONE_MAINNET,
     ChainId.BASE_MAINNET,
     ChainId.BNB_CHAIN_MAINNET,
+    ChainId.OPTIMISM_MAINNET,
   ].includes(chainId);
 }
 
@@ -132,6 +138,9 @@ export const CHAIN_FINALITY_CONFIRMATIONS: Readonly<Record<number, number>> = {
   // BNB Chain — higher reorg risk
   [ChainId.BNB_CHAIN_MAINNET]: 15,
   [ChainId.BNB_CHAIN_TESTNET]: 3,
+
+  // Optimism — L2 rollup, sequencer finality
+  [ChainId.OPTIMISM_MAINNET]: 1,
 };
 
 /** Safe default when a chain ID is not in the map (unknown chain → conservative). */
