@@ -28,6 +28,8 @@
     "ci:e2e-phase2": "bash tools/ci-e2e-phase2.sh",
     "ci:e2e-phase3": "bash tools/ci-e2e-phase3-paper-promotion.sh",
     "ci:e2e-phase3-paper-discovery": "bash tools/ci-e2e-phase3-paper-discovery.sh",
+    "e2e:paper-auto-drive": "node tools/e2e-paper-auto-drive.mjs",
+    "ci:e2e-paper-auto-drive": "bash tools/ci-e2e-paper-auto-drive.sh",
     "ci:e2e-phase2-watchlist-route-scoring": "bash tools/ci-e2e-phase2-watchlist-route-scoring.sh",
     "e2e:phase4-tier-routing": "node tools/e2e-phase4-tier-routing.mjs",
     "ci:e2e-phase4-tier-routing": "bash tools/ci-e2e-phase4-tier-routing.sh",

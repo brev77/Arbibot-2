@@ -13,7 +13,7 @@
 | **execution-orchestrator** | ExecutionPlan, ExecutionLeg | ArmPlan, ExecutePlan (Phase 2+), read APIs | PlanArmed, LegFilled, PlanCompleted, … | Execution workers |
 | **audit** (модуль/сервис) | AuditLogEntry | Read API (оператор) | — | — |
 | **reconciliation-service** | ReconciliationRun (Phase 2) | Triggers, status | ReconciliationMismatchDetected | Recon loops |
-| **paper-trading-service** (`apps/paper-trading-service`) | PaperTrade, PaperPromotionCandidate, PaperDriftSample | `GET/POST/PATCH` под `/paper/*` (см. `PAPER_HTTP_ROUTES` в `@arbibot/contracts`) | события paper — по мере внедрения outbox | — |
+| **paper-trading-service** (`apps/paper-trading-service`) | PaperTrade, PaperPromotionCandidate, PaperDriftSample | `GET/POST/PATCH` под `/paper/*` (см. `PAPER_HTTP_ROUTES` в `@arbibot/contracts`); **PAD**: `POST /paper/trades/:id/settle`, `GET /paper/trades/history`, `GET /paper/trades/stats`; worker `AutoDriveWorker` (3 фазы post-promotion: `promoted → draft → active → settled`) | события paper — по мере внедрения outbox | — |
 | **outbox-kafka-bridge** (`packages/outbox-kafka-bridge`) | — (процесс доставки) | — | читает outbox → Kafka: `SnapshotUpdated`, `CapitalReserved`, `PlanArmed`, `LegFilled`, `PlanCompleted` | `npm run bus:publish` / `bus:consume` |
 
 ## Границы интеграции

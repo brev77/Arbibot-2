@@ -7,6 +7,7 @@ Central list for **config-service** keys (`configKey` + JSON `configValue`). Wir
 | `intake.throttling` | Sampling intervals, route score gate | market-intake-service | no |
 | `intake.routing.tiers` | Hot/warm/cold instrument buckets | market-intake-service | no |
 | `paper.discovery` | Paper discovery worker thresholds | paper-trading-service | no |
+| `paper.auto_drive` | AutoDriveWorker kill-switch + thresholds (post-promotion paper pipeline) | paper-trading-service | no |
 | `opportunity.filters` | Global gating: spread, concurrency, blocklists | _(planned)_ | no |
 | `risk.evaluation` | Evaluation strictness, cache TTL hints | _(planned)_ | **yes** (`risk.*`) |
 | `risk.limits.bundle` | Documented oversights / bundle metadata (avoid duplicating DB profiles without ADR) | _(planned)_ | **yes** |
@@ -24,4 +25,5 @@ Central list for **config-service** keys (`configKey` + JSON `configValue`). Wir
 
 - [intake-policy-config-keys.md](./intake-policy-config-keys.md)
 - [paper-discovery-config-keys.md](./paper-discovery-config-keys.md)
+- [paper-auto-drive-config-keys.md](./paper-auto-drive-config-keys.md)
 - [handbook/07-secrets-config-and-monitoring.md](./handbook/07-secrets-config-and-monitoring.md)

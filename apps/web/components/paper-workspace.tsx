@@ -10,6 +10,7 @@ import type {
   PaperDriftSampleItem,
   PaperPromotionCandidateItem,
   PaperTradeListItem,
+  PaperTradesStats,
 } from '@/lib/paper-types';
 import type { ListResponse } from '@/lib/server-api';
 
@@ -25,6 +26,14 @@ export function PaperWorkspace(): ReactNode {
     queryKey: operatorKeys.paperTrades,
     queryFn: () => fetchOperatorBffJson<ListResponse<PaperTradeListItem>>('/paper/trades'),
   });
+  const historyQ = useQuery({
+    queryKey: operatorKeys.paperTradesHistory(),
+    queryFn: () => fetchOperatorBffJson<ListResponse<PaperTradeListItem>>('/paper/trades/history?limit=50'),
+  });
+  const statsQ = useQuery({
+    queryKey: operatorKeys.paperTradesStats(),
+    queryFn: () => fetchOperatorBffJson<PaperTradesStats>('/paper/trades/stats'),
+  });
   const promoQ = useQuery({
     queryKey: operatorKeys.paperPromotionCandidates,
     queryFn: () =>
@@ -38,7 +47,12 @@ export function PaperWorkspace(): ReactNode {
       ),
   });
 
-  const busy = tradesQ.isFetching || promoQ.isFetching || driftQ.isFetching;
+  const busy =
+    tradesQ.isFetching ||
+    historyQ.isFetching ||
+    statsQ.isFetching ||
+    promoQ.isFetching ||
+    driftQ.isFetching;
 
   return (
     <main className="px-6 py-6 max-w-[1100px] mx-auto text-slate-200 html.theme-light:text-slate-900">
@@ -58,7 +72,13 @@ export function PaperWorkspace(): ReactNode {
           variant="secondary"
           size="sm"
           onClick={() => {
-            void Promise.all([tradesQ.refetch(), promoQ.refetch(), driftQ.refetch()]);
+            void Promise.all([
+              tradesQ.refetch(),
+              historyQ.refetch(),
+              statsQ.refetch(),
+              promoQ.refetch(),
+              driftQ.refetch(),
+            ]);
           }}
           disabled={busy}
         >
@@ -80,6 +100,33 @@ export function PaperWorkspace(): ReactNode {
           <p className="text-sm text-slate-500">No paper trades yet.</p>
         ) : (
           <PaperTradesTable items={tradesQ.data.items} onRefresh={() => void tradesQ.refetch()} />
+        )}
+      </section>
+
+      <section className="mb-10">
+        <h2 className="mt-0 text-base font-medium">Settled history &amp; P&amp;L (AutoDrive, PAD-6)</h2>
+        <p className="text-sm text-slate-500 mb-3">
+          Aggregate stats and recent settled trades. P/L is sourced from opportunity net profit at enqueue time
+          (pre-slippage) and recorded by <code className="text-xs">PaperTradesService.settle</code>.
+        </p>
+        {statsQ.isError ? (
+          <PaperBffSectionFault label="Failed to load stats." error={toOperatorBffError(statsQ.error)} />
+        ) : statsQ.isPending ? (
+          <p className="text-sm text-slate-400">Loading stats…</p>
+        ) : (
+          <PaperStatsCards stats={statsQ.data} />
+        )}
+        {historyQ.isError ? (
+          <PaperBffSectionFault
+            label="Failed to load history."
+            error={toOperatorBffError(historyQ.error)}
+          />
+        ) : historyQ.isPending ? (
+          <p className="text-sm text-slate-400 mt-3">Loading history…</p>
+        ) : historyQ.data.items.length === 0 ? (
+          <p className="text-sm text-slate-500 mt-3">No settled trades yet.</p>
+        ) : (
+          <PaperHistoryList items={historyQ.data.items} />
         )}
       </section>
 
@@ -123,5 +170,74 @@ export function PaperWorkspace(): ReactNode {
         )}
       </section>
     </main>
+  );
+}
+
+/** Compact summary cards over settled trades (PAD-6). */
+function PaperStatsCards({ stats }: { stats: PaperTradesStats }): ReactNode {
+  const total = Number(stats.total);
+  const profit = Number(stats.totalProfitUsd);
+  const profitColor = profit > 0 ? 'text-emerald-400' : profit < 0 ? 'text-rose-400' : 'text-slate-300';
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+      <StatCard label="Settled" value={stats.total} />
+      <StatCard label="Win rate" value={total > 0 ? `${(Number(stats.winRate) * 100).toFixed(1)}%` : '—'} />
+      <StatCard label="Total P&L (USD)" value={stats.totalProfitUsd} valueClass={profitColor} />
+      <StatCard
+        label="Avg spread (bps)"
+        value={stats.avgSpreadBps ?? '—'}
+      />
+    </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  valueClass,
+}: {
+  label: string;
+  value: string;
+  valueClass?: string;
+}): ReactNode {
+  return (
+    <div className="rounded-lg border border-slate-800 html.theme-light:border-slate-200 p-3">
+      <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
+      <div className={`text-lg font-semibold ${valueClass ?? ''}`}>{value}</div>
+    </div>
+  );
+}
+
+/** Compact list of recent settled trades with win/loss tinting (PAD-6). */
+function PaperHistoryList({ items }: { items: readonly PaperTradeListItem[] }): ReactNode {
+  return (
+    <div className="rounded-lg border border-slate-800 html.theme-light:border-slate-200 overflow-hidden">
+      <table className="w-full text-sm">
+        <thead className="bg-slate-900/50 html.theme-light:bg-slate-100 text-slate-400 html.theme-light:text-slate-600">
+          <tr>
+            <th className="text-left px-3 py-2 font-medium">Settled at</th>
+            <th className="text-left px-3 py-2 font-medium">Instrument</th>
+            <th className="text-right px-3 py-2 font-medium">Entry</th>
+            <th className="text-right px-3 py-2 font-medium">Exit</th>
+            <th className="text-right px-3 py-2 font-medium">P&amp;L (USD)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((it) => {
+            const profit = Number(it.profitUsd ?? '0');
+            const rowColor = profit > 0 ? 'text-emerald-400' : profit < 0 ? 'text-rose-400' : 'text-slate-300';
+            return (
+              <tr key={it.id} className="border-t border-slate-800 html.theme-light:border-slate-200">
+                <td className="px-3 py-2 text-slate-400">{it.settledAt ?? '—'}</td>
+                <td className="px-3 py-2">{it.instrumentKey}</td>
+                <td className="px-3 py-2 text-right">{it.entryPrice ?? '—'}</td>
+                <td className="px-3 py-2 text-right">{it.exitPrice ?? '—'}</td>
+                <td className={`px-3 py-2 text-right font-medium ${rowColor}`}>{it.profitUsd ?? '—'}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }

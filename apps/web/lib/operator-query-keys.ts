@@ -14,6 +14,11 @@ export const operatorKeys = {
   paperPromotionCandidates: ['operator', 'paper', 'promotion-candidates'] as const,
   paperDriftSamples: (instrumentKey: string | undefined, limit: number) =>
     ['operator', 'paper', 'drift-samples', instrumentKey ?? 'all', limit] as const,
+  // PAD-6: settled-trade history + aggregate stats for the /paper history view.
+  paperTradesHistory: (from?: string, to?: string) =>
+    ['operator', 'paper', 'trades', 'history', from ?? '', to ?? ''] as const,
+  paperTradesStats: (from?: string, to?: string) =>
+    ['operator', 'paper', 'trades', 'stats', from ?? '', to ?? ''] as const,
 
   hermesPlans: (limit: number) =>
     ['operator', 'hermes', 'plans', limit] as const,
