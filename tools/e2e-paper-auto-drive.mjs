@@ -23,10 +23,19 @@ const PHASE_A_TIMEOUT_MS = 15_000;
 const PHASE_BC_TIMEOUT_MS = 30_000;
 
 async function api(method, path, body) {
+  // Only set Content-Type: application/json when there IS a body — Fastify rejects
+  // "Content-Type: application/json" + empty body with 400 "Body cannot be empty".
+  // The approve/reject/ settle-without-body endpoints accept no body at all.
+  const headers = { Accept: 'application/json' };
+  let serialized;
+  if (body !== undefined) {
+    serialized = JSON.stringify(body);
+    headers['Content-Type'] = 'application/json';
+  }
   const res = await fetch(`${PAPER_API_BASE}${path}`, {
     method,
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    headers,
+    body: serialized,
   });
   const text = await res.text();
   if (!res.ok) {
