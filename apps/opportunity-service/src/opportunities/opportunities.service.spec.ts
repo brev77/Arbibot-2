@@ -3,12 +3,6 @@ import { ArbitrageOpportunityEntity, OutboxEventEntity } from '@arbibot/persiste
 import type { DataSource, EntityManager } from 'typeorm';
 import { QueryFailedError } from 'typeorm';
 
-import {
-  EVENT_NAMES,
-  OPPORTUNITY_DETECTED_PAYLOAD_SCHEMA_VERSION,
-  SERVICE_IDS,
-} from '@arbibot/contracts';
-
 import { OpportunitiesService } from './opportunities.service';
 import { OPPORTUNITY_STATES } from './opportunity-states';
 import { PaperClientService } from './paper-client.service';
@@ -199,7 +193,7 @@ describe('OpportunitiesService', () => {
     });
   });
 
-  describe('create — OpportunityDetected outbox (Phase 3b, S3-3)', () => {
+  describe('create — no OpportunityDetected outbox (fix 2026-07-27)', () => {
     type CapturedEm = EntityManager & { saved: SavedCall[] };
     const runCreateWith = async (
       payload: Record<string, unknown>,
@@ -216,128 +210,24 @@ describe('OpportunitiesService', () => {
       return { em, out };
     };
 
-    /** Find the outbox row that was persisted inside the create transaction. */
-    const outboxSaved = (em: CapturedEm): Record<string, unknown> => {
-      const ob = em.saved.find((s) => s.entity === OutboxEventEntity) ?? {};
-      return (ob as { persisted?: Record<string, unknown> }).persisted ?? {};
-    };
-
-    it('writes an OpportunityDetected outbox row inside the same tx as the opportunity', async () => {
-      const { em } = await runCreateWith({ spreadPct: 0.5 });
-      const ob = outboxSaved(em);
-      expect(ob.eventType).toBe(EVENT_NAMES.opportunityDetected);
-      expect(ob.entityType).toBe('ArbitrageOpportunity');
-      expect(ob.schemaVersion).toBe(OPPORTUNITY_DETECTED_PAYLOAD_SCHEMA_VERSION);
-      // entityId echoes the opportunity id stamped by the mocked em.save.
-      expect(ob.entityId).toBe('o-tx-1');
-      expect(ob.processedAt).toBeNull();
-    });
-
-    it('envelope fields match the Phase 3b contract (sourceModule=opportunityService)', async () => {
-      const { em } = await runCreateWith({
-        sourceModule: 'scanner-service',
-        spreadBps: 30,
-      });
-      const ob = outboxSaved(em);
-      const envelope = (ob.envelope ?? {}) as Record<string, unknown>;
-      expect(envelope.sourceModule).toBe(SERVICE_IDS.opportunityService);
-      expect(envelope.eventName).toBe(EVENT_NAMES.opportunityDetected);
-      expect(envelope.version).toBe(OPPORTUNITY_DETECTED_PAYLOAD_SCHEMA_VERSION);
-      expect(envelope.entityType).toBe('ArbitrageOpportunity');
-      expect(envelope.entityId).toBe('o-tx-1');
-      expect(envelope.messageId).toEqual(
-        expect.stringMatching(
-          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
-        ),
-      );
-      expect(envelope.eventTs).toEqual(
-        expect.stringMatching(/^\d{4}-\d{2}-\d{2}T.+Z$/),
-      );
-    });
-
-    it('payload.sourceModule reflects originating module from caller payload', async () => {
-      const { em } = await runCreateWith({
+    /**
+     * Regression: `OpportunityDetected` was written to outbox on every create() but had NO
+     * consumer (not in Kafka-bridge allowlist, not in opportunity-relay allowlist), causing a
+     * ~70k-row backlog leak (alarm 2026-07-27). The producer was removed; the opportunity itself
+     * is still persisted in arbitrage_opportunities. This test guards against re-introducing the
+     * orphan producer until a consumer is wired.
+     */
+    it('does NOT write an OpportunityDetected outbox row (orphan event removed)', async () => {
+      const { em, out } = await runCreateWith({
         sourceModule: 'scanner-service',
         spreadBps: 42,
         profitUsd: 10,
-        buyVenue: 'uniswap-v2',
-        sellVenue: 'sushiswap',
-        chainId: 42161,
-        token: 'WETH',
-        quoteAsset: 'USDC',
       });
-      const ob = outboxSaved(em);
-      const payload = (ob.payload ?? {}) as Record<string, unknown>;
-      expect(payload.sourceModule).toBe('scanner-service');
-      expect(payload.spreadBps).toBe(42);
-      expect(payload.grossProfitUsd).toBe(10); // falls back to profitUsd
-      expect(payload.netProfitUsd).toBe(10);
-      expect(payload.buyVenue).toBe('uniswap-v2');
-      expect(payload.sellVenue).toBe('sushiswap');
-      expect(payload.chainId).toBe(42161);
-      expect(payload.token).toBe('WETH');
-      expect(payload.quoteAsset).toBe('USDC');
-      expect(payload.opportunityId).toBe('o-tx-1');
-    });
-
-    it('payload defaults sourceModule to "manual" when caller omits it', async () => {
-      const { em } = await runCreateWith({});
-      const payload = (outboxSaved(em).payload ?? {}) as Record<
-        string,
-        unknown
-      >;
-      expect(payload.sourceModule).toBe('manual');
-      expect(payload.spreadBps).toBeNull();
-      expect(payload.grossProfitUsd).toBeNull();
-    });
-
-    it('falls back to opportunity id for correlationId when DTO omits it', async () => {
-      const { em } = await runCreateWith({});
-      const envelope = (outboxSaved(em).envelope ?? {}) as Record<
-        string,
-        unknown
-      >;
-      expect(envelope.correlationId).toBe('o-tx-1');
-      expect(envelope.causationId).toBe('o-tx-1');
-    });
-
-    it('uses the provided correlationId in the envelope', async () => {
-      const cid = '00000000-0000-4000-8000-0000000000ab';
-      const { em } = await runCreateWith({}, cid);
-      const envelope = (outboxSaved(em).envelope ?? {}) as Record<
-        string,
-        unknown
-      >;
-      expect(envelope.correlationId).toBe(cid);
-    });
-
-    it('passes an explicit evidence object through verbatim', async () => {
-      const { em } = await runCreateWith({
-        evidence: { buyPoolAddress: '0xabc', gasUsd: 1.5 },
-      });
-      const payload = (outboxSaved(em).payload ?? {}) as Record<
-        string,
-        unknown
-      >;
-      expect(payload.evidence).toEqual({ buyPoolAddress: '0xabc', gasUsd: 1.5 });
-    });
-
-    it('rolls back the opportunity when the outbox write fails (single tx)', async () => {
-      const em = mkEm();
-      (em as unknown as { save: jest.Mock }).save = jest.fn(
-        (entity: object) => {
-          if (entity === OutboxEventEntity) {
-            return Promise.reject(new Error('outbox connection refused'));
-          }
-          const row = { id: 'o-tx-1' };
-          return Promise.resolve(row);
-        },
-      );
-      dataSource.transaction.mockImplementation(
-        (fn: (em: EntityManager) => Promise<unknown>) =>
-          Promise.resolve(fn(em)),
-      );
-      await expect(service.create({})).rejects.toThrow('outbox connection refused');
+      // Opportunity is still created and returned.
+      expect((out as { id: string }).id).toBe('o-tx-1');
+      // No outbox row persisted inside the create transaction.
+      const outboxWrites = em.saved.filter((s) => s.entity === OutboxEventEntity);
+      expect(outboxWrites).toHaveLength(0);
     });
   });
 
