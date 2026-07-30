@@ -317,14 +317,14 @@ export class AutoDriveWorker implements OnModuleInit, OnModuleDestroy {
     const promoted = await this.candidatesRepo.find({
       where: { status: 'promoted' as const },
       take: batch,
-      order: { updatedAt: 'ASC' },
+      order: { createdAt: 'DESC' },
     });
     let draftsCreated = 0;
     for (const candidate of promoted) {
-      // Idempotency: a non-terminal paper trade created from this candidate already exists.
+      // Idempotency: skip any candidate that already has a paper trade (any state).
       const idempotencyKey = `auto-drive:${candidate.id}`;
       const existing = await this.tradesRepo.findOne({ where: { idempotencyKey } });
-      if (existing !== null && existing.state !== 'canceled') {
+      if (existing !== null) {
         this.metrics.promotedToDraft.inc({ outcome: 'skipped_exists' });
         continue;
       }
@@ -361,6 +361,7 @@ export class AutoDriveWorker implements OnModuleInit, OnModuleDestroy {
 
     // --- Phase B (opt-in): draft → active ---
     let approved = 0;
+    this.logger.debug(`Phase B check: autoApprove=${cfg.autoApprove} autoSettleDelayMs=${cfg.autoSettleDelayMs}`);
     if (cfg.autoApprove) {
       const activeCount = await this.tradesRepo.count({ where: { state: 'active' as const } });
       if (activeCount >= cfg.maxConcurrentTrades) {
