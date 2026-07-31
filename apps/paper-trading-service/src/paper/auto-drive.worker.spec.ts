@@ -31,6 +31,7 @@ function mkConfig(overrides: Partial<AutoDriveConfig> = {}): AutoDriveConfig {
     notionalUsd: 1000,
     batchSize: 10,
     autoApprove: false,
+    autoPromote: false,
     autoSettleDelayMs: 5000,
     ...overrides,
   };
