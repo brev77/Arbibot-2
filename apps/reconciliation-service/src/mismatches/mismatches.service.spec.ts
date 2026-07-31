@@ -9,6 +9,8 @@ describe('MismatchesService', () => {
   it('runDetectors sums inserted rows from all detectors', async () => {
     const query = jest
       .fn()
+      // R2: auto-resolve mock-only-plan mismatches (runs first, returns 0 here)
+      .mockResolvedValueOnce([])
       // Legacy detector 1: completed_plan_missing_portfolio
       .mockResolvedValueOnce([{ id: '1' }])
       // Legacy detector 2: executing_plan_legs_filled_not_completed
@@ -33,8 +35,30 @@ describe('MismatchesService', () => {
       wallet_balance_drift: 0,
       dex_stale_pending_tx: 2,
     });
-    // 2 legacy + 3 DEX detectors = 5 total query calls
-    expect(query).toHaveBeenCalledTimes(5);
+    // 1 auto-resolve + 2 legacy + 3 DEX detectors = 6 total query calls
+    expect(query).toHaveBeenCalledTimes(6);
+  });
+
+  it('runDetectors auto-resolves previously-open mock-only-plan mismatches (R2)', async () => {
+    // The auto-resolve UPDATE returns the 2 resolved rows; remaining detectors return nothing.
+    const query = jest
+      .fn()
+      .mockResolvedValueOnce([{ id: 'm1' }, { id: 'm2' }]) // auto-resolve
+      .mockResolvedValueOnce([]) // completed_plan_missing_portfolio
+      .mockResolvedValueOnce([]) // executing...
+      .mockResolvedValueOnce([]) // dex 1
+      .mockResolvedValueOnce([]) // dex 2
+      .mockResolvedValueOnce([]); // dex 3
+    const dataSource = { query } as never;
+    const repo = { find: jest.fn() } as unknown as Repository<ReconciliationMismatchEntity>;
+    const svc = new MismatchesService(dataSource, repo);
+    const r = await svc.runDetectors();
+    // The 2 auto-resolved rows count toward `inserted` (acts on rows even though it resolves them).
+    expect(r.inserted).toBe(2);
+    expect(r.byKind).toHaveProperty('completed_plan_missing_portfolio__auto_resolved_mock', 2);
+    // The auto-resolve SQL must filter on mock venue (leg venue_ref LIKE 'mock:%').
+    const autoResolveSql = String(query.mock.calls[0]?.[0]);
+    expect(autoResolveSql).toContain("l.venue_ref NOT LIKE 'mock:%'");
   });
 
   describe('list', () => {
