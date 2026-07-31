@@ -53,14 +53,14 @@ export class AutoDriveWorker implements OnModuleInit, OnModuleDestroy {
     this.isRunning = true;
     try {
       const pending = await this.repo.find({
-        where: { state: 'detected' as any },
+        where: { state: 'detected' },
         take: 10,
         order: { createdAt: 'DESC' },
       });
 
       // Only drive scanner-sourced ones (payload has buyVenue)
       const scannerOpps = pending.filter((opp) => {
-        const payload = opp.payload as Record<string, unknown> | null;
+        const payload = opp.payload;
         return payload?.buyVenue !== undefined;
       });
 
@@ -68,7 +68,7 @@ export class AutoDriveWorker implements OnModuleInit, OnModuleDestroy {
 
       for (const opp of scannerOpps) {
         try {
-          const payload = opp.payload as Record<string, unknown>;
+          const payload = opp.payload;
           const netProfitUsd = (payload.netProfitUsd as number) ?? 0;
           if (netProfitUsd <= 0) continue;
 
@@ -95,7 +95,7 @@ export class AutoDriveWorker implements OnModuleInit, OnModuleDestroy {
           this.logger.log(
             `Auto-drive: ${opp.id.slice(0, 8)} → risk=${result.riskOutcome} net=$${netProfitUsd} spread=${spreadBps}bps`,
           );
-        } catch (err) {
+        } catch {
           // Silently skip — will retry next tick
         }
       }
