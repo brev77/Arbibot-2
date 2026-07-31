@@ -96,7 +96,7 @@ async function runDexReceiptLegMismatchDetector(
         SELECT 1 FROM reconciliation_mismatches m
         WHERE m.kind = $1::text
           AND m.status = 'open'
-          AND (m.details->>'legId') = oct.leg_id
+          AND (m.details->>'legId') = oct.leg_id::text
       )
     LIMIT 50
     `,
