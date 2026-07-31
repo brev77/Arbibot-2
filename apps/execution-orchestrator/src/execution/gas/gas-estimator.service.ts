@@ -52,6 +52,23 @@ export interface GasEstimationResult {
 }
 
 /**
+ * Gas cost in USD.
+ *
+ * `nativeUsdPrice` is supplied by the caller (PriceOracleService) to avoid a
+ * circular dependency from GasEstimator → PriceOracle → PoolDiscovery. Returns
+ * `null` when the native price is unavailable (fail-closed: callers must treat
+ * a null gas-USD as "cannot value this leg" rather than as free).
+ */
+export interface GasCostUsd {
+  /** Gas cost in USD (`gasLimit × maxFeePerGas` converted to native, then × native/USD). */
+  readonly costUsd: number;
+  /** Native token USD price used for the conversion. */
+  readonly nativeUsdPrice: number;
+  /** Gas cost expressed in the native token (ETH / BNB). */
+  readonly costNative: number;
+}
+
+/**
  * GasEstimatorService — Step DEX-1-0-GAS
  *
  * Estimates gas for DEX transactions with EIP-1559 fee support.
@@ -250,6 +267,44 @@ export class GasEstimatorService {
       maxPriorityFeePerGasGwei: formatUnits(cappedPriority, 'gwei'),
       baseFeeGwei: feeData.baseFeeGwei,
     };
+  }
+
+  /**
+   * Convert a gas cost (gas limit × EIP-1559 fee) to USD using a caller-supplied
+   * native token price.
+   *
+   * Kept dependency-free (no PriceOracle import) so it can be unit-tested in
+   * isolation and reused by the TradeCostEstimatorService without a circular
+   * import. The caller resolves `nativeUsdPrice` via `PriceOracleService`
+   * (Chainlink ETH/USD on Arbitrum+Base, BNB/USD on BNB Chain) and passes it in.
+   *
+   * @param gasLimit     Estimated gas limit (from `estimateGas()`).
+   * @param feeData      EIP-1559 fee data (uses `maxFeePerGas` — the worst-case cap).
+   * @param nativeUsdPrice Native token USD price (ETH or BNB). Must be > 0.
+   * @returns USD cost + the inputs used, or `null` when the price is unavailable
+   *          (fail-closed: null means "cannot value", NOT "free").
+   */
+  estimateGasCostUsd(
+    gasLimit: bigint,
+    feeData: Eip1559FeeData,
+    nativeUsdPrice: number | null,
+  ): GasCostUsd | null {
+    if (
+      nativeUsdPrice === null ||
+      !Number.isFinite(nativeUsdPrice) ||
+      nativeUsdPrice <= 0
+    ) {
+      return null;
+    }
+    const costWei = gasLimit * feeData.maxFeePerGas;
+    // Native units (ETH/BNB): wei → ether via Number-safe float math. gasLimit
+    // and maxFeePerGas fit in double precision for realistic trade sizes.
+    const costNative = Number(costWei) / 1e18;
+    const costUsd = costNative * nativeUsdPrice;
+    if (!Number.isFinite(costUsd) || costUsd < 0) {
+      return null;
+    }
+    return { costUsd, nativeUsdPrice, costNative };
   }
 
   private initializeMetrics(): void {

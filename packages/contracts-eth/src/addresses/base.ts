@@ -11,6 +11,8 @@ export interface BaseAddresses {
   // Uniswap V3
   uniswapV3Router: Address;
   uniswapV3Factory: Address;
+  // Uniswap V3 QuoterV2 (pre-trade quote; cost-estimation)
+  quoterV2: Address;
   // SushiSwap
   sushiSwapRouter: Address;
   sushiSwapFactory: Address;
@@ -41,6 +43,8 @@ export const BaseMainnetAddresses: BaseAddresses = {
   // Uniswap V3 (SwapRouter02)
   uniswapV3Router: '0x2626664c2603336E57B55794666850a4e5c3A2F6',
   uniswapV3Factory: '0x33128a8fC17869897dcE68Ed026d594dd274D2f3',
+  // Uniswap V3 QuoterV2 — pre-trade quote for cost estimation (cost-estimation)
+  quoterV2: '0x3d4Ba44E389a089B36D2c2596e99161E3a58a0Ec',
   // SushiSwap V2
   sushiSwapRouter: '0x6BDED42c6DA8FBf0d2bA55B2fa120Ec19711BCee',
   sushiSwapFactory: '0x7DAe51AE332a0e1F979B1b1d01eD6d68468e41eC',
@@ -69,6 +73,8 @@ export const BaseSepoliaAddresses: BaseAddresses = {
   // Uniswap V3 (SwapRouter02)
   uniswapV3Router: '0x94cC0AaC5338A89d4C4A095063cEA4D13e00Cf42',
   uniswapV3Factory: '0x1233427D9291214787Ee4c65a2a3a649a0A849E4',
+  // QuoterV2 not reliably deployed on Base Sepolia — null triggers fail-closed fallback.
+  quoterV2: '0x0000000000000000000000000000000000000000',
   // SushiSwap
   sushiSwapRouter: '0x0000000000000000000000000000000000000000',
   sushiSwapFactory: '0x0000000000000000000000000000000000000000',

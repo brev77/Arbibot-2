@@ -1,11 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Interface, JsonRpcProvider, TransactionReceipt } from 'ethers';
+import { Contract, Interface, JsonRpcProvider, TransactionReceipt } from 'ethers';
 import { Counter, Histogram } from 'prom-client';
 import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
 import {
   Address,
   ChainId,
+  ZERO_ADDRESS,
   UniswapV3RouterABI,
+  QuoterV2ABI,
   getArbitrumAddresses,
   getBaseAddresses,
   getBnbAddresses,
@@ -42,8 +44,9 @@ import {
  * and operates on a single pool (tokenIn/tokenOut with given fee).
  *
  * `amountOutExpected` is **required** — it comes from opportunity detection
- * and is used to compute `amountOutMinimum` via slippage tolerance.
- * On-chain quoting (QuoterV2) is deferred to a later iteration.
+ * and is used to compute `amountOutMinimum` via slippage tolerance when the
+ * on-chain QuoterV2 quote is unavailable. When QuoterV2 is reachable, the
+ * live quote supersedes `amountOutExpected` for `amountOutMinimum`.
  */
 export interface DexSwapParamsV3 {
   /** Target chain ID */
@@ -112,6 +115,42 @@ function resolveRouterAddress(chainId: ChainId): Address {
     `UniswapV3Adapter: unsupported chainId ${chainId}`,
     { category: 'validation' },
   );
+}
+
+/**
+ * Resolve the V3 QuoterV2 address for a given chainId.
+ *
+ * Returns `ZERO_ADDRESS` on chains/testnets where QuoterV2 is not deployed
+ * (all testnets) — the caller treats ZERO_ADDRESS as "quote unavailable" and
+ * falls back to `amountOutExpected` from detection. This keeps the live gate
+ * fail-closed: a missing quote never silently widens the slippage bound.
+ */
+function resolveQuoterV2Address(chainId: ChainId): Address {
+  if (
+    chainId === (42161 as ChainId) ||
+    chainId === (421611 as ChainId) ||
+    chainId === (421614 as ChainId)
+  ) {
+    return getArbitrumAddresses(chainId).quoterV2;
+  }
+  if (chainId === (8453 as ChainId) || chainId === (84532 as ChainId)) {
+    return getBaseAddresses(chainId).quoterV2;
+  }
+  if (chainId === (56 as ChainId) || chainId === (97 as ChainId)) {
+    return getBnbAddresses(chainId).quoterV2;
+  }
+  return ZERO_ADDRESS;
+}
+
+/** Minimal QuoterV2 surface used for `quoteExactInputSingle`. */
+interface QuoterV2Contract {
+  quoteExactInputSingle(params: {
+    readonly tokenIn: string;
+    readonly tokenOut: string;
+    readonly amountIn: bigint;
+    readonly fee: number;
+    readonly sqrtPriceLimitX96: bigint;
+  }): Promise<[bigint, bigint, number, bigint]>;
 }
 
 /**
@@ -242,6 +281,7 @@ export class UniswapV3Adapter implements VenueAdapter {
   // Metrics
   private swapCounter!: Counter<string>;
   private swapLatency!: Histogram<string>;
+  private quoteFallbackCounter!: Counter<string>;
 
   constructor(
     private readonly rpcProviderManager: RpcProviderManager,
@@ -289,6 +329,7 @@ export class UniswapV3Adapter implements VenueAdapter {
       const { amountInUsd } = await enforceLiveRiskGate({
         dexRiskPolicy: this.dexRiskPolicy,
         priceOracle: this.priceOracle,
+        gasEstimator: this.gasEstimator,
         adapterName: 'UniswapV3Adapter',
         chainId: params.chainId,
         tokenIn: params.tokenIn,
@@ -308,11 +349,12 @@ export class UniswapV3Adapter implements VenueAdapter {
       // 4. Ensure ERC20 approval for the router
       await this.ensureApproval(params, selectedWallet, routerAddress);
 
-      // 5. Calculate amountOutMinimum from expected output + slippage
-      const amountOutMin = this.calculateAmountOutMin(params);
+      // 5. Calculate amountOutMinimum: live QuoterV2 quote (with fallback to
+      //    detection-time amountOutExpected) + slippage tolerance.
+      const { amountOutMin, usedLiveQuote } = await this.calculateAmountOutMin(params);
 
       this.logger.debug(
-        `amountOutMin: expected=${params.amountOutExpected} minOut=${amountOutMin}`,
+        `amountOutMin: expected=${params.amountOutExpected} minOut=${amountOutMin} liveQuote=${usedLiveQuote}`,
       );
 
       // 6. Estimate gas and check policy
@@ -455,18 +497,74 @@ export class UniswapV3Adapter implements VenueAdapter {
   }
 
   /**
-   * Calculate amountOutMinimum from expected output + slippage tolerance.
+   * Calculate amountOutMinimum: prefer a live on-chain QuoterV2 quote, fall
+   * back to the detection-time `amountOutExpected` when the Quoter is
+   * unavailable (testnet / RPC error / ZERO_ADDRESS deployment).
    *
-   * Unlike V2 which uses on-chain `getAmountsOut`, V3 uses the
-   * `amountOutExpected` from opportunity detection. This is standard
-   * practice for MEV / arbitrage systems where the price is already
-   * validated at detection time.
-   *
-   * QuoterV2 integration deferred to a later iteration.
+   * Returns `{ amountOutMin, usedLiveQuote }` so the caller can record the
+   * fallback as a metric. Slippage tolerance (`slippageBps`) is applied in
+   * both paths via `applySlippage`.
    */
-  calculateAmountOutMin(params: DexSwapParamsV3): string {
+  async calculateAmountOutMin(
+    params: DexSwapParamsV3,
+  ): Promise<{ amountOutMin: string; usedLiveQuote: boolean }> {
     const slippageBps = getSlippageBps(params.slippageBps);
-    return applySlippage(params.amountOutExpected, slippageBps);
+
+    // Try live QuoterV2 first.
+    const liveQuote = await this.quoteV3(params).catch((e: unknown) => {
+      this.logger.warn(
+        `QuoterV2 quote failed, falling back to amountOutExpected: ` +
+        `${e instanceof Error ? e.message : String(e)}`,
+      );
+      return null;
+    });
+
+    if (liveQuote !== null) {
+      return { amountOutMin: applySlippage(liveQuote, slippageBps), usedLiveQuote: true };
+    }
+
+    this.quoteFallbackCounter.inc({ chain_id: String(params.chainId), reason: 'fallback' });
+    return {
+      amountOutMin: applySlippage(params.amountOutExpected, slippageBps),
+      usedLiveQuote: false,
+    };
+  }
+
+  /**
+   * Query the on-chain V3 QuoterV2 for the expected output of an
+   * `exactInputSingle` swap. Returns the quoted `amountOut` as a bigint string,
+   * or `null` when the Quoter is not deployed on the chain (ZERO_ADDRESS) or the
+   * call reverts/returns non-positive (pool not initialized, wrong fee tier).
+   *
+   * The Quoter is a view contract (revert-and-catch internally), so calling it
+   * costs no gas but still requires an `eth_call`. Best-effort: any failure
+   * resolves to `null` and the caller falls back to `amountOutExpected`.
+   */
+  private async quoteV3(params: DexSwapParamsV3): Promise<string | null> {
+    const quoterAddress = resolveQuoterV2Address(params.chainId);
+    if (quoterAddress === ZERO_ADDRESS) {
+      return null;
+    }
+    const provider = this.rpcProviderManager.getProvider(params.chainId);
+    const quoter = new Contract(
+      quoterAddress,
+      QuoterV2ABI,
+      provider,
+    ) as unknown as QuoterV2Contract;
+
+    const sqrtPriceLimitX96 = params.sqrtPriceLimitX96 ?? '0';
+    const result = await quoter.quoteExactInputSingle({
+      tokenIn: params.tokenIn,
+      tokenOut: params.tokenOut,
+      amountIn: BigInt(params.amountIn),
+      fee: params.fee,
+      sqrtPriceLimitX96: BigInt(sqrtPriceLimitX96),
+    });
+    const amountOut = result[0];
+    if (amountOut === undefined || amountOut <= 0n) {
+      return null;
+    }
+    return amountOut.toString();
   }
 
   /**
@@ -535,6 +633,13 @@ export class UniswapV3Adapter implements VenueAdapter {
       help: 'Uniswap V3 swap latency in seconds',
       labelNames: ['chain_id'],
       buckets: [0.5, 1, 2, 5, 10, 30, 60],
+      registers: [registry],
+    });
+
+    this.quoteFallbackCounter = new Counter({
+      name: 'arb_dex_v3_quote_fallback_total',
+      help: 'V3 amountOutMin computations that fell back to detection-time amountOutExpected (QuoterV2 unavailable)',
+      labelNames: ['chain_id', 'reason'],
       registers: [registry],
     });
   }

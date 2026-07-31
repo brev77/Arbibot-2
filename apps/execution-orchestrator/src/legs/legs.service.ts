@@ -7,11 +7,12 @@ import {
   HttpStatus,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { QueryFailedError } from 'typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 
 import {
   EVENT_NAMES,
@@ -41,6 +42,7 @@ import { DexKillSwitchService } from '../execution/risk/dex-kill-switch.service'
 import { extractVenueKey, isLiveVenueKey } from '../execution/venue-factory.service';
 import type { BridgeTransferParams } from '../execution/bridge/bridge-adapter.interface';
 import { MultiLegPlanBuilderService } from '../plans/multi-leg-plan-builder.service';
+import { TradeCostEstimatorService } from '../cost/trade-cost-estimator.service';
 
 function readBeginLegCount(): number {
   const raw = process.env.EXECUTION_BEGIN_LEG_COUNT?.trim() ?? '1';
@@ -132,6 +134,8 @@ function planStateView(row: ExecutionPlanEntity) {
 
 @Injectable()
 export class LegsService {
+  private readonly logger = new Logger(LegsService.name);
+
   constructor(
     private readonly dataSource: DataSource,
     @InjectRepository(ExecutionPlanEntity)
@@ -144,6 +148,7 @@ export class LegsService {
     private readonly bridgeAdapterFactory: BridgeAdapterFactoryService,
     private readonly bridgeTransferService: BridgeTransferService,
     private readonly killSwitch: DexKillSwitchService,
+    private readonly costEstimator: TradeCostEstimatorService,
   ) {}
 
   async listForPlan(planId: string): Promise<ReturnType<typeof legView>[]> {
@@ -225,6 +230,15 @@ export class LegsService {
           savedLegs.push(await em.save(leg));
         }
       }
+
+      // ── Pre-trade cost gate (cost-estimation) ───────────────────────────
+      // Estimate the full cost breakdown (gas + slippage + pool fees + bridge
+      // fees across all legs) BEFORE any leg is submitted. For LIVE plans the
+      // net-profit gate blocks unprofitable execution (fail-closed: an
+      // unvaluable live leg also blocks). Paper plans are never blocked here —
+      // paper/live isolation is structural (venueKey), so the gate only applies
+      // when a live venue/bridge leg is present.
+      await this.applyPlanCostGate(plan, savedLegs, em);
       this.audit.record({
         idempotencyKey: `execution:BeginExecution:${plan.id}`,
         correlationId: plan.correlationId ?? undefined,
@@ -243,6 +257,82 @@ export class LegsService {
         legs: savedLegs.map((l) => legView(l)),
       };
     });
+  }
+
+  /**
+   * Pre-trade cost gate (cost-estimation): estimate the plan's total expected
+   * cost and, for LIVE plans, block unprofitable execution BEFORE the first
+   * leg is submitted.
+   *
+   * Persists the cost breakdown on the plan (`cost_breakdown` jsonb) and per-leg
+   * typed columns regardless of the decision, so blocked plans remain auditable.
+   * Paper plans are never blocked — paper/live isolation is structural via
+   * venueKey; we only warn.
+   *
+   * NOTE: the estimate runs inside `beginExecution`'s transaction (the plan is
+   * pessimistic-write locked). This trades a longer lock for a single atomic
+   * "estimate + persist + gate" step. Acceptable at v1 because the plan is
+   * already operator-approved (armed); the gate is defense-in-depth, not the
+   * primary approval.
+   */
+  private async applyPlanCostGate(
+    plan: ExecutionPlanEntity,
+    savedLegs: ExecutionLegEntity[],
+    em: EntityManager,
+  ): Promise<void> {
+    let breakdown;
+    try {
+      breakdown = await this.costEstimator.estimatePlanCost(plan);
+    } catch (e) {
+      // Estimation itself failed unexpectedly — log and proceed without a gate
+      // (do not hard-block the operator's armed plan on an estimator bug; the
+      // per-leg live risk gate remains the final fail-closed check).
+      this.logger.warn(
+        `Cost estimation failed for plan ${plan.id}: ${e instanceof Error ? e.message : String(e)} — skipping plan-level gate`,
+      );
+      return;
+    }
+
+    // Persist per-leg cost columns.
+    for (const leg of savedLegs) {
+      const legCost = breakdown.legs.find((l) => l.legIndex === leg.legIndex);
+      if (legCost === undefined) {
+        continue;
+      }
+      leg.estimatedGasUsd = round2(legCost.gasUsd);
+      leg.slippageBps = legCost.legType === 'dex' ? legCost.slippageBps : null;
+      leg.poolFeeUsd = legCost.legType === 'dex' ? round2(legCost.poolFeeUsd) : null;
+      leg.bridgeFeeUsd = legCost.legType === 'bridge' ? round2(legCost.bridgeFeeUsd) : null;
+      leg.totalCostUsd = round2(legCost.totalCostUsd);
+      leg.costConfidence = legCost.estimateConfidence;
+      await em.save(leg);
+    }
+
+    // Persist plan-level breakdown.
+    plan.costBreakdown = breakdown as unknown as Record<string, unknown>;
+    await em.save(plan);
+
+    // Determine if ANY leg is live (DEX live venue or bridge). Paper-only plans
+    // skip the blocking gate (paper/live isolation).
+    const hasLiveLeg = savedLegs.some((leg) => {
+      const venueKey = extractVenueKey(plan, leg);
+      return leg.legType === 'bridge' || isLiveVenueKey(venueKey);
+    });
+    if (!hasLiveLeg) {
+      return; // Paper plan — warn only (the estimator already recorded metrics).
+    }
+
+    // Live plan: enforce the net-profit gate (fail-closed).
+    const decision = await this.costEstimator.evaluatePlanGate(breakdown);
+    if (!decision.allowed) {
+      // Throw to roll back the transaction: plan stays 'armed' (retryable once
+      // conditions improve) and the cost breakdown is NOT persisted for blocked
+      // plans. The gate decision + metrics are already recorded in the estimator.
+      throw new HttpException(
+        `Plan ${plan.id} blocked by pre-trade cost gate: ${decision.reasons.join('; ')}`,
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+    }
   }
 
   async markSent(planId: string, legId: string): Promise<ReturnType<typeof legView>> {
@@ -654,4 +744,9 @@ export class LegsService {
       throw new NotFoundException(`Plan not found: ${planId}`);
     }
   }
+}
+
+/** Round a USD cost value to 2 decimal places for persistence. */
+function round2(v: number): number {
+  return Number.isFinite(v) ? Math.round(v * 100) / 100 : 0;
 }

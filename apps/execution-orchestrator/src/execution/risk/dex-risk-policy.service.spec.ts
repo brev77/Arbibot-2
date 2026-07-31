@@ -161,6 +161,7 @@ describe('DexRiskPolicyService', () => {
         blockedTokens: [],
         maxDailyVolumeUsd: 10_000,
         requireApproval: false,
+        minNetProfitUsd: 0.5,
       });
       const result = await service.evaluateTrade({
         chainId: 42161,
@@ -185,6 +186,7 @@ describe('DexRiskPolicyService', () => {
         blockedTokens: [],
         maxDailyVolumeUsd: 10_000,
         requireApproval: false,
+        minNetProfitUsd: 0.5,
       });
       const result = await service.evaluateTrade({
         chainId: 42161,
@@ -209,6 +211,7 @@ describe('DexRiskPolicyService', () => {
         blockedTokens: [],
         maxDailyVolumeUsd: 1000,
         requireApproval: false,
+        minNetProfitUsd: 0.5,
       });
       // Existing daily volume 950; adding 100 → 1050 > 1000.
       volumeRepo.findOne = jest.fn(() => Promise.resolve({ volumeUsd: '950' }));
@@ -235,6 +238,7 @@ describe('DexRiskPolicyService', () => {
         blockedTokens: [],
         maxDailyVolumeUsd: 10_000,
         requireApproval: false,
+        minNetProfitUsd: 0.5,
       });
       const result = await service.evaluateTrade({
         chainId: 42161,
@@ -260,6 +264,7 @@ describe('DexRiskPolicyService', () => {
         blockedTokens: [blocked],
         maxDailyVolumeUsd: 10_000,
         requireApproval: false,
+        minNetProfitUsd: 0.5,
       });
       const result = await service.evaluateTrade({
         chainId: 42161,

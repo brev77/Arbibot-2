@@ -5,6 +5,7 @@ export * from './types/address';
 // ABIs
 export { UniswapV2RouterABI } from './abis/uniswap-v2-router';
 export { UniswapV3RouterABI } from './abis/uniswap-v3-router';
+export { QuoterV2ABI } from './abis/uniswap-v3-quoter';
 export { SushiSwapRouterABI } from './abis/sushiswap-router';
 export { ERC20ABI } from './abis/erc20';
 export { AggregatorV3ABI } from './abis/aggregator-v3';

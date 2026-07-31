@@ -27,6 +27,7 @@ import { WalletManagerService, type SelectedWallet } from '../wallet-manager.ser
 import { RpcProviderManager } from '../rpc/rpc-provider-manager.service';
 import { GasEstimatorService } from '../gas/gas-estimator.service';
 import { TokenApproveService } from '../token/token-approve.service';
+import { PriceOracleService } from '../price/price-oracle.service';
 
 /** Narrow string → Address for ethers.js interop. */
 const asAddr = (v: string): `0x${string}` => v as `0x${string}`;
@@ -92,6 +93,7 @@ export class NativeBridgeAdapter implements BridgeAdapter {
     private readonly gasEstimator: GasEstimatorService,
     private readonly tokenApprove: TokenApproveService,
     private readonly finalityService: BridgeFinalityService,
+    private readonly priceOracle: PriceOracleService,
   ) {
     this.supportedChains = this.buildSupportedChains();
     this.initializeMetrics();
@@ -541,7 +543,7 @@ export class NativeBridgeAdapter implements BridgeAdapter {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await
+   
   async estimateBridgeFee(params: BridgeTransferParams): Promise<BridgeFeeEstimate> {
     const bridgeAddresses = getNativeBridgeAddresses(
       params.sourceChainId,
@@ -563,9 +565,30 @@ export class NativeBridgeAdapter implements BridgeAdapter {
 
     const isL1ToL2 = this.isL1Chain(params.sourceChainId);
 
+    // Standard bridges (Optimism Portal, Arbitrum Inbox, Base L1StandardBridge)
+    // do not charge a separate relayer/protocol fee — the cost is the source
+    // gas. L1→L2 deposits additionally pay for the L2 mint gas (included in the
+    // Arbitrum inbox calldata gas estimate). We value the gas in USD via the
+    // native price oracle; L2→L1 withdrawals are gas-only.
+    let totalCostUsd = 0;
+    try {
+      const nativeUsd = await this.priceOracle.getNativeUsdPrice(params.sourceChainId);
+      if (nativeUsd !== null) {
+        const feeData = await this.gasEstimator.getEip1559FeeData(params.sourceChainId);
+        const gasCost = this.gasEstimator.estimateGasCostUsd(estimatedGasSource, feeData, nativeUsd);
+        if (gasCost !== null) {
+          totalCostUsd += gasCost.costUsd;
+        }
+      }
+    } catch (e) {
+      this.logger.warn(
+        `Native bridge gas valuation failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+
     this.feeHistogram.observe(
       { bridge_key: 'native', direction: isL1ToL2 ? 'l1-to-l2' : 'l2-to-l1' },
-      isL1ToL2 ? 0.5 : 0,
+      totalCostUsd,
     );
 
     return {
@@ -573,7 +596,7 @@ export class NativeBridgeAdapter implements BridgeAdapter {
       relayerFee: 0n,
       estimatedGasSource,
       estimatedGasDestination: 0n,
-      totalEstimatedCostUsd: 0,
+      totalEstimatedCostUsd: totalCostUsd,
     };
   }
 

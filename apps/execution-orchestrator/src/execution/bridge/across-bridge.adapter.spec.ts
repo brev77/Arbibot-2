@@ -8,6 +8,7 @@ import { WalletManagerService } from '../wallet-manager.service';
 import { GasEstimatorService } from '../gas/gas-estimator.service';
 import { TokenApproveService } from '../token/token-approve.service';
 import { BridgeFinalityService } from './bridge-finality.service';
+import { PriceOracleService } from '../price/price-oracle.service';
 
 // ───────────────────────────────────────────────────────────────────────
 // Tests
@@ -92,13 +93,30 @@ describe('AcrossBridgeAdapter', () => {
         AcrossBridgeAdapter,
         { provide: RpcProviderManager, useValue: { getProvider: mockGetProvider } },
         { provide: WalletManagerService, useValue: { selectWallet: mockSelectWallet } },
-        { provide: GasEstimatorService, useValue: { estimateGas: mockEstimateGas } },
+        { provide: GasEstimatorService, useValue: {
+          estimateGas: mockEstimateGas,
+          // Cost-estimation: estimateBridgeFee values gas in USD via these.
+          getEip1559FeeData: jest.fn().mockResolvedValue({
+            maxFeePerGas: 1_000_000_000n, maxPriorityFeePerGas: 100_000_000n, baseFee: 900_000_000n,
+            maxFeePerGasGwei: '1.0', maxPriorityFeePerGasGwei: '0.1', baseFeeGwei: '0.9',
+          }),
+          estimateGasCostUsd: jest.fn().mockReturnValue({ costUsd: 0.2, nativeUsdPrice: 2500, costNative: 0.00008 }),
+        } },
         { provide: TokenApproveService, useValue: { getAllowance: mockGetAllowance, approveToken: mockApproveToken } },
         {
           provide: BridgeFinalityService,
           useValue: {
             getSourceConfirmations: mockFinalityGetSourceConfirmations,
             getRequiredConfirmationsFor: mockFinalityRequired,
+          },
+        },
+        {
+          // Cost-estimation: bridge adapters now value fees in USD via the oracle.
+          provide: PriceOracleService,
+          useValue: {
+            getNativeUsdPrice: jest.fn().mockResolvedValue(2500),
+            getTokenPriceUsd: jest.fn().mockResolvedValue(1),
+            getTokenDecimals: jest.fn().mockResolvedValue(6),
           },
         },
       ],

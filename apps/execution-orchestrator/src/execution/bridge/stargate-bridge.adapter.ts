@@ -28,6 +28,7 @@ import { RpcProviderManager } from '../rpc/rpc-provider-manager.service';
 import { WalletManagerService } from '../wallet-manager.service';
 import { GasEstimatorService } from '../gas/gas-estimator.service';
 import { TokenApproveService } from '../token/token-approve.service';
+import { PriceOracleService } from '../price/price-oracle.service';
 
 // ───────────────────────────────────────────────────────────────────────
 // Constants
@@ -88,6 +89,7 @@ export class StargateBridgeAdapter implements BridgeAdapter {
     private readonly gasEstimator: GasEstimatorService,
     private readonly tokenApprove: TokenApproveService,
     private readonly finalityService: BridgeFinalityService,
+    private readonly priceOracle: PriceOracleService,
   ) {
     this.supportedChains = this.buildSupportedChains();
     this.initializeMetrics();
@@ -503,24 +505,55 @@ export class StargateBridgeAdapter implements BridgeAdapter {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await
-  async estimateBridgeFee(_params: BridgeTransferParams): Promise<BridgeFeeEstimate> {
-    // TODO: Query Stargate API for real-time fee estimate
-    // Stargate fee = protocol fee + LayerZero relay fee + gas
-    // For now, return conservative estimates
-    const bridgeFee = 0n;
-    const relayerFee = 0n;
+  async estimateBridgeFee(params: BridgeTransferParams): Promise<BridgeFeeEstimate> {
+    // Stargate V2 fee = LayerZero relay fee (quoted on-chain, paid as native
+    // `value` on the source tx) + source-chain gas. Protocol fee is embedded in
+    // the LZ quote. We reuse the same on-chain `quoteLayerZeroFee` used during
+    // submit so the estimate matches what will actually be charged.
     const estimatedGasSource = ESTIMATED_SWAP_GAS;
     const estimatedGasDestination = ESTIMATED_CLAIM_GAS;
+    let totalCostUsd = 0;
 
-    this.feeHistogram.observe({ bridge_key: 'stargate' }, 0);
+    // 1. LayerZero relay fee (native on source chain).
+    let relayerFee = 0n;
+    try {
+      const provider = this.rpcProviderManager.getProvider(params.sourceChainId) as JsonRpcProvider;
+      const routerAddress = getStargateAddresses(params.sourceChainId).router as string;
+      relayerFee = await this.quoteLayerZeroFee(params, provider, routerAddress);
+    } catch (e) {
+      this.logger.debug(
+        `Stargate LZ fee quote failed (non-fatal): ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+
+    // 2. Value LZ fee + source gas in USD via the native price.
+    try {
+      const nativeUsd = await this.priceOracle.getNativeUsdPrice(params.sourceChainId);
+      if (nativeUsd !== null) {
+        const lzFeeUsd = (Number(relayerFee) / 1e18) * nativeUsd;
+        if (Number.isFinite(lzFeeUsd)) {
+          totalCostUsd += lzFeeUsd;
+        }
+        const feeData = await this.gasEstimator.getEip1559FeeData(params.sourceChainId);
+        const gasCost = this.gasEstimator.estimateGasCostUsd(estimatedGasSource, feeData, nativeUsd);
+        if (gasCost !== null) {
+          totalCostUsd += gasCost.costUsd;
+        }
+      }
+    } catch (e) {
+      this.logger.warn(
+        `Stargate fee valuation failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+
+    this.feeHistogram.observe({ bridge_key: 'stargate' }, totalCostUsd);
 
     return {
-      bridgeFee,
+      bridgeFee: relayerFee,
       relayerFee,
       estimatedGasSource,
       estimatedGasDestination,
-      totalEstimatedCostUsd: 0,
+      totalEstimatedCostUsd: totalCostUsd,
     };
   }
 

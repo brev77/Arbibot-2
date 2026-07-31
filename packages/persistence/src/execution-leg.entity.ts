@@ -49,6 +49,47 @@ export class ExecutionLegEntity {
   @Column({ name: 'filled_quantity', type: 'double precision', default: 0 })
   filledQuantity!: number;
 
+  /**
+   * Pre-trade estimated gas cost in USD. Single-writer: execution-orchestrator.
+   * NULL for legs estimated before migration 048. See migration 048.
+   */
+  @Column({ name: 'estimated_gas_usd', type: 'double precision', nullable: true })
+  estimatedGasUsd!: number | null;
+
+  /**
+   * Pre-trade estimated slippage in basis points. DEX legs only.
+   * Single-writer: execution-orchestrator.
+   */
+  @Column({ name: 'slippage_bps', type: 'integer', nullable: true })
+  slippageBps!: number | null;
+
+  /**
+   * Pre-trade estimated pool/protocol fee in USD. DEX legs only.
+   * Single-writer: execution-orchestrator.
+   */
+  @Column({ name: 'pool_fee_usd', type: 'double precision', nullable: true })
+  poolFeeUsd!: number | null;
+
+  /**
+   * Pre-trade estimated bridge relayer+protocol fee in USD. Bridge legs only.
+   * Single-writer: execution-orchestrator.
+   */
+  @Column({ name: 'bridge_fee_usd', type: 'double precision', nullable: true })
+  bridgeFeeUsd!: number | null;
+
+  /**
+   * Sum of all cost components for this leg. Single-writer: execution-orchestrator.
+   */
+  @Column({ name: 'total_cost_usd', type: 'double precision', nullable: true })
+  totalCostUsd!: number | null;
+
+  /**
+   * Estimate confidence: 'exact' | 'modeled' | 'unavailable'.
+   * Single-writer: execution-orchestrator.
+   */
+  @Column({ name: 'cost_confidence', type: 'text', nullable: true })
+  costConfidence!: 'exact' | 'modeled' | 'unavailable' | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;
 

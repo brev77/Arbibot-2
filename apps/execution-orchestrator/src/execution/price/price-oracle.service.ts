@@ -201,6 +201,18 @@ export class PriceOracleService {
   }
 
   /**
+   * Resolve the native token (ETH or BNB) USD price for gas valuation.
+   *
+   * Thin wrapper over `readChainlinkNativeUsd` exposed publicly so the cost
+   * estimator (and gas→USD conversion) can value gas in USD without duplicating
+   * the Chainlink feed logic. Returns `null` when no feed is configured for the
+   * chain (e.g. testnet) — callers fail-closed.
+   */
+  async getNativeUsdPrice(chainId: ChainId): Promise<number | null> {
+    return this.readChainlinkNativeUsd(chainId);
+  }
+
+  /**
    * Price an arbitrary token via a token↔WETH UniV2 pool:
    *   tokenPriceUsd = (reserveWETH / decimalsWETH) / (reserveToken / decimalsToken) × wethUsd
    *

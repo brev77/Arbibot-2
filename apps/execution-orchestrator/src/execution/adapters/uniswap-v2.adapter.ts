@@ -251,7 +251,12 @@ export interface LiveRiskGateResult {
  *    (fail-closed: never broadcast a live leg without a capital valuation).
  * 2. Resolve `tokenIn` decimals (cached) and compute `amountInUsd`.
  *    Unresolved decimals → throw (same fail-closed reasoning).
- * 3. Call `DexRiskPolicyService.evaluateTrade({ chainId, amountInUsd, ... })`.
+ * 3. Estimate the gas cost in USD: when the caller passes a precise
+ *    `estimatedGasCostUsd` (e.g. from a prior `estimateGas`), use it; otherwise
+ *    derive a conservative estimate from current EIP-1559 fees + a coarse DEX
+ *    swap gas limit (~180k) × native/USD. This makes the gas factor real instead
+ *    of the previous hardcoded `0`.
+ * 4. Call `DexRiskPolicyService.evaluateTrade({ chainId, amountInUsd, ... })`.
  *    `allowed === false` → throw `VenueSubmitClientError` (leg stays retryable).
  *
  * Returns `{ amountInUsd }` so the caller can `recordTradeVolume()` after
@@ -263,14 +268,20 @@ export interface LiveRiskGateResult {
 export async function enforceLiveRiskGate(args: {
   readonly dexRiskPolicy: DexRiskPolicyService;
   readonly priceOracle: PriceOracleService;
+  readonly gasEstimator: GasEstimatorService;
   readonly adapterName: string;
   readonly chainId: ChainId;
   readonly tokenIn: Address;
   readonly tokenOut: Address;
   readonly amountIn: string;
   readonly slippageBps?: number;
+  /**
+   * Pre-computed gas cost in USD (preferred — from a real `estimateGas` call).
+   * When omitted, the gate derives a conservative estimate from current fees.
+   */
+  readonly estimatedGasCostUsd?: number;
 }): Promise<LiveRiskGateResult> {
-  const { dexRiskPolicy, priceOracle, adapterName, chainId, tokenIn, tokenOut, amountIn } = args;
+  const { dexRiskPolicy, priceOracle, gasEstimator, adapterName, chainId, tokenIn, tokenOut, amountIn } = args;
 
   // 1. Price tokenIn → USD. Fail-closed on null.
   const tokenInUsd = await priceOracle.getTokenPriceUsd(chainId, tokenIn);
@@ -293,12 +304,35 @@ export async function enforceLiveRiskGate(args: {
   const amountInUnits = Number(BigInt(amountIn)) / 10 ** tokenInDecimals;
   const amountInUsd = amountInUnits * tokenInUsd;
 
-  // 3. evaluateTrade. Throwing on denial keeps the leg in `created` (retryable).
+  // 3. Gas cost in USD: prefer caller-provided precise value, else derive a
+  //    conservative estimate from current EIP-1559 fees × coarse DEX gas limit.
+  //    Best-effort: a failure to read fees falls back to 0 (the previous
+  //    behavior) so transient RPC issues do not hard-block the gate — the
+  //    plan-level cost gate (TradeCostEstimatorService) remains fail-closed.
+  let estimatedGasCostUsd = args.estimatedGasCostUsd ?? 0;
+  if (args.estimatedGasCostUsd === undefined) {
+    try {
+      const nativeUsd = await priceOracle.getNativeUsdPrice(chainId);
+      if (nativeUsd !== null) {
+        const feeData = await gasEstimator.getEip1559FeeData(chainId);
+        // Coarse DEX swap gas limit (V2≈180k, V3≈200k). Conservative upper bound.
+        const coarseGasLimit = 200_000n;
+        const cost = gasEstimator.estimateGasCostUsd(coarseGasLimit, feeData, nativeUsd);
+        if (cost !== null) {
+          estimatedGasCostUsd = cost.costUsd;
+        }
+      }
+    } catch {
+      // Non-fatal: keep 0, rely on the plan-level gate for fail-closed behavior.
+    }
+  }
+
+  // 4. evaluateTrade. Throwing on denial keeps the leg in `created` (retryable).
   const risk = await dexRiskPolicy.evaluateTrade({
     chainId,
     amountInUsd,
     estimatedSlippageBps: getSlippageBps(args.slippageBps),
-    estimatedGasCostUsd: 0, // refined post-estimateGas if needed later
+    estimatedGasCostUsd,
     tokenIn,
     tokenOut,
   });
@@ -401,6 +435,7 @@ export class UniswapV2Adapter implements VenueAdapter {
       const { amountInUsd } = await enforceLiveRiskGate({
         dexRiskPolicy: this.dexRiskPolicy,
         priceOracle: this.priceOracle,
+        gasEstimator: this.gasEstimator,
         adapterName: 'UniswapV2Adapter',
         chainId: params.chainId,
         tokenIn: params.tokenIn,

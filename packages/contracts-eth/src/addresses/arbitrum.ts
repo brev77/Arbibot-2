@@ -11,6 +11,8 @@ export interface ArbitrumAddresses {
   // Uniswap V3
   uniswapV3Router: Address;
   uniswapV3Factory: Address;
+  // Uniswap V3 QuoterV2 (pre-trade quote; cost-estimation)
+  quoterV2: Address;
   // SushiSwap
   sushiSwapRouter: Address;
   sushiSwapFactory: Address;
@@ -37,6 +39,8 @@ export const ArbitrumMainnetAddresses: ArbitrumAddresses = {
   // Uniswap V3
   uniswapV3Router: '0xE592427A0AEce92De3Edee1F18E0157C05861564',
   uniswapV3Factory: '0x1F98431c8aD98523631AE4a59f267346ea31F984',
+  // Uniswap V3 QuoterV2 — pre-trade quote for cost estimation (cost-estimation)
+  quoterV2: '0x61fFE014bA17989E743c5F6cB21bF9697530B21e',
   // SushiSwap
   sushiSwapRouter: '0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506',
   sushiSwapFactory: '0xc35DADB65012eC5796536bD9864eD8773aBc74C4',
@@ -65,6 +69,8 @@ export const ArbitrumSepoliaAddresses: ArbitrumAddresses = {
   // Uniswap V3
   uniswapV3Router: '0x3bFA4769FB09eefC5a80d58Ea2719aF8D5Be33b0',
   uniswapV3Factory: '0x31e2a1d903E458bB0F7770965e6d8211f2348919',
+  // QuoterV2 not deployed on Arbitrum Sepolia — null triggers fail-closed fallback.
+  quoterV2: '0x0000000000000000000000000000000000000000',
   // SushiSwap
   sushiSwapRouter: '0x4752ba5dbc23f44d87826276bf6fd6b6c874abfc',
   sushiSwapFactory: '0xd1F20C1c6864211b0Ce7b6AdF4d82E5B85cAb2c0',

@@ -37,6 +37,15 @@ export class ExecutionPlanEntity {
   @Column({ name: 'playbook_config', type: 'jsonb', nullable: true })
   playbookConfig!: Record<string, unknown> | null;
 
+  /**
+   * Full pre-trade PlanCostBreakdown (gas + slippage + pool fees + bridge fees
+   * per leg, totals, gross/net profit). Written by execution-orchestrator
+   * (TradeCostEstimatorService) before the first leg is submitted; single-writer.
+   * NULL when no estimate was computed (e.g. legacy plans). See migration 048.
+   */
+  @Column({ name: 'cost_breakdown', type: 'jsonb', nullable: true })
+  costBreakdown!: Record<string, unknown> | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;
 

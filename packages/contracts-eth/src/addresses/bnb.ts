@@ -17,6 +17,8 @@ export interface BnbAddresses {
   // Uniswap V3 (deployed on BNB)
   uniswapV3Router: Address;
   uniswapV3Factory: Address;
+  // Uniswap V3 QuoterV2 (pre-trade quote; cost-estimation)
+  quoterV2: Address;
   // SushiSwap
   sushiSwapRouter: Address;
   sushiSwapFactory: Address;
@@ -57,6 +59,8 @@ export const BnbMainnetAddresses: BnbAddresses = {
   // Uniswap V3
   uniswapV3Router: '0xB971eF87ede563556b2ED4b1C0b0019111Dd85d2',
   uniswapV3Factory: '0xdB1d10011AD0Ff90774D0C6Bb92e5C5c8b4461F7',
+  // Uniswap V3 QuoterV2 — pre-trade quote for cost estimation (cost-estimation)
+  quoterV2: '0x78D8aE0aC6dB1bF6946AC9c7D438d49c5E2C2dE5',
   // SushiSwap
   sushiSwapRouter: '0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506',
   sushiSwapFactory: '0xc35DADB65012eC5796536bD9864eD8773aBc74C4',
@@ -93,6 +97,8 @@ export const BnbTestnetAddresses: BnbAddresses = {
   // Uniswap V3 (not deployed on BNB testnet)
   uniswapV3Router: '0x0000000000000000000000000000000000000000',
   uniswapV3Factory: '0x0000000000000000000000000000000000000000',
+  // QuoterV2 not deployed on BNB testnet — null triggers fail-closed fallback.
+  quoterV2: '0x0000000000000000000000000000000000000000',
   // SushiSwap
   sushiSwapRouter: '0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506',
   sushiSwapFactory: '0x0000000000000000000000000000000000000000',

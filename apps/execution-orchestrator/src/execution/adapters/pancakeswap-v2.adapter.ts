@@ -139,6 +139,7 @@ export class PancakeSwapV2Adapter implements VenueAdapter {
       const { amountInUsd } = await enforceLiveRiskGate({
         dexRiskPolicy: this.dexRiskPolicy,
         priceOracle: this.priceOracle,
+        gasEstimator: this.gasEstimator,
         adapterName: 'PancakeSwapV2Adapter',
         chainId: params.chainId,
         tokenIn: params.tokenIn,

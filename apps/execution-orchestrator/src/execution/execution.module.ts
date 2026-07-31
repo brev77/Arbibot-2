@@ -23,6 +23,7 @@ import { DexKillSwitchService } from './risk/dex-kill-switch.service';
 import { PriceOracleService } from './price/price-oracle.service';
 import { TokenApproveService } from './token/token-approve.service';
 import { SlippageProtectionService } from './slippage/slippage-protection.service';
+import { TradeCostEstimatorService } from '../cost/trade-cost-estimator.service';
 import { UniswapV2Adapter } from './adapters/uniswap-v2.adapter';
 import { UniswapV3Adapter } from './adapters/uniswap-v3.adapter';
 import { SushiSwapV2Adapter } from './adapters/sushiswap-v2.adapter';
@@ -87,6 +88,7 @@ import { CrossChainReconWorker } from './workers/cross-chain-recon.worker';
     BridgeTransferPollingWorker,
     CrossChainReconciliationService,
     CrossChainReconWorker,
+    TradeCostEstimatorService,
   ],
   exports: [
     WalletManagerService,
@@ -117,6 +119,7 @@ import { CrossChainReconWorker } from './workers/cross-chain-recon.worker';
     BridgeTransferPollingWorker,
     CrossChainReconciliationService,
     CrossChainReconWorker,
+    TradeCostEstimatorService,
   ],
 })
 export class ExecutionModule {}

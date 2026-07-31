@@ -21,6 +21,7 @@ function planStub(playbookConfig?: Record<string, unknown>): ExecutionPlanEntity
     routeKey: null,
     entityVersion: 1,
     playbookConfig: playbookConfig ?? null,
+    costBreakdown: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     legs: [],

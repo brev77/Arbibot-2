@@ -24,6 +24,13 @@ export interface DexRiskPolicyConfig {
   blockedTokens: Address[];        // tokens that cannot be traded
   maxDailyVolumeUsd: number;       // dex.limits.maxDailyNotionalUsd
   requireApproval: boolean;        // dex.limits.requireOperatorApprovalPerTrade
+  /**
+   * Minimum net profit (USD) a plan must clear AFTER all estimated costs
+   * (gas + slippage + pool fees + bridge fees) for the plan-level cost gate to
+   * allow submit. Cost-estimation: TradeCostEstimatorService.evaluatePlanGate.
+   * Read from `dex.limits.minNetProfitUsd`; safe default is conservative.
+   */
+  minNetProfitUsd: number;         // dex.limits.minNetProfitUsd (cost gate floor)
 }
 
 /** Parsed dex.live effective config. */
@@ -55,6 +62,10 @@ const SAFE_DEFAULT_CONFIG: DexRiskPolicyConfig = {
   blockedTokens: [],
   maxDailyVolumeUsd: 5_000,
   requireApproval: true,
+  // Conservative floor: a plan must clear at least $0.50 net of all estimated
+  // costs before the cost gate allows broadcast. Operators can raise this via
+  // dex.limits.minNetProfitUsd. Safe-by-default for paper-first deployment.
+  minNetProfitUsd: 0.5,
 };
 
 const SAFE_DEFAULT_LIVE: DexLiveConfig = {
@@ -74,6 +85,7 @@ interface ParsedLimits {
   maxNotionalPerTradeUsd?: unknown;
   maxDailyNotionalUsd?: unknown;
   maxSlippageBps?: unknown;
+  minNetProfitUsd?: unknown;
   killSwitch?: unknown;
   requireOperatorApprovalPerTrade?: unknown;
   requireTwoPersonApproval?: unknown;
@@ -390,6 +402,9 @@ export class DexRiskPolicyService {
         parsed.requireOperatorApprovalPerTrade ?? parsed.requireTwoPersonApproval,
         SAFE_DEFAULT_CONFIG.requireApproval,
       ),
+      // Cost-gate floor (cost-estimation). Not in the original 035 seed; parsed
+      // when present, else the conservative SAFE_DEFAULT_CONFIG.minNetProfitUsd.
+      minNetProfitUsd: asNumber(parsed.minNetProfitUsd, SAFE_DEFAULT_CONFIG.minNetProfitUsd),
     };
   }
 
@@ -445,6 +460,14 @@ export class DexRiskPolicyService {
       const v = Number.parseInt(envLiquidity, 10);
       if (Number.isFinite(v)) {
         out.minPoolLiquidityUsd = Math.max(out.minPoolLiquidityUsd, v); // higher bar = stricter
+      }
+    }
+    // Cost-gate floor: env can only RAISE the net-profit bar (stricter).
+    const envMinNetProfit = process.env.DEX_MIN_NET_PROFIT_USD;
+    if (envMinNetProfit !== undefined) {
+      const v = Number.parseFloat(envMinNetProfit);
+      if (Number.isFinite(v)) {
+        out.minNetProfitUsd = Math.max(out.minNetProfitUsd, v); // higher floor = stricter
       }
     }
     return out;

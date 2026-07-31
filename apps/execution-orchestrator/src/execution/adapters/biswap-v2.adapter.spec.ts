@@ -28,6 +28,16 @@ const mockWalletManager: Record<string, any> = {
 
 const mockGasEstimator: Record<string, any> = {
   estimateGas: jest.fn(),
+  // Cost-estimation: gate derives a gas→USD estimate via these two methods.
+  getEip1559FeeData: jest.fn<any>().mockResolvedValue({
+    maxFeePerGas: 1_000_000_000n,
+    maxPriorityFeePerGas: 100_000_000n,
+    baseFee: 900_000_000n,
+    maxFeePerGasGwei: '1.0',
+    maxPriorityFeePerGasGwei: '0.1',
+    baseFeeGwei: '0.9',
+  }),
+  estimateGasCostUsd: jest.fn<any>().mockReturnValue({ costUsd: 0.2, nativeUsdPrice: 2500, costNative: 0.00008 }),
 };
 
 const mockTokenApprove: Record<string, any> = {

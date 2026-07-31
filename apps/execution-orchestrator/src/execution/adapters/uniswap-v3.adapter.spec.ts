@@ -28,6 +28,16 @@ const mockWalletManager: Record<string, any> = {
 
 const mockGasEstimator: Record<string, any> = {
   estimateGas: jest.fn(),
+  // Cost-estimation: gate derives a gas→USD estimate via these two methods.
+  getEip1559FeeData: jest.fn<any>().mockResolvedValue({
+    maxFeePerGas: 1_000_000_000n,
+    maxPriorityFeePerGas: 100_000_000n,
+    baseFee: 900_000_000n,
+    maxFeePerGasGwei: '1.0',
+    maxPriorityFeePerGasGwei: '0.1',
+    baseFeeGwei: '0.9',
+  }),
+  estimateGasCostUsd: jest.fn<any>().mockReturnValue({ costUsd: 0.2, nativeUsdPrice: 2500, costNative: 0.00008 }),
 };
 
 const mockTokenApprove: Record<string, any> = {
@@ -170,8 +180,10 @@ describe('UniswapV3Adapter', () => {
   // ─────────────────────────────────────────────────────────────────────
 
   describe('calculateAmountOutMin', () => {
-    it('should apply slippage to amountOutExpected', () => {
-      const result = adapter.calculateAmountOutMin({
+    it('should apply slippage to amountOutExpected (fallback when Quoter unavailable)', async () => {
+      // QuoterV2 call falls back to amountOutExpected because the mock provider
+      // is not a real ethers provider (Contract call throws → caught → null).
+      const result = await adapter.calculateAmountOutMin({
         chainId: 42161,
         tokenIn: TOKEN_IN,
         tokenOut: TOKEN_OUT,
@@ -181,11 +193,12 @@ describe('UniswapV3Adapter', () => {
         slippageBps: 50,
       });
       // 1000000 * (10000 - 50) / 10000 = 995000
-      expect(result).toBe('995000');
+      expect(result.amountOutMin).toBe('995000');
+      expect(result.usedLiveQuote).toBe(false);
     });
 
-    it('should use env default slippage when not specified', () => {
-      const result = adapter.calculateAmountOutMin({
+    it('should use env default slippage when not specified', async () => {
+      const result = await adapter.calculateAmountOutMin({
         chainId: 42161,
         tokenIn: TOKEN_IN,
         tokenOut: TOKEN_OUT,
@@ -194,11 +207,11 @@ describe('UniswapV3Adapter', () => {
         amountOutExpected: '2000000',
       });
       // Default slippage = 50 bps → 2000000 * 9950/10000 = 1990000
-      expect(result).toBe('1990000');
+      expect(result.amountOutMin).toBe('1990000');
     });
 
-    it('should handle large amounts', () => {
-      const result = adapter.calculateAmountOutMin({
+    it('should handle large amounts', async () => {
+      const result = await adapter.calculateAmountOutMin({
         chainId: 42161,
         tokenIn: TOKEN_IN,
         tokenOut: TOKEN_OUT,
@@ -208,7 +221,22 @@ describe('UniswapV3Adapter', () => {
         slippageBps: 100,
       });
       // 500000000000000000 * 9900/10000 = 495000000000000000
-      expect(result).toBe('495000000000000000');
+      expect(result.amountOutMin).toBe('495000000000000000');
+    });
+
+    it('should return ZERO_ADDRESS quoter fallback on testnet (97) without RPC', async () => {
+      // BNB testnet 97 → resolveQuoterV2Address returns ZERO_ADDRESS → no RPC call.
+      const result = await adapter.calculateAmountOutMin({
+        chainId: 97,
+        tokenIn: TOKEN_IN,
+        tokenOut: TOKEN_OUT,
+        fee: 3000,
+        amountIn: '1000000',
+        amountOutExpected: '1000000',
+        slippageBps: 50,
+      });
+      expect(result.amountOutMin).toBe('995000');
+      expect(result.usedLiveQuote).toBe(false);
     });
   });
 

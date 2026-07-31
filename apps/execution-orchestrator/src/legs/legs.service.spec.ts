@@ -25,6 +25,49 @@ import type { FillOutboundService } from './fill-outbound.service';
 import { LegsService, resolveInstrumentKeyForPlan } from './legs.service';
 import type { BridgeAdapterFactoryService } from '../execution/bridge/bridge-adapter-factory.service';
 import type { BridgeTransferService } from '../execution/bridge/bridge-transfer.service';
+import type { TradeCostEstimatorService } from '../cost/trade-cost-estimator.service';
+
+/**
+ * Permissive TradeCostEstimator mock: returns a trivial cost breakdown and an
+ * "allowed" gate decision so existing beginExecution tests (which pre-date the
+ * cost gate) keep passing. Dedicated cost-gate behaviour is tested in
+ * trade-cost-estimator.service.spec.ts.
+ */
+function makePermissiveCostEstimator(): TradeCostEstimatorService {
+  return {
+    estimatePlanCost: jest.fn().mockResolvedValue({
+      schemaVersion: 1,
+      estimatedAt: new Date().toISOString(),
+      legs: [],
+      totalGasUsd: 0,
+      totalSlippageUsd: 0,
+      totalPoolFeeUsd: 0,
+      totalBridgeFeeUsd: 0,
+      totalCostUsd: 0,
+      grossProfitUsd: null,
+      netProfitUsd: null,
+      estimateConfidence: 'exact',
+    }),
+    evaluatePlanGate: jest.fn().mockResolvedValue({
+      allowed: true,
+      reasons: [],
+      warnings: [],
+      breakdown: {
+        schemaVersion: 1,
+        estimatedAt: new Date().toISOString(),
+        legs: [],
+        totalGasUsd: 0,
+        totalSlippageUsd: 0,
+        totalPoolFeeUsd: 0,
+        totalBridgeFeeUsd: 0,
+        totalCostUsd: 0,
+        grossProfitUsd: null,
+        netProfitUsd: null,
+        estimateConfidence: 'exact',
+      },
+    }),
+  } as unknown as TradeCostEstimatorService;
+}
 
 function legDefaults(): Pick<
   ExecutionLegEntity,
@@ -220,6 +263,7 @@ describe('LegsService', () => {
       bridgeAdapterFactory,
       bridgeTransferService,
       killSwitch,
+      makePermissiveCostEstimator(),
     );
   });
 
@@ -463,6 +507,7 @@ describe('LegsService', () => {
       riskDecisionId: null,
       routeKey: null,
       playbookConfig: null,
+      costBreakdown: null,
       legs: [],
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -765,6 +810,7 @@ describe('LegsService — D4-B-1-KILLSWITCH gate', () => {
       bridgeAdapterFactory as unknown as BridgeAdapterFactoryService,
       bridgeTransferService as unknown as BridgeTransferService,
       killSwitchMock as unknown as import('../execution/risk/dex-kill-switch.service').DexKillSwitchService,
+      makePermissiveCostEstimator(),
     );
   }
 
@@ -1071,6 +1117,7 @@ describe('LegsService — additional coverage', () => {
       bridgeAdapterFactory as unknown as BridgeAdapterFactoryService,
       bridgeTransferService as unknown as BridgeTransferService,
       killSwitch as unknown as import('../execution/risk/dex-kill-switch.service').DexKillSwitchService,
+      makePermissiveCostEstimator(),
     );
   }
 

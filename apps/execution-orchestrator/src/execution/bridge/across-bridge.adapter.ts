@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Contract, Interface, JsonRpcProvider, ZeroAddress } from 'ethers';
 import { Counter, Histogram } from 'prom-client';
-import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
+import { getArbibotMetricsRegistry, signedFetch } from '@arbibot/nest-platform';
 import {
   AcrossSpokePoolABI,
   ChainId,
@@ -25,6 +25,7 @@ import { RpcProviderManager } from '../rpc/rpc-provider-manager.service';
 import { WalletManagerService } from '../wallet-manager.service';
 import { GasEstimatorService } from '../gas/gas-estimator.service';
 import { TokenApproveService } from '../token/token-approve.service';
+import { PriceOracleService } from '../price/price-oracle.service';
 
 // ───────────────────────────────────────────────────────────────────────
 // Constants
@@ -41,6 +42,9 @@ const ESTIMATED_DEPOSIT_GAS = 200_000n;
 
 /** Estimated gas for destination claim (if needed). */
 const ESTIMATED_CLAIM_GAS = 100_000n;
+
+/** Timeout for the Across suggested-fees API lookup (ms). */
+const ACROSS_FEE_TIMEOUT_MS = 3_000;
 
 /**
  * Across SpokePool deposit status — mapped from on-chain events.
@@ -83,6 +87,7 @@ export class AcrossBridgeAdapter implements BridgeAdapter {
     private readonly gasEstimator: GasEstimatorService,
     private readonly tokenApprove: TokenApproveService,
     private readonly finalityService: BridgeFinalityService,
+    private readonly priceOracle: PriceOracleService,
   ) {
     this.supportedChains = this.buildSupportedChains();
     this.initializeMetrics();
@@ -390,24 +395,88 @@ export class AcrossBridgeAdapter implements BridgeAdapter {
     return null;
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await
-  async estimateBridgeFee(_params: BridgeTransferParams): Promise<BridgeFeeEstimate> {
-    // TODO: Query Across API for real-time fee estimate
-    // Across fee = relayer fee + LP fee + gas
-    // For now, return conservative estimates
-    const bridgeFee = 0n;
-    const relayerFee = 0n;
+  async estimateBridgeFee(params: BridgeTransferParams): Promise<BridgeFeeEstimate> {
+    // Across fee = relayer fee + LP fee (returned by the suggested-fees API as
+    // the difference between input amount and quoted relayAmount) + source gas.
+    // We query the public suggested-fees endpoint with a short timeout; on any
+    // failure we fall back to a conservative gas-only estimate so the cost gate
+    // still receives a non-zero value (better to over-estimate than silently 0).
     const estimatedGasSource = ESTIMATED_DEPOSIT_GAS;
     const estimatedGasDestination = ESTIMATED_CLAIM_GAS;
 
-    this.feeHistogram.observe({ bridge_key: 'across' }, 0);
+    // 1. Source-chain gas valued in USD via the price oracle + current fees.
+    let totalCostUsd = 0;
+    try {
+      const nativeUsd = await this.priceOracle.getNativeUsdPrice(params.sourceChainId);
+      if (nativeUsd !== null) {
+        const feeData = await this.gasEstimator.getEip1559FeeData(params.sourceChainId);
+        const gasCost = this.gasEstimator.estimateGasCostUsd(estimatedGasSource, feeData, nativeUsd);
+        if (gasCost !== null) {
+          totalCostUsd += gasCost.costUsd;
+        }
+      }
+    } catch (e) {
+      this.logger.warn(
+        `Across gas valuation failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+
+    // 2. Across suggested-fees API for relayer + LP fee.
+    //    Docs: https://docs.across.to/developers/across-api/quotes-and-suggested-fees
+    let bridgeFee = 0n;
+    let relayerFee = 0n;
+    try {
+      const url =
+        `https://app.across.to/suggested-fees?token=` +
+        `${encodeURIComponent(params.token)}&destinationChainId=${params.destinationChainId}` +
+        `&originChainId=${params.sourceChainId}&inputAmount=${params.amount.toString()}`;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), ACROSS_FEE_TIMEOUT_MS);
+      try {
+        const res = await signedFetch(url, {
+          signal: controller.signal,
+          headers: { accept: 'application/json' },
+        });
+        if (res.ok) {
+          const body = (await res.json()) as { relayFee?: string; relayFeeTotal?: string };
+          // relayFeeTotal is the total fee in token units (wei). Value it in USD
+          // via the token price on the source chain.
+          const feeStr = body.relayFeeTotal ?? body.relayFee ?? '0';
+          relayerFee = BigInt(feeStr);
+          bridgeFee = relayerFee;
+          const tokenUsd = await this.priceOracle.getTokenPriceUsd(
+            params.sourceChainId,
+            params.token as never,
+          );
+          const decimals = await this.priceOracle.getTokenDecimals(
+            params.sourceChainId,
+            params.token as never,
+          );
+          if (tokenUsd !== null && decimals !== null) {
+            const feeUsd = (Number(relayerFee) / 10 ** decimals) * tokenUsd;
+            if (Number.isFinite(feeUsd)) {
+              totalCostUsd += feeUsd;
+            }
+          }
+        }
+      } finally {
+        clearTimeout(timer);
+      }
+    } catch (e) {
+      // Non-fatal: relayer fee unknown; gas-only estimate remains.
+      this.logger.debug(
+        `Across suggested-fees lookup failed (non-fatal): ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+
+    this.feeHistogram.observe({ bridge_key: 'across' }, totalCostUsd);
 
     return {
       bridgeFee,
       relayerFee,
       estimatedGasSource,
       estimatedGasDestination,
-      totalEstimatedCostUsd: 0,
+      totalEstimatedCostUsd: totalCostUsd,
     };
   }
 
