@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
@@ -406,9 +406,15 @@ export class AutoDriveWorker implements OnModuleInit, OnModuleDestroy {
             headroom -= 1;
             this.metrics.approved.inc({ outcome: 'approved' });
           } catch (err) {
-            // If duplicate key — cancel the draft so it doesn't block future cycles
+            // A concurrent approve() of another trade with the same instrument
+            // now surfaces as a typed ConflictException (409) from approve()
+            // (the partial unique index `WHERE state='active'` from migration
+            // 050 rejects the second active reservation). Cancel the orphan
+            // draft so it does not block future cycles. A string fallback on
+            // 'duplicate key' keeps detection working for any raw QueryFailedError.
             const msg = this.errorMessage(err);
-            if (msg.includes('duplicate key')) {
+            const isDuplicate = err instanceof ConflictException || msg.includes('duplicate key');
+            if (isDuplicate) {
               try {
                 draft.state = 'canceled' as const;
                 draft.entityVersion += 1;

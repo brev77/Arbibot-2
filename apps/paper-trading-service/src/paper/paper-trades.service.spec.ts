@@ -366,7 +366,9 @@ describe('PaperTradesService', () => {
       const svc = new PaperTradesService(repo, audit, capital);
       const out = await svc.approve('p1', 'op-1');
       expect(out.state).toBe('active');
-      expect(capital.reserveCapital).toHaveBeenCalledWith('BTC-USDT', '100');
+      // reserveCapital now runs INSIDE the trade transaction (first arg = em) and
+      // is bound to the trade by tradeId.
+      expect(capital.reserveCapital).toHaveBeenCalledWith(em, 'p1', 'BTC-USDT', '100');
       expect(appendEntry).toHaveBeenCalledTimes(1);
       const entry = appendEntry.mock.calls[0]?.[0] as { action: string; actor: string };
       expect(entry.action).toBe('paper_trade_approved');
@@ -470,8 +472,9 @@ describe('PaperTradesService', () => {
       const svc = new PaperTradesService(repo, audit, capital);
       const out = await svc.cancel('p1', 'op-3');
       expect(out.state).toBe('canceled');
-      expect(capital.getActiveReservation).toHaveBeenCalledWith('BTC-USDT');
-      expect(capital.expireReservation).toHaveBeenCalledWith('resv-1');
+      // Reservation lookup is now by tradeId, inside the transaction (em first arg).
+      expect(capital.getActiveReservation).toHaveBeenCalledWith(em, 'p1');
+      expect(capital.expireReservation).toHaveBeenCalledWith(em, 'resv-1');
       const entry = appendEntry.mock.calls[0]?.[0] as { action: string };
       expect(entry.action).toBe('paper_trade_canceled');
     });
@@ -502,6 +505,37 @@ describe('PaperTradesService', () => {
       } as never;
       const svc = new PaperTradesService(repo, mkAudit(), capital);
       await svc.cancel('p1', 'op-4');
+      expect(capital.expireReservation).not.toHaveBeenCalled();
+    });
+
+    it('cancel does NOT expire the reservation when the version-CAS fails (no orphaned expiry)', async () => {
+      const capital = mkCapital();
+      const before: Row = {
+        id: 'p1',
+        state: 'active',
+        entityVersion: 1, // caller's stale view
+        instrumentKey: 'BTC-USDT',
+        notional: '100',
+      };
+      // Inside the txn the row raced ahead to v2 → ConflictException thrown by
+      // the version guard BEFORE the reservation-expiry block (which now lives
+      // inside the txn, after the guard). Reservation must be untouched.
+      const emRow = { ...before, entityVersion: 2 };
+      const em = {
+        findOne: jest.fn().mockResolvedValue(emRow),
+        save: jest.fn(),
+      };
+      const repo = {
+        findOne: jest.fn().mockResolvedValue({ ...before }),
+        manager: {
+          transaction: jest.fn(
+            (fn: (em: unknown) => Promise<unknown>) => Promise.resolve(fn(em)),
+          ),
+        },
+      } as never;
+      const svc = new PaperTradesService(repo, mkAudit(), capital);
+      await expect(svc.cancel('p1', 'op-5')).rejects.toBeInstanceOf(ConflictException);
+      expect(capital.getActiveReservation).not.toHaveBeenCalled();
       expect(capital.expireReservation).not.toHaveBeenCalled();
     });
   });
@@ -612,8 +646,9 @@ describe('PaperTradesService', () => {
         'auto-driver',
       )) as Partial<PaperTradeEntity>;
       expect(out.state).toBe('settled');
-      expect(capital.getActiveReservation).toHaveBeenCalledWith('BTC-USDT');
-      expect(capital.expireReservation).toHaveBeenCalledWith('resv-1');
+      // Reservation lookup is now by tradeId, inside the transaction (em first arg).
+      expect(capital.getActiveReservation).toHaveBeenCalledWith(em, 'p1');
+      expect(capital.expireReservation).toHaveBeenCalledWith(em, 'resv-1');
       // P/L persisted on the row inside the transaction.
       const savedRow = saved[0]!;
       expect(savedRow.entryPrice).toBe('100');
@@ -669,6 +704,109 @@ describe('PaperTradesService', () => {
           'auto-driver',
         ),
       ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    // --- Atomicity invariant (the point of the refactor) ---
+    it('settle does NOT expire the reservation when the version-CAS fails (no orphaned expiry)', async () => {
+      const capital = mkCapital();
+      const before: Row = {
+        id: 'p1',
+        state: 'active',
+        entityVersion: 2, // caller's stale view
+        instrumentKey: 'BTC-USDT',
+        notional: '100',
+      };
+      // Inside the txn the row raced ahead to v3 → ConflictException thrown
+      // BEFORE the expireReservation call (which now lives inside the txn body,
+      // after the version guard). So the reservation must be untouched.
+      const emRow = { ...before, entityVersion: 3 };
+      const em = {
+        findOne: jest.fn().mockResolvedValue(emRow),
+        save: jest.fn(),
+      };
+      const repo = {
+        findOne: jest.fn().mockResolvedValue({ ...before }),
+        manager: {
+          transaction: jest.fn(
+            (fn: (em: unknown) => Promise<unknown>) => Promise.resolve(fn(em)),
+          ),
+        },
+      } as never;
+      const svc = new PaperTradesService(repo, mkAudit(), capital);
+      await expect(
+        svc.settle(
+          'p1',
+          { entryPrice: 100, exitPrice: 101, profitUsd: 1, expectedVersion: 2 },
+          'auto-driver',
+        ),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(capital.getActiveReservation).not.toHaveBeenCalled();
+      expect(capital.expireReservation).not.toHaveBeenCalled();
+    });
+  });
+
+  // --- Atomicity invariant for approve() ---
+  describe('approve atomicity (refactor)', () => {
+    type Row = Partial<PaperTradeEntity>;
+    it('approve does NOT reserve capital when the version-CAS fails (no orphaned reservation)', async () => {
+      const capital = mkCapital();
+      const before: Row = {
+        id: 'p1',
+        state: 'draft',
+        entityVersion: 1, // caller's stale view
+        instrumentKey: 'BTC-USDT',
+        notional: '100',
+      };
+      // Inside the txn the row raced ahead to v2 → ConflictException thrown by
+      // the version guard BEFORE reserveCapital (which now runs inside the txn,
+      // after the guard). No orphaned active reservation should be created.
+      const emRow = { ...before, entityVersion: 2 };
+      const em = {
+        findOne: jest.fn().mockResolvedValue(emRow),
+        save: jest.fn(),
+      };
+      const repo = {
+        findOne: jest.fn().mockResolvedValue({ ...before }),
+        manager: {
+          transaction: jest.fn(
+            (fn: (em: unknown) => Promise<unknown>) => Promise.resolve(fn(em)),
+          ),
+        },
+      } as never;
+      const svc = new PaperTradesService(repo, mkAudit(), capital);
+      await expect(svc.approve('p1', 'op-1')).rejects.toBeInstanceOf(ConflictException);
+      expect(capital.reserveCapital).not.toHaveBeenCalled();
+    });
+
+    it('approve surfaces a concurrent same-instrument approve as ConflictException (409, not 500)', async () => {
+      const capital = mkCapital();
+      const before: Row = {
+        id: 'p1',
+        state: 'draft',
+        entityVersion: 1,
+        instrumentKey: 'BTC-USDT',
+        notional: '100',
+      };
+      // reserveCapital throws a raw PG unique-violation (23505) — simulating the
+      // partial unique index `WHERE state='active'` (migration 050) rejecting a
+      // second concurrent active reservation for the same instrument. approve()
+      // must translate this into a typed ConflictException.
+      const reserveErr = Object.assign(new Error('duplicate key'), { code: '23505' });
+      (capital.reserveCapital as jest.Mock).mockRejectedValue(reserveErr);
+      const em = {
+        findOne: jest.fn().mockResolvedValue({ ...before }),
+        save: jest.fn(),
+      };
+      const repo = {
+        findOne: jest.fn().mockResolvedValue({ ...before }),
+        manager: {
+          transaction: jest.fn(
+            (fn: (em: unknown) => Promise<unknown>) => Promise.resolve(fn(em)),
+          ),
+        },
+      } as never;
+      const svc = new PaperTradesService(repo, mkAudit(), capital);
+      await expect(svc.approve('p1', 'op-1')).rejects.toBeInstanceOf(ConflictException);
     });
   });
 });

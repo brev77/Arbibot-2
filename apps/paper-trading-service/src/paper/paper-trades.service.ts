@@ -5,7 +5,15 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, LessThanOrEqual, MoreThanOrEqual, QueryFailedError, Repository, type FindOperator } from 'typeorm';
+import {
+  Between,
+  EntityManager,
+  LessThanOrEqual,
+  MoreThanOrEqual,
+  QueryFailedError,
+  Repository,
+  type FindOperator,
+} from 'typeorm';
 
 import { PaperTradeEntity, type PaperTradeState } from '@arbibot/persistence';
 import { AuditClientService, type AuditRecordInput } from '@arbibot/nest-platform';
@@ -212,13 +220,30 @@ export class PaperTradesService {
       throw new BadRequestException(`Cannot approve paper trade in state ${before.state}`);
     }
 
-    // Create virtual capital reservation before transitioning to active
-    await this.paperCapitalService.reserveCapital(before.instrumentKey, before.notional);
-
-    const after = await this.patch(id, {
-      expectedVersion: before.entityVersion,
-      state: 'active',
-    });
+    // Reserve capital AND transition draft → active in one transaction, so the
+    // two writes commit or roll back together. Previously reserveCapital ran in
+    // its own transaction before patch(): if the version-CAS patch then failed,
+    // an orphaned `active` reservation was left behind with no trade to settle
+    // it — and with no TTL worker wired up it blocked the instrument forever.
+    let after: PaperTradeEntity;
+    try {
+      after = await this.repo.manager.transaction(async (em) => {
+        return this.transitionToActive(em, id, before.entityVersion, before);
+      });
+    } catch (err) {
+      // A concurrent approve() of another trade with the same instrument hits
+      // the partial unique index `WHERE state='active'` (migration 050) at
+      // commit. Surface it as a typed 409 instead of an opaque 500 — both the
+      // HTTP caller and AutoDriveWorker's duplicate-instrument branch rely on a
+      // recognizable signal here. `isUniqueViolation` keeps the message stable
+      // for the worker's string-match fallback (`auto-drive.worker.ts` Phase B).
+      if (isUniqueViolation(err)) {
+        throw new ConflictException(
+          `duplicate key: active reservation already exists for instrument ${before.instrumentKey}`,
+        );
+      }
+      throw err;
+    }
 
     const auditInput: AuditRecordInput = {
       actor: operatorId,
@@ -237,6 +262,38 @@ export class PaperTradesService {
     });
 
     return after;
+  }
+
+  /**
+   * Shared core of approve(): within the caller's transaction, re-read the trade
+   * with a pessimistic write lock, run the version CAS + state-machine guard,
+   * reserve capital against this trade id, then transition to active. Exported
+   * as a private method so the reserve and the state change are provably in the
+   * same transaction (atomicity invariant).
+   */
+  private async transitionToActive(
+    em: EntityManager,
+    id: string,
+    expectedVersion: number,
+    before: PaperTradeEntity,
+  ): Promise<PaperTradeEntity> {
+    const row = await em.findOne(PaperTradeEntity, {
+      where: { id },
+      lock: { mode: 'pessimistic_write' },
+    });
+    if (row === null) {
+      throw new NotFoundException(`Paper trade not found: ${id}`);
+    }
+    if (row.entityVersion !== expectedVersion) {
+      throw new ConflictException(
+        `Version mismatch: expected ${expectedVersion}, got ${row.entityVersion}`,
+      );
+    }
+    assertTradeStateTransition(row.state, 'active');
+    await this.paperCapitalService.reserveCapital(em, id, before.instrumentKey, before.notional);
+    row.state = 'active';
+    row.entityVersion += 1;
+    return em.save(PaperTradeEntity, row);
   }
 
   async reject(id: string, operatorId: string): Promise<PaperTradeEntity> {
@@ -281,15 +338,31 @@ export class PaperTradesService {
       throw new BadRequestException(`Cannot cancel paper trade in state ${before.state}`);
     }
 
-    // Expire virtual capital reservation when canceling active trade
-    const activeReservation = await this.paperCapitalService.getActiveReservation(before.instrumentKey);
-    if (activeReservation !== null) {
-      await this.paperCapitalService.expireReservation(activeReservation.id);
-    }
-
-    const after = await this.patch(id, {
-      expectedVersion: before.entityVersion,
-      state: 'canceled',
+    // Expire the reservation AND transition active → canceled in one
+    // transaction: if the version-CAS state change fails, the reservation is
+    // rolled back too (no orphaned `expired` row while the trade stays active).
+    const after = await this.repo.manager.transaction(async (em) => {
+      const row = await em.findOne(PaperTradeEntity, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (row === null) {
+        throw new NotFoundException(`Paper trade not found: ${id}`);
+      }
+      if (row.entityVersion !== before.entityVersion) {
+        throw new ConflictException(
+          `Version mismatch: expected ${before.entityVersion}, got ${row.entityVersion}`,
+        );
+      }
+      assertTradeStateTransition(row.state, 'canceled');
+      // Expire the active reservation bound to THIS trade (looked up by tradeId).
+      const activeReservation = await this.paperCapitalService.getActiveReservation(em, id);
+      if (activeReservation !== null) {
+        await this.paperCapitalService.expireReservation(em, activeReservation.id);
+      }
+      row.state = 'canceled';
+      row.entityVersion += 1;
+      return em.save(PaperTradeEntity, row);
     });
 
     const auditInput: AuditRecordInput = {
@@ -334,17 +407,12 @@ export class PaperTradesService {
       throw new BadRequestException(`Cannot settle paper trade in state ${before.state}`);
     }
 
-    // Expire virtual capital reservation when settling (symmetric to cancel).
-    const activeReservation = await this.paperCapitalService.getActiveReservation(
-      before.instrumentKey,
-    );
-    if (activeReservation !== null) {
-      await this.paperCapitalService.expireReservation(activeReservation.id);
-    }
-
-    // Persist settlement in one transaction with the same pessimistic_write + entityVersion CAS
-    // pattern as patch(). P/L is settle-specific, so it does NOT go through the generic patch()
-    // (which would otherwise let PATCH /paper/trades/:id overwrite P/L arbitrarily).
+    // Expire the reservation AND transition active → settled in one transaction
+    // with the same pessimistic_write + entityVersion CAS pattern as patch().
+    // If the version-CAS state change fails, the reservation expiry rolls back
+    // too — symmetric with cancel(). P/L is settle-specific, so it does NOT go
+    // through the generic patch() (which would otherwise let PATCH
+    // /paper/trades/:id overwrite P/L arbitrarily).
     const after = await this.repo.manager.transaction(async (em) => {
       const row = await em.findOne(PaperTradeEntity, {
         where: { id },
@@ -359,6 +427,11 @@ export class PaperTradesService {
         );
       }
       assertTradeStateTransition(row.state, 'settled');
+      // Expire the active reservation bound to THIS trade (looked up by tradeId).
+      const activeReservation = await this.paperCapitalService.getActiveReservation(em, id);
+      if (activeReservation !== null) {
+        await this.paperCapitalService.expireReservation(em, activeReservation.id);
+      }
       row.state = 'settled';
       row.entryPrice = String(dto.entryPrice);
       row.exitPrice = String(dto.exitPrice);

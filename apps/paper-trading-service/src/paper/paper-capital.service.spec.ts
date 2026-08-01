@@ -52,13 +52,15 @@ describe('PaperCapitalService', () => {
       const before = Date.now();
       repo.save.mockResolvedValue(mkReservation());
 
-      await service.reserveCapital('BTC-USDT', '100');
+      // em = undefined → service uses its injected (mocked) repo.
+      await service.reserveCapital(undefined, 'trade-1', 'BTC-USDT', '100');
 
-      // create() receives instrumentKey/notional + state=active + entityVersion=1
-      // and an expiresAt ~60min in the future.
+      // create() receives tradeId + instrumentKey/notional + state=active +
+      // entityVersion=1 and an expiresAt ~60min in the future.
       expect(repo.create).toHaveBeenCalledTimes(1);
       const createdArg = repo.create.mock.calls[0]![0];
       expect(createdArg).toMatchObject({
+        tradeId: 'trade-1',
         instrumentKey: 'BTC-USDT',
         notional: '100',
         state: 'active',
@@ -78,23 +80,23 @@ describe('PaperCapitalService', () => {
       const saved = mkReservation({ id: 'persisted-id' });
       repo.save.mockResolvedValue(saved);
 
-      const result = await service.reserveCapital('ETH-USDT', '250');
+      const result = await service.reserveCapital(undefined, 'trade-2', 'ETH-USDT', '250');
 
       expect(result).toBe(saved);
     });
   });
 
   describe('getActiveReservation', () => {
-    it('queries by instrumentKey + state=active, newest first', async () => {
+    it('queries by tradeId + state=active, newest first', async () => {
       const active = mkReservation({ id: 'newest' });
       repo.findOne.mockResolvedValue(active);
 
-      const result = await service.getActiveReservation('BTC-USDT');
+      const result = await service.getActiveReservation(undefined, 'trade-1');
 
       expect(result).toBe(active);
       expect(repo.findOne).toHaveBeenCalledTimes(1);
       expect(repo.findOne).toHaveBeenCalledWith({
-        where: { instrumentKey: 'BTC-USDT', state: 'active' },
+        where: { tradeId: 'trade-1', state: 'active' },
         order: { createdAt: 'DESC' },
       });
     });
@@ -102,7 +104,7 @@ describe('PaperCapitalService', () => {
     it('returns null when no active reservation exists', async () => {
       repo.findOne.mockResolvedValue(null);
 
-      const result = await service.getActiveReservation('UNKNOWN');
+      const result = await service.getActiveReservation(undefined, 'UNKNOWN');
 
       expect(result).toBeNull();
     });
@@ -112,7 +114,7 @@ describe('PaperCapitalService', () => {
     it('returns null when the reservation is not found', async () => {
       repo.findOne.mockResolvedValue(null);
 
-      const result = await service.expireReservation('missing-id');
+      const result = await service.expireReservation(undefined, 'missing-id');
 
       expect(result).toBeNull();
       expect(repo.save).not.toHaveBeenCalled();
@@ -122,7 +124,7 @@ describe('PaperCapitalService', () => {
       const expired = mkReservation({ id: 'r-1', state: 'expired', entityVersion: 2 });
       repo.findOne.mockResolvedValue(expired);
 
-      const result = await service.expireReservation('r-1');
+      const result = await service.expireReservation(undefined, 'r-1');
 
       expect(result).toBe(expired);
       expect(result!.state).toBe('expired');
@@ -135,7 +137,7 @@ describe('PaperCapitalService', () => {
       repo.findOne.mockResolvedValue(active);
       repo.save.mockResolvedValue(active);
 
-      const result = await service.expireReservation('r-1');
+      const result = await service.expireReservation(undefined, 'r-1');
 
       expect(active.state).toBe('expired');
       expect(active.entityVersion).toBe(2);
