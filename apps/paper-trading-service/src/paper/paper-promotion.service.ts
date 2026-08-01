@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, QueryFailedError, Repository } from 'typeorm';
+import { EntityManager, In, QueryFailedError, Repository } from 'typeorm';
 
 import {
   PAPER_PROMOTION_STATUSES,
@@ -60,6 +60,9 @@ function isUniqueViolation(err: unknown): boolean {
   return (err as { code?: string } | undefined)?.code === '23505';
 }
 
+/** Outcome of an automated promotion attempt, for worker metrics. */
+export type AutoPromoteOutcome = 'promoted' | 'rejected' | 'skipped';
+
 @Injectable()
 export class PaperPromotionService {
   constructor(
@@ -67,6 +70,18 @@ export class PaperPromotionService {
     private readonly repo: Repository<PaperPromotionCandidateEntity>,
     private readonly auditClient: AuditClientService,
   ) {}
+
+  /**
+   * Resolve the candidate repository within the caller's transaction when
+   * provided, falling back to the injected default repository. Same pattern as
+   * PaperCapitalService — lets autoPromote run standalone or inside an outer
+   * `em.transaction(...)` so the promote commits/rolls back with the caller.
+   */
+  private resolve(
+    em: EntityManager | undefined,
+  ): Repository<PaperPromotionCandidateEntity> {
+    return em === undefined ? this.repo : em.getRepository(PaperPromotionCandidateEntity);
+  }
 
   async list(status?: string): Promise<PaperPromotionCandidateEntity[]> {
     if (
@@ -295,6 +310,109 @@ export class PaperPromotionService {
     });
 
     return after;
+  }
+
+  /**
+   * Automated promotion (paper-trading-service AutoDriveWorker Phase 0). Unlike the operator
+   * `approve()` path this does NOT throw on business conditions — it returns an outcome the caller
+   * (worker) turns into a metric. Promotion is the paper→live gate, so this path enforces the SAME
+   * eligibility gate as operator approve (drift/score), runs the SAME pessimistic_write + version
+   * CAS transaction, and writes the SAME audit records. Previously Phase 0 wrote directly to the
+   * repo with none of these guarantees.
+   *
+   * The two-step `queued → under_review → promoted` is required by the transition allow-list
+   * (`queued→promoted` is not a legal edge); both transitions run inside one transaction so they
+   * commit or roll back together. An ineligible candidate is routed `queued → under_review →
+   * rejected` (also two legal edges) and audited, rather than silently promoted.
+   *
+   * Idempotent on repeat ticks: a candidate that already left `queued` (e.g. promoted/rejected on a
+   * prior tick) returns `{ outcome: 'skipped' }` without mutation or error, so the worker can call
+   * this every tick safely.
+   *
+   * @param em optional EntityManager to join the caller's transaction.
+   * @param actor audit actor (default `auto-driver`).
+   */
+  async autoPromote(
+    em: EntityManager | undefined,
+    id: string,
+    actor = 'auto-driver',
+  ): Promise<{ row: PaperPromotionCandidateEntity; outcome: AutoPromoteOutcome }> {
+    // Single transaction: re-read with lock, CAS, gate, and the two-step transition all commit atomically.
+    const row = await (em ?? this.repo.manager).transaction(async (tx) => {
+      const candidate = await tx.findOne(PaperPromotionCandidateEntity, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (candidate === null) {
+        throw new NotFoundException(`Promotion candidate not found: ${id}`);
+      }
+      // Idempotent: only act on queued candidates. Anything else (promoted/rejected/under_review
+      // from a concurrent tick) is a no-op skip — repeat ticks must not error.
+      if (candidate.status !== 'queued') {
+        return { row: candidate, outcome: 'skipped' as const };
+      }
+
+      const eligibility = this.evaluatePromotionEligibility({
+        driftBps: candidate.driftBps,
+        score: candidate.score,
+      });
+
+      // queued → under_review (legal edge, shared by both promoted and rejected outcomes).
+      candidate.entityVersion += 1;
+      assertTransition(candidate.status, 'under_review');
+      candidate.status = 'under_review';
+      await tx.save(PaperPromotionCandidateEntity, candidate);
+
+      if (!eligibility.ok) {
+        // under_review → rejected (legal edge). Gate failed: do NOT promote.
+        candidate.entityVersion += 1;
+        assertTransition(candidate.status, 'rejected');
+        candidate.status = 'rejected';
+        await tx.save(PaperPromotionCandidateEntity, candidate);
+        return { row: candidate, outcome: 'rejected' as const };
+      }
+
+      // under_review → promoted (legal edge).
+      candidate.entityVersion += 1;
+      assertTransition(candidate.status, 'promoted');
+      candidate.status = 'promoted';
+      await tx.save(PaperPromotionCandidateEntity, candidate);
+      return { row: candidate, outcome: 'promoted' as const };
+    });
+
+    // Audit fire-and-forget (non-blocking), mirroring approve()/reject().
+    const action =
+      row.outcome === 'promoted'
+        ? 'paper_promotion_candidate_auto_promoted'
+        : row.outcome === 'rejected'
+          ? 'paper_promotion_candidate_auto_rejected'
+          : null;
+    if (action !== null) {
+      const auditInput: AuditRecordInput = {
+        actor,
+        action,
+        resourceType: 'PaperPromotionCandidate',
+        resourceId: id,
+        payload: {
+          instrumentKey: row.row.instrumentKey,
+          opportunityId: row.row.opportunityId,
+          score: row.row.score,
+          driftBps: row.row.driftBps,
+          toState: row.row.status,
+          ...(row.outcome === 'rejected'
+            ? { reasons: this.evaluatePromotionEligibility({
+                driftBps: row.row.driftBps,
+                score: row.row.score,
+              }).reasons }
+            : {}),
+        },
+      };
+      void this.auditClient.appendEntry(auditInput).catch((err) => {
+        console.error(`Failed to record audit for promotion candidate autoPromote: ${err}`);
+      });
+    }
+
+    return row;
   }
 
   /**

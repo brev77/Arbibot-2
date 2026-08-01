@@ -7,6 +7,7 @@ import { Counter, Histogram } from 'prom-client';
 import { PaperPromotionCandidateEntity, PaperTradeEntity } from '@arbibot/persistence';
 
 import { AutoDriveConfigService } from './auto-drive-config.service';
+import { PaperPromotionService } from './paper-promotion.service';
 import { PaperTradesService } from './paper-trades.service';
 
 /**
@@ -85,6 +86,7 @@ export class AutoDriveWorker implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly configService: AutoDriveConfigService,
     private readonly paperTradesService: PaperTradesService,
+    private readonly paperPromotionService: PaperPromotionService,
     @InjectRepository(PaperPromotionCandidateEntity)
     private readonly candidatesRepo: Repository<PaperPromotionCandidateEntity>,
     @InjectRepository(PaperTradeEntity)
@@ -279,6 +281,10 @@ export class AutoDriveWorker implements OnModuleInit, OnModuleDestroy {
     }
 
     // --- Phase 0 (opt-in): queued → under_review → promoted ---
+    // Delegates to PaperPromotionService.autoPromote, which runs the transition inside a
+    // pessimistic_write transaction with version CAS, applies the drift/score eligibility gate
+    // (same as operator approve — promotion is the paper→live gate), and writes audit records.
+    // Previously this phase wrote directly to candidatesRepo with none of those guarantees.
     let promotedCount = 0;
     if (cfg.autoPromote) {
       const queued = await this.candidatesRepo.find({
@@ -287,23 +293,25 @@ export class AutoDriveWorker implements OnModuleInit, OnModuleDestroy {
         order: { createdAt: 'ASC' },
       });
       for (const candidate of queued) {
-        // Filter by min profit (same gate as Phase A)
+        // Filter by min profit (worker-level gate, same as Phase A). The drift/score eligibility
+        // gate is enforced inside autoPromote (service-level, promotion criteria).
         const pl = extractProfitLoss(candidate);
         if (pl.netProfitUsd !== null && pl.netProfitUsd < cfg.minNetProfitUsd) {
           this.metrics.promotedToDraft.inc({ outcome: 'skipped_min_profit' });
           continue;
         }
         try {
-          // queued → under_review
-          candidate.status = 'under_review' as const;
-          candidate.entityVersion += 1;
-          await this.candidatesRepo.save(candidate);
-          // under_review → promoted
-          candidate.status = 'promoted' as const;
-          candidate.entityVersion += 1;
-          await this.candidatesRepo.save(candidate);
-          promotedCount += 1;
-          this.metrics.promotedToDraft.inc({ outcome: 'auto_promoted' });
+          const { outcome } = await this.paperPromotionService.autoPromote(undefined, candidate.id);
+          if (outcome === 'promoted') {
+            promotedCount += 1;
+            this.metrics.promotedToDraft.inc({ outcome: 'auto_promoted' });
+          } else if (outcome === 'rejected') {
+            // Eligibility gate (drift/score) failed inside the service → candidate rejected.
+            this.metrics.promotedToDraft.inc({ outcome: 'auto_rejected_eligibility' });
+          } else {
+            // 'skipped': candidate already left `queued` (e.g. promoted/rejected on a prior tick).
+            this.metrics.promotedToDraft.inc({ outcome: 'skipped_not_queued' });
+          }
         } catch (err) {
           this.metrics.promotedToDraft.inc({ outcome: 'auto_promote_failed' });
           this.logger.warn(

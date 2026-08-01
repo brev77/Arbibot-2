@@ -7,6 +7,7 @@ import { Repository } from 'typeorm';
 
 import { AutoDriveConfigService, type AutoDriveConfig } from './auto-drive-config.service';
 import { AutoDriveWorker } from './auto-drive.worker';
+import { PaperPromotionService } from './paper-promotion.service';
 import { PaperTradesService } from './paper-trades.service';
 
 /**
@@ -75,6 +76,21 @@ function mkTradesService(): {
   );
   const svc = { create, approve, settle } as unknown as PaperTradesService;
   return { svc, create, approve, settle };
+}
+
+/**
+ * Mock PaperPromotionService for Phase 0 tests. autoPromote returns a configurable outcome;
+ * tests assert on the `autoPromote` mock to verify the worker delegates correctly.
+ */
+function mkPromotionService(
+  outcome: 'promoted' | 'rejected' | 'skipped' = 'promoted',
+): { svc: PaperPromotionService; autoPromote: jest.Mock } {
+  const autoPromote = jest.fn().mockResolvedValue({
+    row: { id: 'cand', status: outcome === 'promoted' ? 'promoted' : outcome === 'rejected' ? 'rejected' : 'queued' },
+    outcome,
+  });
+  const svc = { autoPromote } as unknown as PaperPromotionService;
+  return { svc, autoPromote };
 }
 
 function mkCandidate(overrides: Partial<PaperPromotionCandidateEntity> = {}): PaperPromotionCandidateEntity {
@@ -156,6 +172,7 @@ describe('AutoDriveWorker', () => {
 
   it('phase A creates draft from promoted candidate (happy path)', async () => {
     const trades = mkTradesService();
+    const promotion = mkPromotionService();
     const candidatesRepo = {
       find: jest.fn().mockResolvedValue([mkCandidate()]),
     } as never;
@@ -163,6 +180,7 @@ describe('AutoDriveWorker', () => {
     const worker = new AutoDriveWorker(
       mkConfigService(mkConfig()),
       trades.svc,
+      promotion.svc,
       candidatesRepo,
       tradesRepo,
     );
@@ -184,6 +202,7 @@ describe('AutoDriveWorker', () => {
     const worker = new AutoDriveWorker(
       mkConfigService(mkConfig()),
       trades.svc,
+      mkPromotionService().svc,
       candidatesRepo,
       tradesRepo,
     );
@@ -202,6 +221,7 @@ describe('AutoDriveWorker', () => {
     const worker = new AutoDriveWorker(
       mkConfigService(mkConfig({ minNetProfitUsd: 5 })),
       trades.svc,
+      mkPromotionService().svc,
       candidatesRepo,
       tradesRepo,
     );
@@ -217,6 +237,7 @@ describe('AutoDriveWorker', () => {
     const worker = new AutoDriveWorker(
       mkConfigService(mkConfig({ autoApprove: false })),
       trades.svc,
+      mkPromotionService().svc,
       candidatesRepo,
       tradesRepo,
     );
@@ -235,6 +256,7 @@ describe('AutoDriveWorker', () => {
     const worker = new AutoDriveWorker(
       mkConfigService(mkConfig({ autoApprove: true, maxConcurrentTrades: 20 })),
       trades.svc,
+      mkPromotionService().svc,
       candidatesRepo,
       tradesRepo,
     );
@@ -250,6 +272,7 @@ describe('AutoDriveWorker', () => {
     const worker = new AutoDriveWorker(
       mkConfigService(mkConfig({ autoApprove: true, maxConcurrentTrades: 20 })),
       trades.svc,
+      mkPromotionService().svc,
       candidatesRepo,
       tradesRepo,
     );
@@ -265,6 +288,7 @@ describe('AutoDriveWorker', () => {
     const worker = new AutoDriveWorker(
       mkConfigService(mkConfig({ autoSettleDelayMs: 1000 })),
       trades.svc,
+      mkPromotionService().svc,
       candidatesRepo,
       tradesRepo,
     );
@@ -285,6 +309,7 @@ describe('AutoDriveWorker', () => {
     const worker = new AutoDriveWorker(
       mkConfigService(mkConfig({ autoSettleDelayMs: 60_000 })),
       trades.svc,
+      mkPromotionService().svc,
       candidatesRepo,
       tradesRepo,
     );
@@ -305,6 +330,7 @@ describe('AutoDriveWorker', () => {
     const worker = new AutoDriveWorker(
       mkConfigService(mkConfig()),
       trades.svc,
+      mkPromotionService().svc,
       candidatesRepo,
       tradesRepo,
     );
@@ -324,11 +350,126 @@ describe('AutoDriveWorker', () => {
     const worker = new AutoDriveWorker(
       mkConfigService(mkConfig()),
       trades.svc,
+      mkPromotionService().svc,
       candidatesRepo,
       tradesRepo,
     );
     const summary = await worker.trigger();
     expect(summary.draftsCreated).toBe(1); // c1 failed, c2 succeeded
     expect(trades.create).toHaveBeenCalledTimes(2);
+  });
+
+  // --- Phase 0 (auto-promote) — delegates to PaperPromotionService.autoPromote ---
+  // Previously Phase 0 wrote directly to candidatesRepo with no CAS lock, no eligibility gate,
+  // and no audit. These tests pin the delegation contract: the worker calls the service and
+  // maps its outcome to metrics, without touching the candidate repo itself for promotions.
+
+  /**
+   * Build a candidatesRepo mock that returns different rows depending on the queried status,
+   * so Phase -1 (queued+under_review), Phase 0 (queued) and Phase A (promoted) see distinct sets.
+   */
+  function mkCandidatesRepoByStatus(opts: {
+    queued?: PaperPromotionCandidateEntity[];
+    promoted?: PaperPromotionCandidateEntity[];
+  } = {}): Repository<PaperPromotionCandidateEntity> {
+    return {
+      find: jest.fn().mockImplementation(
+        // eslint-disable-next-line @typescript-eslint/require-await
+        async (args: { where?: { status?: unknown } }) => {
+          const status = args.where?.status;
+          // Phase -1 queries In(['queued','under_review']) → treat as the queued set (TypeORM In
+          // object — no exact candidates here, so an empty array keeps Phase -1 a no-op).
+          if (status !== undefined && typeof status === 'object') {
+            return [];
+          }
+          if (status === 'queued') return opts.queued ?? [];
+          if (status === 'promoted') return opts.promoted ?? [];
+          return [];
+        },
+      ),
+      save: jest.fn(),
+    } as unknown as Repository<PaperPromotionCandidateEntity>;
+  }
+
+  it('phase 0 delegates queued → promoted to PaperPromotionService.autoPromote', async () => {
+    const trades = mkTradesService();
+    const promotion = mkPromotionService('promoted');
+    const queuedCandidate = mkCandidate({ id: 'q1', status: 'queued' });
+    const candidatesRepo = mkCandidatesRepoByStatus({ queued: [queuedCandidate] });
+    const tradesRepo = mkTradesRepo();
+    const worker = new AutoDriveWorker(
+      mkConfigService(mkConfig({ autoPromote: true })),
+      trades.svc,
+      promotion.svc,
+      candidatesRepo,
+      tradesRepo,
+    );
+    const summary = await worker.trigger();
+    expect(summary.promoted).toBe(1);
+    expect(promotion.autoPromote).toHaveBeenCalledWith(undefined, 'q1');
+    // Worker must NOT write the candidate row directly (service owns the transition now).
+    expect(candidatesRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('phase 0 profit-gate skips candidates below minNetProfitUsd before calling the service', async () => {
+    const trades = mkTradesService();
+    const promotion = mkPromotionService('promoted');
+    const low = mkCandidate({
+      id: 'q-low',
+      status: 'queued',
+      evidence: { netProfitUsd: 1 }, // below minNetProfitUsd=5
+    });
+    const candidatesRepo = mkCandidatesRepoByStatus({ queued: [low] });
+    const tradesRepo = mkTradesRepo();
+    const worker = new AutoDriveWorker(
+      mkConfigService(mkConfig({ autoPromote: true, minNetProfitUsd: 5 })),
+      trades.svc,
+      promotion.svc,
+      candidatesRepo,
+      tradesRepo,
+    );
+    const summary = await worker.trigger();
+    expect(summary.promoted).toBe(0);
+    // Service is never reached for a below-threshold candidate.
+    expect(promotion.autoPromote).not.toHaveBeenCalled();
+  });
+
+  it('phase 0 maps a service "rejected" outcome (gate failure) without crashing', async () => {
+    const trades = mkTradesService();
+    const promotion = mkPromotionService('rejected'); // drift/score gate failed inside the service
+    const queuedCandidate = mkCandidate({ id: 'q1', status: 'queued' });
+    const candidatesRepo = mkCandidatesRepoByStatus({ queued: [queuedCandidate] });
+    const tradesRepo = mkTradesRepo();
+    const worker = new AutoDriveWorker(
+      mkConfigService(mkConfig({ autoPromote: true })),
+      trades.svc,
+      promotion.svc,
+      candidatesRepo,
+      tradesRepo,
+    );
+    const summary = await worker.trigger();
+    // Rejected candidate does not count as promoted, and the tick does not error.
+    expect(summary.promoted).toBe(0);
+    expect(summary.ran).toBe(true);
+    expect(promotion.autoPromote).toHaveBeenCalledWith(undefined, 'q1');
+  });
+
+  it('phase 0 is a no-op when autoPromote=false (service never called)', async () => {
+    const trades = mkTradesService();
+    const promotion = mkPromotionService('promoted');
+    const candidatesRepo = mkCandidatesRepoByStatus({
+      queued: [mkCandidate({ id: 'q1', status: 'queued' })],
+    });
+    const tradesRepo = mkTradesRepo();
+    const worker = new AutoDriveWorker(
+      mkConfigService(mkConfig({ autoPromote: false })),
+      trades.svc,
+      promotion.svc,
+      candidatesRepo,
+      tradesRepo,
+    );
+    const summary = await worker.trigger();
+    expect(summary.promoted).toBe(0);
+    expect(promotion.autoPromote).not.toHaveBeenCalled();
   });
 });
