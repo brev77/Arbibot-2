@@ -1,0 +1,50 @@
+# Arbibot 2 — One-shot DB migrator (P7-1)
+#
+# Lightweight container that runs tools/db-migrate.mjs against DATABASE_URL and
+# exits. Intended to run BEFORE the NestJS services on every deploy so schema
+# migrations are applied automatically (TODO M6) — no manual `npm run db:migrate`
+# on the host.
+#
+# In docker-compose.prod.yml the migrator service is wired with:
+#   depends_on: { postgres: { condition: service_healthy } }
+# and every Nest service depends on it via:
+#   depends_on: { migrator: { condition: service_completed_successfully } }
+# so the app containers only start once migrations have landed. Re-runs are
+# idempotent (db-migrate.mjs skips files already recorded in schema_migrations).
+#
+# Usage (from monorepo root):
+#   docker build -f infra/docker/Dockerfile.migrator -t arbibot-migrator:latest .
+#   docker run --rm -e DATABASE_URL=postgres://... arbibot-migrator:latest
+#
+# Exit codes: 0 = migrations applied / up to date; 1 = error (collision guard,
+# unreachable DB, failed SQL). db-migrate.mjs wraps each file in BEGIN/COMMIT
+# and ROLLBACKs on failure, so a partial migration does not leave the DB half-
+# migrated (the schema_migrations row is only inserted after COMMIT).
+
+FROM node:22-alpine AS runner
+WORKDIR /app
+
+# node:22-alpine ships wget; pg is a pure-JS driver so no native deps needed.
+RUN apk add --no-cache libc6-compat
+
+# Install only the pg driver the migration runner uses (matches apps: ^8.22.0).
+RUN npm init -y >/dev/null && npm install pg@^8.22.0 >/dev/null
+
+# Copy the migration runner + the SQL files it applies.
+COPY tools/db-migrate.mjs ./tools/db-migrate.mjs
+COPY infra/postgres/migrations ./infra/postgres/migrations
+
+# Non-root user — never run as root, even for a one-shot.
+RUN addgroup --system --gid 1001 arbibot && \
+    adduser --system --uid 1001 -G arbibot arbibot && \
+    chown -R arbibot:arbibot /app
+USER arbibot
+
+LABEL org.opencontainers.image.source="https://github.com/brev77/Arbibot-2"
+LABEL org.opencontainers.image.title="arbibot-migrator"
+LABEL arbibot.service="migrator"
+
+# db-migrate.mjs resolves migrations relative to its own location
+# (path.join(__dirname, '..', 'infra', 'postgres', 'migrations')), so the WORKDIR
+# layout above (tools/ + infra/) must match the repo layout exactly.
+ENTRYPOINT ["node", "tools/db-migrate.mjs"]

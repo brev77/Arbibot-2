@@ -45,6 +45,7 @@ Correlation: incoming `x-correlation-id` is forwarded to upstream `fetch` calls 
 | GET | `/hermes/v1/plans/:id` | `GET {EXECUTION}/execution/plans/:id` + `.../legs` |
 | GET | `/hermes/v1/positions` | `GET {PORTFOLIO}/positions` |
 | GET | `/hermes/v1/incidents` | `GET {RECONCILIATION}/mismatches` |
+| GET | `/hermes/v1/alerts` | P7-7: `GET {RECONCILIATION}/alerts/incidents?status=` (Prometheus/Alertmanager alerts — distinct from reconciliation mismatches above; source of the `alert_watch` cron → Telegram forward) |
 | GET | `/hermes/v1/dashboard/summary` | `GET {OPERATOR_WEB_BFF}/api/operator/dashboard/summary` |
 | GET | `/hermes/v1/incident-briefs` | Reconciliation mismatches → short summaries |
 | GET | `/hermes/v1/approvals-queue` | `GET {AUDIT}/audit/entries?limit=` |

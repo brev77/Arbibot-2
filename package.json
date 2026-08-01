@@ -48,6 +48,8 @@
     "e2e:dex-testnet": "node tools/e2e-dex1-testnet.mjs",
     "e2e:dex2-multichain": "node tools/e2e-dex2-multichain.mjs",
     "drill:1": "node tools/drill-1-paper-incident.mjs",
+    "drill:2": "node tools/drill-2-reconciliation.mjs",
+    "drill:3": "node tools/drill-3-disaster-recovery.mjs",
     "dev:stack": "docker compose -f infra/docker-compose.dev.yml up -d",
     "dev:stack:down": "docker compose -f infra/docker-compose.dev.yml down",
     "dev:stack:observability": "docker compose -f infra/docker-compose.dev.yml --profile observability up -d",

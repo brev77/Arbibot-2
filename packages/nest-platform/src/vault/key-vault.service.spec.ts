@@ -73,6 +73,7 @@ describe('KeyVaultService', () => {
 
   afterEach(() => {
     delete process.env.PRIVATE_KEY_ENCRYPTION_KEY;
+    delete process.env.VAULT_MASTER_KEY_SALT;
   });
 
   it('should be defined', () => {
@@ -275,6 +276,71 @@ describe('KeyVaultService', () => {
       expect(metrics.decryptCount).toBe(1);
       expect(metrics.encryptLatency).toBeGreaterThanOrEqual(0);
       expect(metrics.decryptLatency).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // P7-6 (H1): master-key salt configurability + backward compatibility.
+  // The master encryption key is derived via scrypt(encryptionKeyHex, salt).
+  // The salt is taken from VAULT_MASTER_KEY_SALT; when unset it falls back to
+  // the historical hardcoded value so keys encrypted before P7-6 still decrypt.
+  // ─────────────────────────────────────────────────────────────────────────
+  describe('master-key salt (P7-6, H1)', () => {
+    const privateKey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+
+    async function buildService(): Promise<KeyVaultService> {
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          KeyVaultService,
+          {
+            provide: AuditClientService,
+            useValue: { appendEntry: jest.fn().mockResolvedValue(undefined) },
+          },
+        ],
+      }).compile();
+      const s = module.get<KeyVaultService>(KeyVaultService);
+      await s.onModuleInit();
+      return s;
+    }
+
+    it('encrypts + decrypts with the fallback salt when VAULT_MASTER_KEY_SALT is unset', async () => {
+      delete process.env.VAULT_MASTER_KEY_SALT;
+      const s = await buildService();
+      const encrypted = await s.encryptPrivateKey(privateKey, 'fallback-key');
+      const decrypted = await s.decryptPrivateKey(encrypted);
+      expect(decrypted).toBe(privateKey);
+    });
+
+    it('encrypts + decrypts with a custom VAULT_MASTER_KEY_SALT', async () => {
+      process.env.VAULT_MASTER_KEY_SALT = 'unique-per-deploy-salt-2026';
+      const s = await buildService();
+      const encrypted = await s.encryptPrivateKey(privateKey, 'custom-salt-key');
+      const decrypted = await s.decryptPrivateKey(encrypted);
+      expect(decrypted).toBe(privateKey);
+    });
+
+    it('a key encrypted under one salt does NOT decrypt under another (salt change is breaking)', async () => {
+      // Encrypt under fallback salt (unset).
+      delete process.env.VAULT_MASTER_KEY_SALT;
+      const sFallback = await buildService();
+      const encrypted = await sFallback.encryptPrivateKey(privateKey, 'xkey');
+
+      // Decrypt under a different salt → must fail (GCM auth tag mismatch).
+      process.env.VAULT_MASTER_KEY_SALT = 'different-salt-value';
+      const sCustom = await buildService();
+      await expect(sCustom.decryptPrivateKey(encrypted)).rejects.toThrow();
+    });
+
+    it('is consistent across restarts with the same salt (backward-compat guarantee)', async () => {
+      // Instance A encrypts under the fallback salt.
+      delete process.env.VAULT_MASTER_KEY_SALT;
+      const sA = await buildService();
+      const encrypted = await sA.encryptPrivateKey(privateKey, 'restart-salt-key');
+
+      // Instance B (fresh process, same fallback salt) decrypts it.
+      const sB = await buildService();
+      const decrypted = await sB.decryptPrivateKey(encrypted);
+      expect(decrypted).toBe(privateKey);
     });
   });
 

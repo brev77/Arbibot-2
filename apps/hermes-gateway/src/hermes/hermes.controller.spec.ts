@@ -185,7 +185,7 @@ describe('HermesController', () => {
     });
   });
 
-  describe('positions / incidents / dashboardSummary / approvalsQueue', () => {
+  describe('positions / incidents / alerts / dashboardSummary / approvalsQueue', () => {
     it('positions proxies portfolio /positions json', async () => {
       upstream.getJson.mockResolvedValue({
         status: 200,
@@ -221,6 +221,45 @@ describe('HermesController', () => {
     it('incidents throws HttpException on upstream >=400', async () => {
       upstream.getJson.mockResolvedValue({ status: 502, json: { e: 1 } });
       await expect(controller.incidents(req())).rejects.toThrow(HttpException);
+    });
+
+    // P7-7 — Hermes alert pipeline: `/alerts` reads Alertmanager incidents
+    // (alertmanager_incidents via reconciliation /alerts/incidents), distinct
+    // from `/incidents` above (reconciliation mismatches). This is the source
+    // the MCP `list_alertmanager_incidents` tool + cron `alert_watch` pull from
+    // to forward Prometheus alerts (disk, ServiceDown) to Telegram.
+    it('alerts proxies reconciliation /alerts/incidents json without status filter', async () => {
+      upstream.getJson.mockResolvedValue({ status: 200, json: { items: [] } });
+
+      const result = await controller.alerts(req());
+
+      expect(result).toEqual({ items: [] });
+      expect(upstream.getJson).toHaveBeenCalledWith(
+        expect.stringContaining('/alerts/incidents'),
+        undefined,
+      );
+      // No status filter → no query string.
+      expect(upstream.getJson.mock.calls[0]![0]).not.toContain('?status=');
+    });
+
+    it('alerts forwards status filter as a query parameter', async () => {
+      upstream.getJson.mockResolvedValue({
+        status: 200,
+        json: { items: [{ id: 'a1', status: 'firing' }] },
+      });
+
+      const result = await controller.alerts(req('c2'), 'firing');
+
+      expect(result).toEqual({ items: [{ id: 'a1', status: 'firing' }] });
+      expect(upstream.getJson).toHaveBeenCalledWith(
+        expect.stringContaining('/alerts/incidents?status=firing'),
+        'c2',
+      );
+    });
+
+    it('alerts throws HttpException on upstream >=400', async () => {
+      upstream.getJson.mockResolvedValue({ status: 500, json: 'boom' });
+      await expect(controller.alerts(req())).rejects.toThrow(HttpException);
     });
 
     it('dashboardSummary proxies operator-web-bff summary', async () => {

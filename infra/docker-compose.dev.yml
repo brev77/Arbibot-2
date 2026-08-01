@@ -161,6 +161,24 @@ services:
     depends_on:
       - loki
 
+  # node_exporter — host-level metrics (disk, memory, CPU, filesystem).
+  # Feeds DiskSpaceLow / HighMemoryUsage alerts (alerts.yml). P7-3.
+  # Bind-mounts host /, /proc, /sys, /dev read-only so the container reports
+  # real host resources, not the container's own namespace.
+  node_exporter:
+    image: prom/node-exporter:v1.8.2
+    profiles: [observability]
+    command:
+      - '--path.rootfs=/host'
+      - '--collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+)($|/)'
+    ports:
+      - '9100:9100'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host:ro
+      - /dev:/host/dev:ro
+
   # ── Hermes Agent (profile: hermes-agent) ───────────────────────────
   # Внешний агент NousResearch Hermes Agent — LLM-ассистент оператора
   # (GLM 5.2 + Telegram, см. docs/adr-hermes-agent-glm-telegram.md).

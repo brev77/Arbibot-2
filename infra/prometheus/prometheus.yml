@@ -77,6 +77,12 @@ scrape_configs:
     static_configs:
       - targets: ["localhost:9090"]
 
+  # node_exporter — host-level metrics (disk/memory/CPU). P7-3.
+  # Feeds DiskSpaceLow / HighMemoryUsage alerts.
+  - job_name: "node_exporter"
+    static_configs:
+      - targets: ["node_exporter:9100"]
+
 alerting:
   alertmanagers:
     - static_configs:

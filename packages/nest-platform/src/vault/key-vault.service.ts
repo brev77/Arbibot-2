@@ -80,8 +80,25 @@ export class KeyVaultService implements OnModuleInit {
       throw new Error('PRIVATE_KEY_ENCRYPTION_KEY environment variable is required');
     }
 
-    // Derive encryption key from environment variable
-    const salt = 'arbibot-vault-salt-v1';
+    // Derive the master encryption key from the env secret + a salt. P7-6 (H1):
+    // the salt is taken from VAULT_MASTER_KEY_SALT so each deploy can use a
+    // unique value. For backward compatibility — keys already encrypted in
+    // `wallet_keys` under the historical hardcoded salt must stay decryptable —
+    // we fall back to that constant when the env var is unset. Production
+    // (`tools/validate-env.sh`) fails closed and REQUIRES an explicit value, so
+    // the fallback only ever applies in dev/tests where the historical salt is
+    // still in use. Per-key encryption already uses a random salt
+    // (`randomBytes(saltLength)` in encryptPrivateKey); this only affects the
+    // master-key derivation step.
+    const VAULT_SALT_FALLBACK = 'arbibot-vault-salt-v1';
+    const salt = process.env.VAULT_MASTER_KEY_SALT ?? VAULT_SALT_FALLBACK;
+    if (salt === VAULT_SALT_FALLBACK) {
+      this.logger.warn(
+        'VAULT_MASTER_KEY_SALT not set — using the historical fallback salt. ' +
+          'Set a unique VAULT_MASTER_KEY_SALT per deploy before encrypting production ' +
+          'wallet keys (see docs/adr-vault-salt.md).',
+      );
+    }
     this.encryptionKey = scryptSync(encryptionKeyHex, salt, this.keyLength);
     this.logger.log(
       `Key Vault Service initialized (persistence: ${store ? 'wallet_keys table' : 'in-memory fallback'})`,

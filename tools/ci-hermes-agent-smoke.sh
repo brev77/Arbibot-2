@@ -126,6 +126,42 @@ else
   echo "[skip] Hermes Gateway not running (HTTP $GW_HEALTH) — ok in CI, run npm run dev:hermes locally"
 fi
 
+# ── 8. P7-7 — Hermes alert pipeline wiring (Prometheus alerts → Telegram) ──
+# Catches the structural gap where Hermes could not see Prometheus alerts at all
+# (alertmanager_incidents vs reconciliation_mismatches are different tables).
+# Each link in the chain must be present; a missing one silently breaks the
+# disk/ServiceDown → Telegram path that unit tests do not cover end-to-end.
+GW_CONTROLLER="apps/hermes-gateway/src/hermes/hermes.controller.ts"
+if grep -q "Get('alerts')" "$GW_CONTROLLER" && grep -q "/alerts/incidents" "$GW_CONTROLLER"; then
+  ok "gateway exposes GET /hermes/v1/alerts (read-through → reconciliation /alerts/incidents)"
+else
+  fail "gateway missing GET /alerts read-through (P7-7 wiring broken)"
+fi
+
+MCP_ALERTS_TOOL="packages/hermes-mcp-server/src/tools/alerts.ts"
+if [[ -f "$MCP_ALERTS_TOOL" ]] && grep -q "list_alertmanager_incidents" "$MCP_ALERTS_TOOL"; then
+  ok "MCP tool list_alertmanager_incidents exists"
+else
+  fail "MCP tool list_alertmanager_incidents missing (P7-7 wiring broken)"
+fi
+if grep -q "registerAlertTools" packages/hermes-mcp-server/src/tools/index.ts; then
+  ok "MCP alert tool is registered in tools/index.ts"
+else
+  fail "registerAlertTools not called in tools/index.ts (tool would never reach the agent)"
+fi
+
+if grep -q "name: alert_watch" "$CONFIG_YAML"; then
+  ok "hermes-config.yaml has cron job alert_watch"
+else
+  fail "hermes-config.yaml missing alert_watch cron (P7-7 wiring broken)"
+fi
+
+if [[ -f "tools/hermes-agent/skills/investigate-alert.md" ]]; then
+  ok "skill investigate-alert.md exists"
+else
+  fail "skill investigate-alert.md missing (P7-7 wiring broken)"
+fi
+
 echo ""
 if (( failures > 0 )); then
   printf 'ci-hermes-agent-smoke: FAIL — %d regression(s). See docs/lessons/hermes-agent-dod-failure.md.\n' "$failures" >&2

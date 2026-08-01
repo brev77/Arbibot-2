@@ -35,16 +35,41 @@ Disaster — событие, при котором **вся система ил�
 
 ### 2.2. Процедура бэкапа
 
-```bash
-# Автоматический (cron)
-0 2 * * * /opt/arbibot/tools/backup-postgres.sh >> /var/log/arbibot-backup.log 2>&1
+**Автоматически (prod, P7-2):** в `infra/docker-compose.prod.yml` сервис `backup`
+(`infra/docker/Dockerfile.backup`) запускает тот же `tools/backup-postgres.sh`
+по cron (по умолчанию daily 02:00 UTC, `BACKUP_SCHEDULE`). Дампы пишутся в volume
+`arbibot_backup_data` с retention (`BACKUP_RETENTION_DAYS`, по умолчанию 30).
+При старте контейнер делает один немедленный бэкап (объем никогда не пустой +
+fail-fast на неверный `DATABASE_URL`). HEALTHCHECK читает маркер
+`/backups/.last-backup-status` — тихо отвалившийся cron делает контейнер
+unhealthy (видно в `docker compose ps`).
 
+```bash
+# Просмотр логов backup-сайдкара:
+docker compose -f infra/docker-compose.prod.yml logs backup
+
+# Ручной внеочередной бэкап (через тот же скрипт внутри контейнера):
+docker compose -f infra/docker-compose.prod.yml exec backup /usr/local/bin/run-backup.sh
+
+# Проверка последнего статуса:
+docker compose -f infra/docker-compose.prod.yml exec backup cat /backups/.last-backup-status
+# Ожидается: "ok 2026-08-01T02:00:00Z"
+```
+
+**Вне compose (dev / host):**
+
+```bash
 # Ручной
 DATABASE_URL="postgres://arbibot:PASS@HOST:5432/arbibot" bash tools/backup-postgres.sh
 
-# S3 offsite (опционально — раскомментировать в backup-postgres.sh)
+# S3 offsite (опционально — задаётся S3_BACKUP_BUCKET; скрипт no-op без aws-кред)
 # S3_BACKUP_BUCKET=s3://my-arbibot-backups bash tools/backup-postgres.sh
 ```
+
+> **S3 offsite:** при заданном `S3_BACKUP_BUCKET` + AWS-кредах бэкап дублируется
+> в S3 (storage class STANDARD_IA). Без кредов шаг пропускается молча —
+> offsite-копия это ответственность оператора (см. §«Проверка бэкапа» ниже:
+> restore-tested monthly via drill P7-5).
 
 ### 2.3. Проверка бэкапа
 

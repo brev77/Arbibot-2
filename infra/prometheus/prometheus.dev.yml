@@ -83,6 +83,13 @@ scrape_configs:
     static_configs:
       - targets: ["localhost:9090"]
 
+  # node_exporter — host-level metrics (disk/memory/CPU). P7-3.
+  # Runs as a container in the observability profile (same docker network),
+  # so we scrape it by service name like alertmanager above.
+  - job_name: "node_exporter"
+    static_configs:
+      - targets: ["node_exporter:9100"]
+
 alerting:
   alertmanagers:
     - static_configs:

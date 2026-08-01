@@ -161,6 +161,10 @@ groups:
 
   - name: infrastructure
     rules:
+      # Disk space — two-tier (P7-3). Warning at <15%, critical at <5%.
+      # A disk holding Postgres + WAL at >=95% full is critical: WAL writes stall
+      # and the database can crash. Critical severity routes through the Hermes
+      # alert pipeline (P7-7) → Telegram; warning surfaces in /incidents.
       - alert: DiskSpaceLow
         expr: (node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}) < 0.15
         for: 10m
@@ -169,6 +173,15 @@ groups:
         annotations:
           summary: "Low disk space on {{ $labels.instance }}"
           description: "Disk space is below 15% on {{ $labels.instance }} ({{ $value }} free)."
+
+      - alert: DiskSpaceCritical
+        expr: (node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}) < 0.05
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CRITICAL: disk space below 5% on {{ $labels.instance }}"
+          description: "Disk space is below 5% on {{ $labels.instance }} ({{ $value }} free). Postgres/WAL writes are at risk of stalling — investigate immediately."
 
   # ───────────────────────────────────────────────────────────────────
   # SLO Multi-Window Multi-Burn-Rate Alerts

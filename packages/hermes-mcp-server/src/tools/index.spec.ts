@@ -17,9 +17,9 @@ describe('MCP Tools Registration', () => {
     client = new HermesClient({ gatewayUrl: 'http://localhost:3020', apiKey: 'test' });
   });
 
-  it('should register exactly 24 tools', () => {
+  it('should register exactly 25 tools', () => {
     registerTools(mockServer, client);
-    expect(registeredTools).toHaveLength(24);
+    expect(registeredTools).toHaveLength(25);
   });
 
   it('should register all expected tool names', () => {
@@ -40,6 +40,7 @@ describe('MCP Tools Registration', () => {
       'get_plan',
       'get_safe_mode_status',
       'get_scanner_status',
+      'list_alertmanager_incidents',
       'list_configs',
       'list_incident_briefs',
       'list_incidents',
@@ -181,6 +182,25 @@ describe('MCP Tool Handlers', () => {
     const result = (await handler({})) as { content: Array<{ text: string }> };
     const parsed = JSON.parse(result.content[0]!.text);
     expect(parsed.runningInstanceIds).toEqual(['arb-2venue-1']);
+  });
+
+  it('list_alertmanager_incidents should call GET /alerts (P7-7)', async () => {
+    const mockFetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ items: [{ id: 'a1', alertname: 'DiskSpaceCritical' }] }),
+    });
+    jest.spyOn(globalThis, 'fetch').mockImplementation(mockFetch);
+
+    const handler = capturedHandlers.get('list_alertmanager_incidents')!;
+    const result = (await handler({ status: 'firing' })) as {
+      content: Array<{ text: string }>;
+    };
+    const parsed = JSON.parse(result.content[0]!.text);
+    expect(parsed.items[0]?.alertname).toBe('DiskSpaceCritical');
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringMatching(/\/alerts\?status=firing/),
+      expect.objectContaining({ method: 'GET' }),
+    );
   });
 
   it('tool handler should propagate gateway errors', async () => {

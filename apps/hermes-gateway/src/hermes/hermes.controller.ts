@@ -185,6 +185,36 @@ export class HermesController {
     return result.json;
   }
 
+  // ─────────────────────────────────────────────────────────────────────
+  // Alertmanager incidents read-through (P7-7 — Hermes alert pipeline).
+  // Distinct from `/incidents` above: that reads reconciliation MISMATCHES
+  // (`reconciliation_mismatches`), while this reads Prometheus/Alertmanager
+  // alerts (`alertmanager_incidents`) forwarded by reconciliation-service
+  // `/alerts/webhook`. Without this endpoint the Hermes agent could not see
+  // Prometheus alerts at all (disk, ServiceDown, error-rate) — the structural
+  // gap closed by P7-7. Optional `?status=open|firing|investigating|resolved`
+  // filter; otherwise newest-first.
+  // ─────────────────────────────────────────────────────────────────────
+  @Get('alerts')
+  async alerts(
+    @Req() req: ReqWithCorr,
+    @Query('status') status?: string,
+  ): Promise<unknown> {
+    const base = getReconciliationApiBase();
+    const qs =
+      status !== undefined && status.length > 0
+        ? `?status=${encodeURIComponent(status)}`
+        : '';
+    const result = await this.upstream.getJson(
+      `${base}/alerts/incidents${qs}`,
+      getCorrelationId(req),
+    );
+    if (result.status >= 400) {
+      throw new HttpException(asExceptionBody(result.json), result.status);
+    }
+    return result.json;
+  }
+
   /** Aggregated dashboard summary from operator web BFF (read-through). */
   @Get('dashboard/summary')
   async dashboardSummary(@Req() req: ReqWithCorr): Promise<unknown> {

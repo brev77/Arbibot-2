@@ -61,9 +61,10 @@ route:
       receiver: "dex"
       repeat_interval: 15m
 
-    # Infrastructure alerts
+    # Infrastructure alerts (incl. disk — P7-3: DiskSpaceCritical is severity=critical,
+    # routed via the critical receiver above; DiskSpaceLow is warning here).
     - match_re:
-        alertname: (ServiceDown|HighMemoryUsage|HighErrorRate)
+        alertname: (ServiceDown|HighMemoryUsage|HighErrorRate|DiskSpaceLow)
       receiver: "infrastructure"
       repeat_interval: 30m
 

@@ -129,6 +129,18 @@ cron:
       prompt: "Check pending approvals and notify"
       silent: true  # only notify if queue non-empty
 
+    # P7-7 — Hermes alert pipeline: forward Prometheus/Alertmanager alerts
+    # (disk, ServiceDown, error-rate) to Telegram. Pulls `alertmanager_incidents`
+    # via the MCP `list_alertmanager_incidents` tool; the agent summarizes new
+    # firing alerts (state of previously-notified alerts held in memory).
+    # Interval is configurable via ALERT_WATCH_INTERVAL; default every 2 min.
+    - name: alert_watch
+      schedule: "${ALERT_WATCH_INTERVAL:*/2 * * * *}"
+      skill: investigate_alert
+      notify: [telegram]
+      prompt: "Check for new firing Alertmanager incidents and summarize critical ones for the operator"
+      silent: true  # only notify when there are new firing alerts
+
 # Logging
 logging:
   level: ${HERMES_LOG_LEVEL:info}

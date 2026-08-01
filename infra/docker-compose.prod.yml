@@ -35,6 +35,8 @@ x-nest-common: &nest-common
       condition: service_healthy
     redis:
       condition: service_healthy
+    migrator:
+      condition: service_completed_successfully
   env_file: .env
   logging:
     driver: json-file
@@ -160,6 +162,73 @@ services:
           memory: 2G
           cpus: "1.0"
 
+  # ── Automated Backup sidecar (P7-2) ─────────────────────────────
+  # Runs tools/backup-postgres.sh on a cron schedule (default daily 02:00 UTC),
+  # writes dumps to the arbibot_backup_data volume with retention, optional S3.
+  # Closes TODO M8 — no manual `npm run db:backup` in prod. HEALTHCHECK reads
+  # the .last-backup-status marker so a silently-failing cron makes the
+  # container unhealthy (visible in `docker compose ps`).
+  backup:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.backup
+    restart: unless-stopped
+    networks:
+      - arbibot-backend
+    environment:
+      DATABASE_URL: "postgres://${POSTGRES_USER:-arbibot}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-arbibot}"
+      BACKUP_DIR: /backups
+      BACKUP_SCHEDULE: "${BACKUP_SCHEDULE:-0 2 * * *}"
+      DELETE_OLDER_THAN_DAYS: "${BACKUP_RETENTION_DAYS:-30}"
+      # S3_BACKUP_BUCKET / AWS_* — optional off-site upload (script no-ops without aws creds)
+    volumes:
+      - arbibot_backup_data:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # Fail if the last backup status marker is missing or "fail", or older
+      # than 26h (missed a daily window). status file: "ok 2026-08-01T02:00:00Z".
+      test:
+        - "CMD-SHELL"
+        - >
+          status_file=/backups/.last-backup-status;
+          if [ ! -f "$status_file" ]; then echo "no backup yet"; exit 1; fi;
+          line=$(cat "$status_file"); state=${line%% *};
+          ts=${line#* }; age=$(( ( $(date +%s) - $(date -u -d "$ts" +%s) ) / 3600 ));
+          if [ "$state" != "ok" ]; then echo "last backup failed: $line"; exit 1; fi;
+          if [ "$age" -gt 26 ]; then echo "last backup stale: $line ($age h ago)"; exit 1; fi;
+          echo "last backup ok: $line"
+      interval: 5m
+      timeout: 10s
+      retries: 3
+      start_period: 5m
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+
+  # ── DB Migrator (P7-1, one-shot) ────────────────────────────────
+  # Runs tools/db-migrate.mjs and exits 0. Idempotent (skips already-applied
+  # files via schema_migrations). Every Nest service below depends on it via
+  # `condition: service_completed_successfully`, so the app containers only
+  # start once the schema is current — closing TODO M6 (no manual
+  # `npm run db:migrate` on the host). Built from the repo (not a registry
+  # image) because migrations are local SQL files.
+  migrator:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.migrator
+    networks:
+      - arbibot-backend
+    environment:
+      DATABASE_URL: "postgres://${POSTGRES_USER:-arbibot}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-arbibot}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"  # one-shot: do not restart on exit 0
+
   # ── Backend Services ─────────────────────────────────────────────
   risk-service:
     <<: *nest-common
@@ -182,6 +251,8 @@ services:
     depends_on:
       risk-service:
         condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3010/health/ready || exit 1"]
       interval: 30s
@@ -220,6 +291,8 @@ services:
         condition: service_healthy
       config-service:
         condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3012/health/ready || exit 1"]
       interval: 30s
@@ -266,6 +339,8 @@ services:
     depends_on:
       config-service:
         condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3015/health/ready || exit 1"]
       interval: 30s
@@ -306,6 +381,8 @@ services:
     depends_on:
       config-service:
         condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3018/health/ready || exit 1"]
       interval: 30s
@@ -338,6 +415,8 @@ services:
     depends_on:
       execution-orchestrator:
         condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3020/health || exit 1"]
       interval: 30s
@@ -370,6 +449,8 @@ services:
         condition: service_healthy
       config-service:
         condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3000/api/health || exit 1"]
       interval: 30s
@@ -423,11 +504,11 @@ services:
       - arbibot-backend
       - arbibot-observability
     environment:
-      # Paging secrets (D4-A-2-PAGING). Rendered into alertmanager.yml by the
-      # entrypoint via envsubst. Empty values trigger an incidents-only fallback.
-      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+      # Paging secret (D4-A-2-PAGING). Rendered into alertmanager.yml by the
+      # entrypoint via envsubst. Slack was removed in P7-3 (operator uses
+      # Hermes → Telegram, P7-7); an empty PagerDuty key is non-fatal (Hermes
+      # + /incidents stay active).
       PAGERDUTY_ROUTING_KEY: ${PAGERDUTY_ROUTING_KEY:-}
-      ALERTMANAGER_SLACK_CHANNEL: ${ALERTMANAGER_SLACK_CHANNEL:-#arbibot-critical}
     entrypoint: ["/usr/local/bin/entrypoint.alertmanager.sh"]
     command:
       - "alertmanager"
@@ -499,6 +580,29 @@ services:
           memory: 256M
           cpus: "0.1"
 
+  # node_exporter — host-level metrics (disk, memory, CPU, filesystem).
+  # Feeds DiskSpaceLow / HighMemoryUsage alerts (alerts.yml). P7-3.
+  # Bind-mounts host /, /proc, /sys read-only so the container reports the
+  # REAL host resources, not the container's own namespace — critical for
+  # DiskSpaceLow to reflect actual disk fill on the Postgres/WAL host.
+  node_exporter:
+    image: prom/node-exporter:v1.8.2
+    restart: unless-stopped
+    networks:
+      - arbibot-observability
+    command:
+      - '--path.rootfs=/host'
+      - '--collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+)($|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host:ro
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.1"
+
   # ── TLS Termination (nginx) ──────────────────────────────────────
   nginx:
     image: nginx:1.27-alpine
@@ -533,6 +637,7 @@ volumes:
   arbibot_grafana_data:
   arbibot_loki_data:
   arbibot_alertmanager_data:
+  arbibot_backup_data:
 
 networks:
   arbibot-backend:

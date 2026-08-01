@@ -1,0 +1,57 @@
+# Arbibot 2 — Automated Postgres backup sidecar (P7-2)
+#
+# Runs tools/backup-postgres.sh on a cron schedule and writes dumps to a volume
+# (with optional S3 upload configured via env). Closes TODO M8 — no manual
+# `npm run db:backup` needed in prod.
+#
+# Reuses the SAME backup logic as the manual script (do_backup): pg_dump --clean
+# --if-exists | gzip, retention cleanup (DELETE_OLDER_THAN_DAYS), optional S3.
+# Adding a new path here would diverge from the tested manual flow, so this
+# image just wraps the script in a cron-driven container.
+#
+# Build (from monorepo root):
+#   docker build -f infra/docker/Dockerfile.backup -t arbibot-backup:latest .
+#
+# Run (compose wires env + volume; see docker-compose.prod.yml `backup` service):
+#   BACKUP_SCHEDULE="0 2 * * *"  # crontab(5): min hour dom mon dow
+#   DATABASE_URL=postgres://...
+#   BACKUP_DIR=/backups
+#   DELETE_OLDER_THAN_DAYS=30
+#
+# Manual one-shot (outside cron): docker exec <container> bash /usr/local/bin/run-backup.sh
+#
+# Metrics: writes /backups/.last-backup-status on each run (ok|fail) + timestamp,
+# scraped by a simple healthcheck so a failing backup makes the container
+# unhealthy (visible in `docker compose ps`).
+
+FROM postgres:16-alpine
+
+# busybox crond is already in alpine; install aws-cli only if S3 upload is used
+# (kept optional — the image stays small when S3 is not configured).
+RUN apk add --no-cache aws-cli
+
+WORKDIR /app
+
+# The backup script (single source of truth — same one `npm run db:backup` runs).
+COPY tools/backup-postgres.sh /usr/local/bin/backup-postgres.sh
+RUN chmod +x /usr/local/bin/backup-postgres.sh
+
+# Cron wrapper: invoked by crond on schedule AND usable for a manual one-shot.
+COPY infra/docker/run-backup.sh /usr/local/bin/run-backup.sh
+RUN chmod +x /usr/local/bin/run-backup.sh
+
+# Entrypoint: renders the crontab from BACKUP_SCHEDULE and starts crond in
+# foreground (so the container stays up and logs to stdout).
+COPY infra/docker/entrypoint.backup.sh /usr/local/bin/entrypoint.backup.sh
+RUN chmod +x /usr/local/bin/entrypoint.backup.sh
+
+# Non-root: the dump runs as a dedicated user; the backup volume is chowned.
+RUN addgroup --system --gid 1001 arbibot && \
+    adduser --system --uid 1001 -G arbibot arbibot
+RUN mkdir -p /backups && chown -R arbibot:arbibot /backups /app
+
+LABEL org.opencontainers.image.source="https://github.com/brev77/Arbibot-2"
+LABEL org.opencontainers.image.title="arbibot-backup"
+LABEL arbibot.service="backup"
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.backup.sh"]

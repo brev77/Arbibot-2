@@ -422,22 +422,37 @@ docker compose -f infra/docker-compose.prod.yml ps --format json | jq -r '.[].St
 > новых образов. Миграции должны быть additive/forward-compatible (не ломать
 > работающие старые образы).
 
-**Порядок применения (первый деплой и каждый subsequent deploy):**
+**Prod (автоматически, через migrator-контейнер — P7-1):** в `infra/docker-compose.prod.yml`
+сервис `migrator` (собирается из `infra/docker/Dockerfile.migrator`) запускается
+один раз перед всеми Nest-сервисами: `depends_on: { postgres: service_healthy }`,
+а каждый Nest-сервис зависит от него через `condition: service_completed_successfully`.
+Поэтому `docker compose -f infra/docker-compose.prod.yml up -d` **применяет миграции
+сам** — ручной `npm run db:migrate` в prod больше не нужен. Migrator идемпотентен
+(`db-migrate.mjs` пропускает уже применённые файлы по `schema_migrations`), так что
+повторный `up` при already-up-to-date просто выходит с кодом 0.
+
+```bash
+# Prod: миграции применяются автоматически при `up`. Проверить результат:
+docker compose -f infra/docker-compose.prod.yml logs migrator
+# Ожидается: "Migrations up to date." и exit 0
+```
+
+**Dev / ручное применение (первый деплой или отладка):**
 
 ```bash
 # 1. Запустить PostgreSQL (если ещё не запущен):
 docker compose -f infra/docker-compose.dev.yml up -d postgres
 # (prod: docker compose -f infra/docker-compose.prod.yml up -d postgres pgbouncer)
 
-# 2. Применить миграции (лексический порядок, каждый файл один раз):
+# 2. Применить миграции вручную (лексический порядок, каждый файл один раз):
 npm run db:migrate
 
 # 3. Верифицировать, что ВСЕ миграции применились:
 npm run db:verify-migrations:all
 ```
 
-**Ожидаемый результат:** `db:verify-migrations:all` подтверждает 38 миграций
-(`001_core.sql` … `038_alertmanager_incidents.sql`).
+**Ожидаемый результат:** `db:verify-migrations:all` подтверждает **49** миграций
+(`001_core.sql` … `049_dex_limits_min_net_profit_seed.sql`).
 
 Проверить количество вручную:
 
@@ -446,7 +461,15 @@ docker exec $(docker ps -q -f name=postgres) \
   psql -U arbibot -c "SELECT count(*) FROM schema_migrations;"
 ```
 
-**Ожидаемый результат:** `38`.
+**Ожидаемый результат:** `49`.
+
+> **Troubleshooting migrator (P7-1):** если контейнер `migrator` падает при
+> `up`, Nest-сервисы не стартуют (по design — `service_completed_successfully`).
+> Посмотреть ошибку: `docker compose -f infra/docker-compose.prod.yml logs migrator`.
+> Типичные причины: недоступен postgres (проверить healthcheck), collision-guard
+> сработал (см. ниже), или миграция с ошибкой SQL (откатится транзакцией —
+> `db-migrate.mjs` делает ROLLBACK, строка в `schema_migrations` не вставится).
+> После исправления повторный `up` применит только недостающие миграции.
 
 > **Collision guard (D4-A-4-MIGRATIONS):** `db-migrate.mjs` автоматически
 > прерывается с ошибкой, если два файла миграции имеют одинаковый 3-значный

@@ -127,17 +127,41 @@ if [[ -n "${_op_session_secret}" && "${_op_session_secret}" != *"<CHANGE_ME"* &&
 fi
 unset _op_session_secret
 
-# Alertmanager paging secrets (D4-A-2-PAGING). At least one of SLACK_WEBHOOK_URL
-# / PAGERDUTY_ROUTING_KEY should be set for critical alerts to be paged. Both
-# empty triggers an incidents-only fallback (non-fatal, but warning-worthy).
-_slack_webhook="${ENV_VARS[SLACK_WEBHOOK_URL]:-}"
+# Alertmanager paging secrets (D4-A-2-PAGING). PAGERDUTY_ROUTING_KEY is the
+# critical-alert page channel (retained). SLACK_* were removed in P7-3 (operator
+# does not use Slack); the Hermes → Telegram pipeline (P7-7) is the primary
+# notification channel via the arbibot-incidents mirror. An empty PagerDuty key
+# triggers an incidents-only + Hermes/Telegram fallback (non-fatal, but warn).
 _pager_key="${ENV_VARS[PAGERDUTY_ROUTING_KEY]:-}"
-if [[ -z "${_slack_webhook}" && -z "${_pager_key}" ]]; then
-  log_warn "SLACK_WEBHOOK_URL / PAGERDUTY_ROUTING_KEY — both empty; critical alerts will NOT be paged (incidents UI only)"
-elif [[ "${_slack_webhook}" == *"<CHANGE_ME"* || "${_pager_key}" == *"<CHANGE_ME"* ]]; then
-  log_fail "paging secrets — still have placeholder value(s)"
+if [[ -z "${_pager_key}" ]]; then
+  log_warn "PAGERDUTY_ROUTING_KEY — empty; critical alerts will NOT be paged via PagerDuty (Hermes/Telegram + incidents UI only)"
+elif [[ "${_pager_key}" == *"<CHANGE_ME"* ]]; then
+  log_fail "PAGERDUTY_ROUTING_KEY — still has placeholder value"
 fi
-unset _slack_webhook _pager_key
+unset _pager_key
+
+# Wallet-key vault (P7-6 H1 + L3). PRIVATE_KEY_ENCRYPTION_KEY is the master
+# secret; VAULT_MASTER_KEY_SALT is the per-deploy salt (P7-6). Both are REQUIRED
+# in production — an unset salt falls back to a historical hardcoded value in
+# code, which we reject here so each prod deploy uses a unique salt. See
+# docs/adr-vault-salt.md.
+_enc_key="${ENV_VARS[PRIVATE_KEY_ENCRYPTION_KEY]:-}"
+if [[ -z "${_enc_key}" ]]; then
+  log_fail "PRIVATE_KEY_ENCRYPTION_KEY — not set (wallet keys cannot be encrypted/decrypted)"
+elif [[ "${_enc_key}" == *"<CHANGE_ME"* ]]; then
+  log_fail "PRIVATE_KEY_ENCRYPTION_KEY — still has placeholder value"
+else
+  log_pass "PRIVATE_KEY_ENCRYPTION_KEY — set (${#_enc_key} chars)"
+fi
+_vault_salt="${ENV_VARS[VAULT_MASTER_KEY_SALT]:-}"
+if [[ -z "${_vault_salt}" ]]; then
+  log_fail "VAULT_MASTER_KEY_SALT — not set (P7-6/H1: production requires a unique per-deploy salt; unset would silently use the historical hardcoded fallback)"
+elif [[ "${_vault_salt}" == "arbibot-vault-salt-v1" ]]; then
+  log_fail "VAULT_MASTER_KEY_SALT — still the historical hardcoded value; set a unique salt per deploy"
+else
+  log_pass "VAULT_MASTER_KEY_SALT — set (${#_vault_salt} chars, unique per deploy)"
+fi
+unset _enc_key _vault_salt
 
 # ── 2. Database configuration ──────────────────────────────────
 log_section "Database"

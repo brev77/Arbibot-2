@@ -2,6 +2,7 @@ import { type McpServerHandle, HermesClient } from './helper.js';
 import { registerPlanTools } from './plans.js';
 import { registerPositionTools } from './positions.js';
 import { registerIncidentTools } from './incidents.js';
+import { registerAlertTools } from './alerts.js';
 import { registerSafeModeTools } from './safe-mode.js';
 import { registerAuditTools } from './audit.js';
 import { registerDashboardTools } from './dashboard.js';
@@ -10,12 +11,13 @@ import { registerScannerTools } from './scanner.js';
 
 /**
  * Register all MCP tools on the server.
- * 24 tools total: 14 operational + 8 config-management (Plan 6) + 2 scanner (S4-4-HERMES).
+ * 25 tools total: 14 operational + 1 alertmanager (P7-7) + 8 config-management (Plan 6) + 2 scanner (S4-4-HERMES).
  */
 export function registerTools(server: McpServerHandle, client: HermesClient): void {
   registerPlanTools(server, client);       // list_plans, get_plan, arm_plan, execute_plan
   registerPositionTools(server, client);   // list_positions, close_position
   registerIncidentTools(server, client);   // list_incidents, resolve_incident, list_incident_briefs
+  registerAlertTools(server, client);      // list_alertmanager_incidents (P7-7 — Hermes alert pipeline)
   registerSafeModeTools(server, client);   // get_safe_mode_status, enable_safe_mode, disable_safe_mode
   registerAuditTools(server, client);      // get_approvals_queue
   registerDashboardTools(server, client);  // get_dashboard_summary
