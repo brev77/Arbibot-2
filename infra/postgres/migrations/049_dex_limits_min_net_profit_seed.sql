@@ -20,19 +20,21 @@
 -- Reader: execution-orchestrator DexRiskPolicyService.getEffectiveConfig.
 
 -- 1. Add minNetProfitUsd to existing global active dex.limits (only if absent).
+--    config_value is TEXT (see migration 019), so cast to jsonb before the `?`
+--    operator and jsonb_set, then cast the result back to text on assignment.
 UPDATE policy_configurations
 SET config_value = jsonb_set(
-      config_value,
+      config_value::jsonb,
       '{minNetProfitUsd}',
       '0.5'::jsonb,
       true  -- create_if_missing
-    ),
+    )::text,
     updated_at = NOW()
 WHERE config_key = 'dex.limits'
   AND scope_type = 'global'
   AND scope_value IS NULL
   AND is_active = true
-  AND NOT (config_value ? 'minNetProfitUsd');
+  AND NOT ((config_value::jsonb) ? 'minNetProfitUsd');
 
 -- 2. Seed a global active dex.limits row if none exists yet (mirrors 035).
 INSERT INTO policy_configurations (
@@ -57,7 +59,7 @@ SELECT
     "minNetProfitUsd": 0.5,
     "killSwitch": false,
     "requireOperatorApprovalPerTrade": true
-  }'::jsonb,
+  }'::jsonb::text,
   true,
   1,
   'migration-049',
