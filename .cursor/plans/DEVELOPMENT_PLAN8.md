@@ -18,11 +18,13 @@
 
 | step_id | Вектор | gate | Тип | impact/effort | status |
 |---------|--------|------|-----|---------------|--------|
-| `P8-1-HERMES-CRON-SKILLS` | REL (UX) | live-blocker | баг | 5/2 (S) | `planned` |
-| `P8-2-LIVE-GATE-CORRECTNESS` | SEC (FUNC) | live-blocker | баг | 5/3 (M) | `planned` |
-| `P8-3-WALLET-KEY-IMPORT` | SEC (FUNC) | live-blocker | пробел | 5/3 (M) | `planned` |
-| `P8-4-LIVE-SMOKE-SCRIPT` | REL (DEVOPS) | live-blocker | пробел | 3/2 (S) | `planned` |
-| `P8-5-PG-DUMP-CLIENT` | REL (DEVOPS) | paper-check | пробел | 2/1 (XS) | `planned` |
+| `P8-1-HERMES-CRON-SKILLS` | REL (UX) | live-blocker | баг | 5/2 (S) | `done` |
+| `P8-2-LIVE-GATE-CORRECTNESS` | SEC (FUNC) | live-blocker | баг | 5/3 (M) | `done` |
+| `P8-3-WALLET-KEY-IMPORT` | SEC (FUNC) | live-blocker | пробел | 5/3 (M) | `done` |
+| `P8-4-LIVE-SMOKE-SCRIPT` | REL (DEVOPS) | live-blocker | пробел | 3/2 (S) | `done` |
+| `P8-5-PG-DUMP-CLIENT` | REL (DEVOPS) | paper-check | пробел | 2/1 (XS) | `done` |
+
+**P8-gate (2026-08-02): PASSED.** Все 5 шагов `done`. Все 5 инициатив (#19–#23) → `done` в `docs/roadmap-vectors.md`. Критерий корректности выполнен: ни одна «защита live» не заявлена в docs, если она не enforced в коде (`dex.live` / `requireApproval` — либо работают, либо удалены с ADR-обоснованием). Hermes cron-skills: все 5 cron jobs маппятся на существующие skills (CI guard `ci-hermes-agent-smoke.sh` чек #9 green).
 
 **Порядок:** P8-1 (оператор сейчас теряет отчёты) → P8-5 (XS, мешает backup) →
 P8-2 ( correctness ) → P8-3 (live-блокер) → P8-4.
