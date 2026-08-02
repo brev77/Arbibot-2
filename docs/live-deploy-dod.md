@@ -1,9 +1,11 @@
 # Live-deploy Definition of Done (DoD) — minimal-capital go-live gate
 
 **Status:** **blocked** — awaiting product-owner decision + testnet soak. This document
-is the checklist an operator runs through before flipping `dex.live` to production with
-real (minimal) capital. It is referenced from
+is the checklist an operator runs through before enabling live trading (kill-switch
+clear + `DEX_VENUE_ENABLED=true`) with real (minimal) capital. It is referenced from
 [`.cursor/plans/deploy-readiness/D4-C-4-LIVE-SMOKE.md`](../.cursor/plans/deploy-readiness/D4-C-4-LIVE-SMOKE.md).
+P8-4 (2026-08-02): Gate 3 smoke script готов — `npm run smoke:live-testnet`
+([`docs/live-smoke-runbook.md`](live-smoke-runbook.md)).
 
 **Canonical principle (from [`DEVELOPMENT_PLAN.md`](../.cursor/plans/DEVELOPMENT_PLAN.md),
 «Операционная последовательность первичного запуска»):** paper trading is a mandatory

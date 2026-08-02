@@ -24,7 +24,12 @@
 | `P8-4-LIVE-SMOKE-SCRIPT` | REL (DEVOPS) | live-blocker | пробел | 3/2 (S) | `done` |
 | `P8-5-PG-DUMP-CLIENT` | REL (DEVOPS) | paper-check | пробел | 2/1 (XS) | `done` |
 
-**P8-gate (2026-08-02): PASSED.** Все 5 шагов `done`. Все 5 инициатив (#19–#23) → `done` в `docs/roadmap-vectors.md`. Критерий корректности выполнен: ни одна «защита live» не заявлена в docs, если она не enforced в коде (`dex.live` / `requireApproval` — либо работают, либо удалены с ADR-обоснованием). Hermes cron-skills: все 5 cron jobs маппятся на существующие skills (CI guard `ci-hermes-agent-smoke.sh` чек #9 green).
+**P8-gate (2026-08-02): PASSED.** Все 5 шагов `done`. Все 5 инициатив
+(#19–#23) → `done` в `docs/roadmap-vectors.md`. Критерий корректности выполнен:
+ни одна «защита live» не заявлена в docs, если она не enforced в коде
+(`dex.live` / `requireApproval` — либо работают, либо удалены с
+ADR-обоснованием). Hermes cron-skills: все 5 cron jobs маппятся на существующие
+skills (CI guard `ci-hermes-agent-smoke.sh` чек #9 green).
 
 **Порядок:** P8-1 (оператор сейчас теряет отчёты) → P8-5 (XS, мешает backup) →
 P8-2 ( correctness ) → P8-3 (live-блокер) → P8-4.
@@ -128,7 +133,17 @@ Velodrome — coverage gap scanner↔execution). Это `paper-check`/`non-criti
   `tools/hermes-agent/skills/` (новые/переименованные),
   `tools/ci-hermes-agent-smoke.sh`, `docs/hermes-reference.md`, `AGENTS.md`
 - **review_required:** `architecture` (skill ↔ MCP tool contract)
-- **status:** `done` (2026-08-02) — 5 недостающих skill-файлов созданы (`status-check`, `plan-review`, `position-overview`, `incident-management`, `approval-queue-check`), 7 frontmatter `name:` нормализованы kebab→snake_case (канон резолвинга), CI guard check #9 добавлен в `ci-hermes-agent-smoke.sh` (каждый `skill:` в конфиге должен маппиться на существующий frontmatter `name:`). Все 9 skill-references (5 cron + 8 telegram commands, 9 уникальных) маппятся на 15 skills. Архитектурное ревью: APPROVE (skill↔MCP tool contract валиден, approval_required консистентен). Inititative `REL-HERMES-CRON-SKILLS` (#19) → `done` в roadmap-vectors.md.
+- **status:** `done` (2026-08-02) —
+  - созданы 5 недостающих skill-файлов: `status-check`, `plan-review`,
+    `position-overview`, `incident-management`, `approval-queue-check`;
+  - 7 frontmatter `name:` нормализованы kebab→snake_case (канон резолвинга);
+  - CI guard check #9 добавлен в `ci-hermes-agent-smoke.sh` (каждый `skill:`
+    в конфиге должен маппиться на существующий frontmatter `name:`);
+  - все 9 skill-references (5 cron + 8 telegram commands, 9 уникальных)
+    маппятся на 15 skills;
+  - архитектурное ревью: APPROVE (skill↔MCP tool contract валиден,
+    approval_required консистентен);
+  - инициатива `REL-HERMES-CRON-SKILLS` (#19) → `done` в roadmap-vectors.md.
 
 ---
 
@@ -183,8 +198,20 @@ Velodrome — coverage gap scanner↔execution). Это `paper-check`/`non-criti
   `apps/capital-service/src/capital/capital.service.ts`, specs, ADR, DoD docs
 - **review_required:** `architecture` + `/dex-security` (capital safety)
 - **status:** `done` (2026-08-02) — 4 суб-фикса:
-  - **(a) dex.live — Вариант B (удалить):** `getEffectiveLiveConfig()` / `DexLiveConfig` / `parseLiveResponse` / `refreshLive` / `liveCache` / `liveInflight` / `SAFE_DEFAULT_LIVE` / `ParsedLive` / `asStringArray` удалены как мёртвый код (0 call sites). `dex.live` ключ остаётся в seed (migration 035) и читается frontend UI, но backend больше не претендует на потребление. Live-gate = kill-switch (`DexKillSwitchService`, D4-B-1) + `DEX_VENUE_ENABLED` env gate в `VenueFactoryService`.
-  - **(b) requireApproval — Вариант B (удалить):** `DexRiskPolicyConfig.requireApproval`, `SAFE_DEFAULT_CONFIG.requireApproval`, parse в `parseLimitsResponse` удалены. Поле парсилось но никогда не enforced (D4-B-8 two-person descoped). Frontend toggle (`requireOperatorApprovalPerTrade` в seed JSON) остаётся — он управляет UI typed-phrase flow, который IS enforced client-side. Mitigation для single-operator: kill-switch + capital ceiling + typed-phrase (`DestructiveOperatorAction`).
+  - **(a) dex.live — Вариант B (удалить):** `getEffectiveLiveConfig()` /
+    `DexLiveConfig` / `parseLiveResponse` / `refreshLive` / `liveCache` /
+    `liveInflight` / `SAFE_DEFAULT_LIVE` / `ParsedLive` / `asStringArray`
+    удалены как мёртвый код (0 call sites). `dex.live` ключ остаётся в seed
+    (migration 035) и читается frontend UI, но backend больше не претендует на
+    потребление. Live-gate = kill-switch (`DexKillSwitchService`, D4-B-1) +
+    `DEX_VENUE_ENABLED` env gate в `VenueFactoryService`.
+  - **(b) requireApproval — Вариант B (удалить):** `DexRiskPolicyConfig.requireApproval`,
+    `SAFE_DEFAULT_CONFIG.requireApproval`, parse в `parseLimitsResponse` удалены.
+    Поле парсилось но никогда не enforced (D4-B-8 two-person descoped). Frontend
+    toggle (`requireOperatorApprovalPerTrade` в seed JSON) остаётся — он управляет
+    UI typed-phrase flow, который IS enforced client-side. Mitigation для
+    single-operator: kill-switch + capital ceiling + typed-phrase
+    (`DestructiveOperatorAction`).
   - **(c) Capital ceiling — уже исправлено ранее:** `capital.service.ts:88-94` уже суммирует `active reservations + open positions` (confirmed test "Capital ceiling exceeded: active reservations $0 + open positions $950 + requested $100 > ceiling $1000"). Docstring соответствует коду. Ничего менять не потребовалось.
   - **(d) RPC chain-id:** `rpc-provider-manager.service.ts:66` — `421611` (deprecated Arbitrum testnet) → `421614` (`ChainId.ARBITRUM_ONE_SEPOLIA`, реальный Arbitrum Sepolia). Spec обновлён (`rpc-provider-manager.service.spec.ts:349`).
   - **Документы:** `docs/adr-live-gate.md` §2 и §8 обновлены с P8-2 корректировками.
@@ -225,7 +252,24 @@ Velodrome — coverage gap scanner↔execution). Это `paper-check`/`non-criti
   `apps/execution-orchestrator/src/execution/wallet-manager.service.ts` (если
   exposes метод), опц. `apps/web` UI, ADR, runbooks, `AGENTS.md`
 - **review_required:** `architecture` + `/dex-security` (K1/K2 — key leakage)
-- **status:** `done` (2026-08-02) — CLI-first approach (UI deferred, см. ADR §Alternatives). `tools/wallet-key-import.mjs` (`npm run wallet:import`): читает private key из stdin/env (НЕ args — не светит в `ps`), валидирует формат (64 hex), derives address через `ethers.computeAddress`, fail-closed если derived ≠ `--expected-address`, шифрует AES-256-GCM (тот же algorithm/params что `KeyVaultService.encryptPrivateKey`: scrypt-derived key, 16-byte IV, 32-byte per-key salt, GCM authTag), bind к deploy через `VAULT_MASTER_KEY_SALT` (P7-6), INSERT в `wallet_keys` с idempotency (refuse overwrite — rotation = new key_id). Ключ **никогда** не логируется (ci:key-leakage guard проходит). Smoke: dry-run + negative-tests (wrong address, invalid format) проверены. ADR `docs/adr-wallet-key-import.md` (threat model K1/K2, CLI vs UI vs Vault Transit). `docs/vault-integration-guide.md` §6 + `docs/key-rotation-runbook.md` Шаг 2 обновлены. Inititative `SEC-WALLET-KEY-IMPORT` (#21) → `done` в roadmap-vectors.md.
+- **status:** `done` (2026-08-02) — CLI-first approach (UI deferred, см. ADR
+  §Alternatives).
+  - `tools/wallet-key-import.mjs` (`npm run wallet:import`): читает private key
+    из stdin/env (НЕ args — не светит в `ps`), валидирует формат (64 hex),
+    derives address через `ethers.computeAddress`, fail-closed если
+    derived ≠ `--expected-address`;
+  - шифрует AES-256-GCM (тот же algorithm/params что
+    `KeyVaultService.encryptPrivateKey`: scrypt-derived key, 16-byte IV,
+    32-byte per-key salt, GCM authTag), bind к deploy через
+    `VAULT_MASTER_KEY_SALT` (P7-6);
+  - INSERT в `wallet_keys` с idempotency (refuse overwrite — rotation =
+    new key_id). Ключ **никогда** не логируется (ci:key-leakage guard проходит);
+  - smoke: dry-run + negative-tests (wrong address, invalid format) проверены;
+  - ADR `docs/adr-wallet-key-import.md` (threat model K1/K2, CLI vs UI vs
+    Vault Transit);
+  - `docs/vault-integration-guide.md` §6 + `docs/key-rotation-runbook.md`
+    Шаг 2 обновлены;
+  - инициатива `SEC-WALLET-KEY-IMPORT` (#21) → `done` в roadmap-vectors.md.
 
 ---
 
@@ -258,7 +302,30 @@ Velodrome — coverage gap scanner↔execution). Это `paper-check`/`non-criti
 - **changed_areas:** `tools/live-smoke-testnet.mjs`, `package.json`,
   `docs/live-deploy-dod.md`, `docs/live-smoke-runbook.md`, `AGENTS.md`
 - **review_required:** `backend` + `/dex-security` (real capital, even testnet)
-- **status:** `done` (2026-08-02) — `tools/live-smoke-testnet.mjs` (`npm run smoke:live-testnet`): 4-фазный сквозной smoke для DoD Gate 3. **HEALTH** (execution + capital + reconciliation + opportunity health checks; DEX health для testnet). **CAPITAL** rehearsal: `POST /capital/reservations` под aggregate ceiling gate, `SMOKE_CAPITAL_USD` (default $1, **fail-closed at $10** per DoD Gate 3), TTL 60s + release cleanup. **KILLDRILL**: `panic:stop` → verify `arb_dex_live_halt_active=1` metric → `panic:recover --confirm "I UNDERSTAND THIS RESUMES TRADING"` → verify `=0` (`SMOKE_SKIP_KILLDRILL=true` для CI). **RECON**: `GET /mismatches?status=open` → 0 expected post-smoke. Real testnet execute делегирован в `e2e-dex1-testnet.mjs` (этот smoke фокусируется на gates, не trade execution). Exit codes: 0 ok, 1 health/assertion, 2 capital safety (budget>$10), 3 kill-drill failed. Smoke: dry-run health-fail (сервисы не запущены, abort exit 1), budget fail-closed ($50 → exit 2), syntax ok. Runbook `docs/live-smoke-runbook.md` (prerequisites, RTO/cleanup, DoD recording). `docs/live-deploy-dod.md` Gate 3 + Gate 4 обновлены (Gate 4: убран `dex.live.enabled=true` после P8-2, live-gate = kill-switch + `DEX_VENUE_ENABLED`). Зависимость P8-2(d) chain-id fix отмечена. Inititative `REL-LIVE-SMOKE-SCRIPT` (#22) → `done` в roadmap-vectors.md.
+- **status:** `done` (2026-08-02) — `tools/live-smoke-testnet.mjs`
+  (`npm run smoke:live-testnet`): 4-фазный сквозной smoke для DoD Gate 3.
+  - **HEALTH** (execution + capital + reconciliation + opportunity health
+    checks; DEX health для testnet).
+  - **CAPITAL** rehearsal: `POST /capital/reservations` под aggregate ceiling
+    gate, `SMOKE_CAPITAL_USD` (default $1, **fail-closed at $10** per DoD
+    Gate 3), TTL 60s + release cleanup.
+  - **KILLDRILL**: `panic:stop` → verify `arb_dex_live_halt_active=1` metric →
+    `panic:recover --confirm "I UNDERSTAND THIS RESUMES TRADING"` → verify `=0`
+    (`SMOKE_SKIP_KILLDRILL=true` для CI).
+  - **RECON**: `GET /mismatches?status=open` → 0 expected post-smoke.
+  - Real testnet execute делегирован в `e2e-dex1-testnet.mjs` (этот smoke
+    фокусируется на gates, не trade execution).
+  - Exit codes: 0 ok, 1 health/assertion, 2 capital safety (budget>$10),
+    3 kill-drill failed.
+  - Smoke: dry-run health-fail (сервисы не запущены, abort exit 1), budget
+    fail-closed ($50 → exit 2), syntax ok.
+  - Runbook `docs/live-smoke-runbook.md` (prerequisites, RTO/cleanup, DoD
+    recording).
+  - `docs/live-deploy-dod.md` Gate 3 + Gate 4 обновлены (Gate 4: убран
+    `dex.live.enabled=true` после P8-2, live-gate = kill-switch +
+    `DEX_VENUE_ENABLED`).
+  - Зависимость P8-2(d) chain-id fix отмечена.
+  - Инициатива `REL-LIVE-SMOKE-SCRIPT` (#22) → `done` в roadmap-vectors.md.
 
 ---
 
@@ -285,7 +352,19 @@ Velodrome — coverage gap scanner↔execution). Это `paper-check`/`non-criti
 - **changed_areas:** `tools/backup-postgres.sh` (опц. fallback),
   `docs/paper-deploy-aeza.md`
 - **review_required:** `backend`
-- **status:** `done` (2026-08-02) — `tools/backup-postgres.sh` теперь auto-detect'ит отсутствие системного `pg_dump`/`psql` и fallback'ит на `docker exec <container>`, имя контейнера auto-detect'ится по hostname в DATABASE_URL (docker bridge / `postgres` / `host.docker.internal` → `infra-postgres-1`), override через `PG_CONTAINER`. Симулированный paper-сценарий проверен: primary path (системный клиент) работает, detect-логика для localhost/postgres-host/docker-bridge корректна. `docs/paper-deploy-aeza.md` §«Полезные команды» обновлён с пояснением P8-5 и альтернативой `apt install postgresql-client-16`. Acceptance: smoke на реальном paper-хосте — оператор (acceptance criteria deferred to paper-deploy). Inititative `REL-PG-DUMP-CLIENT` (#23) → `done` в roadmap-vectors.md.
+- **status:** `done` (2026-08-02) — `tools/backup-postgres.sh` теперь
+  auto-detect'ит отсутствие системного `pg_dump`/`psql` и fallback'ит на
+  `docker exec <container>`:
+  - имя контейнера auto-detect'ится по hostname в DATABASE_URL
+    (docker bridge / `postgres` / `host.docker.internal` → `infra-postgres-1`),
+    override через `PG_CONTAINER`;
+  - симулированный paper-сценарий проверен: primary path (системный клиент)
+    работает, detect-логика для localhost/postgres-host/docker-bridge корректна;
+  - `docs/paper-deploy-aeza.md` §«Полезные команды» обновлён с пояснением P8-5 и
+    альтернативой `apt install postgresql-client-16`;
+  - acceptance: smoke на реальном paper-хосте — оператор (criteria deferred
+    to paper-deploy);
+  - инициатива `REL-PG-DUMP-CLIENT` (#23) → `done` в roadmap-vectors.md.
 
 ---
 

@@ -9,7 +9,8 @@
 > - Оперативный трекер (что/когда) — [`docs/TODO.md`](TODO.md).
 > - Канон статусов/`step_id` — [`.cursor/plans/DEVELOPMENT_PLAN.md`](../.cursor/plans/DEVELOPMENT_PLAN.md).
 > - Канон терминов — [`CONTEXT.md`](../CONTEXT.md).
-> - Первый план на базе векторов — [`.cursor/plans/DEVELOPMENT_PLAN7.md`](../.cursor/plans/DEVELOPMENT_PLAN7.md).
+> - Первый план на базе векторов — [`.cursor/plans/DEVELOPMENT_PLAN7.md`](../.cursor/plans/DEVELOPMENT_PLAN7.md) (8/8 done, live-blocker инфраструктура).
+> - Второй план на базе векторов — [`.cursor/plans/DEVELOPMENT_PLAN8.md`](../.cursor/plans/DEVELOPMENT_PLAN8.md) (5/5 done, correctness sweep + live-gate enablement).
 >
 > **Эта документация — живая.** Все факты о состоянии кода в этом файле получены
 > из кодовой базы на дату актуализации (см. внизу). Документы (`AGENTS.md`,
@@ -442,6 +443,6 @@ C1/H2/M6 и т.д. ссылочны через `tracker_ref`, операцион
 
 ---
 
-*Актуализировано: 2026-08-01. Все факты о состоянии кода проверены чтением файлов
-на эту дату (коммит `afb90d3`). При изменении кода — обновить этот файл по
-принципу P2.*
+*Актуализировано: 2026-08-02 (после PLAN8). Все факты о состоянии кода проверены
+чтением файлов на эту дату (коммит `2592558`). При изменении кода — обновить
+этот файл по принципу P2.*
