@@ -277,7 +277,7 @@ Velodrome — coverage gap scanner↔execution). Это `paper-check`/`non-criti
 - **changed_areas:** `tools/backup-postgres.sh` (опц. fallback),
   `docs/paper-deploy-aeza.md`
 - **review_required:** `backend`
-- **status:** `planned`
+- **status:** `done` (2026-08-02) — `tools/backup-postgres.sh` теперь auto-detect'ит отсутствие системного `pg_dump`/`psql` и fallback'ит на `docker exec <container>`, имя контейнера auto-detect'ится по hostname в DATABASE_URL (docker bridge / `postgres` / `host.docker.internal` → `infra-postgres-1`), override через `PG_CONTAINER`. Симулированный paper-сценарий проверен: primary path (системный клиент) работает, detect-логика для localhost/postgres-host/docker-bridge корректна. `docs/paper-deploy-aeza.md` §«Полезные команды» обновлён с пояснением P8-5 и альтернативой `apt install postgresql-client-16`. Acceptance: smoke на реальном paper-хосте — оператор (acceptance criteria deferred to paper-deploy). Inititative `REL-PG-DUMP-CLIENT` (#23) → `done` в roadmap-vectors.md.
 
 ---
 

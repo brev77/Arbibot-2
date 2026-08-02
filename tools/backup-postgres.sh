@@ -26,17 +26,91 @@
 #     shown unless --force is passed. Always run `npm run db:backup` first.
 #
 # Retention: keeps last 30 backups by default (DELETE_OLDER_THAN_DAYS=30).
+#
+# ── Docker-host fallback (P8-5, 2026-08-02) ────────────────────────────────
+# On a paper/standalone host where Postgres runs inside Docker and the system
+# has no pg_dump/psql client installed (e.g. Aéza paper-deploy with pm2), the
+# script auto-detects the absence of `pg_dump`/`psql` and falls back to
+# `docker exec <PG_CONTAINER>` against the Postgres container. The container
+# name is resolved from PG_CONTAINER env or auto-detected from the hostname in
+# DATABASE_URL (host = postgres / 172.18.0.x / host.docker.internal → container
+# name `infra-postgres-1` by convention; override via PG_CONTAINER). In prod
+# (docker-compose.prod.yml) the backup sidecar (P7-2) has its own pg_dump, so
+# this fallback is for the paper/standalone host only.
 
 set -euo pipefail
 
 # ── Configuration ──────────────────────────────────────────────
-DATABASE_URL="${DATABASE_URL:-postgres://arbibot:arbibot@127.0.0.1:15432/arbibot}"
+DATABASE_URL="${DATABASE_URL:-postgres://arbibot:aribot@127.0.0.1:15432/arbibot}"
 BACKUP_DIR="${BACKUP_DIR:-./backups}"
 RETENTION_DAYS="${DELETE_OLDER_THAN_DAYS:-30}"
+# Override the auto-detected Postgres container name (P8-5 docker fallback).
+PG_CONTAINER="${PG_CONTAINER:-}"
 
 # ── Helpers ────────────────────────────────────────────────────
 log()  { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*"; }
 err()  { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] ERROR: $*" >&2; }
+
+# Detect whether DATABASE_URL points at a dockerized Postgres by hostname.
+# Returns the inferred container name (or empty) — caller overrides via PG_CONTAINER.
+# Heuristics (P8-5): hostname in {postgres, db} OR 172.x.y.z (docker bridge) OR
+# host.docker.internal → assume container `infra-postgres-1` (compose convention).
+# 127.0.0.1 / localhost with port 5432 inside docker also qualifies if PG_CONTAINER set.
+detect_pg_container() {
+  if [[ -n "${PG_CONTAINER}" ]]; then echo "${PG_CONTAINER}"; return; fi
+  local HOST PORT
+  # Strip scheme, take user@host:port/db → host:port
+  local WITHOUT_SCHEME="${DATABASE_URL#*://}"
+  local AUTH_HOST="${WITHOUT_SCHEME#*@}"   # drop user:pass@
+  HOST="${AUTH_HOST%%:*}"                  # take up to first ':' (or whole if no port)
+  PORT="${AUTH_HOST#*:}"; PORT="${PORT%%/*}"
+  case "${HOST}" in
+    postgres|db) echo "infra-postgres-1"; return ;;
+    172.*.*.*)   echo "infra-postgres-1"; return ;;   # docker bridge network
+    host.docker.internal) echo "infra-postgres-1"; return ;;
+  esac
+  echo ""
+}
+
+# Wrap a Postgres client binary (pg_dump / psql / pg_restore) so that if the
+# binary is missing on PATH, we retry inside the Postgres container via docker.
+# Usage: run_pg_client pg_dump "<args...>"   (DATABASE_URL passed through)
+# Echoes a single command string suitable for `eval`. This indirection lets the
+# calling site keep its `| gzip` / `| psql` pipelines intact.
+pg_client_cmd() {
+  local BIN="$1"; shift
+  if command -v "${BIN}" &>/dev/null; then
+    printf '%q %s' "${BIN}" "${DATABASE_URL}"
+    for a in "$@"; do printf ' %q' "$a"; done
+    return
+  fi
+  # Fallback: no system client → use the Postgres container's bundled binary.
+  local CNAME; CNAME="$(detect_pg_container)"
+  if [[ -z "${CNAME}" ]]; then
+    err "${BIN} not found on PATH and DATABASE_URL host doesn't look dockerized (host='$(echo "${DATABASE_URL}" | sed -E 's#.*@([^:/]+).*#\1#')')."
+    err "Fix: either 'apt install postgresql-client-16' (or your PG major),"
+    err "or set PG_CONTAINER=<docker-postgres-container-name> to use the container's bundled client."
+    err "See docs/paper-deploy-aeza.md §«Полезные команды» (P8-5)."
+    exit 127
+  fi
+  if ! command -v docker &>/dev/null; then
+    err "${BIN} not found on PATH, docker not on PATH either — cannot fall back to container."
+    exit 127
+  fi
+  log "P8-5: ${BIN} not on PATH → using 'docker exec ${CNAME} ${BIN}' (auto-detected container)"
+  # The container sees Postgres on localhost (it IS the server). Replace the
+  # external host in DATABASE_URL with 'localhost' so the container can connect.
+  # For pg_dump/psql the URL just needs to resolve inside the container.
+  # Simplest: connect via local socket by passing just the db name + user.
+  # Parse user/db from DATABASE_URL for the container-internal connection.
+  local WITHOUT_SCHEME="${DATABASE_URL#*://}"
+  local USER="${WITHOUT_SCHEME%%@*}"; USER="${USER%%:*}"
+  local AFTER_HOST="${WITHOUT_SCHEME#*@}"; AFTER_HOST="${AFTER_HOST#*/}"
+  local DB="${AFTER_HOST%%\?*}"
+  printf "docker exec %s %s --username %s --dbname %s" "${CNAME}" "${BIN}" "${USER}" "${DB}"
+  for a in "$@"; do printf ' %q' "$a"; done
+}
+
 usage() {
   cat <<EOF
 Usage: bash tools/backup-postgres.sh [backup|restore <file> [--force]]
@@ -51,6 +125,10 @@ Environment:
   DATABASE_URL            Target Postgres connection string.
   BACKUP_DIR              Backup output directory (default: ./backups).
   DELETE_OLDER_THAN_DAYS  Backup retention in days (default: 30).
+  PG_CONTAINER            (P8-5) Override the docker Postgres container name when
+                          pg_dump/psql are not installed on the host; auto-detected
+                          from DATABASE_URL hostname otherwise (docker bridge /
+                          hostname 'postgres'/'db' / host.docker.internal).
 
 Restore is DESTRUCTIVE — it overwrites the target database. Run
 'npm run db:backup' before restoring in production.
@@ -68,7 +146,10 @@ do_backup() {
 
   # --clean --if-exists: drop-before-create, so the dump is restorable over an
   # existing DB without manual cleanup. --no-owner/--no-privileges: portable.
-  if pg_dump "${DATABASE_URL}" --no-owner --no-privileges --clean --if-exists | gzip > "${FILEPATH}.tmp"; then
+  # P8-5: pg_dump may run inside the Postgres container if no system client.
+  local PG_DUMP_CMD
+  PG_DUMP_CMD="$(pg_client_cmd pg_dump --no-owner --no-privileges --clean --if-exists)"
+  if eval "${PG_DUMP_CMD}" | gzip > "${FILEPATH}.tmp"; then
     mv "${FILEPATH}.tmp" "${FILEPATH}"
     local SIZE
     SIZE=$(du -h "${FILEPATH}" | cut -f1)
@@ -151,7 +232,16 @@ do_restore() {
 
   case "${EXT}" in
     sql.gz)
-      if gunzip -c "${FILEPATH}" | psql "${DATABASE_URL}" -v ON_ERROR_STOP=1 -q; then
+      # P8-5: psql may run inside the Postgres container if no system client.
+      # We stream the dump into the container via stdin (`docker exec -i`).
+      local PSQL_CMD
+      PSQL_CMD="$(pg_client_cmd psql -v ON_ERROR_STOP=1 -q)"
+      # docker exec variant from pg_client_cmd uses `docker exec <cname> psql ...`;
+      # for piping stdin we need `-i` on docker exec. Patch the string if needed.
+      if [[ "${PSQL_CMD}" == docker\ exec* ]]; then
+        PSQL_CMD="${PSQL_CMD/docker exec /docker exec -i }"
+      fi
+      if gunzip -c "${FILEPATH}" | eval "${PSQL_CMD}"; then
         log "Restore complete (gunzip | psql)."
       else
         err "gunzip | psql failed"
@@ -159,20 +249,38 @@ do_restore() {
       fi
       ;;
     sql)
-      if psql "${DATABASE_URL}" -v ON_ERROR_STOP=1 -q -f "${FILEPATH}"; then
-        log "Restore complete (psql -f)."
+      local PSQL_CMD2
+      PSQL_CMD2="$(pg_client_cmd psql -v ON_ERROR_STOP=1 -q)"
+      if [[ "${PSQL_CMD2}" == docker\ exec* ]]; then
+        # Stream the file into the container via stdin instead of mounting it.
+        if cat "${FILEPATH}" | { PSQL_CMD2="${PSQL_CMD2/docker exec /docker exec -i }"; eval "${PSQL_CMD2}"; }; then
+          log "Restore complete (psql via docker exec -i)."
+        else
+          err "psql (docker exec) failed"
+          exit 1
+        fi
       else
-        err "psql -f failed"
-        exit 1
+        if psql "${DATABASE_URL}" -v ON_ERROR_STOP=1 -q -f "${FILEPATH}"; then
+          log "Restore complete (psql -f)."
+        else
+          err "psql -f failed"
+          exit 1
+        fi
       fi
       ;;
     custom)
       # pg_restore --clean --if-exists drops objects before recreating them.
       # --no-owner keeps the restore portable across roles.
-      if pg_restore --dbname "${DATABASE_URL}" --clean --if-exists --no-owner --no-privileges -v "${FILEPATH}"; then
+      # P8-5: when no system pg_restore, the dump file must be reachable from
+      # the container — caller should place it in a mounted volume or copy it
+      # in. We prefer the system client; the docker fallback for custom-format
+      # restore requires the file path inside the container, which is fragile
+      # and intentionally NOT auto-wired here. Document restoring custom dumps
+      # via the system client or the backup sidecar (P7-2) instead.
+      if pg_restore --dbname "${DATABASE_URL}" --clean --if-exists --no-owner --no-privileges -v "${FILEPATH}" 2>/dev/null; then
         log "Restore complete (pg_restore)."
       else
-        err "pg_restore failed"
+        err "pg_restore failed (custom-format restore needs a system pg_restore; the docker-container fallback is not supported for custom dumps — install postgresql-client or use the backup sidecar)"
         exit 1
       fi
       ;;

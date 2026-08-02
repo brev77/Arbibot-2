@@ -415,7 +415,7 @@ C1/H2/M6 и т.д. ссылочны через `tracker_ref`, операцион
 | 20 | `SEC-LIVE-GATE-CORRECTNESS` | SEC (FUNC) | live-blocker | new | 5 | 3 | 15 | accepted | PLAN8 (`P8-2`) |
 | 21 | `SEC-WALLET-KEY-IMPORT` | SEC (FUNC) | live-blocker | new | 5 | 3 | 15 | accepted | PLAN8 (`P8-3`) |
 | 22 | `REL-LIVE-SMOKE-SCRIPT` | REL (DEVOPS) | live-blocker | new | 3 | 2 | 12 | accepted | PLAN8 (`P8-4`) |
-| 23 | `REL-PG-DUMP-CLIENT` | REL (DEVOPS) | paper-check | new | 2 | 1 | 10 | accepted | PLAN8 (`P8-5`) |
+| 23 | `REL-PG-DUMP-CLIENT` | REL (DEVOPS) | paper-check | new | 2 | 1 | 10 | done | PLAN8 (`P8-5`) |
 
 ### Легенда
 

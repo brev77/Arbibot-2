@@ -154,7 +154,16 @@ docker exec infra-postgres-1 psql -U arbibot -d arbibot -c "SELECT ..."
 cd /root/Arbibot-2 && set -a && . ./.env && set +a && npm run db:verify-migrations:all
 
 # Бэкап БД
+# P8-5: на paper-хосте системного pg_dump нет (БД в docker). Скрипт
+# tools/backup-postgres.sh авто-detect'ит отсутствие клиента и использует
+# docker exec <container> pg_dump. Имя контейнера auto-detect'ится по
+# hostname в DATABASE_URL (docker bridge / 'postgres' / 'host.docker.internal'
+# → infra-postgres-1); override через PG_CONTAINER. Альтернатива — установить
+# системный клиент: apt install -y postgresql-client-16.
 cd /root/Arbibot-2 && npm run db:backup
+
+# Восстановить из дампа (деструктивно — перезаписывает БД)
+cd /root/Arbibot-2 && npm run db:restore -- restore backups/arbibot_YYYYmmdd_HHMMSS.sql.gz
 
 # Panic stop (если что-то пошло не так)
 cd /root/Arbibot-2 && npm run panic:stop
