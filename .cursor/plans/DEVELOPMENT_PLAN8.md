@@ -256,7 +256,7 @@ Velodrome — coverage gap scanner↔execution). Это `paper-check`/`non-criti
 - **changed_areas:** `tools/live-smoke-testnet.mjs`, `package.json`,
   `docs/live-deploy-dod.md`, `docs/live-smoke-runbook.md`, `AGENTS.md`
 - **review_required:** `backend` + `/dex-security` (real capital, even testnet)
-- **status:** `planned`
+- **status:** `done` (2026-08-02) — `tools/live-smoke-testnet.mjs` (`npm run smoke:live-testnet`): 4-фазный сквозной smoke для DoD Gate 3. **HEALTH** (execution + capital + reconciliation + opportunity health checks; DEX health для testnet). **CAPITAL** rehearsal: `POST /capital/reservations` под aggregate ceiling gate, `SMOKE_CAPITAL_USD` (default $1, **fail-closed at $10** per DoD Gate 3), TTL 60s + release cleanup. **KILLDRILL**: `panic:stop` → verify `arb_dex_live_halt_active=1` metric → `panic:recover --confirm "I UNDERSTAND THIS RESUMES TRADING"` → verify `=0` (`SMOKE_SKIP_KILLDRILL=true` для CI). **RECON**: `GET /mismatches?status=open` → 0 expected post-smoke. Real testnet execute делегирован в `e2e-dex1-testnet.mjs` (этот smoke фокусируется на gates, не trade execution). Exit codes: 0 ok, 1 health/assertion, 2 capital safety (budget>$10), 3 kill-drill failed. Smoke: dry-run health-fail (сервисы не запущены, abort exit 1), budget fail-closed ($50 → exit 2), syntax ok. Runbook `docs/live-smoke-runbook.md` (prerequisites, RTO/cleanup, DoD recording). `docs/live-deploy-dod.md` Gate 3 + Gate 4 обновлены (Gate 4: убран `dex.live.enabled=true` после P8-2, live-gate = kill-switch + `DEX_VENUE_ENABLED`). Зависимость P8-2(d) chain-id fix отмечена. Inititative `REL-LIVE-SMOKE-SCRIPT` (#22) → `done` в roadmap-vectors.md.
 
 ---
 

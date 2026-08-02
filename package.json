@@ -82,6 +82,7 @@
     "db:backup": "bash tools/backup-postgres.sh",
     "db:restore": "bash tools/backup-postgres.sh restore",
     "wallet:import": "node tools/wallet-key-import.mjs",
+    "smoke:live-testnet": "node tools/live-smoke-testnet.mjs",
     "verify:deployment": "bash tools/verify-deployment.sh",
     "verify:env": "bash tools/validate-env.sh",
     "panic:stop": "bash tools/panic-button.sh",

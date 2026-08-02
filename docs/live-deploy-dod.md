@@ -16,7 +16,7 @@ live is enabled with minimal capital.
 All capital-critical controls must be enforced **in backend code**, not only in docs or seed.
 
 - [x] **D4-B-1-KILLSWITCH** — `DexKillSwitchService.assertLiveNotHalted()` before every live leg; `DEX_LIVE_KILL_SWITCH` env override + `dex.limits.killSwitch` config; fail-closed in prod; metric `arb_dex_live_halt_active`.
-- [x] **D4-B-2-LIMITS** — `dex.limits`/`dex.live` consumed by backend; `evaluateTrade()` wired in 5 live DEX adapters; `recordTradeVolume()` after `tx.wait()`; daily volume persisted (migration 039).
+- [x] **D4-B-2-LIMITS** — `dex.limits` consumed by backend (`evaluateTrade()` in 5 live DEX adapters, `recordTradeVolume()` after `tx.wait()`, daily volume persisted migration 039). ~~`dex.live`~~ — P8-2(a): backend consumer был мёртвым кодом (0 call sites), удалён; live-gate = kill-switch (D4-B-1) + `DEX_VENUE_ENABLED` env. См. [`docs/adr-live-gate.md`](adr-live-gate.md) §2.
 - [x] **D4-B-3-CEILING** — Aggregate capital ceiling (reservations + open positions) enforced with `FOR UPDATE` subquery.
 - [x] **D4-B-4-KEYS** — Wallet keys in DB (`wallet_keys`, migration 042); no long-lived in-memory `ethers.Wallet`; `KeyVaultService` sole decrypt path.
 - [x] **D4-B-5-BRIDGE** — Real bridge finality + destination delivery verification (migration 043 finality columns).
@@ -44,10 +44,12 @@ All capital-critical controls must be enforced **in backend code**, not only in 
 - [ ] **Capital rehearsal:** reserve → execute → reconcile on a minimal sum (≤ $10) on testnet.
 - [ ] **Kill-switch drill mid-soak:** trigger panic-button during the run; confirm new live legs blocked, in-flight legs complete, reconciliation clean after recovery.
 
+> **P8-4 (2026-08-02):** capital rehearsal + kill-switch drill + reconciliation check автоматизированы в `npm run smoke:live-testnet` (`tools/live-smoke-testnet.mjs`). См. [`docs/live-smoke-runbook.md`](live-smoke-runbook.md). Bridge transfers (≥10) остаются отдельным 24h soak (adapter-level: `npm run e2e:dex2-multichain`).
+
 ## Gate 4 — go-live sign-off
 
 - [ ] **Product-owner approval** to enable live with minimal capital.
-- [ ] **`dex.live.enabled=true`** + **`dex.live.liveEnabled=true`** promoted via config-service (operator-approved, audited). `dryRunMode` flipped to `false` **only** at this point.
+- [ ] **Live enablement** (P8-2 correction): live-gate = `DEX_VENUE_ENABLED=true` (env, `VenueFactoryService`) + `dex.limits.killSwitch=false` (config) + `DEX_LIVE_KILL_SWITCH=false` (env). ~~`dex.live.enabled=true` / `dex.live.liveEnabled=true`~~ — **removed** (P8-2(a)): backend не потреблял `dex.live`; flipping ничего не делал. Kill-switch (`DexKillSwitchService`) — canonical live-gate, см. [`docs/adr-live-gate.md`](adr-live-gate.md) §1, §2.
 - [ ] **First live trade** monitored end-to-end (opportunity → risk → capital → execution → portfolio → reconciliation → audit); all events present.
 - [ ] **Smoke result recorded** in `docs/live-deploy-smoke-<date>.md`.
 
