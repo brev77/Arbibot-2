@@ -162,6 +162,57 @@ else
   fail "skill investigate-alert.md missing (P7-7 wiring broken)"
 fi
 
+# ── 9. P8-1 — cron-skills reconciliation ────────────────────────────────────
+# Catches the class of regression that left 4/5 cron jobs silently broken:
+# config `skill:` references must map to a real skill file by frontmatter `name:`.
+# Before P8-1, cron jobs referenced status_check / incident_management / position_overview /
+# approval_handler / investigate_alert — none of which existed as skills. The agent silently
+# no-op'd the scheduled summary, so the operator never received cron reports in Telegram.
+#
+# Resolution rule (canonical since P8-1): frontmatter `name:` is snake_case and must match the
+# `skill:` token in hermes-config.yaml EXACTLY. Filename is kebab-case (FS convention) but is
+# NOT the resolution key. This guard asserts the exact-match contract.
+
+SKILLS_DIR="tools/hermes-agent/skills"
+# Build the set of skill names declared in frontmatter (`name:` lines).
+# `grep -h` strips the filename prefix; we match the YAML key `name:` at the start of a line.
+declared_skill_names="$(grep -hE '^name:' "$SKILLS_DIR"/*.md | sed -E 's/^name:[[:space:]]*//' | sort -u)"
+
+if [[ -z "$declared_skill_names" ]]; then
+  fail "no skill files with frontmatter `name:` found under $SKILLS_DIR (P8-1 guard cannot run)"
+else
+  ok "found $(echo "$declared_skill_names" | wc -l | tr -d ' ') skill(s) with frontmatter name:"
+fi
+
+# Extract every `skill:<name>` reference from cron jobs and telegram commands.
+# Matches both `skill: foo` and `→ skill:foo` (telegram command form).
+config_skill_refs="$(grep -hoE 'skill:[[:space:]]*[a-z_]+' "$CONFIG_YAML" \
+  | sed -E 's/skill:[[:space:]]*//' | sort -u)"
+
+if [[ -z "$config_skill_refs" ]]; then
+  fail "no `skill:` references found in $CONFIG_YAML (expected cron jobs + telegram commands)"
+else
+  ok "found $(echo "$config_skill_refs" | wc -l | tr -d ' ') skill reference(s) in config"
+fi
+
+# Every config reference must appear in the declared set (exact match, snake_case).
+missing_skills=""
+while IFS= read -r ref; do
+  [[ -z "$ref" ]] && continue
+  if ! echo "$declared_skill_names" | grep -qxF "$ref"; then
+    missing_skills="$missing_skills $ref"
+  fi
+done <<< "$config_skill_refs"
+
+if [[ -z "$missing_skills" ]]; then
+  ok "P8-1: all config skill references map to existing skills (exact match)"
+else
+  for m in $missing_skills; do
+    fail "P8-1: config references skill '$m' but no skills/*.md has frontmatter name: $m"
+  done
+  echo "         Declared skills: $(echo "$declared_skill_names" | tr '\n' ' ')" >&2
+fi
+
 echo ""
 if (( failures > 0 )); then
   printf 'ci-hermes-agent-smoke: FAIL — %d regression(s). See docs/lessons/hermes-agent-dod-failure.md.\n' "$failures" >&2

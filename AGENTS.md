@@ -308,17 +308,22 @@ There is **no** `core-backend/` or `operator-frontend/` directory; older docs or
 - **Agent config:** `tools/hermes-agent/` — Hermes Agent (NousResearch) YAML config + MCP connection config
   - `hermes-config.yaml` — LLM provider, messaging (Telegram/Discord), cron, skills path
   - `mcp-config.json` — MCP server stdio connection (command, args, env)
-- **Skills:** `tools/hermes-agent/skills/` — 10 Arbibot-specific skills (markdown):
+- **Skills:** `tools/hermes-agent/skills/` — 15 Arbibot-specific skills (markdown). P8-1 (2026-08-02): нормализованы frontmatter `name:` на snake_case (канон резолвинга), созданы 4 недостающих skill-файла для cron jobs, добавлен CI guard в `ci-hermes-agent-smoke.sh` (чек 9 — проверка что каждый `skill:` в конфиге маппится на существующий файл). См. таблицу cron↔skill mapping в [`docs/hermes-reference.md`](docs/hermes-reference.md):
   - `investigate-incident` — автоанализ инцидента → рекомендация
   - `investigate-alert` (P7-7) — анализ Prometheus/Alertmanager алертов (диск, ServiceDown) → пересказ в Telegram
   - `risk-summary` — сводка risk decisions за период
   - `reconciliation-check` — mismatches → отчёт → рекомендации
   - `force-hedge-preview` — NL impact preview перед force hedge
   - `daily-report` — ежедневный отчёт (cron)
-  - `safe-mode-check` — проверка + рекомендация safe-mode
+  - `safe-mode-check` (frontmatter name: `safe_mode_control`) — проверка + управление safe-mode
   - `explain-bot` (Plan 5) — объясняет работу бота по-русски
   - `scanner-status` (S4-4) — сводка cross-DEX сканера
   - `config-management` (Plan 6) — управление настройками бота
+  - **`status-check`** (P8-1) — heartbeat cron `status_heartbeat`, команда `/status`
+  - **`plan-review`** (P8-1) — обзор execution plans, команда `/plans`
+  - **`position-overview`** (P8-1) — обзор портфеля, команда `/positions` + cron `daily_risk_summary`
+  - **`incident-management`** (P8-1) — управление инцидентами + reconciliation, команда `/incidents` + cron `reconciliation_report`
+  - **`approval-queue-check`** (P8-1, frontmatter name: `approval_handler`) — очередь approvals, команда `/approve` + cron `approval_queue_check`
 - **MCP Tools (25):** list_plans, get_plan, arm_plan, execute_plan, list_positions, close_position, list_incidents, resolve_incident, list_incident_briefs, **`list_alertmanager_incidents`** (P7-7 — Prometheus alerts → Telegram pipeline), get_safe_mode_status, enable_safe_mode, disable_safe_mode, get_approvals_queue, get_dashboard_summary + 8 config-management (Plan 6) + 2 scanner (S4-4)
 - **ADR:** [`docs/adr-hermes-agent-integration.md`](docs/adr-hermes-agent-integration.md)
 - **Env vars:** `HERMES_MCP_PORT` (default 4000), `HERMES_AGENT_API_KEY`

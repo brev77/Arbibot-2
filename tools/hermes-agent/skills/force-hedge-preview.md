@@ -1,5 +1,5 @@
 ---
-name: force-hedge-preview
+name: force_hedge_preview
 description: "NL impact preview перед force hedge: показывает что изменится, какие позиции затронуты"
 readonly: true
 tools:

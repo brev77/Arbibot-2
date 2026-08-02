@@ -10,7 +10,7 @@
 |------|-----------|
 | `hermes-config.yaml` | Основной конфиг Agent (LLM, messaging, cron, security) |
 | `mcp-config.json` | MCP Server connection config (stdio transport) |
-| `skills/*.md` | Arbibot-навыки агента (7 шт., включая `explain-bot`) |
+| `skills/*.md` | Arbibot-навыки агента (15 шт. — см. P8-1) |
 
 ## Быстрый старт
 
@@ -122,7 +122,7 @@ Operator → Telegram → Hermes Agent (Python, GLM 5.2) → MCP Server (TS) →
 | `/plans` | plan_review | Анализ execution plans |
 | `/positions` | position_overview | Обзор портфеля |
 | `/incidents` | incident_management | Управление инцидентами |
-| `/safe` | safe_mode_control | Управление safe mode |
+| `/safe` | safe_mode_control | Проверка и управление safe mode (P8-1: frontmatter normalized) |
 | `/approve` | approval_handler | Очередь approvals |
 | `/explain` | explain_bot | Объяснение работы бота (Plan 5) |
 | `/config` | config_management | Управление настройками бота (Plan 6, только безопасные ключи) |

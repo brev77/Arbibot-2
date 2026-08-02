@@ -1,5 +1,5 @@
 ---
-name: risk-summary
+name: risk_summary
 description: "Сводка risk decisions за период: количество, распределение по severity, тренды"
 readonly: true
 tools:

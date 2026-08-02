@@ -1,5 +1,5 @@
 ---
-name: scanner-status
+name: scanner_status
 description: "Сводка работы cross-DEX сканера: статус инстансов, последние findings, spread/volume"
 readonly: true
 tools:

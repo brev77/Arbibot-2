@@ -51,12 +51,12 @@ messaging:
     allowed_users:
       - ${OPERATOR_TELEGRAM_ID}
     commands:
-      - /status    → skill:status_check
-      - /plans     → skill:plan_review
-      - /positions → skill:position_overview
-      - /incidents → skill:incident_management
-      - /safe      → skill:safe_mode_control
-      - /approve   → skill:approval_handler
+      - /status    → skill:status_check         # P8-1: created
+      - /plans     → skill:plan_review          # P8-1: created
+      - /positions → skill:position_overview    # P8-1: created
+      - /incidents → skill:incident_management  # P8-1: created
+      - /safe      → skill:safe_mode_control    # P8-1: frontmatter normalized
+      - /approve   → skill:approval_handler     # P8-1: created
       - /explain   → skill:explain_bot
       - /config    → skill:config_management
 

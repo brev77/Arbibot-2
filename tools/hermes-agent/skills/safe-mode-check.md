@@ -1,5 +1,5 @@
 ---
-name: safe-mode-check
+name: safe_mode_control
 description: "Проверка и рекомендация safe-mode: анализ состояния системы и необходимости включения"
 readonly: false
 tools:

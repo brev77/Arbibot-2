@@ -1,5 +1,5 @@
 ---
-name: reconciliation-check
+name: reconciliation_check
 description: "Проверка reconciliation mismatches: отчёт о расхождениях и рекомендации"
 readonly: true
 tools:

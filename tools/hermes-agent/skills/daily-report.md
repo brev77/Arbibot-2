@@ -1,5 +1,5 @@
 ---
-name: daily-report
+name: daily_report
 description: "Ежедневный отчёт: дашборд, позиции, plans, инциденты за сутки"
 readonly: true
 tools:

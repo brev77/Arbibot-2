@@ -1,5 +1,5 @@
 ---
-name: investigate-incident
+name: investigate_incident
 description: "Автоматический анализ инцидента: собирает данные, определяет причину, рекомендует действие"
 readonly: false
 tools:

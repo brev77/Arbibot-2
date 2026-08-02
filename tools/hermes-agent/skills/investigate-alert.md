@@ -1,5 +1,5 @@
 ---
-name: investigate-alert
+name: investigate_alert
 description: "Анализ Prometheus/Alertmanager алертов (диск, ServiceDown, error-rate) и пересказ оператору в Telegram"
 readonly: true
 tools:

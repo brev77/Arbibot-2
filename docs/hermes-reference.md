@@ -83,6 +83,54 @@
 
 ---
 
+## Hermes Agent — cron jobs и skills (P8-1)
+
+> **Аудит 2026-08-02 (P8-1) выявил:** 4 из 5 cron jobs в `tools/hermes-agent/hermes-config.yaml`
+> молча не работали — `skill:`-имена в cron конфиге не совпадали с frontmatter `name:`
+> существующих skill-файлов. Оператор не получал status heartbeat, reconciliation report,
+> daily risk summary, approval queue check. Исправлено в P8-1: созданы 4 недостающих skill-файла,
+> нормализованы frontmatter `name:` (snake_case как канон), добавлен CI guard.
+
+**Правило резолвинга (canonical с P8-1):** frontmatter `name:` в `skills/*.md` — это
+**ключ резолвинга** (snake_case), и он должен **точно** совпадать с токеном `skill:` в
+`hermes-config.yaml` (cron jobs + telegram commands). Имя файла (kebab-case) — это
+FS-convention, но не ключ. CI guard в `tools/ci-hermes-agent-smoke.sh` (чек 9) ловит
+нарушение этого контракта.
+
+### Cron jobs → skills
+
+| Cron job | Schedule | Skill | Назначение |
+|----------|----------|-------|-----------|
+| `status_heartbeat` | `*/15 * * * *` | `status_check` | Heartbeat (silent — молчит если всё ок) |
+| `reconciliation_report` | `0 */6 * * *` | `incident_management` | Сводка инцидентов + reconciliation mismatches |
+| `daily_risk_summary` | `0 9 * * *` | `position_overview` | Daily портфельная сводка (notify: discord) |
+| `approval_queue_check` | `*/5 * * * *` | `approval_handler` | Pending approvals (silent если очередь пуста) |
+| `alert_watch` (P7-7) | `${ALERT_WATCH_INTERVAL:*/2 * * * *}` | `investigate_alert` | Prometheus/Alertmanager alerts → Telegram |
+
+### Telegram commands → skills
+
+| Command | Skill | Назначение |
+|---------|-------|-----------|
+| `/status` | `status_check` | Обзор состояния системы |
+| `/plans` | `plan_review` | Анализ execution plans |
+| `/positions` | `position_overview` | Обзор портфеля |
+| `/incidents` | `incident_management` | Управление инцидентами |
+| `/safe` | `safe_mode_control` | Проверка/управление safe mode |
+| `/approve` | `approval_handler` | Очередь approvals |
+| `/explain` | `explain_bot` | Объяснение работы бота |
+| `/config` | `config_management` | Управление настройками (Plan 6) |
+
+### Доступные skills (15 шт.)
+
+`status_check`, `plan_review`, `position_overview`, `incident_management`,
+`safe_mode_control`, `approval_handler`, `explain_bot`, `config_management` (8 командных),
++ `investigate_alert` (cron P7-7), `investigate_incident`, `reconciliation_check`,
+`risk_summary`, `daily_report`, `scanner_status`, `force_hedge_preview` (7 вспомогательных).
+
+См. [`tools/hermes-agent/skills/`](../tools/hermes-agent/skills/) — каждый `.md` файл
+содержит `name:` (snake_case), `description`, `tools:` (MCP tools), trigger patterns,
+формат ответа и guardrails.
+
 ## Связанные документы
 
 | Документ | Тема |

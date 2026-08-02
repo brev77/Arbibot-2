@@ -386,7 +386,10 @@ C1/H2/M6 и т.д. ссылочны через `tracker_ref`, операцион
 > Порядок — по `gate` (live-blocker первыми), затем по `score` (убывание).
 > Скоуп первого плана (`DEVELOPMENT_PLAN7.md`) — initiatives `#1–#6` + `#18`
 > (Hermes alert pipeline добавлен в PLAN7 как `P7-7` после аудита маршрутизации
-> 2026-08-01).
+> 2026-08-01) — все `done`.
+> Скоуп второго плана (`DEVELOPMENT_PLAN8.md`) — initiatives `#19–#23`
+> (сформирован из аудита кода 2026-08-02, выявившего, что несколько «готовых»
+> защит live-фазы не работают, а Hermes cron-skills молча сломаны).
 
 | # | step_id | Вектор(ы) | gate | tracker | impact | effort | score | status | plan |
 |---|---------|-----------|------|---------|--------|--------|-------|--------|------|
@@ -408,6 +411,11 @@ C1/H2/M6 и т.д. ссылочны через `tracker_ref`, операцион
 | 16 | `DEP-SBOM` | DEP | non-critical | — | 2 | 2 | 8 | proposed | — |
 | 17 | `QUAL-PROMO-PRECONDITION` | QUAL (FUNC) | paper-check | TODO urgent | 2 | 1 | 10 | proposed | — |
 | 18 | `REL-HERMES-ALERT-PIPELINE` | REL (UX) | live-blocker | new | 5 | 3 | 15 | done | PLAN7 (`P7-7`) |
+| 19 | `REL-HERMES-CRON-SKILLS` | REL (UX) | live-blocker | new | 5 | 2 | 20 | done | PLAN8 (`P8-1`) |
+| 20 | `SEC-LIVE-GATE-CORRECTNESS` | SEC (FUNC) | live-blocker | new | 5 | 3 | 15 | accepted | PLAN8 (`P8-2`) |
+| 21 | `SEC-WALLET-KEY-IMPORT` | SEC (FUNC) | live-blocker | new | 5 | 3 | 15 | accepted | PLAN8 (`P8-3`) |
+| 22 | `REL-LIVE-SMOKE-SCRIPT` | REL (DEVOPS) | live-blocker | new | 3 | 2 | 12 | accepted | PLAN8 (`P8-4`) |
+| 23 | `REL-PG-DUMP-CLIENT` | REL (DEVOPS) | paper-check | new | 2 | 1 | 10 | accepted | PLAN8 (`P8-5`) |
 
 ### Легенда
 
