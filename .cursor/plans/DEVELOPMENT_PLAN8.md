@@ -223,7 +223,7 @@ Velodrome — coverage gap scanner↔execution). Это `paper-check`/`non-criti
   `apps/execution-orchestrator/src/execution/wallet-manager.service.ts` (если
   exposes метод), опц. `apps/web` UI, ADR, runbooks, `AGENTS.md`
 - **review_required:** `architecture` + `/dex-security` (K1/K2 — key leakage)
-- **status:** `planned`
+- **status:** `done` (2026-08-02) — CLI-first approach (UI deferred, см. ADR §Alternatives). `tools/wallet-key-import.mjs` (`npm run wallet:import`): читает private key из stdin/env (НЕ args — не светит в `ps`), валидирует формат (64 hex), derives address через `ethers.computeAddress`, fail-closed если derived ≠ `--expected-address`, шифрует AES-256-GCM (тот же algorithm/params что `KeyVaultService.encryptPrivateKey`: scrypt-derived key, 16-byte IV, 32-byte per-key salt, GCM authTag), bind к deploy через `VAULT_MASTER_KEY_SALT` (P7-6), INSERT в `wallet_keys` с idempotency (refuse overwrite — rotation = new key_id). Ключ **никогда** не логируется (ci:key-leakage guard проходит). Smoke: dry-run + negative-tests (wrong address, invalid format) проверены. ADR `docs/adr-wallet-key-import.md` (threat model K1/K2, CLI vs UI vs Vault Transit). `docs/vault-integration-guide.md` §6 + `docs/key-rotation-runbook.md` Шаг 2 обновлены. Inititative `SEC-WALLET-KEY-IMPORT` (#21) → `done` в roadmap-vectors.md.
 
 ---
 

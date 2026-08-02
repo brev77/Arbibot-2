@@ -294,7 +294,45 @@ export class VaultClientService {
 
 ---
 
-## 6. Изменения в KeyVaultService
+## 6. Импорт wallet keys оператором (P8-3, 2026-08-02)
+
+До Phase C (Vault Transit) импорт приватных ключей кошельков в `wallet_keys`
+выполняется CLI-инструментом `npm run wallet:import` (`tools/wallet-key-import.mjs`).
+Это **единственный** поддерживаемый путь импорта для v1 live — прямой SQL `INSERT`
+не валидирует derived address и не гарантирует формат ciphertext.
+
+**Процедура:**
+
+```bash
+# На хосте (SSH), из корня репо:
+cd /root/Arbibot-2
+set -a && . ./.env && set +a   # поднять DATABASE_URL, PRIVATE_KEY_ENCRYPTION_KEY, VAULT_MASTER_KEY_SALT
+
+# Dry-run сначала — проверить derived address:
+echo "0xPRIVATE_KEY" | npm run wallet:import -- --key-id prod-arb-1 --chain-id 42161 \
+    --expected-address 0x... --dry-run
+
+# Импорт (pipe — ключ не остаётся в shell history):
+echo "0xPRIVATE_KEY" | npm run wallet:import -- --key-id prod-arb-1 --chain-id 42161 \
+    --expected-address 0x...
+```
+
+**Что делает CLI:** читает ключ из stdin/env (НЕ из args — не светит в `ps`),
+валидирует формат, derives address через `ethers.computeAddress`, fail-closed
+если derived ≠ `--expected-address`, шифрует AES-256-GCM (тот же algorithm что
+`KeyVaultService`), INSERT в `wallet_keys`. Ключ **никогда** не логируется.
+
+**Threat model (K1/K2):** см. [`docs/adr-wallet-key-import.md`](adr-wallet-key-import.md).
+**Ротация:** импорт нового `key_id` + deactivate старого — см.
+[`docs/key-rotation-runbook.md`](key-rotation-runbook.md).
+
+**Phase C миграция:** когда Vault Transit включён, CLI меняет локальный
+`encryptPrivateKey` на Vault Transit call — rest of flow (read, validate, derive,
+INSERT) не меняется. См. ADR §Alternatives C.
+
+---
+
+## 7. Изменения в KeyVaultService
 
 ```typescript
 // apps/execution-orchestrator/src/key-vault/key-vault.service.ts (Phase C diff)

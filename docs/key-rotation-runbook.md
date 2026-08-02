@@ -26,16 +26,42 @@ openssl rand -hex 32
 
 ### Шаг 2: Шифрование и сохранение в KeyVault
 
-Использовать `KeyVaultService.encryptPrivateKey()`:
+**P8-3 (2026-08-02):** используйте CLI `npm run wallet:import` (`tools/wallet-key-import.mjs`)
+— это единственный поддерживаемый путь. CLI валидирует derived address, шифрует
+AES-256-GCM (тем же algorithm что `KeyVaultService`), INSERT в `wallet_keys`,
+никогда не логирует ключ. Прямой SQL `INSERT` и программный вызов
+`KeyVaultService.encryptPrivateKey()` вне CLI не рекомендуются (нет валидации
+address, нет audit).
+
+```bash
+# На хосте (SSH), из корня репо:
+cd /root/Arbibot-2
+set -a && . ./.env && set +a   # DATABASE_URL, PRIVATE_KEY_ENCRYPTION_KEY, VAULT_MASTER_KEY_SALT
+
+# Ротация = НОВЫЙ key_id (не перезаписывать старый):
+echo "0xNEW_PRIVATE_KEY" | npm run wallet:import -- \
+    --key-id prod-arb-2 \
+    --chain-id 42161 \
+    --expected-address 0xNEW_ADDRESS
+```
+
+См. [`docs/adr-wallet-key-import.md`](adr-wallet-key-import.md) для threat model
+(K1/K2) и [`docs/vault-integration-guide.md`](vault-integration-guide.md) §6.
+
+<details>
+<summary>Программный путь (устаревший, для reference)</summary>
 
 ```typescript
 const encrypted = await keyVaultService.encryptPrivateKey(
   newPrivateKey,
   keyId,       // уникальный ID нового ключа
-  chainId,     // ChainId (42161, 8453, 56)
-  address      // Адрес wallet'а
 );
+await keyVaultService.registerWalletKey(keyId, address, chainId);
 ```
+
+Этот путь не валидирует derived address автоматически — используйте CLI вместо него.
+
+</details>
 
 ### Шаг 3: Активация нового ключа
 
