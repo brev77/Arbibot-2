@@ -346,7 +346,7 @@ describe('RpcProviderManager', () => {
 
       const status = service.getAllHealthStatus();
       expect(status.has(42161)).toBe(true);  // Arbitrum mainnet
-      expect(status.has(421611)).toBe(true); // Arbitrum testnet
+      expect(status.has(421614)).toBe(true); // Arbitrum Sepolia testnet (P8-2(d): was 421611)
       expect(status.has(8453)).toBe(true);   // Base mainnet
       expect(status.has(84532)).toBe(true);  // Base testnet
       expect(status.has(56)).toBe(true);     // BNB mainnet

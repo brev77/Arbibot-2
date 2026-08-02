@@ -63,7 +63,11 @@ export class RpcProviderManager implements OnModuleInit, OnModuleDestroy {
   private initializeProviders() {
     const configs = [
       { chainId: 42161, primary: process.env.RPC_ARBITRUM_MAINNET_URL, backup: process.env.RPC_ARBITRUM_MAINNET_BACKUP_URL },
-      { chainId: 421611, primary: process.env.RPC_ARBITRUM_TESTNET_URL, backup: process.env.RPC_ARBITRUM_TESTNET_BACKUP_URL },
+      // P8-2(d): Arbitrum Sepolia = 421614 (ChainId.ARBITRUM_ONE_SEPOLIA).
+      // Previously 421611 — a deprecated Arbitrum testnet id that no public RPC
+      // honours, so testnet smoke hit a non-matching network. 421614 is the
+      // chain id every Sepolia RPC endpoint enforces.
+      { chainId: 421614, primary: process.env.RPC_ARBITRUM_TESTNET_URL, backup: process.env.RPC_ARBITRUM_TESTNET_BACKUP_URL },
       { chainId: 8453, primary: process.env.RPC_BASE_MAINNET_URL, backup: process.env.RPC_BASE_MAINNET_BACKUP_URL },
       { chainId: 84532, primary: process.env.RPC_BASE_TESTNET_URL, backup: process.env.RPC_BASE_TESTNET_BACKUP_URL },
       { chainId: 56, primary: process.env.RPC_BNB_MAINNET_URL, backup: process.env.RPC_BNB_MAINNET_BACKUP_URL },

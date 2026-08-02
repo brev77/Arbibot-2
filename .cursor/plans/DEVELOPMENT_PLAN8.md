@@ -180,7 +180,13 @@ Velodrome — coverage gap scanner↔execution). Это `paper-check`/`non-criti
   `apps/execution-orchestrator/src/execution/rpc/rpc-provider-manager.service.ts`,
   `apps/capital-service/src/capital/capital.service.ts`, specs, ADR, DoD docs
 - **review_required:** `architecture` + `/dex-security` (capital safety)
-- **status:** `planned`
+- **status:** `done` (2026-08-02) — 4 суб-фикса:
+  - **(a) dex.live — Вариант B (удалить):** `getEffectiveLiveConfig()` / `DexLiveConfig` / `parseLiveResponse` / `refreshLive` / `liveCache` / `liveInflight` / `SAFE_DEFAULT_LIVE` / `ParsedLive` / `asStringArray` удалены как мёртвый код (0 call sites). `dex.live` ключ остаётся в seed (migration 035) и читается frontend UI, но backend больше не претендует на потребление. Live-gate = kill-switch (`DexKillSwitchService`, D4-B-1) + `DEX_VENUE_ENABLED` env gate в `VenueFactoryService`.
+  - **(b) requireApproval — Вариант B (удалить):** `DexRiskPolicyConfig.requireApproval`, `SAFE_DEFAULT_CONFIG.requireApproval`, parse в `parseLimitsResponse` удалены. Поле парсилось но никогда не enforced (D4-B-8 two-person descoped). Frontend toggle (`requireOperatorApprovalPerTrade` в seed JSON) остаётся — он управляет UI typed-phrase flow, который IS enforced client-side. Mitigation для single-operator: kill-switch + capital ceiling + typed-phrase (`DestructiveOperatorAction`).
+  - **(c) Capital ceiling — уже исправлено ранее:** `capital.service.ts:88-94` уже суммирует `active reservations + open positions` (confirmed test "Capital ceiling exceeded: active reservations $0 + open positions $950 + requested $100 > ceiling $1000"). Docstring соответствует коду. Ничего менять не потребовалось.
+  - **(d) RPC chain-id:** `rpc-provider-manager.service.ts:66` — `421611` (deprecated Arbitrum testnet) → `421614` (`ChainId.ARBITRUM_ONE_SEPOLIA`, реальный Arbitrum Sepolia). Spec обновлён (`rpc-provider-manager.service.spec.ts:349`).
+  - **Документы:** `docs/adr-live-gate.md` §2 и §8 обновлены с P8-2 корректировками.
+  - **Тесты:** execution-orchestrator 801/801 ✅ (46 suites), capital-service 24/24 ✅. Build + lint green. Inititative `SEC-LIVE-GATE-CORRECTNESS` (#20) → `done` в roadmap-vectors.md.
 
 ---
 

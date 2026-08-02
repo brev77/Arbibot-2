@@ -62,7 +62,7 @@ describe('DexRiskPolicyService', () => {
       expect(cfg.maxPositionSizeUsd).toBe(500);
       expect(cfg.maxDailyVolumeUsd).toBe(5000);
       expect(cfg.maxSlippageBps).toBe(50);
-      expect(cfg.requireApproval).toBe(true);
+      // P8-2(b): requireApproval field removed from DexRiskPolicyConfig
     });
 
     it('keeps all 5 protocols allowed by default', async () => {
@@ -160,7 +160,7 @@ describe('DexRiskPolicyService', () => {
         allowedProtocols: ['uniswap-v2'],
         blockedTokens: [],
         maxDailyVolumeUsd: 10_000,
-        requireApproval: false,
+        // P8-2(b): requireApproval removed from DexRiskPolicyConfig
         minNetProfitUsd: 0.5,
       });
       const result = await service.evaluateTrade({
@@ -185,7 +185,7 @@ describe('DexRiskPolicyService', () => {
         allowedProtocols: ['uniswap-v2'],
         blockedTokens: [],
         maxDailyVolumeUsd: 10_000,
-        requireApproval: false,
+        // P8-2(b): requireApproval removed from DexRiskPolicyConfig
         minNetProfitUsd: 0.5,
       });
       const result = await service.evaluateTrade({
@@ -210,7 +210,7 @@ describe('DexRiskPolicyService', () => {
         allowedProtocols: ['uniswap-v2'],
         blockedTokens: [],
         maxDailyVolumeUsd: 1000,
-        requireApproval: false,
+        // P8-2(b): requireApproval removed from DexRiskPolicyConfig
         minNetProfitUsd: 0.5,
       });
       // Existing daily volume 950; adding 100 → 1050 > 1000.
@@ -237,7 +237,7 @@ describe('DexRiskPolicyService', () => {
         allowedProtocols: ['uniswap-v2'],
         blockedTokens: [],
         maxDailyVolumeUsd: 10_000,
-        requireApproval: false,
+        // P8-2(b): requireApproval removed from DexRiskPolicyConfig
         minNetProfitUsd: 0.5,
       });
       const result = await service.evaluateTrade({
@@ -263,7 +263,7 @@ describe('DexRiskPolicyService', () => {
         allowedProtocols: ['uniswap-v2'],
         blockedTokens: [blocked],
         maxDailyVolumeUsd: 10_000,
-        requireApproval: false,
+        // P8-2(b): requireApproval removed from DexRiskPolicyConfig
         minNetProfitUsd: 0.5,
       });
       const result = await service.evaluateTrade({
@@ -279,37 +279,8 @@ describe('DexRiskPolicyService', () => {
     });
   });
 
-  describe('getEffectiveLiveConfig', () => {
-    it('parses dex.live effective (chains as string array → number[])', async () => {
-      (global.fetch as unknown) = jest.fn(() =>
-        Promise.resolve(
-          new Response(
-            JSON.stringify({
-              configValue: JSON.stringify({
-                liveEnabled: true,
-                paperParallelEnabled: false,
-                chains: ['42161', '8453'],
-                dryRunMode: false,
-              }),
-            }),
-            { status: 200, headers: { 'content-type': 'application/json' } },
-          ),
-        ),
-      );
-      const live = await service.getEffectiveLiveConfig();
-      expect(live.liveEnabled).toBe(true);
-      expect(live.chains).toEqual([42161, 8453]);
-      expect(live.dryRunMode).toBe(false);
-    });
-
-    it('falls back to safe live defaults (liveEnabled false) when unreachable', async () => {
-      (global.fetch as unknown) = jest.fn(() => Promise.reject(new Error('down')));
-      const fresh = new DexRiskPolicyService(
-        volumeRepo as unknown as Repository<DexDailyVolumeEntity>,
-      );
-      const live = await fresh.getEffectiveLiveConfig();
-      expect(live.liveEnabled).toBe(false);
-      expect(live.dryRunMode).toBe(true);
-    });
-  });
+  // P8-2(a): getEffectiveLiveConfig / DexLiveConfig removed — dead code (0 call
+  // sites). dex.live is no longer consumed by the backend; live-gate is
+  // kill-switch (DexKillSwitchService) + DEX_VENUE_ENABLED env. The two specs
+  // that asserted getEffectiveLiveConfig parsing/defaults were deleted with it.
 });

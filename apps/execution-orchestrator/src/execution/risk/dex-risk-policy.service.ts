@@ -10,9 +10,18 @@ import { DiscoveredPool } from '../pool/pool-discovery.service';
 /**
  * DEX Risk Policy Configuration (D4-B-2-LIMITS, L2).
  *
- * Sourced from config-service `dex.limits` / `dex.live` effective (cached),
- * with env overrides acting as LOWER-BOUND only (env can tighten, never loosen
- * the config value). Safe defaults mirror migration 035 seed (enabled:false).
+ * Sourced from config-service `dex.limits` effective (cached), with env
+ * overrides acting as LOWER-BOUND only (env can tighten, never loosen the
+ * config value). Safe defaults mirror migration 035 seed (enabled:false).
+ *
+ * P8-2(a), 2026-08-02: the `dex.live` config (liveEnabled / dryRunMode / chains)
+ * was parsed here via `getEffectiveLiveConfig()` but had ZERO call sites in the
+ * non-spec code — flipping `dex.live.enabled` did nothing. Live-gating is
+ * exclusively done by the kill-switch (DexKillSwitchService, D4-B-1) + the
+ * `DEX_VENUE_ENABLED` env gate in VenueFactoryService. The dead `dex.live`
+ * backend surface was removed; the key is still seeded (migration 035) and read
+ * by the frontend operator UI, but the backend no longer pretends to consume it.
+ * See docs/adr-live-gate.md §2 (updated P8-2).
  */
 export interface DexRiskPolicyConfig {
   enabled: boolean;                // dex.limits.enabled
@@ -23,7 +32,11 @@ export interface DexRiskPolicyConfig {
   allowedProtocols: string[];      // all 5 DEX protocols by default
   blockedTokens: Address[];        // tokens that cannot be traded
   maxDailyVolumeUsd: number;       // dex.limits.maxDailyNotionalUsd
-  requireApproval: boolean;        // dex.limits.requireOperatorApprovalPerTrade
+  // P8-2(b): `requireApproval` was parsed from `requireOperatorApprovalPerTrade`
+  // / `requireTwoPersonApproval` but never enforced — D4-B-8 (two-person) was
+  // descoped. The field is removed from the backend contract; the frontend
+  // still shows the toggle but the backend live-gate is kill-switch + capital
+  // ceiling + typed-phrase (DestructiveOperatorAction). See docs/adr-live-gate.md §8.
   /**
    * Minimum net profit (USD) a plan must clear AFTER all estimated costs
    * (gas + slippage + pool fees + bridge fees) for the plan-level cost gate to
@@ -31,14 +44,6 @@ export interface DexRiskPolicyConfig {
    * Read from `dex.limits.minNetProfitUsd`; safe default is conservative.
    */
   minNetProfitUsd: number;         // dex.limits.minNetProfitUsd (cost gate floor)
-}
-
-/** Parsed dex.live effective config. */
-export interface DexLiveConfig {
-  liveEnabled: boolean;
-  paperParallelEnabled: boolean;
-  chains: number[];
-  dryRunMode: boolean;
 }
 
 /** Risk check result. */
@@ -61,18 +66,10 @@ const SAFE_DEFAULT_CONFIG: DexRiskPolicyConfig = {
   allowedProtocols: ['uniswap-v2', 'uniswap-v3', 'sushiswap', 'pancakeswap-v2', 'biswap'],
   blockedTokens: [],
   maxDailyVolumeUsd: 5_000,
-  requireApproval: true,
   // Conservative floor: a plan must clear at least $0.50 net of all estimated
   // costs before the cost gate allows broadcast. Operators can raise this via
   // dex.limits.minNetProfitUsd. Safe-by-default for paper-first deployment.
   minNetProfitUsd: 0.5,
-};
-
-const SAFE_DEFAULT_LIVE: DexLiveConfig = {
-  liveEnabled: false,
-  paperParallelEnabled: true,
-  chains: [],
-  dryRunMode: true,
 };
 
 const CONFIG_CACHE_TTL_MS = 10_000; // 10s — limits are operational, short TTL
@@ -90,12 +87,6 @@ interface ParsedLimits {
   requireOperatorApprovalPerTrade?: unknown;
   requireTwoPersonApproval?: unknown;
   chains?: unknown;
-}
-interface ParsedLive {
-  liveEnabled?: unknown;
-  paperParallelEnabled?: unknown;
-  chains?: unknown;
-  dryRunMode?: unknown;
 }
 
 interface FetchJsonResult {
@@ -117,9 +108,6 @@ function asNumber(v: unknown, fallback: number): number {
 }
 function asBool(v: unknown, fallback: boolean): boolean {
   return typeof v === 'boolean' ? v : fallback;
-}
-function asStringArray(v: unknown): string[] | undefined {
-  return Array.isArray(v) && v.every((x) => typeof x === 'string') ? v : undefined;
 }
 
 async function fetchJson(url: string): Promise<FetchJsonResult> {
@@ -160,9 +148,7 @@ export class DexRiskPolicyService {
   private readonly logger = new Logger(DexRiskPolicyService.name);
 
   private limitsCache: { value: DexRiskPolicyConfig; fetchedAtMs: number } | null = null;
-  private liveCache: { value: DexLiveConfig; fetchedAtMs: number } | null = null;
   private limitsInflight: Promise<void> | null = null;
-  private liveInflight: Promise<void> | null = null;
 
   private riskCheckCounter!: Counter<string>;
   private riskBlockCounter!: Counter<string>;
@@ -305,16 +291,6 @@ export class DexRiskPolicyService {
     return this.applyEnvLowerBounds(base);
   }
 
-  /** Effective dex.live config (cached). */
-  async getEffectiveLiveConfig(): Promise<DexLiveConfig> {
-    if (this.liveCache === null || Date.now() - this.liveCache.fetchedAtMs > CONFIG_CACHE_TTL_MS) {
-      await this.refreshLive().catch(() => {
-        /* fall through to cache/defaults */
-      });
-    }
-    return this.liveCache?.value ?? SAFE_DEFAULT_LIVE;
-  }
-
   /** Force-refresh dex.limits from config-service (test/operation hook). */
   async refreshLimits(): Promise<void> {
     if (this.limitsInflight !== null) {
@@ -337,31 +313,6 @@ export class DexRiskPolicyService {
       await this.limitsInflight;
     } finally {
       this.limitsInflight = null;
-    }
-  }
-
-  /** Force-refresh dex.live from config-service. */
-  async refreshLive(): Promise<void> {
-    if (this.liveInflight !== null) {
-      await this.liveInflight;
-      return;
-    }
-    this.liveInflight = (async () => {
-      const url = `${configBaseUrl()}/policy/configurations/dex.live/effective`;
-      const res = await fetchJson(url);
-      const parsed = this.parseLiveResponse(res);
-      if (parsed !== null) {
-        this.liveCache = { value: parsed, fetchedAtMs: Date.now() };
-      } else {
-        this.logger.warn(
-          `dex.live effective fetch failed (status=${res.status}); retaining ${this.liveCache !== null ? 'stale cache' : 'safe defaults'}`,
-        );
-      }
-    })();
-    try {
-      await this.liveInflight;
-    } finally {
-      this.liveInflight = null;
     }
   }
 
@@ -398,39 +349,12 @@ export class DexRiskPolicyService {
       allowedProtocols: SAFE_DEFAULT_CONFIG.allowedProtocols, // all 5 by default
       blockedTokens: SAFE_DEFAULT_CONFIG.blockedTokens,
       maxDailyVolumeUsd: asNumber(parsed.maxDailyNotionalUsd, SAFE_DEFAULT_CONFIG.maxDailyVolumeUsd),
-      requireApproval: asBool(
-        parsed.requireOperatorApprovalPerTrade ?? parsed.requireTwoPersonApproval,
-        SAFE_DEFAULT_CONFIG.requireApproval,
-      ),
+      // P8-2(b): requireApproval removed — was parsed but never enforced
+      // (D4-B-8 two-person descoped). Live-gate = kill-switch + ceiling +
+      // typed-phrase. See docs/adr-live-gate.md §8.
       // Cost-gate floor (cost-estimation). Not in the original 035 seed; parsed
       // when present, else the conservative SAFE_DEFAULT_CONFIG.minNetProfitUsd.
       minNetProfitUsd: asNumber(parsed.minNetProfitUsd, SAFE_DEFAULT_CONFIG.minNetProfitUsd),
-    };
-  }
-
-  private parseLiveResponse(res: FetchJsonResult): DexLiveConfig | null {
-    if (!res.ok || res.body === null || typeof res.body !== 'object') {
-      return null;
-    }
-    const body = res.body as { configValue?: unknown };
-    if (typeof body.configValue !== 'string' || body.configValue.length === 0) {
-      return null;
-    }
-    let parsed: ParsedLive;
-    try {
-      parsed = JSON.parse(body.configValue) as ParsedLive;
-    } catch {
-      return null;
-    }
-    if (parsed === null || typeof parsed !== 'object') {
-      return null;
-    }
-    const chainsRaw = asStringArray(parsed.chains);
-    return {
-      liveEnabled: asBool(parsed.liveEnabled, SAFE_DEFAULT_LIVE.liveEnabled),
-      paperParallelEnabled: asBool(parsed.paperParallelEnabled, SAFE_DEFAULT_LIVE.paperParallelEnabled),
-      chains: chainsRaw !== undefined ? chainsRaw.map((c) => Number.parseInt(c, 10)).filter((n) => Number.isFinite(n)) : [],
-      dryRunMode: asBool(parsed.dryRunMode, SAFE_DEFAULT_LIVE.dryRunMode),
     };
   }
 

@@ -40,13 +40,15 @@ The deployment-readiness review (2026-07) found 8 capital-critical blockers (L1�
 ### 2. `dex.limits` / `dex.live` consumption (L2) — `D4-B-2`
 
 > **Implementation complete (2026-07-14).** Sub-steps 2a/2b/2c/2d landed in commits `e2dd527` / `27ff8eb` / `368e50e` / *(2d)*. All 5 live DEX adapters now pass through `evaluateTrade()` before wallet selection; `recordTradeVolume()` runs after `tx.wait()` success; `PaperDexAdapter` is structurally isolated (no risk-gate deps). Tests: 494/494, build + lint green. See `.cursor/plans/deploy-readiness/D4-B-2-LIMITS.md`.
+>
+> **P8-2(a) correction (2026-08-02):** the original §2 implied `dex.live` (`liveEnabled`/`dryRunMode`/`chains`) was consumed by `getEffectiveLiveConfig()`. A code audit found that method had **zero call sites** — flipping `dex.live.enabled` did nothing. Live-gating is exclusively the kill-switch (§1, `DexKillSwitchService`) + the `DEX_VENUE_ENABLED` env gate in `VenueFactoryService.resolveDexAdapter()`. The dead `getEffectiveLiveConfig` / `DexLiveConfig` / `parseLiveResponse` / `refreshLive` / `liveCache` backend surface was **removed** (commit P8-2). The `dex.live` key is still seeded (migration 035) and read by the frontend operator UI (`apps/web/lib/dex-config-types.ts`), but the backend no longer pretends to consume it — a future wire-up (if product wants a config-driven live toggle distinct from the kill-switch) would re-add a *consumed* reader, not a dead one.
 
-- **Config reader:** `DexRiskPolicyService.getEffectiveConfig()` reads config-service `dex.limits`/`dex.live` effective (cached) instead of the hardcoded defaults; env vars (`DEX_MAX_*`) remain as **lower-bound overrides** only (env can tighten, never loosen, the config value).
+- **Config reader:** `DexRiskPolicyService.getEffectiveConfig()` reads config-service `dex.limits` effective (cached); env vars (`DEX_MAX_*`) remain as **lower-bound overrides** only (env can tighten, never loosen, the config value). *(P8-2: `dex.live` reader removed — see note above.)*
 - **`evaluateTrade()` wired in:** every DEX adapter (`uniswap-v2`, `uniswap-v3`, `sushiswap-v2`, `pancakeswap-v2`, `biswap-v2`) calls `dexRiskPolicy.evaluateTrade({...})` before `selectWallet`, throwing on `deny`. The single insertion point is the adapter's swap entry; bridge legs are gated by the kill-switch + their own finality (L5), not `evaluateTrade`. Fail-closed: an unresolved `tokenIn` USD price (price oracle → `null`) throws before broadcast.
 - **`recordTradeVolume()` wired in:** each adapter calls it after a successful `tx.wait()` (non-fatal — the swap is already broadcast; any persistence failure is logged inside the service).
 - **Daily volume persisted:** the in-memory `dailyVolume` Map moves to a Postgres table (`dex_daily_volume` keyed by `chain_id, trade_date`) updated via atomic UPSERT; survives restart. Migration in `D4-B-2a`.
 - **Paper/live isolation:** `PaperDexAdapter` has a zero-arg constructor and never imports `DexRiskPolicyService` / `PriceOracleService` (structural guard in `paper-dex.adapter.spec.ts`).
-- **Defaults:** migration 035 already seeds safe defaults (`enabled:false`, `liveEnabled:false`, `dryRunMode:true`) — these remain until product-owner explicitly enables live.
+- **Defaults:** migration 035 still seeds safe defaults (`enabled:false`, `liveEnabled:false`, `dryRunMode:true`) — `dex.limits.enabled` gates `evaluateTrade`; `dex.live.*` is frontend-only until a future step wires a real consumer.
 
 ### 3. Aggregate capital ceiling (L3) — `D4-B-3`
 
@@ -95,10 +97,29 @@ The deployment-readiness review (2026-07) found 8 capital-critical blockers (L1�
 
 ### 8. Two-person approval (L8) — `D4-B-8`
 
-- **Backend state machine:** when `dex.limits.requireTwoPersonApproval` is `true`, a live/destructive action enters `approval_requested` state with the **first operator's** id; a **second, distinct** operator transitions it to `approved` via a separate authenticated call; only then does the execution path proceed. Both operator ids + timestamps audited.
-- **Scope of "destructive":** live leg submit, manual force-hedge, kill-switch toggle, capital ceiling override. Not: read APIs, paper legs.
-- **Two distinct operators:** enforced by `requesterOperatorId !== approverOperatorId` (same operator cannot self-approve). The existing `OperatorSession` (`sub` claim from `D4-A-1-AUTH`) provides the verified identity.
-- **UI:** the `DestructiveOperatorAction` component gains a "request approval" → "approve (second operator)" two-step flow; but the backend is the enforcer (direct API cannot bypass).
+> **Descoped (2026-07-16, D4-B-8).** Two-person approval was removed from the
+> D4 deploy-readiness scope: the system targets a **single-operator** paper→live
+> deployment where the operator is the sole authenticated principal. The
+> `DestructiveOperatorAction` typed-phrase ("CONFIRM") + kill-switch + capital
+> ceiling are the mitigating controls for single-operator.
+>
+> **P8-2(b) correction (2026-08-02):** `requireOperatorApprovalPerTrade` /
+> `requireTwoPersonApproval` were still being **parsed** from `dex.limits` into
+> a `requireApproval` field on `DexRiskPolicyConfig`, but that field was **never
+> consulted** in the live-execution path (`evaluateTrade`, `LegsService`, venue
+> resolution) — a "control exists in config but is not enforced" gap, exactly
+> the class L8 was meant to close. The dead parse was **removed** (commit P8-2):
+> `DexRiskPolicyConfig.requireApproval`, `SAFE_DEFAULT_CONFIG.requireApproval`,
+> and the parse in `parseLimitsResponse` are gone. The frontend toggle remains
+> (it controls the UI typed-phrase flow, which IS enforced client-side and is a
+> real control for single-operator), but the backend no longer carries a parsed
+> flag it does not enforce. A future re-introduction of two-person approval
+> would add a *consumed* gate, not a parsed-but-ignored one.
+
+- ~~**Backend state machine:** when `dex.limits.requireTwoPersonApproval` is `true`, a live/destructive action enters `approval_requested` state with the **first operator's** id; a **second, distinct** operator transitions it to `approved` via a separate authenticated call; only then does the execution path proceed. Both operator ids + timestamps audited.~~ *(descoped — see note above)*
+- **Scope of "destructive" (single-operator mitigation):** live leg submit, manual force-hedge, kill-switch toggle. Mitigated by: kill-switch (§1), capital ceiling (§3), typed-phrase in `DestructiveOperatorAction` (frontend, operator-confirmed).
+- ~~**Two distinct operators:** enforced by `requesterOperatorId !== approverOperatorId` (same operator cannot self-approve). The existing `OperatorSession` (`sub` claim from `D4-A-1-AUTH`) provides the verified identity.~~ *(descoped — single-operator)*
+- **UI:** the `DestructiveOperatorAction` component keeps its typed-phrase ("CONFIRM") flow for destructive actions; this is a real single-operator control. The "request approval → approve (second operator)" two-step flow is NOT implemented (two-person descoped).
 
 ## Decision criteria (constraints all substeps must satisfy)
 
