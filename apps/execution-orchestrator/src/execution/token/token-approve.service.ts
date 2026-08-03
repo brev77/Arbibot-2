@@ -1,16 +1,29 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { JsonRpcProvider, Contract, Wallet, ContractTransactionReceipt, ContractTransactionResponse } from 'ethers';
+import { JsonRpcProvider, Contract, Wallet, ContractTransactionReceipt, ContractTransactionResponse, Provider } from 'ethers';
 import { Counter, Gauge } from 'prom-client';
 import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
 import { ChainId, Address } from '@arbibot/contracts-eth';
 import { WalletManagerService } from '../wallet-manager.service';
+import { NonceManagerService } from '../nonce-manager.service';
 import { RpcProviderManager } from '../rpc/rpc-provider-manager.service';
+
+/**
+ * Pre-selected wallet (P9-6): when the caller (adapter) has already chosen a
+ * wallet for the swap, it passes it here so approve + swap use the SAME wallet.
+ * Previously approveToken called selectWallet(chainId, provider) WITHOUT
+ * token/amount args → round-robin could pick a different wallet than the swap,
+ * leaving allowance forever 0 on the swap wallet.
+ */
+export interface PreselectedWallet {
+  address: Address;
+  wallet: Wallet;
+}
 
 /**
  * Typed ERC20 contract with write methods (connected to wallet)
  */
 interface Erc20Contract {
-  approve(spender: string, amount: bigint): Promise<ContractTransactionResponse>;
+  approve(spender: string, amount: bigint, overrides?: { nonce?: number }): Promise<ContractTransactionResponse>;
 }
 
 /**
@@ -75,6 +88,7 @@ export class TokenApproveService {
   constructor(
     private readonly walletManager: WalletManagerService,
     private readonly rpcProviderManager: RpcProviderManager,
+    private readonly nonceManager: NonceManagerService,
   ) {
     this.initializeMetrics();
   }
@@ -82,6 +96,12 @@ export class TokenApproveService {
   /**
    * Approve a spender to spend tokens on behalf of a wallet
    * Uses safe pattern: revoke to 0 first if current allowance > 0
+   *
+   * P9-6: when `wallet` is provided (adapter pre-selected the swap wallet),
+   * approve uses THAT wallet — guaranteeing approve + swap run from the same
+   * address. Without this, selectWallet(chainId, provider) without token/amount
+   * could round-robin to a different wallet, leaving allowance 0 on the swap
+   * wallet forever.
    */
   async approveToken(params: {
     chainId: ChainId;
@@ -89,38 +109,52 @@ export class TokenApproveService {
     spender: Address;
     amount: bigint;
     walletKeyId?: string;
+    wallet?: PreselectedWallet;
   }): Promise<ApproveResult> {
     const { chainId, tokenAddress, spender, amount } = params;
 
     try {
       const provider = this.rpcProviderManager.getProvider(chainId) as JsonRpcProvider;
-      const selectedWallet = await this.walletManager.selectWallet(chainId, provider);
+      // P9-6: prefer the caller-supplied wallet (the swap wallet) over a fresh
+      // round-robin selection. Only fall back to selectWallet when no wallet is
+      // provided (standalone approve path, e.g. operator-initiated revoke).
+      let walletInstance: Wallet = params.wallet?.wallet as Wallet;
+      if (walletInstance === undefined) {
+        const selected = await this.walletManager.selectWallet(chainId, provider);
+        walletInstance = selected.wallet;
+      }
+      const walletAddress = walletInstance.address as Address;
 
       // Check current allowance
       const currentAllowance = await this.getAllowance({
         chainId,
         tokenAddress,
-        owner: selectedWallet.address,
+        owner: walletAddress,
         spender,
       });
 
       // Safe approval pattern: revoke to 0 if non-zero allowance exists
       if (currentAllowance > 0n && currentAllowance !== amount) {
         this.logger.log(`Revoking current allowance ${currentAllowance} before setting new amount`);
-        await this.revokeInternal(provider, selectedWallet.wallet, tokenAddress, spender);
+        await this.revokeInternal(provider, walletInstance, tokenAddress, spender, chainId);
       }
 
-      // Send approve transaction
+      // Send approve transaction (P9-3: explicit nonce under per-wallet lock)
       const tokenContract = new Contract(
         tokenAddress,
         TokenApproveService.ERC20_ABI,
-        selectedWallet.wallet,
+        walletInstance,
       ) as unknown as Erc20Contract;
 
-      const tx = await tokenContract.approve(spender, amount);
+      const tx = await this.nonceManager.withBroadcastLock(
+        chainId,
+        walletInstance.address as Address,
+        walletInstance.provider as Provider,
+        (nonce) => tokenContract.approve(spender, amount, { nonce }),
+      );
       this.logger.log(`Approve tx sent: ${tx.hash} for ${tokenAddress} → ${spender}`);
 
-      // Wait for confirmation (1 block)
+      // Wait for confirmation (1 block) — outside the nonce lock
       const receipt: ContractTransactionReceipt | null = await tx.wait(1);
 
       const result: ApproveResult = {
@@ -129,7 +163,7 @@ export class TokenApproveService {
         spender,
         amount,
         chainId,
-        walletAddress: selectedWallet.address,
+        walletAddress: walletInstance.address as Address,
         gasUsed: receipt ? Number(receipt.gasUsed) : undefined,
         status: receipt && receipt.status === 1 ? 'confirmed' : 'failed',
       };
@@ -167,7 +201,7 @@ export class TokenApproveService {
       const provider = this.rpcProviderManager.getProvider(chainId) as JsonRpcProvider;
       const selectedWallet = await this.walletManager.selectWallet(chainId, provider);
 
-      const result = await this.revokeInternal(provider, selectedWallet.wallet, tokenAddress, spender);
+      const result = await this.revokeInternal(provider, selectedWallet.wallet, tokenAddress, spender, chainId);
 
       this.revokeCounter.inc({ chain_id: String(chainId) });
       this.approvalGauge.set(
@@ -225,13 +259,14 @@ export class TokenApproveService {
   }
 
   /**
-   * Internal revoke implementation
+   * Internal revoke implementation (P9-3: nonce-locked)
    */
   private async revokeInternal(
     provider: JsonRpcProvider,
     wallet: Wallet,
     tokenAddress: Address,
     spender: Address,
+    chainId: ChainId,
   ): Promise<ApproveResult> {
     const tokenContract = new Contract(
       tokenAddress,
@@ -239,7 +274,12 @@ export class TokenApproveService {
       wallet,
     ) as unknown as Erc20Contract;
 
-    const tx = await tokenContract.approve(spender, 0n);
+    const tx = await this.nonceManager.withBroadcastLock(
+      chainId,
+      wallet.address as Address,
+      wallet.provider as Provider,
+      (nonce) => tokenContract.approve(spender, 0n, { nonce }),
+    );
     this.logger.log(`Revoke tx sent: ${tx.hash} for ${tokenAddress} → ${spender}`);
 
     const receipt: ContractTransactionReceipt | null = await tx.wait(1);
@@ -249,7 +289,7 @@ export class TokenApproveService {
       tokenAddress,
       spender,
       amount: 0n,
-      chainId: 0 as ChainId, // Will be set by caller
+      chainId,
       walletAddress: wallet.address as Address,
       gasUsed: receipt ? Number(receipt.gasUsed) : undefined,
       status: receipt && receipt.status === 1 ? 'confirmed' : 'failed',

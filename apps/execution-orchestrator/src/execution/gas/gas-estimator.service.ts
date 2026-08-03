@@ -166,18 +166,23 @@ export class GasEstimatorService {
 
       // Policy check: maxFeePerGas
       const maxFeeGwei = Number(feeData.maxFeePerGasGwei);
-      const withinPolicy = maxFeeGwei <= policy.maxFeePerGasGwei;
+      const maxFeeWithinPolicy = maxFeeGwei <= policy.maxFeePerGasGwei;
 
       let policyWarning: string | undefined;
-      if (!withinPolicy) {
+      if (!maxFeeWithinPolicy) {
         policyWarning = `Gas price ${maxFeeGwei.toFixed(2)} GWEI exceeds policy max ${policy.maxFeePerGasGwei} GWEI for chain ${chainId}`;
         this.logger.warn(policyWarning);
         this.policyRejectionCounter.inc({ chain_id: String(chainId), reason: 'max_fee_exceeded' });
       }
 
-      // Priority fee check
+      // Priority fee check (P9-11: previously only warned — now also feeds
+      // `withinPolicy` so the adapter's `if (!withinPolicy) throw` path actually
+      // blocks when the priority fee exceeds the policy cap, not just the
+      // max fee. Without this, a gas spike in priority fee sails through the
+      // `withinPolicy` gate and the adapter broadcasts at an uncapped fee.)
       const priorityFeeGwei = Number(feeData.maxPriorityFeePerGasGwei);
-      if (priorityFeeGwei > policy.maxPriorityFeeGwei) {
+      const priorityFeeWithinPolicy = priorityFeeGwei <= policy.maxPriorityFeeGwei;
+      if (!priorityFeeWithinPolicy) {
         const priorityWarning = `Priority fee ${priorityFeeGwei.toFixed(2)} GWEI exceeds policy max ${policy.maxPriorityFeeGwei} GWEI for chain ${chainId}`;
         this.logger.warn(priorityWarning);
         if (!policyWarning) {
@@ -185,6 +190,13 @@ export class GasEstimatorService {
         }
         this.policyRejectionCounter.inc({ chain_id: String(chainId), reason: 'priority_fee_exceeded' });
       }
+
+      // P9-11: withinPolicy now reflects BOTH the max fee and the priority fee.
+      // When rejectOnExceed=false the operator explicitly opts out of blocking,
+      // but the cap is still applied by the adapter via getCappedFeeData (below).
+      const withinPolicy = policy.rejectOnExceed
+        ? maxFeeWithinPolicy && priorityFeeWithinPolicy
+        : true;
 
       // Update metrics
       this.gasPriceGauge.set(
@@ -206,9 +218,30 @@ export class GasEstimatorService {
         `estimatedCost=${estimatedCostEth} ETH, withinPolicy=${withinPolicy}`,
       );
 
+      // P9-11: clamp the returned feeData to the policy caps so the adapter's
+      // `sendTransaction` never broadcasts above the configured limit, even when
+      // the operator set rejectOnExceed=false (opt-out of blocking). This makes
+      // getCappedFeeData redundant for the standard path — the feeData here is
+      // already policy-respecting. estimatedCostWei above used the unclamped
+      // maxFeePerGas (worst-case), which is the correct conservative direction
+      // for the pre-trade cost gate; the actual on-chain fee will be ≤ that.
+      const GWEI = 1_000_000_000n;
+      const policyMaxFeeWei = BigInt(Math.floor(policy.maxFeePerGasGwei)) * GWEI;
+      const policyMaxPriorityWei = BigInt(Math.floor(policy.maxPriorityFeeGwei)) * GWEI;
+      const cappedMaxFee = feeData.maxFeePerGas > policyMaxFeeWei ? policyMaxFeeWei : feeData.maxFeePerGas;
+      const cappedPriority = feeData.maxPriorityFeePerGas > policyMaxPriorityWei ? policyMaxPriorityWei : feeData.maxPriorityFeePerGas;
+      const policyFeeData: Eip1559FeeData = {
+        maxFeePerGas: cappedMaxFee,
+        maxPriorityFeePerGas: cappedPriority,
+        baseFee: feeData.baseFee,
+        maxFeePerGasGwei: formatUnits(cappedMaxFee, 'gwei'),
+        maxPriorityFeePerGasGwei: formatUnits(cappedPriority, 'gwei'),
+        baseFeeGwei: feeData.baseFeeGwei,
+      };
+
       return {
         gasLimit,
-        feeData,
+        feeData: policyFeeData,
         estimatedCostWei,
         estimatedCostEth,
         withinPolicy,

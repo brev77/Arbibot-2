@@ -320,12 +320,12 @@ describe('BiswapV2Adapter', () => {
 
       await adapter.ensureApproval(params, wallet as any, BISWAP_V2_ROUTER_MAINNET);
 
-      expect(mockTokenApprove.approveToken).toHaveBeenCalledWith({
+      expect(mockTokenApprove.approveToken).toHaveBeenCalledWith(expect.objectContaining({
         chainId: params.chainId,
         tokenAddress: params.tokenIn,
         spender: BISWAP_V2_ROUTER_MAINNET,
         amount: 1000000000000000000n,
-      });
+      }));
     });
 
     it('should throw when approval fails', async () => {

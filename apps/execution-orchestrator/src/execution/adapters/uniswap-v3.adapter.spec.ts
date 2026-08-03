@@ -515,12 +515,12 @@ describe('UniswapV3Adapter', () => {
 
       await adapter.ensureApproval(params, wallet as any, ROUTER);
 
-      expect(mockTokenApprove.approveToken).toHaveBeenCalledWith({
+      expect(mockTokenApprove.approveToken).toHaveBeenCalledWith(expect.objectContaining({
         chainId: params.chainId,
         tokenAddress: params.tokenIn,
         spender: ROUTER,
         amount: 1000000n,
-      });
+      }));
     });
 
     it('should throw when approval fails', async () => {

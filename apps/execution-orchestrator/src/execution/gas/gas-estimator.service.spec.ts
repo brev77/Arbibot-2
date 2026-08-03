@@ -190,13 +190,43 @@ describe('GasEstimatorService', () => {
       expect(result.policyWarning).toContain('exceeds policy max');
     });
 
-    it('should detect priority fee violation', async () => {
+    it('should detect priority fee violation (P9-11: now blocks, not just warns)', async () => {
       process.env.MAX_PRIORITY_FEE_GWEI = '0.5'; // Lower than the 1 GWEI from mock
 
       const result = await service.estimateGas(42161, { to: '0x1234', data: '0x' });
 
-      expect(result.withinPolicy).toBe(true); // maxFee is fine
+      // P9-11: priority-fee exceedance now feeds withinPolicy (previously only
+      // warned, letting the adapter's `if (!withinPolicy) throw` miss it).
+      expect(result.withinPolicy).toBe(false);
       expect(result.policyWarning).toContain('Priority fee');
+    });
+
+    // ─────────────────────────────────────────────────────────────────────
+    // P9-11 (live-readiness): gas policy clamp. The returned feeData must be
+    // clamped to the policy caps so the adapter's sendTransaction never
+    // broadcasts above the configured limit, even when rejectOnExceed=false.
+    // ─────────────────────────────────────────────────────────────────────
+    it('P9-11: clamps feeData to policy caps (maxFee + priority)', async () => {
+      process.env.MAX_GAS_PRICE_GWEI = '10'; // mock returns 20 GWEI
+      process.env.MAX_PRIORITY_FEE_GWEI = '0.5'; // mock returns 1 GWEI
+
+      const result = await service.estimateGas(42161, { to: '0x1234', data: '0x' });
+
+      // feeData clamped to policy caps (10 GWEI max, 0.5 GWEI priority).
+      expect(Number(result.feeData.maxFeePerGasGwei)).toBeLessThanOrEqual(10);
+      expect(Number(result.feeData.maxPriorityFeePerGasGwei)).toBeLessThanOrEqual(0.5);
+    });
+
+    it('P9-11: when rejectOnExceed=false, withinPolicy=true but feeData still clamped', async () => {
+      process.env.GAS_REJECT_ON_EXCEED = 'false';
+      process.env.MAX_GAS_PRICE_GWEI = '10'; // mock returns 20 GWEI
+
+      const result = await service.estimateGas(42161, { to: '0x1234', data: '0x' });
+
+      // Operator opted out of blocking → withinPolicy=true (trade proceeds),
+      // but the fee is still clamped so the broadcast does not overspend.
+      expect(result.withinPolicy).toBe(true);
+      expect(Number(result.feeData.maxFeePerGasGwei)).toBeLessThanOrEqual(10);
     });
 
     it('should throw on provider error', async () => {

@@ -20,6 +20,7 @@ import { ChainId } from '@arbibot/contracts-eth';
 
 import { TokenApproveService } from './token-approve.service';
 import { WalletManagerService } from '../wallet-manager.service';
+import { NonceManagerService } from '../nonce-manager.service';
 import { RpcProviderManager } from '../rpc/rpc-provider-manager.service';
 
 const MockedContract = Contract as unknown as jest.Mock;
@@ -76,11 +77,22 @@ describe('TokenApproveService', () => {
     };
     rpcProviderManager = { getProvider: jest.fn().mockReturnValue({}) };
 
+    // P9-3: nonce manager pass-through mock (approve tx broadcast goes through it).
+    const nonceManager = {
+      withBroadcastLock: jest.fn(
+        (_chainId: number, _address: string, _provider: unknown, fn: (nonce: number) => Promise<unknown>) =>
+          fn(0),
+      ),
+      acquireNextNonce: jest.fn(() => Promise.resolve(0)),
+      recordNonceDrift: jest.fn(),
+    };
+
     const module = await Test.createTestingModule({
       providers: [
         TokenApproveService,
         { provide: WalletManagerService, useValue: walletManager },
         { provide: RpcProviderManager, useValue: rpcProviderManager },
+        { provide: NonceManagerService, useValue: nonceManager },
       ],
     }).compile();
 
@@ -112,6 +124,33 @@ describe('TokenApproveService', () => {
         gasUsed: 21000,
         status: 'confirmed',
       });
+    });
+
+    // ─────────────────────────────────────────────────────────────────────
+    // P9-6 (live-readiness): approve MUST use the pre-selected swap wallet when
+    // provided. Without this, approveToken did its own round-robin selectWallet
+    // (without token/amount) and could land on a different wallet — leaving
+    // allowance 0 on the swap wallet → infinite approve loop / swap revert.
+    // ─────────────────────────────────────────────────────────────────────
+    it('P9-6: uses the provided wallet (no selectWallet call) when wallet is passed', async () => {
+      const PRESELECTED_ADDRESS = '0xSwapWallet' as never;
+      const PRESELECTED_WALLET = { address: PRESELECTED_ADDRESS, provider: {} } as never;
+
+      MockedContract
+        .mockImplementationOnce(() => readContract(0n)) // allowance read
+        .mockImplementationOnce(() => writeContract(() => Promise.resolve(txWithReceipt(1))));
+
+      const result = await service.approveToken({
+        chainId: CHAIN,
+        tokenAddress: TOKEN,
+        spender: SPENDER,
+        amount: 1000n,
+        wallet: { address: PRESELECTED_ADDRESS, wallet: PRESELECTED_WALLET },
+      });
+
+      // approve ran from the pre-selected wallet, NOT from selectWallet.
+      expect(result.walletAddress).toBe(PRESELECTED_ADDRESS);
+      expect(walletManager.selectWallet).not.toHaveBeenCalled();
     });
 
     it('revokes to 0 first when a non-zero, non-matching allowance exists', async () => {

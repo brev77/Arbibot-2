@@ -318,12 +318,12 @@ describe('PancakeSwapV2Adapter', () => {
 
       await adapter.ensureApproval(params, wallet as any, PANCAKE_V2_ROUTER_TESTNET);
 
-      expect(mockTokenApprove.approveToken).toHaveBeenCalledWith({
+      expect(mockTokenApprove.approveToken).toHaveBeenCalledWith(expect.objectContaining({
         chainId: params.chainId,
         tokenAddress: params.tokenIn,
         spender: PANCAKE_V2_ROUTER_TESTNET,
         amount: 100000000000000000n,
-      });
+      }));
     });
 
     it('should throw when approval fails', async () => {

@@ -333,6 +333,10 @@ export class SushiSwapV2Adapter implements VenueAdapter {
       tokenAddress: params.tokenIn,
       spender: routerAddress,
       amount: amountIn,
+      // P9-6: approve from the SAME wallet that will swap — previously
+      // approveToken did its own round-robin selectWallet and could land on a
+      // different wallet, leaving allowance 0 on the swap wallet.
+      wallet: { address: selectedWallet.address, wallet: selectedWallet.wallet },
     });
 
     if (result.status === 'failed') {
