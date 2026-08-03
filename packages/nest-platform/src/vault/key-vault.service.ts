@@ -94,9 +94,16 @@ export class KeyVaultService implements OnModuleInit {
     // the runtime defense-in-depth (service won't boot in prod without a real
     // per-deploy salt). Dev/test keeps the fallback so existing encrypted keys
     // under the historical salt remain decryptable without extra config.
+    //
+    // CI exclusion: GitHub Actions (and most CI runners) set `CI=true` and run
+    // the e2e suites under `NODE_ENV=production` to exercise production code
+    // paths — but they do NOT handle real production wallet keys. Excluding CI
+    // avoids breaking 8 e2e jobs while keeping the assert effective on real
+    // production hosts (where `CI` is unset).
     const VAULT_SALT_FALLBACK = 'arbibot-vault-salt-v1';
     const isProduction = process.env.NODE_ENV === 'production';
-    if (isProduction && !process.env.VAULT_MASTER_KEY_SALT) {
+    const isCi = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
+    if (isProduction && !isCi && !process.env.VAULT_MASTER_KEY_SALT) {
       throw new Error(
         'VAULT_MASTER_KEY_SALT is required in production (NODE_ENV=production). ' +
           'Set a unique per-deploy salt before encrypting production wallet keys ' +

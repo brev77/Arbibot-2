@@ -352,25 +352,48 @@ describe('KeyVaultService', () => {
     // ─────────────────────────────────────────────────────────────────────────
     describe('production fail-closed (P9-10)', () => {
       const originalNodeEnv = process.env.NODE_ENV;
+      const originalCi = process.env.CI;
+      const originalGha = process.env.GITHUB_ACTIONS;
 
       afterEach(() => {
-        // Restore NODE_ENV so subsequent test blocks get the default.
+        // Restore NODE_ENV / CI so subsequent test blocks get the default.
         if (originalNodeEnv === undefined) {
           delete process.env.NODE_ENV;
         } else {
           process.env.NODE_ENV = originalNodeEnv;
         }
+        if (originalCi === undefined) {
+          delete process.env.CI;
+        } else {
+          process.env.CI = originalCi;
+        }
+        if (originalGha === undefined) {
+          delete process.env.GITHUB_ACTIONS;
+        } else {
+          process.env.GITHUB_ACTIONS = originalGha;
+        }
       });
 
-      it('throws in production when VAULT_MASTER_KEY_SALT is unset', async () => {
+      it('throws in production when VAULT_MASTER_KEY_SALT is unset (and not CI)', async () => {
         process.env.NODE_ENV = 'production';
         delete process.env.VAULT_MASTER_KEY_SALT;
+        delete process.env.CI;
+        delete process.env.GITHUB_ACTIONS;
         await expect(buildService()).rejects.toThrow(/VAULT_MASTER_KEY_SALT is required in production/);
+      });
+
+      it('does NOT throw in production when CI=true (e2e suites use NODE_ENV=production without real keys)', async () => {
+        process.env.NODE_ENV = 'production';
+        delete process.env.VAULT_MASTER_KEY_SALT;
+        process.env.CI = 'true';
+        const s = await buildService();
+        expect(s).toBeDefined();
       });
 
       it('starts in production when VAULT_MASTER_KEY_SALT is set', async () => {
         process.env.NODE_ENV = 'production';
         process.env.VAULT_MASTER_KEY_SALT = 'prod-unique-salt-2026';
+        delete process.env.CI;
         const s = await buildService();
         const encrypted = await s.encryptPrivateKey(privateKey, 'prod-key');
         const decrypted = await s.decryptPrivateKey(encrypted);
