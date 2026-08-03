@@ -1,7 +1,38 @@
 import type { ExecutionLegEntity, ExecutionPlanEntity } from '@arbibot/persistence';
 
+/**
+ * Optional on-chain metadata returned by DEX adapters after broadcast +
+ * confirmation (P9-2). When present, the orchestrator persists an
+ * OnChainTransaction row so fill enrichment, reconciliation, and audit have a
+ * durable on-chain proof. Absent for HTTP/mock venues (paper/legacy legs).
+ */
+export interface VenueOnChainMeta {
+  readonly txHash: string;
+  readonly chainId: number;
+  readonly fromAddress: string;
+  readonly toAddress: string;
+  readonly nonce?: number;
+  readonly gasLimit?: string;
+  readonly gasUsed?: string | null;
+  readonly gasPrice?: string | null;
+  readonly maxFeePerGas?: string | null;
+  readonly maxPriorityFeePerGas?: string | null;
+  readonly blockNumber?: number | null;
+  readonly blockHash?: string | null;
+  readonly transactionIndex?: number | null;
+  readonly value?: string;
+  readonly status: 'confirmed' | 'failed' | 'reverted';
+  readonly revertReason?: string | null;
+}
+
 export type VenueLegSubmitResult = {
   readonly externalOrderId: string;
+  /**
+   * P9-2: on-chain proof for DEX legs. The orchestrator persists this via
+   * OnChainTransactionService in the same tx as the leg `submitting → sent`
+   * transition. Legacy/mock venues omit it.
+   */
+  readonly onChain?: VenueOnChainMeta;
 };
 
 /** Terminal leg states after a venue refuses or aborts submission (no `sent`). */

@@ -376,7 +376,7 @@ describe('BiswapV2Adapter', () => {
 
       const result = await adapter.submitLeg(plan, leg);
 
-      expect(result).toEqual({ externalOrderId: '0xBiswapTxHash' });
+      expect(result).toMatchObject({ externalOrderId: '0xBiswapTxHash' });
       expect(mockWalletManager.selectWallet).toHaveBeenCalledWith(
         56,
         expect.anything(),

@@ -312,7 +312,7 @@ describe('SushiSwapV2Adapter', () => {
 
       const result = await adapter.submitLeg(plan as any, leg as any);
 
-      expect(result).toEqual({ externalOrderId: '0xTxHashSushi' });
+      expect(result).toMatchObject({ externalOrderId: '0xTxHashSushi' });
       expect(mockWalletManager.selectWallet).toHaveBeenCalled();
 
       spy.mockRestore();

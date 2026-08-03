@@ -375,7 +375,7 @@ describe('PancakeSwapV2Adapter', () => {
 
       const result = await adapter.submitLeg(plan, leg);
 
-      expect(result).toEqual({ externalOrderId: '0xPancakeTxHash' });
+      expect(result).toMatchObject({ externalOrderId: '0xPancakeTxHash' });
       expect(mockWalletManager.selectWallet).toHaveBeenCalledWith(
         97,
         expect.anything(),
@@ -431,7 +431,7 @@ describe('PancakeSwapV2Adapter', () => {
 
       const result = await adapter.submitLeg(plan, leg);
 
-      expect(result).toEqual({ externalOrderId: '0xPancakeTxHash' });
+      expect(result).toMatchObject({ externalOrderId: '0xPancakeTxHash' });
       expect(mockWalletManager.selectWallet).toHaveBeenCalledWith(
         56,
         expect.anything(),

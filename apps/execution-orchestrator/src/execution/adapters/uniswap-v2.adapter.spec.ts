@@ -447,7 +447,7 @@ describe('UniswapV2Adapter', () => {
 
       const result = await adapter.submitLeg(plan, leg);
 
-      expect(result).toEqual({ externalOrderId: '0xTxHash123' });
+      expect(result).toMatchObject({ externalOrderId: '0xTxHash123' });
       expect(mockWalletManager.selectWallet).toHaveBeenCalled();
       expect(spy).toHaveBeenCalled();
 

@@ -12,6 +12,7 @@ import {
 
 import { WalletManagerService } from './wallet-manager.service';
 import { NonceManagerService } from './nonce-manager.service';
+import { OnChainTransactionService } from './on-chain-transaction.service';
 import { TypeOrmWalletKeyStore } from './wallet-key-store.typeorm';
 import { DexFillTrackerService } from './dex-fill-tracker.service';
 import { DexOutboxEventsService } from './dex-outbox-events.service';
@@ -55,6 +56,7 @@ import { CrossChainReconWorker } from './workers/cross-chain-recon.worker';
   providers: [
     WalletManagerService,
     NonceManagerService,
+    OnChainTransactionService,
     TypeOrmWalletKeyStore,
     {
       // Bind the WalletKeyStore port to the TypeORM adapter so KeyVaultService
@@ -95,6 +97,7 @@ import { CrossChainReconWorker } from './workers/cross-chain-recon.worker';
   exports: [
     WalletManagerService,
     NonceManagerService,
+    OnChainTransactionService,
     DexFillTrackerService,
     DexOutboxEventsService,
     GasEstimatorService,

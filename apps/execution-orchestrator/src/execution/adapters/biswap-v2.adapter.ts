@@ -246,8 +246,27 @@ export class BiswapV2Adapter implements VenueAdapter {
       // D4-B-2d: record traded volume for daily-limit tracking (non-fatal).
       await recordLiveTradeVolume(this.dexRiskPolicy, params.chainId, amountInUsd);
 
+      // P9-2: return on-chain proof so the orchestrator persists an
+      // OnChainTransaction row (single-writer = OnChainTransactionService).
       return {
         externalOrderId: tx.hash,
+        onChain: {
+          txHash: tx.hash,
+          chainId: params.chainId,
+          fromAddress: selectedWallet.address,
+          toAddress: routerAddress,
+          nonce: tx.nonce,
+          gasLimit: gasEstimation.gasLimit.toString(),
+          gasUsed: receipt.gasUsed.toString(),
+          gasPrice: (receipt.gasPrice ?? null)?.toString() ?? null,
+          maxFeePerGas: gasEstimation.feeData.maxFeePerGas.toString(),
+          maxPriorityFeePerGas: gasEstimation.feeData.maxPriorityFeePerGas.toString(),
+          blockNumber: receipt.blockNumber,
+          blockHash: receipt.blockHash ?? null,
+          transactionIndex: receipt.index ?? null,
+          value: '0',
+          status: 'confirmed' as const,
+        },
       };
     } catch (error) {
       if (

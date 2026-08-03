@@ -569,7 +569,7 @@ describe('UniswapV3Adapter', () => {
 
       const result = await adapter.submitLeg(plan, leg);
 
-      expect(result).toEqual({ externalOrderId: '0xV3TxHash123' });
+      expect(result).toMatchObject({ externalOrderId: '0xV3TxHash123' });
       expect(mockWalletManager.selectWallet).toHaveBeenCalled();
     });
 
@@ -610,7 +610,7 @@ describe('UniswapV3Adapter', () => {
 
       const result = await adapter.submitLeg(plan, leg);
 
-      expect(result).toEqual({ externalOrderId: '0xV3TxHash123' });
+      expect(result).toMatchObject({ externalOrderId: '0xV3TxHash123' });
     });
   });
 

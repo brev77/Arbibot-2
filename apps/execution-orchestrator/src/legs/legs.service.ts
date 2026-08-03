@@ -35,11 +35,14 @@ import {
   VenueSubmitTransientError,
   VenueTerminalSubmitError,
   type VenueAdapter,
+  type VenueOnChainMeta,
 } from '../venue/venue-adapter';
 import { BridgeAdapterFactoryService, extractBridgeParams } from '../execution/bridge/bridge-adapter-factory.service';
 import { BridgeTransferService } from '../execution/bridge/bridge-transfer.service';
 import { DexKillSwitchService } from '../execution/risk/dex-kill-switch.service';
 import { extractVenueKey, isLiveVenueKey } from '../execution/venue-factory.service';
+import { OnChainTransactionService } from '../execution/on-chain-transaction.service';
+import { DexOutboxEventsService } from '../execution/dex-outbox-events.service';
 import type { BridgeTransferParams } from '../execution/bridge/bridge-adapter.interface';
 import { MultiLegPlanBuilderService } from '../plans/multi-leg-plan-builder.service';
 import { TradeCostEstimatorService } from '../cost/trade-cost-estimator.service';
@@ -149,6 +152,8 @@ export class LegsService {
     private readonly bridgeTransferService: BridgeTransferService,
     private readonly killSwitch: DexKillSwitchService,
     private readonly costEstimator: TradeCostEstimatorService,
+    private readonly onChainTxService: OnChainTransactionService,
+    private readonly dexOutbox: DexOutboxEventsService,
   ) {}
 
   async listForPlan(planId: string): Promise<ReturnType<typeof legView>[]> {
@@ -335,8 +340,135 @@ export class LegsService {
     }
   }
 
+  /**
+   * markSent — two-phase broadcast (P9-1, live-readiness).
+   *
+   * PREVIOUSLY (capital-unsafe): the entire submit (broadcast + tx.wait) ran
+   * INSIDE the DB transaction. A crash after broadcast but before commit left
+   * the leg in `created` with the tx already in the mempool → a retry
+   * re-broadcast → double-spend.
+   *
+   * NOW (two-phase, crash-safe):
+   *   Phase 1 (tx, commit): lock leg + plan, kill-switch check,
+   *     `leg.state = 'submitting'`, commit. NO broadcast here.
+   *   Phase 2 (outside tx): `venue.submitLeg` / bridge submit — the actual
+   *     on-chain broadcast + tx.wait happens here.
+   *   Phase 3 (tx, commit): `leg.state = 'sent'`, persist OnChainTransaction
+   *     (P9-2, single-writer = OnChainTransactionService) + emit DexTransaction*
+   *     outbox event, commit.
+   *
+   * HTTP contract (architecture guard B1): the endpoint stays SYNCHRONOUS — it
+   * blocks until Phase 3 and returns `sent` on success. On a transient error
+   * in Phase 2 (tx.wait timeout, RPC drop) the leg STAYS `submitting`; the
+   * endpoint returns 503 and the caller must NOT retry markSent (precondition
+   * `created` would ConflictException). Recovery is delegated to the stuck-plan
+   * reaper (P9-7), which re-checks the on-chain status of the pending tx.
+   *
+   * Terminal errors (VenueTerminalSubmitError / VenueSubmitClientError) are
+   * handled in Phase 1-style transactions: the leg moves to its terminal state
+   * atomically and no broadcast occurred.
+   */
   async markSent(planId: string, legId: string): Promise<ReturnType<typeof legView>> {
-    return this.dataSource.transaction(async (em) => {
+    // ── Phase 1: reserve the leg (created → submitting), commit before broadcast.
+    const { plan, leg, isBridgeLeg } = await this.beginMarkSent(planId, legId);
+
+    // ── Phase 2: broadcast OUTSIDE the DB transaction.
+    // The venue adapter does sendTransaction + tx.wait here. If the process
+    // crashes during Phase 2, the leg is `submitting` (Phase 1 committed) and
+    // the reaper (P9-7) will reconcile via the RPC provider.
+    let externalOrderId: string;
+    let onChainMeta: VenueOnChainMeta | undefined;
+    try {
+      if (isBridgeLeg) {
+        const bridgeParams = extractBridgeParams(
+          plan.playbookConfig,
+          leg.legIndex,
+          plan.id,
+          leg.id,
+        );
+        if (!bridgeParams) {
+          // Terminal validation error — flip the leg to failed in a tx.
+          await this.failSubmittingLeg(planId, legId, plan.correlationId, `Bridge leg ${legId} has no bridge params in playbookConfig`);
+          throw new HttpException(
+            `Bridge leg ${legId} has no bridge params in playbookConfig`,
+            HttpStatus.UNPROCESSABLE_ENTITY,
+          );
+        }
+        const adapter = this.bridgeAdapterFactory.resolveAdapter(bridgeParams.bridgeKey);
+        const transferParams: BridgeTransferParams = {
+          sourceChainId: bridgeParams.sourceChainId,
+          destinationChainId: bridgeParams.destinationChainId,
+          token: bridgeParams.token,
+          destinationToken: bridgeParams.destinationToken,
+          amount: bridgeParams.amount,
+          recipientAddress: bridgeParams.recipientAddress,
+          idempotencyKey: `bridge:${plan.id}:${leg.id}`,
+        };
+        const bridgeEntity = await this.bridgeTransferService.submitBridgeTransfer(
+          adapter,
+          transferParams,
+          leg.id,
+        );
+        externalOrderId = bridgeEntity.id;
+      } else {
+        const result = await this.venue.submitLeg(plan, leg);
+        externalOrderId = result.externalOrderId;
+        onChainMeta = result.onChain;
+      }
+    } catch (err) {
+      // Terminal venue errors → flip leg to terminal state in a tx, no broadcast.
+      if (err instanceof VenueTerminalSubmitError) {
+        return this.applyTerminalSubmitError(planId, legId, plan.correlationId, err);
+      }
+      if (err instanceof VenueSubmitClientError) {
+        await this.failSubmittingLeg(planId, legId, plan.correlationId, err.message);
+        throw new HttpException(
+          `Venue submitLeg failed (venue client error): ${err.message}`,
+          HttpStatus.UNPROCESSABLE_ENTITY,
+        );
+      }
+      // Transient error (RPC drop, tx.wait timeout, nonce issue): the leg STAYS
+      // `submitting`. The endpoint returns 503 so the caller does NOT retry
+      // markSent (which would ConflictException on the `created` precondition).
+      // Recovery is delegated to the stuck-plan reaper (P9-7).
+      const msg = err instanceof Error ? err.message : String(err);
+      const transientHint =
+        err instanceof VenueSubmitTransientError ||
+        msg.includes('MOCK_VENUE_FAIL_SUBMIT_REMAINING')
+          ? 'transient; leg is submitting — reaper will recover'
+          : 'check venue logs; leg is submitting — reaper will recover';
+      throw new HttpException(
+        `Venue submitLeg failed (${transientHint}): ${msg}`,
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
+    // ── Phase 3: commit the outcome (submitting → sent) + persist on-chain proof.
+    return this.completeMarkSent(planId, legId, plan.correlationId, externalOrderId, onChainMeta);
+  }
+
+  /**
+   * Phase 1 helper: lock plan + leg, kill-switch check, flip `created → submitting`,
+   * commit. Returns the locked entities + venue metadata for Phase 2.
+   */
+  private async beginMarkSent(
+    planId: string,
+    legId: string,
+  ): Promise<{
+    plan: ExecutionPlanEntity;
+    leg: ExecutionLegEntity;
+    isBridgeLeg: boolean;
+    venueKey: string | undefined;
+    isLiveLeg: boolean;
+  }> {
+    let ctx!: {
+      plan: ExecutionPlanEntity;
+      leg: ExecutionLegEntity;
+      isBridgeLeg: boolean;
+      venueKey: string | undefined;
+      isLiveLeg: boolean;
+    };
+    await this.dataSource.transaction(async (em) => {
       const plan = await em.findOne(ExecutionPlanEntity, {
         where: { id: planId },
         lock: { mode: 'pessimistic_read' },
@@ -361,120 +493,177 @@ export class LegsService {
           `Leg ${legId} must be created to mark sent (current: ${leg.state})`,
         );
       }
-      let externalOrderId: string;
 
-      // ── Bridge-aware execution ──────────────────────────────────────────
-      // If the leg is a bridge leg (legType === 'bridge'), delegate to
-      // BridgeTransferService which handles adapter resolution, submission,
-      // idempotency, and persistence.
       const isBridgeLeg = leg.legType === 'bridge';
-
-      // ── D4-B-1-KILLSWITCH: live kill-switch gate ────────────────────────
-      // Block NEW live legs (on-chain DEX swaps + bridge transfers) when the
-      // kill-switch is active. Paper legs (venueKey ∈ PAPER_VENUE_KEYS) and
-      // legacy (http/mock) legs are never halted — paper/live isolation is
-      // structural: the gate only applies to live venue keys + bridge. On throw
-      // the leg stays in 'created' state (retryable once the halt clears).
       const venueKey = extractVenueKey(plan, leg);
       const isLiveLeg = isBridgeLeg || isLiveVenueKey(venueKey);
+      // D4-B-1-KILLSWITCH: block NEW live legs when the kill-switch is active.
+      // Paper/legacy legs are never halted (paper/live isolation is structural).
       if (isLiveLeg) {
         await this.killSwitch.assertLiveNotHalted();
       }
 
-      try {
-        if (isBridgeLeg) {
-          const bridgeParams = extractBridgeParams(
-            plan.playbookConfig,
-            leg.legIndex,
-            plan.id,
-            leg.id,
-          );
+      // Flip to `submitting` — this reserves the leg so a concurrent markSent
+      // or retry cannot double-broadcast. Commit BEFORE the actual broadcast.
+      leg.state = 'submitting';
+      leg.entityVersion += 1;
+      await em.save(leg);
+      ctx = { plan, leg, isBridgeLeg, venueKey, isLiveLeg };
+    });
+    return ctx;
+  }
 
-          if (!bridgeParams) {
-            throw new HttpException(
-              `Bridge leg ${legId} has no bridge params in playbookConfig`,
-              HttpStatus.UNPROCESSABLE_ENTITY,
-            );
-          }
-
-          const adapter = this.bridgeAdapterFactory.resolveAdapter(bridgeParams.bridgeKey);
-
-          const transferParams: BridgeTransferParams = {
-            sourceChainId: bridgeParams.sourceChainId,
-            destinationChainId: bridgeParams.destinationChainId,
-            token: bridgeParams.token,
-            destinationToken: bridgeParams.destinationToken,
-            amount: bridgeParams.amount,
-            recipientAddress: bridgeParams.recipientAddress,
-            idempotencyKey: `bridge:${plan.id}:${leg.id}`,
-          };
-
-          // BridgeTransferService.submitBridgeTransfer handles:
-          //  - idempotency (existing active → return, failed → reject)
-          //  - adapter.submitBridgeTransfer call
-          //  - persist BridgeTransferEntity
-          const bridgeEntity = await this.bridgeTransferService.submitBridgeTransfer(
-            adapter,
-            transferParams,
-            leg.id,
-          );
-          externalOrderId = bridgeEntity.id; // bridge transfer UUID as venueRef
-        } else {
-          ({ externalOrderId } = await this.venue.submitLeg(plan, leg));
-        }
-      } catch (err) {
-        if (err instanceof VenueTerminalSubmitError) {
-          leg.state = err.terminalState;
-          leg.entityVersion += 1;
-          const savedTerminal = await em.save(leg);
-          this.audit.record({
-            idempotencyKey: `execution:MarkLegSentTerminal:${savedTerminal.id}:v${savedTerminal.entityVersion}`,
-            correlationId: plan.correlationId ?? undefined,
-            actor: 'execution-orchestrator',
-            action: 'MarkLegSentTerminal',
-            resourceType: 'ExecutionLeg',
-            resourceId: savedTerminal.id,
-            payload: {
-              planId,
-              terminalState: err.terminalState,
-              message: err.message,
-            },
-          });
-          return legView(savedTerminal);
-        }
-        if (err instanceof VenueSubmitClientError) {
-          const msg = err.message;
-          throw new HttpException(
-            `Venue submitLeg failed (venue client error): ${msg}`,
-            HttpStatus.UNPROCESSABLE_ENTITY,
-          );
-        }
-        const msg = err instanceof Error ? err.message : String(err);
-        const transientHint =
-          err instanceof VenueSubmitTransientError ||
-          msg.includes('MOCK_VENUE_FAIL_SUBMIT_REMAINING')
-            ? 'transient; retry mark-sent'
-            : 'check venue logs';
-        throw new HttpException(
-          `Venue submitLeg failed (${transientHint}): ${msg}`,
-          HttpStatus.BAD_GATEWAY,
-        );
+  /**
+   * Phase 3 helper: persist the broadcast outcome. Flips `submitting → sent`,
+   * records venueRef, persists OnChainTransaction (P9-2) + emits the DexTransaction
+   * outbox event in the SAME transaction. Idempotent on txHash.
+   */
+  private async completeMarkSent(
+    planId: string,
+    legId: string,
+    correlationId: string | null,
+    externalOrderId: string,
+    onChainMeta: VenueOnChainMeta | undefined,
+  ): Promise<ReturnType<typeof legView>> {
+    const saved = await this.dataSource.transaction(async (em) => {
+      const leg = await em.findOne(ExecutionLegEntity, {
+        where: { id: legId, planId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (leg === null) {
+        throw new NotFoundException(`Leg not found: ${legId}`);
+      }
+      // The leg must be `submitting` (Phase 1 committed). If it is already
+      // `sent` (idempotent retry after a partial Phase 3) or terminal, return
+      // the current view without re-persisting.
+      if (leg.state !== 'submitting') {
+        return leg;
       }
       leg.state = 'sent';
       leg.entityVersion += 1;
       leg.venueRef = externalOrderId;
+      const savedLeg = await em.save(leg);
+
+      // P9-2: persist the on-chain proof atomically with the leg transition.
+      // Single-writer = OnChainTransactionService. Emits DexTransactionConfirmed
+      // outbox event in the same tx (via dexOutbox).
+      if (onChainMeta !== undefined) {
+        const oct = await this.onChainTxService.persistWithOutcome(
+          em,
+          legId,
+          {
+            txHash: onChainMeta.txHash,
+            chainId: onChainMeta.chainId,
+            fromAddress: onChainMeta.fromAddress,
+            toAddress: onChainMeta.toAddress,
+            nonce: onChainMeta.nonce,
+            gasLimit: onChainMeta.gasLimit,
+            gasUsed: onChainMeta.gasUsed ?? null,
+            gasPrice: onChainMeta.gasPrice ?? null,
+            maxFeePerGas: onChainMeta.maxFeePerGas ?? null,
+            maxPriorityFeePerGas: onChainMeta.maxPriorityFeePerGas ?? null,
+            blockNumber: onChainMeta.blockNumber ?? null,
+            blockHash: onChainMeta.blockHash ?? null,
+            transactionIndex: onChainMeta.transactionIndex ?? null,
+            value: onChainMeta.value ?? '0',
+            status: onChainMeta.status,
+            revertReason: onChainMeta.revertReason ?? null,
+          },
+        );
+        if (oct !== null) {
+          if (oct.status === 'confirmed') {
+            await this.dexOutbox.emitConfirmed(em, oct, correlationId ?? planId);
+          } else {
+            await this.dexOutbox.emitFailed(em, oct, correlationId ?? planId);
+          }
+        }
+      }
+      return savedLeg;
+    });
+
+    this.audit.record({
+      idempotencyKey: `execution:MarkLegSent:${saved.id}:v${saved.entityVersion}`,
+      correlationId: correlationId ?? undefined,
+      actor: 'execution-orchestrator',
+      action: 'MarkLegSent',
+      resourceType: 'ExecutionLeg',
+      resourceId: saved.id,
+      payload: { planId, venueRef: externalOrderId },
+    });
+    return legView(saved);
+  }
+
+  /**
+   * Flip a `submitting` leg to `failed` (terminal validation/client error in
+   * Phase 2 that did not broadcast). Atomic tx.
+   */
+  private async failSubmittingLeg(
+    planId: string,
+    legId: string,
+    correlationId: string | null,
+    message: string,
+  ): Promise<void> {
+    await this.dataSource.transaction(async (em) => {
+      const leg = await em.findOne(ExecutionLegEntity, {
+        where: { id: legId, planId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (leg === null || leg.state !== 'submitting') {
+        return;
+      }
+      leg.state = 'failed';
+      leg.entityVersion += 1;
       const saved = await em.save(leg);
       this.audit.record({
-        idempotencyKey: `execution:MarkLegSent:${saved.id}:v${saved.entityVersion}`,
-        correlationId: plan.correlationId ?? undefined,
+        idempotencyKey: `execution:MarkLegSentFail:${saved.id}:v${saved.entityVersion}`,
+        correlationId: correlationId ?? undefined,
         actor: 'execution-orchestrator',
-        action: 'MarkLegSent',
+        action: 'MarkLegSentFail',
         resourceType: 'ExecutionLeg',
         resourceId: saved.id,
-        payload: { planId, venueRef: externalOrderId },
+        payload: { planId, message },
       });
-      return legView(saved);
     });
+  }
+
+  /**
+   * Apply a VenueTerminalSubmitError: flip `submitting → terminalState` atomically.
+   */
+  private async applyTerminalSubmitError(
+    planId: string,
+    legId: string,
+    correlationId: string | null,
+    err: VenueTerminalSubmitError,
+  ): Promise<ReturnType<typeof legView>> {
+    const saved = await this.dataSource.transaction(async (em) => {
+      const leg = await em.findOne(ExecutionLegEntity, {
+        where: { id: legId, planId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (leg === null) {
+        throw new NotFoundException(`Leg not found: ${legId}`);
+      }
+      if (leg.state !== 'submitting') {
+        return leg;
+      }
+      leg.state = err.terminalState;
+      leg.entityVersion += 1;
+      return em.save(leg);
+    });
+    this.audit.record({
+      idempotencyKey: `execution:MarkLegSentTerminal:${saved.id}:v${saved.entityVersion}`,
+      correlationId: correlationId ?? undefined,
+      actor: 'execution-orchestrator',
+      action: 'MarkLegSentTerminal',
+      resourceType: 'ExecutionLeg',
+      resourceId: saved.id,
+      payload: {
+        planId,
+        terminalState: err.terminalState,
+        message: err.message,
+      },
+    });
+    return legView(saved);
   }
 
   async markAcknowledged(

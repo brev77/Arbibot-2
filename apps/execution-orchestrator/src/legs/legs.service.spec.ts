@@ -253,6 +253,17 @@ describe('LegsService', () => {
       assertLiveNotHalted: jest.fn(() => Promise.resolve()),
     } as unknown as import('../execution/risk/dex-kill-switch.service').DexKillSwitchService;
 
+    // P9-1/P9-2: OnChainTransactionService (single-writer) + DexOutboxEventsService
+    const onChainTxService = {
+      persistWithOutcome: jest.fn(() => Promise.resolve({ id: 1, txHash: "0xoct" })),
+      findConfirmedForLeg: jest.fn(() => Promise.resolve(null)),
+    };
+    const dexOutbox = {
+      emitConfirmed: jest.fn(() => Promise.resolve(undefined)),
+      emitFailed: jest.fn(() => Promise.resolve(undefined)),
+      emitSubmitted: jest.fn(() => Promise.resolve(undefined)),
+    };
+
     service = new LegsService(
       dataSource,
       plansRepo,
@@ -264,6 +275,8 @@ describe('LegsService', () => {
       bridgeTransferService,
       killSwitch,
       makePermissiveCostEstimator(),
+      onChainTxService as any,
+      dexOutbox as any,
     );
   });
 
@@ -437,7 +450,8 @@ describe('LegsService', () => {
 
     const err = await service.markSent(planId, legId).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(HttpException);
-    expect((err as HttpException).getStatus()).toBe(HttpStatus.BAD_GATEWAY);
+    // P9-1: transient errors now return 503 (leg stays `submitting`, reaper recovers)
+    expect((err as HttpException).getStatus()).toBe(HttpStatus.SERVICE_UNAVAILABLE);
   });
 
   it('markAcknowledged requires sent', async () => {
@@ -811,6 +825,8 @@ describe('LegsService — D4-B-1-KILLSWITCH gate', () => {
       bridgeTransferService as unknown as BridgeTransferService,
       killSwitchMock as unknown as import('../execution/risk/dex-kill-switch.service').DexKillSwitchService,
       makePermissiveCostEstimator(),
+      { persistWithOutcome: jest.fn(() => Promise.resolve(null)), findConfirmedForLeg: jest.fn(() => Promise.resolve(null)) } as any,
+      { emitConfirmed: jest.fn(() => Promise.resolve(undefined)), emitFailed: jest.fn(() => Promise.resolve(undefined)), emitSubmitted: jest.fn(() => Promise.resolve(undefined)) } as any,
     );
   }
 
@@ -1118,6 +1134,8 @@ describe('LegsService — additional coverage', () => {
       bridgeTransferService as unknown as BridgeTransferService,
       killSwitch as unknown as import('../execution/risk/dex-kill-switch.service').DexKillSwitchService,
       makePermissiveCostEstimator(),
+      { persistWithOutcome: jest.fn(() => Promise.resolve(null)), findConfirmedForLeg: jest.fn(() => Promise.resolve(null)) } as any,
+      { emitConfirmed: jest.fn(() => Promise.resolve(undefined)), emitFailed: jest.fn(() => Promise.resolve(undefined)), emitSubmitted: jest.fn(() => Promise.resolve(undefined)) } as any,
     );
   }
 
@@ -1396,7 +1414,7 @@ describe('LegsService — additional coverage', () => {
       );
     });
 
-    it('rethrows VenueSubmitTransientError as 502 with transient hint', async () => {
+    it('rethrows VenueSubmitTransientError as 503 with transient hint (P9-1: leg stays submitting)', async () => {
       const { VenueSubmitTransientError } = await import('../venue/venue-adapter');
       venue.submitLeg = jest.fn(() =>
         // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
@@ -1407,8 +1425,8 @@ describe('LegsService — additional coverage', () => {
 
       const err = await service.markSent(planId, legId).catch((e) => e);
       expect(err).toBeInstanceOf(HttpException);
-      expect((err as HttpException).getStatus()).toBe(HttpStatus.BAD_GATEWAY);
-      expect((err as HttpException).message).toMatch(/transient; retry/);
+      expect((err as HttpException).getStatus()).toBe(HttpStatus.SERVICE_UNAVAILABLE);
+      expect((err as HttpException).message).toMatch(/transient; leg is submitting/);
     });
 
     it('includes transient hint when error message contains MOCK_VENUE_FAIL_SUBMIT_REMAINING', async () => {
@@ -1419,10 +1437,10 @@ describe('LegsService — additional coverage', () => {
       const legId = pushLeg(planId);
 
       const err = await service.markSent(planId, legId).catch((e) => e);
-      expect((err as HttpException).message).toMatch(/transient; retry/);
+      expect((err as HttpException).message).toMatch(/transient; leg is submitting/);
     });
 
-    it('rethrows non-Error throw as 502', async () => {
+    it('rethrows non-Error throw as 503 (P9-1)', async () => {
       venue.submitLeg = jest.fn(() =>
         // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
         Promise.reject('string-error'),
@@ -1431,7 +1449,7 @@ describe('LegsService — additional coverage', () => {
       const legId = pushLeg(planId);
 
       const err = await service.markSent(planId, legId).catch((e) => e);
-      expect((err as HttpException).getStatus()).toBe(HttpStatus.BAD_GATEWAY);
+      expect((err as HttpException).getStatus()).toBe(HttpStatus.SERVICE_UNAVAILABLE);
       expect((err as HttpException).message).toMatch(/string-error/);
     });
   });
