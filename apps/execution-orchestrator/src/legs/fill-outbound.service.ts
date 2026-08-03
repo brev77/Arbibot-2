@@ -76,29 +76,38 @@ export class FillOutboundService {
     private readonly priceOracle: PriceOracleService,
   ) {}
 
+  /**
+   * Post-leg-filled hook. P9-8: the HTTP settlement (portfolio confirm + capital
+   * release) has been MOVED to the SettlementRelayWorker (at-least-once outbox
+   * drain). This method now only does the synchronous, in-tx plan completion
+   * (NOT a network call) — if the process crashes after this, the relay resumes
+   * from the unprocessed legFilled/planCompleted outbox rows.
+   *
+   * Guard B3: there is exactly ONE drain-point for settlement HTTP (the relay).
+   * The old post-commit fetchWithRetry path is removed to avoid double-delivery.
+   */
   async afterLegFullyFilled(args: LegFilledSettlementArgs): Promise<void> {
     // Always mark plan completed when all legs are filled — this must not be
-    // gated by the optional settlement flag, otherwise plans stay in
-    // "executing" forever when settlement is disabled.
-    const { completed, plan } =
-      await this.plans.tryMarkPlanCompletedWhenAllLegsFilled(args.planId);
+    // gated by the settlement flag, otherwise plans stay in "executing" forever.
+    await this.plans.tryMarkPlanCompletedWhenAllLegsFilled(args.planId);
+    // Portfolio confirm + capital release are delivered by SettlementRelayWorker
+    // (drains the legFilled/planCompleted outbox rows written by legs/plans).
+  }
 
-    // Settlement (portfolio confirm + capital release) is optional and
-    // gated separately by EXECUTION_SETTLEMENT_ENABLED.
-    if (process.env.EXECUTION_SETTLEMENT_ENABLED !== 'true') {
-      return;
-    }
-
+  /**
+   * Portfolio confirm-fill (P9-8: public for the settlement relay). Idempotent
+   * on the receiving side via `portfolio:fill:{legId}`.
+   */
+  async confirmPortfolioPublic(args: LegFilledSettlementArgs): Promise<void> {
     await this.confirmPortfolio(args);
+  }
 
-    if (
-      completed &&
-      plan !== null &&
-      plan.capitalReservationId !== null &&
-      plan.capitalReservationId.length > 0
-    ) {
-      await this.releaseCapital(plan.capitalReservationId);
-    }
+  /**
+   * Capital release (P9-8: public for the settlement relay). Idempotent on the
+   * receiving side (capital-service release is idempotent on reservation state).
+   */
+  async releaseCapitalPublic(reservationId: string): Promise<void> {
+    await this.releaseCapital(reservationId);
   }
 
   private async confirmPortfolio(args: LegFilledSettlementArgs): Promise<void> {

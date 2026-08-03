@@ -3,8 +3,14 @@ import type { PlansService } from '../plans/plans.service';
 import type { PriceOracleService } from '../execution/price/price-oracle.service';
 
 /**
- * FillOutboundService spec — post-commit settlement (portfolio HTTP +
- * capital release) gated by EXECUTION_SETTLEMENT_ENABLED.
+ * FillOutboundService spec.
+ *
+ * P9-8: `afterLegFullyFilled` no longer does HTTP — it only marks the plan
+ * completed (synchronous). Portfolio confirm-fill + capital release moved to
+ * the SettlementRelayWorker, which drives them via the public
+ * `confirmPortfolioPublic(args)` / `releaseCapitalPublic(reservationId)`
+ * methods exercised here. These methods are NOT gated by
+ * EXECUTION_SETTLEMENT_ENABLED (the relay decides when to call them).
  *
  * Pattern: direct instantiation with stub PlansService + PriceOracleService
  * and `globalThis.fetch` mocked per-test.
@@ -26,6 +32,9 @@ describe('FillOutboundService', () => {
     instrumentKey: 'k',
     correlationId: null as string | null,
   };
+
+  /** Reservation id mirrored from the relay's plan.capitalReservationId mock. */
+  const reservationId = 'res-1';
 
   function makeService(
     plansOverrides: Partial<PlansService> = {},
@@ -73,24 +82,24 @@ describe('FillOutboundService', () => {
 
       expect(tryMark).toHaveBeenCalledWith(baseArgs.planId);
     });
+  });
 
-    it('throws when settlement enabled but portfolio base URL is missing', async () => {
-      process.env.EXECUTION_SETTLEMENT_ENABLED = 'true';
+  describe('confirmPortfolioPublic', () => {
+    it('throws when portfolio base URL is missing', async () => {
       const svc = makeService();
 
-      await expect(svc.afterLegFullyFilled(baseArgs)).rejects.toThrow(
+      await expect(svc.confirmPortfolioPublic(baseArgs)).rejects.toThrow(
         /PORTFOLIO_SERVICE_URL|PORTFOLIO_API_BASE/,
       );
     });
 
     it('posts portfolio confirm-fill on happy path', async () => {
-      process.env.EXECUTION_SETTLEMENT_ENABLED = 'true';
       process.env.PORTFOLIO_SERVICE_URL = 'http://portfolio.test/';
       const fetchMock = jest.fn().mockResolvedValue({ ok: true, text: () => Promise.resolve('') });
       globalThis.fetch = fetchMock;
 
       const svc = makeService();
-      await svc.afterLegFullyFilled(baseArgs);
+      await svc.confirmPortfolioPublic(baseArgs);
 
       expect(fetchMock).toHaveBeenCalledTimes(1);
       const [url, init] = fetchMock.mock.calls[0];
@@ -103,13 +112,12 @@ describe('FillOutboundService', () => {
     });
 
     it('sends x-correlation-id header when args.correlationId is set', async () => {
-      process.env.EXECUTION_SETTLEMENT_ENABLED = 'true';
       process.env.PORTFOLIO_SERVICE_URL = 'http://portfolio.test';
       const fetchMock = jest.fn().mockResolvedValue({ ok: true, text: () => Promise.resolve('') });
       globalThis.fetch = fetchMock;
 
       const svc = makeService();
-      await svc.afterLegFullyFilled({ ...baseArgs, correlationId: 'corr-1' });
+      await svc.confirmPortfolioPublic({ ...baseArgs, correlationId: 'corr-1' });
 
       const init = fetchMock.mock.calls[0][1] as RequestInit;
       const headers = init.headers as Record<string, string>;
@@ -117,18 +125,16 @@ describe('FillOutboundService', () => {
     });
 
     it('throws when portfolio responds non-2xx', async () => {
-      process.env.EXECUTION_SETTLEMENT_ENABLED = 'true';
       process.env.PORTFOLIO_SERVICE_URL = 'http://portfolio.test';
       globalThis.fetch = jest
         .fn()
         .mockResolvedValue({ ok: false, status: 500, text: () => Promise.resolve('boom') });
 
       const svc = makeService();
-      await expect(svc.afterLegFullyFilled(baseArgs)).rejects.toThrow(/Portfolio confirm-fill failed/);
+      await expect(svc.confirmPortfolioPublic(baseArgs)).rejects.toThrow(/Portfolio confirm-fill failed/);
     });
 
     it('retries transient HTTP statuses (429, 502, 503, 504) then succeeds', async () => {
-      process.env.EXECUTION_SETTLEMENT_ENABLED = 'true';
       process.env.PORTFOLIO_SERVICE_URL = 'http://portfolio.test';
       const fetchMock = jest
         .fn()
@@ -138,13 +144,12 @@ describe('FillOutboundService', () => {
       globalThis.fetch = fetchMock;
 
       const svc = makeService();
-      await svc.afterLegFullyFilled(baseArgs);
+      await svc.confirmPortfolioPublic(baseArgs);
 
       expect(fetchMock).toHaveBeenCalledTimes(3);
     });
 
     it('returns last transient failure response when retries exhaust', async () => {
-      process.env.EXECUTION_SETTLEMENT_ENABLED = 'true';
       process.env.PORTFOLIO_SERVICE_URL = 'http://portfolio.test';
       const fetchMock = jest.fn().mockResolvedValue({
         ok: false,
@@ -154,13 +159,12 @@ describe('FillOutboundService', () => {
       globalThis.fetch = fetchMock;
 
       const svc = makeService();
-      await expect(svc.afterLegFullyFilled(baseArgs)).rejects.toThrow(/Portfolio confirm-fill failed/);
+      await expect(svc.confirmPortfolioPublic(baseArgs)).rejects.toThrow(/Portfolio confirm-fill failed/);
       // default retries = 4
       expect(fetchMock).toHaveBeenCalledTimes(4);
     });
 
     it('does not retry non-transient failure statuses (400)', async () => {
-      process.env.EXECUTION_SETTLEMENT_ENABLED = 'true';
       process.env.PORTFOLIO_SERVICE_URL = 'http://portfolio.test';
       const fetchMock = jest.fn().mockResolvedValue({
         ok: false,
@@ -170,187 +174,29 @@ describe('FillOutboundService', () => {
       globalThis.fetch = fetchMock;
 
       const svc = makeService();
-      await expect(svc.afterLegFullyFilled(baseArgs)).rejects.toThrow(/Portfolio confirm-fill failed/);
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-    });
-
-    it('releases capital when plan completed with capitalReservationId', async () => {
-      process.env.EXECUTION_SETTLEMENT_ENABLED = 'true';
-      process.env.PORTFOLIO_SERVICE_URL = 'http://portfolio.test';
-      process.env.CAPITAL_SERVICE_BASE_URL = 'http://capital.test';
-      const fetchMock = jest.fn().mockResolvedValue({ ok: true, text: () => Promise.resolve('') });
-      globalThis.fetch = fetchMock;
-
-      const svc = new FillOutboundService(
-        {
-          tryMarkPlanCompletedWhenAllLegsFilled: jest.fn().mockResolvedValue({
-            completed: true,
-            plan: { capitalReservationId: 'res-1' },
-          }),
-        } as unknown as PlansService,
-        mockPriceOracle,
-      );
-
-      await svc.afterLegFullyFilled(baseArgs);
-
-      // Two HTTP calls: portfolio confirm + capital release
-      expect(fetchMock).toHaveBeenCalledTimes(2);
-      const capitalCall = fetchMock.mock.calls[1];
-      expect(capitalCall[0]).toContain('/capital/reservations/res-1/release');
-    });
-
-    it('uses CAPITAL_SERVICE_URL when CAPITAL_SERVICE_BASE_URL is unset', async () => {
-      process.env.EXECUTION_SETTLEMENT_ENABLED = 'true';
-      process.env.PORTFOLIO_SERVICE_URL = 'http://portfolio.test';
-      process.env.CAPITAL_SERVICE_URL = 'http://cap.test';
-      const fetchMock = jest.fn().mockResolvedValue({ ok: true, text: () => Promise.resolve('') });
-      globalThis.fetch = fetchMock;
-
-      const svc = new FillOutboundService(
-        {
-          tryMarkPlanCompletedWhenAllLegsFilled: jest.fn().mockResolvedValue({
-            completed: true,
-            plan: { capitalReservationId: 'res-1' },
-          }),
-        } as unknown as PlansService,
-        mockPriceOracle,
-      );
-
-      await svc.afterLegFullyFilled(baseArgs);
-
-      const capitalUrl = fetchMock.mock.calls[1][0];
-      expect(capitalUrl).toContain('http://cap.test');
-    });
-
-    it('defaults capital base URL when both env vars are unset', async () => {
-      process.env.EXECUTION_SETTLEMENT_ENABLED = 'true';
-      process.env.PORTFOLIO_SERVICE_URL = 'http://portfolio.test';
-      const fetchMock = jest.fn().mockResolvedValue({ ok: true, text: () => Promise.resolve('') });
-      globalThis.fetch = fetchMock;
-
-      const svc = new FillOutboundService(
-        {
-          tryMarkPlanCompletedWhenAllLegsFilled: jest.fn().mockResolvedValue({
-            completed: true,
-            plan: { capitalReservationId: 'res-1' },
-          }),
-        } as unknown as PlansService,
-        mockPriceOracle,
-      );
-
-      await svc.afterLegFullyFilled(baseArgs);
-
-      const capitalUrl = fetchMock.mock.calls[1][0];
-      expect(capitalUrl).toContain('http://127.0.0.1:3011');
-    });
-
-    it('throws when capital release responds non-2xx', async () => {
-      process.env.EXECUTION_SETTLEMENT_ENABLED = 'true';
-      process.env.PORTFOLIO_SERVICE_URL = 'http://portfolio.test';
-      process.env.CAPITAL_SERVICE_URL = 'http://cap.test';
-      const fetchMock = jest
-        .fn()
-        .mockResolvedValueOnce({ ok: true, text: () => Promise.resolve('') }) // portfolio ok
-        .mockResolvedValue({ ok: false, status: 500, text: () => Promise.resolve('boom') }); // capital fail
-      globalThis.fetch = fetchMock;
-
-      const svc = new FillOutboundService(
-        {
-          tryMarkPlanCompletedWhenAllLegsFilled: jest.fn().mockResolvedValue({
-            completed: true,
-            plan: { capitalReservationId: 'res-1' },
-          }),
-        } as unknown as PlansService,
-        mockPriceOracle,
-      );
-
-      await expect(svc.afterLegFullyFilled(baseArgs)).rejects.toThrow(/Capital release failed/);
-    });
-
-    it('skips capital release when plan is not completed', async () => {
-      process.env.EXECUTION_SETTLEMENT_ENABLED = 'true';
-      process.env.PORTFOLIO_SERVICE_URL = 'http://portfolio.test';
-      const fetchMock = jest.fn().mockResolvedValue({ ok: true, text: () => Promise.resolve('') });
-      globalThis.fetch = fetchMock;
-
-      const svc = new FillOutboundService(
-        {
-          tryMarkPlanCompletedWhenAllLegsFilled: jest.fn().mockResolvedValue({
-            completed: false, // not completed
-            plan: { capitalReservationId: 'res-1' },
-          }),
-        } as unknown as PlansService,
-        mockPriceOracle,
-      );
-
-      await svc.afterLegFullyFilled(baseArgs);
-
-      expect(fetchMock).toHaveBeenCalledTimes(1); // portfolio only
-    });
-
-    it('skips capital release when plan.capitalReservationId is null', async () => {
-      process.env.EXECUTION_SETTLEMENT_ENABLED = 'true';
-      process.env.PORTFOLIO_SERVICE_URL = 'http://portfolio.test';
-      const fetchMock = jest.fn().mockResolvedValue({ ok: true, text: () => Promise.resolve('') });
-      globalThis.fetch = fetchMock;
-
-      const svc = new FillOutboundService(
-        {
-          tryMarkPlanCompletedWhenAllLegsFilled: jest.fn().mockResolvedValue({
-            completed: true,
-            plan: { capitalReservationId: null },
-          }),
-        } as unknown as PlansService,
-        mockPriceOracle,
-      );
-
-      await svc.afterLegFullyFilled(baseArgs);
-
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-    });
-
-    it('skips capital release when plan.capitalReservationId is empty string', async () => {
-      process.env.EXECUTION_SETTLEMENT_ENABLED = 'true';
-      process.env.PORTFOLIO_SERVICE_URL = 'http://portfolio.test';
-      const fetchMock = jest.fn().mockResolvedValue({ ok: true, text: () => Promise.resolve('') });
-      globalThis.fetch = fetchMock;
-
-      const svc = new FillOutboundService(
-        {
-          tryMarkPlanCompletedWhenAllLegsFilled: jest.fn().mockResolvedValue({
-            completed: true,
-            plan: { capitalReservationId: '' },
-          }),
-        } as unknown as PlansService,
-        mockPriceOracle,
-      );
-
-      await svc.afterLegFullyFilled(baseArgs);
-
+      await expect(svc.confirmPortfolioPublic(baseArgs)).rejects.toThrow(/Portfolio confirm-fill failed/);
       expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
     it('throws simulated portfolio failure when legIndex is in simulate-failure set', async () => {
-      process.env.EXECUTION_SETTLEMENT_ENABLED = 'true';
       process.env.EXECUTION_SETTLEMENT_SIMULATE_PORTFOLIO_FAILURE_ON_LEG_INDEXES = '0, 2';
       process.env.PORTFOLIO_SERVICE_URL = 'http://portfolio.test';
       const fetchMock = jest.fn().mockResolvedValue({ ok: true, text: () => Promise.resolve('') });
       globalThis.fetch = fetchMock;
 
       const svc = makeService();
-      await expect(svc.afterLegFullyFilled({ ...baseArgs, legIndex: 0 })).rejects.toThrow(
+      await expect(svc.confirmPortfolioPublic({ ...baseArgs, legIndex: 0 })).rejects.toThrow(
         /Simulated portfolio confirm-fill failure/,
       );
       // Should throw BEFORE fetch is attempted
       expect(fetchMock).not.toHaveBeenCalled();
 
       // legIndex=1 should NOT trigger the simulation
-      await svc.afterLegFullyFilled({ ...baseArgs, legIndex: 1 });
+      await svc.confirmPortfolioPublic({ ...baseArgs, legIndex: 1 });
       expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
     it('parses simulated-failure env ignoring non-numeric entries', async () => {
-      process.env.EXECUTION_SETTLEMENT_ENABLED = 'true';
       process.env.EXECUTION_SETTLEMENT_SIMULATE_PORTFOLIO_FAILURE_ON_LEG_INDEXES = 'abc, -1, 5';
       process.env.PORTFOLIO_SERVICE_URL = 'http://portfolio.test';
       const fetchMock = jest.fn().mockResolvedValue({ ok: true, text: () => Promise.resolve('') });
@@ -358,21 +204,69 @@ describe('FillOutboundService', () => {
 
       const svc = makeService();
       // legIndex=5 should trigger simulation; only valid non-negative integer kept
-      await expect(svc.afterLegFullyFilled({ ...baseArgs, legIndex: 5 })).rejects.toThrow(
+      await expect(svc.confirmPortfolioPublic({ ...baseArgs, legIndex: 5 })).rejects.toThrow(
         /Simulated portfolio confirm-fill failure/,
       );
     });
 
     it('ignores empty simulated-failure env', async () => {
-      process.env.EXECUTION_SETTLEMENT_ENABLED = 'true';
       process.env.EXECUTION_SETTLEMENT_SIMULATE_PORTFOLIO_FAILURE_ON_LEG_INDEXES = '   ';
       process.env.PORTFOLIO_SERVICE_URL = 'http://portfolio.test';
       const fetchMock = jest.fn().mockResolvedValue({ ok: true, text: () => Promise.resolve('') });
       globalThis.fetch = fetchMock;
 
       const svc = makeService();
-      await svc.afterLegFullyFilled(baseArgs);
+      await svc.confirmPortfolioPublic(baseArgs);
       expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('releaseCapitalPublic', () => {
+    it('posts capital release for the reservation id', async () => {
+      process.env.CAPITAL_SERVICE_BASE_URL = 'http://capital.test';
+      const fetchMock = jest.fn().mockResolvedValue({ ok: true, text: () => Promise.resolve('') });
+      globalThis.fetch = fetchMock;
+
+      const svc = makeService();
+      await svc.releaseCapitalPublic(reservationId);
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(url).toContain('/capital/reservations/res-1/release');
+      expect(init?.method).toBe('POST');
+    });
+
+    it('uses CAPITAL_SERVICE_URL when CAPITAL_SERVICE_BASE_URL is unset', async () => {
+      process.env.CAPITAL_SERVICE_URL = 'http://cap.test';
+      const fetchMock = jest.fn().mockResolvedValue({ ok: true, text: () => Promise.resolve('') });
+      globalThis.fetch = fetchMock;
+
+      const svc = makeService();
+      await svc.releaseCapitalPublic(reservationId);
+
+      const capitalUrl = fetchMock.mock.calls[0][0];
+      expect(capitalUrl).toContain('http://cap.test');
+    });
+
+    it('defaults capital base URL when both env vars are unset', async () => {
+      const fetchMock = jest.fn().mockResolvedValue({ ok: true, text: () => Promise.resolve('') });
+      globalThis.fetch = fetchMock;
+
+      const svc = makeService();
+      await svc.releaseCapitalPublic(reservationId);
+
+      const capitalUrl = fetchMock.mock.calls[0][0];
+      expect(capitalUrl).toContain('http://127.0.0.1:3011');
+    });
+
+    it('throws when capital release responds non-2xx', async () => {
+      process.env.CAPITAL_SERVICE_URL = 'http://cap.test';
+      globalThis.fetch = jest
+        .fn()
+        .mockResolvedValue({ ok: false, status: 500, text: () => Promise.resolve('boom') });
+
+      const svc = makeService();
+      await expect(svc.releaseCapitalPublic(reservationId)).rejects.toThrow(/Capital release failed/);
     });
   });
 
@@ -383,29 +277,26 @@ describe('FillOutboundService', () => {
     }
 
     it('returns "0" when chainId is missing', async () => {
-      process.env.EXECUTION_SETTLEMENT_ENABLED = 'true';
       process.env.PORTFOLIO_SERVICE_URL = 'http://portfolio.test';
       const fetchMock = jest.fn().mockResolvedValue({ ok: true, text: () => Promise.resolve('') });
       globalThis.fetch = fetchMock;
 
       const svc = makeService();
-      await svc.afterLegFullyFilled({ ...baseArgs, tokenIn: '0xtoken' }); // no chainId
+      await svc.confirmPortfolioPublic({ ...baseArgs, tokenIn: '0xtoken' }); // no chainId
       expect(captureBody(fetchMock).notionalUsd).toBe('0');
     });
 
     it('returns "0" when tokenIn is missing', async () => {
-      process.env.EXECUTION_SETTLEMENT_ENABLED = 'true';
       process.env.PORTFOLIO_SERVICE_URL = 'http://portfolio.test';
       const fetchMock = jest.fn().mockResolvedValue({ ok: true, text: () => Promise.resolve('') });
       globalThis.fetch = fetchMock;
 
       const svc = makeService();
-      await svc.afterLegFullyFilled({ ...baseArgs, chainId: 1 }); // no tokenIn
+      await svc.confirmPortfolioPublic({ ...baseArgs, chainId: 1 }); // no tokenIn
       expect(captureBody(fetchMock).notionalUsd).toBe('0');
     });
 
     it('computes notional from oracle price + decimals', async () => {
-      process.env.EXECUTION_SETTLEMENT_ENABLED = 'true';
       process.env.PORTFOLIO_SERVICE_URL = 'http://portfolio.test';
       (mockPriceOracle.getTokenPriceUsd as jest.Mock).mockResolvedValue(2000);
       (mockPriceOracle.getTokenDecimals as jest.Mock).mockResolvedValue(18);
@@ -414,7 +305,7 @@ describe('FillOutboundService', () => {
 
       const svc = makeService();
       // filledQuantity=5 units, 18 decimals → units = 5 / 1 = 5; notional = 5 * 2000 = 10000
-      await svc.afterLegFullyFilled({
+      await svc.confirmPortfolioPublic({
         ...baseArgs,
         filledQuantity: 5 * 10 ** 18,
         chainId: 1,
@@ -426,14 +317,13 @@ describe('FillOutboundService', () => {
     });
 
     it('returns "0" when oracle price is null', async () => {
-      process.env.EXECUTION_SETTLEMENT_ENABLED = 'true';
       process.env.PORTFOLIO_SERVICE_URL = 'http://portfolio.test';
       (mockPriceOracle.getTokenPriceUsd as jest.Mock).mockResolvedValue(null);
       const fetchMock = jest.fn().mockResolvedValue({ ok: true, text: () => Promise.resolve('') });
       globalThis.fetch = fetchMock;
 
       const svc = makeService();
-      await svc.afterLegFullyFilled({
+      await svc.confirmPortfolioPublic({
         ...baseArgs,
         chainId: 1,
         tokenIn: '0xtoken',
@@ -442,7 +332,6 @@ describe('FillOutboundService', () => {
     });
 
     it('returns "0" when oracle decimals is null', async () => {
-      process.env.EXECUTION_SETTLEMENT_ENABLED = 'true';
       process.env.PORTFOLIO_SERVICE_URL = 'http://portfolio.test';
       (mockPriceOracle.getTokenPriceUsd as jest.Mock).mockResolvedValue(100);
       (mockPriceOracle.getTokenDecimals as jest.Mock).mockResolvedValue(null);
@@ -450,7 +339,7 @@ describe('FillOutboundService', () => {
       globalThis.fetch = fetchMock;
 
       const svc = makeService();
-      await svc.afterLegFullyFilled({
+      await svc.confirmPortfolioPublic({
         ...baseArgs,
         chainId: 1,
         tokenIn: '0xtoken',
@@ -459,14 +348,13 @@ describe('FillOutboundService', () => {
     });
 
     it('returns "0" when oracle throws', async () => {
-      process.env.EXECUTION_SETTLEMENT_ENABLED = 'true';
       process.env.PORTFOLIO_SERVICE_URL = 'http://portfolio.test';
       (mockPriceOracle.getTokenPriceUsd as jest.Mock).mockRejectedValue(new Error('oracle down'));
       const fetchMock = jest.fn().mockResolvedValue({ ok: true, text: () => Promise.resolve('') });
       globalThis.fetch = fetchMock;
 
       const svc = makeService();
-      await svc.afterLegFullyFilled({
+      await svc.confirmPortfolioPublic({
         ...baseArgs,
         chainId: 1,
         tokenIn: '0xtoken',
@@ -475,7 +363,6 @@ describe('FillOutboundService', () => {
     });
 
     it('returns "0" when computed notional is non-finite or zero', async () => {
-      process.env.EXECUTION_SETTLEMENT_ENABLED = 'true';
       process.env.PORTFOLIO_SERVICE_URL = 'http://portfolio.test';
       (mockPriceOracle.getTokenPriceUsd as jest.Mock).mockResolvedValue(0); // zero price
       (mockPriceOracle.getTokenDecimals as jest.Mock).mockResolvedValue(18);
@@ -483,7 +370,7 @@ describe('FillOutboundService', () => {
       globalThis.fetch = fetchMock;
 
       const svc = makeService();
-      await svc.afterLegFullyFilled({
+      await svc.confirmPortfolioPublic({
         ...baseArgs,
         filledQuantity: 5,
         chainId: 1,

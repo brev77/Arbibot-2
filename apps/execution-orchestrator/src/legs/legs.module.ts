@@ -20,6 +20,7 @@ import { PartialFillPlaybookService } from './partial-fill-playbook.service';
 import { PlanExecutionController } from './plan-execution.controller';
 import { PlanLegActionsController } from './plan-leg-actions.controller';
 import { StuckPlanReaperWorker } from './stuck-plan-reaper.worker';
+import { SettlementRelayWorker } from './settlement-relay.worker';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { StuckPlanReaperWorker } from './stuck-plan-reaper.worker';
     LegsService,
     PartialFillPlaybookService,
     StuckPlanReaperWorker,
+    SettlementRelayWorker,
     MockVenueAdapter,
     {
       provide: VENUE_ADAPTER,
