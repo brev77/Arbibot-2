@@ -19,6 +19,7 @@ import { LegsService } from './legs.service';
 import { PartialFillPlaybookService } from './partial-fill-playbook.service';
 import { PlanExecutionController } from './plan-execution.controller';
 import { PlanLegActionsController } from './plan-leg-actions.controller';
+import { StuckPlanReaperWorker } from './stuck-plan-reaper.worker';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { PlanLegActionsController } from './plan-leg-actions.controller';
     FillOutboundService,
     LegsService,
     PartialFillPlaybookService,
+    StuckPlanReaperWorker,
     MockVenueAdapter,
     {
       provide: VENUE_ADAPTER,
