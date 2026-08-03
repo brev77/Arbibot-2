@@ -19,6 +19,7 @@ import {
 import { RpcProviderManager } from '../rpc/rpc-provider-manager.service';
 import { WalletManagerService, type SelectedWallet } from '../wallet-manager.service';
 import { NonceManagerService } from '../nonce-manager.service';
+import { waitForConfirmation } from '../tx-confirmation.service';
 import { GasEstimatorService } from '../gas/gas-estimator.service';
 import { TokenApproveService } from '../token/token-approve.service';
 import { DexRiskPolicyService } from '../risk/dex-risk-policy.service';
@@ -218,11 +219,11 @@ export class BiswapV2Adapter implements VenueAdapter {
       );
 
       // 9. Wait for receipt (1 confirmation) — outside the nonce lock
-      const receipt: TransactionReceipt | null = await tx.wait(1);
+      const receipt: TransactionReceipt | null = await waitForConfirmation(tx, params.chainId);
 
       if (!receipt) {
         throw new VenueSubmitTransientError(
-          `BiswapV2Adapter: tx ${tx.hash} returned null receipt (possible RPC issue)`,
+          `BiswapV2Adapter: tx ${tx.hash} not confirmed within timeout (possible RPC issue / congestion) — leg stays submitting, poller will reconcile`,
         );
       }
 

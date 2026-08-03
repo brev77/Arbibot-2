@@ -479,7 +479,7 @@ describe('BiswapV2Adapter', () => {
 
       wallet._mockWait.mockResolvedValue(null);
 
-      await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('null receipt');
+      await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('not confirmed within timeout');
 
       spy.mockRestore();
     });

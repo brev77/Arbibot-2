@@ -421,7 +421,7 @@ describe('SushiSwapV2Adapter', () => {
 
       wallet._mockWait.mockResolvedValue(null);
 
-      await expect(adapter.submitLeg(plan as any, leg as any)).rejects.toThrow('null receipt');
+      await expect(adapter.submitLeg(plan as any, leg as any)).rejects.toThrow('not confirmed within timeout');
       await expect(adapter.submitLeg(plan as any, leg as any)).rejects.toThrow(VenueSubmitTransientError);
 
       spy.mockRestore();

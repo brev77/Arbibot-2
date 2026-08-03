@@ -694,7 +694,7 @@ describe('UniswapV3Adapter', () => {
 
       wallet._mockWait.mockResolvedValue(null);
 
-      await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('null receipt');
+      await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('not confirmed within timeout');
     });
   });
 

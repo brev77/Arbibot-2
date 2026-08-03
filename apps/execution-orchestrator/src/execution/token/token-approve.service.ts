@@ -1,10 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { JsonRpcProvider, Contract, Wallet, ContractTransactionReceipt, ContractTransactionResponse, Provider } from 'ethers';
+import { JsonRpcProvider, Contract, Wallet, ContractTransactionResponse, Provider } from 'ethers';
 import { Counter, Gauge } from 'prom-client';
 import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
 import { ChainId, Address } from '@arbibot/contracts-eth';
 import { WalletManagerService } from '../wallet-manager.service';
 import { NonceManagerService } from '../nonce-manager.service';
+import { waitForConfirmation } from '../tx-confirmation.service';
 import { RpcProviderManager } from '../rpc/rpc-provider-manager.service';
 
 /**
@@ -155,7 +156,7 @@ export class TokenApproveService {
       this.logger.log(`Approve tx sent: ${tx.hash} for ${tokenAddress} → ${spender}`);
 
       // Wait for confirmation (1 block) — outside the nonce lock
-      const receipt: ContractTransactionReceipt | null = await tx.wait(1);
+      const receipt = await waitForConfirmation(tx, chainId);
 
       const result: ApproveResult = {
         txHash: tx.hash,
@@ -282,7 +283,7 @@ export class TokenApproveService {
     );
     this.logger.log(`Revoke tx sent: ${tx.hash} for ${tokenAddress} → ${spender}`);
 
-    const receipt: ContractTransactionReceipt | null = await tx.wait(1);
+    const receipt = await waitForConfirmation(tx, chainId);
 
     return {
       txHash: tx.hash,
