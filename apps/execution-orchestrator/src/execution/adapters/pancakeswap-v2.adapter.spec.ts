@@ -65,6 +65,7 @@ const mockDexRiskPolicy: Record<string, any> = {
     poolLiquidityUsd: 0,
   }),
   recordTradeVolume: jest.fn<any>().mockResolvedValue(undefined),
+  getEffectiveConfig: jest.fn<any>().mockResolvedValue({ maxSlippageBps: 100000, maxOpenPositions: 10, maxTradeSizeUsd: 100000, dailyVolumeLimitUsd: 1000000, allowedProtocols: ['uniswap-v2','uniswap-v3','sushiswap','pancakeswap-v2','biswap'], blockedTokens: [] }),
 };
 
 const mockPriceOracle: Record<string, any> = {
@@ -364,7 +365,7 @@ describe('PancakeSwapV2Adapter', () => {
       });
 
       // Mock calculateAmountOutMin to avoid real Contract.call
-      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('99000000');
+      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '99000000', expectedAmountOut: '99000000' });
 
       wallet._mockWait.mockResolvedValue({
         status: 1,
@@ -420,7 +421,7 @@ describe('PancakeSwapV2Adapter', () => {
         estimatedCostEth: '0.0006',
       });
 
-      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('599000000');
+      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '599000000', expectedAmountOut: '599000000' });
 
       wallet._mockWait.mockResolvedValue({
         status: 1,
@@ -466,7 +467,7 @@ describe('PancakeSwapV2Adapter', () => {
         estimatedCostEth: '0.01',
       });
 
-      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('99000000');
+      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '99000000', expectedAmountOut: '99000000' });
 
       await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('gas price exceeds policy');
 
@@ -494,7 +495,7 @@ describe('PancakeSwapV2Adapter', () => {
         estimatedCostEth: '0.0002',
       });
 
-      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('99000000');
+      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '99000000', expectedAmountOut: '99000000' });
 
       wallet._mockWait.mockResolvedValue({
         status: 0,
@@ -528,7 +529,7 @@ describe('PancakeSwapV2Adapter', () => {
         estimatedCostEth: '0.0002',
       });
 
-      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('99000000');
+      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '99000000', expectedAmountOut: '99000000' });
 
       wallet._mockWait.mockResolvedValue(null);
 
@@ -574,7 +575,7 @@ describe('PancakeSwapV2Adapter', () => {
         withinPolicy: true,
         estimatedCostEth: '0.0002',
       });
-      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('99000000');
+      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '99000000', expectedAmountOut: '99000000' });
       wallet._mockWait.mockResolvedValue({ status: 1, gasUsed: 200000n, blockNumber: 12345678 });
 
       await adapter.submitLeg(plan, leg);
@@ -645,7 +646,7 @@ describe('PancakeSwapV2Adapter', () => {
         withinPolicy: true,
         estimatedCostEth: '0.0002',
       });
-      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('99000000');
+      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '99000000', expectedAmountOut: '99000000' });
       wallet._mockWait.mockResolvedValue({ status: 1, gasUsed: 200000n, blockNumber: 12345678 });
 
       await adapter.submitLeg(plan, leg);
@@ -672,7 +673,7 @@ describe('PancakeSwapV2Adapter', () => {
         withinPolicy: true,
         estimatedCostEth: '0.0002',
       });
-      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('99000000');
+      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '99000000', expectedAmountOut: '99000000' });
       wallet._mockWait.mockResolvedValue({ status: 0, gasUsed: 200000n, blockNumber: 12345678 });
 
       await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('reverted on-chain');

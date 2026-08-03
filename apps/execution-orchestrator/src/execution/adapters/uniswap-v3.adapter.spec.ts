@@ -64,6 +64,7 @@ const mockDexRiskPolicy: Record<string, any> = {
     poolLiquidityUsd: 0,
   }),
   recordTradeVolume: jest.fn<any>().mockResolvedValue(undefined),
+  getEffectiveConfig: jest.fn<any>().mockResolvedValue({ maxSlippageBps: 100000, maxOpenPositions: 10, maxTradeSizeUsd: 100000, dailyVolumeLimitUsd: 1000000, allowedProtocols: ['uniswap-v2','uniswap-v3','sushiswap','pancakeswap-v2','biswap'], blockedTokens: [] }),
 };
 
 const mockPriceOracle: Record<string, any> = {

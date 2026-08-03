@@ -59,6 +59,7 @@ const mockDexRiskPolicy: Record<string, any> = {
     poolLiquidityUsd: 0,
   }),
   recordTradeVolume: jest.fn<any>().mockResolvedValue(undefined),
+  getEffectiveConfig: jest.fn<any>().mockResolvedValue({ maxSlippageBps: 100000, maxOpenPositions: 10, maxTradeSizeUsd: 100000, dailyVolumeLimitUsd: 1000000, allowedProtocols: ['uniswap-v2','uniswap-v3','sushiswap','pancakeswap-v2','biswap'], blockedTokens: [] }),
 };
 
 const mockPriceOracle: Record<string, any> = {
@@ -301,7 +302,7 @@ describe('SushiSwapV2Adapter', () => {
       mockTokenApprove.getAllowance.mockResolvedValue(BigInt('2000000000000000000'));
       mockGasEstimator.estimateGas.mockResolvedValue(MOCK_GAS_ESTIMATION);
 
-      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('1990000000');
+      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '1990000000', expectedAmountOut: '1990000000' });
 
       wallet._mockWait.mockResolvedValue({
         status: 1,
@@ -327,7 +328,7 @@ describe('SushiSwapV2Adapter', () => {
       mockTokenApprove.getAllowance.mockResolvedValue(BigInt('2000000000000000000'));
       mockGasEstimator.estimateGas.mockResolvedValue(MOCK_GAS_ESTIMATION);
 
-      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('1990000000');
+      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '1990000000', expectedAmountOut: '1990000000' });
 
       wallet._mockWait.mockResolvedValue({
         status: 1,
@@ -359,7 +360,7 @@ describe('SushiSwapV2Adapter', () => {
       mockTokenApprove.getAllowance.mockResolvedValue(BigInt('2000000000000000000'));
       mockGasEstimator.estimateGas.mockResolvedValue(MOCK_GAS_ESTIMATION);
 
-      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('1990000000');
+      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '1990000000', expectedAmountOut: '1990000000' });
 
       wallet._mockWait.mockResolvedValue({
         status: 1,
@@ -399,7 +400,7 @@ describe('SushiSwapV2Adapter', () => {
         policyWarning: 'maxFeePerGas exceeds 50 gwei',
       });
 
-      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('1990000000');
+      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '1990000000', expectedAmountOut: '1990000000' });
 
       await expect(adapter.submitLeg(plan as any, leg as any)).rejects.toThrow('gas price exceeds policy');
 
@@ -416,7 +417,7 @@ describe('SushiSwapV2Adapter', () => {
       mockTokenApprove.getAllowance.mockResolvedValue(BigInt('2000000000000000000'));
       mockGasEstimator.estimateGas.mockResolvedValue(MOCK_GAS_ESTIMATION);
 
-      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('1990000000');
+      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '1990000000', expectedAmountOut: '1990000000' });
 
       wallet._mockWait.mockResolvedValue(null);
 
@@ -436,7 +437,7 @@ describe('SushiSwapV2Adapter', () => {
       mockTokenApprove.getAllowance.mockResolvedValue(BigInt('2000000000000000000'));
       mockGasEstimator.estimateGas.mockResolvedValue(MOCK_GAS_ESTIMATION);
 
-      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('1990000000');
+      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '1990000000', expectedAmountOut: '1990000000' });
 
       wallet._mockWait.mockResolvedValue({
         status: 0,
@@ -460,7 +461,7 @@ describe('SushiSwapV2Adapter', () => {
       mockTokenApprove.getAllowance.mockResolvedValue(BigInt('2000000000000000000'));
       mockGasEstimator.estimateGas.mockResolvedValue(MOCK_GAS_ESTIMATION);
 
-      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('1990000000');
+      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '1990000000', expectedAmountOut: '1990000000' });
 
       wallet.wallet.sendTransaction.mockRejectedValue(new Error('RPC timeout'));
 
@@ -486,7 +487,7 @@ describe('SushiSwapV2Adapter', () => {
       mockTokenApprove.getAllowance.mockResolvedValue(BigInt('2000000000000000000'));
       mockGasEstimator.estimateGas.mockResolvedValue(MOCK_GAS_ESTIMATION);
 
-      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('1990000000');
+      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '1990000000', expectedAmountOut: '1990000000' });
 
       wallet._mockWait.mockResolvedValue({
         status: 1,
@@ -510,7 +511,7 @@ describe('SushiSwapV2Adapter', () => {
       mockTokenApprove.getAllowance.mockResolvedValue(BigInt('2000000000000000000'));
       mockGasEstimator.estimateGas.mockResolvedValue(MOCK_GAS_ESTIMATION);
 
-      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('1990000000');
+      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '1990000000', expectedAmountOut: '1990000000' });
 
       wallet._mockWait.mockResolvedValue({
         status: 1,
@@ -554,7 +555,7 @@ describe('SushiSwapV2Adapter', () => {
       mockWalletManager.selectWallet.mockResolvedValue(wallet);
       mockTokenApprove.getAllowance.mockResolvedValue(BigInt('2000000000000000000'));
       mockGasEstimator.estimateGas.mockResolvedValue(MOCK_GAS_ESTIMATION);
-      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('1990000000');
+      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '1990000000', expectedAmountOut: '1990000000' });
       wallet._mockWait.mockResolvedValue({ status: 1, gasUsed: BigInt(200000), blockNumber: 12345678 });
 
       await adapter.submitLeg(plan as any, leg as any);
@@ -620,7 +621,7 @@ describe('SushiSwapV2Adapter', () => {
       mockWalletManager.selectWallet.mockResolvedValue(wallet);
       mockTokenApprove.getAllowance.mockResolvedValue(BigInt('2000000000000000000'));
       mockGasEstimator.estimateGas.mockResolvedValue(MOCK_GAS_ESTIMATION);
-      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('1990000000');
+      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '1990000000', expectedAmountOut: '1990000000' });
       wallet._mockWait.mockResolvedValue({ status: 1, gasUsed: BigInt(200000), blockNumber: 12345678 });
 
       await adapter.submitLeg(plan as any, leg as any);
@@ -642,7 +643,7 @@ describe('SushiSwapV2Adapter', () => {
       mockWalletManager.selectWallet.mockResolvedValue(wallet);
       mockTokenApprove.getAllowance.mockResolvedValue(BigInt('2000000000000000000'));
       mockGasEstimator.estimateGas.mockResolvedValue(MOCK_GAS_ESTIMATION);
-      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('1990000000');
+      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '1990000000', expectedAmountOut: '1990000000' });
       wallet._mockWait.mockResolvedValue({ status: 0, gasUsed: BigInt(200000), blockNumber: 12345678 });
 
       await expect(adapter.submitLeg(plan as any, leg as any)).rejects.toThrow('reverted on-chain');

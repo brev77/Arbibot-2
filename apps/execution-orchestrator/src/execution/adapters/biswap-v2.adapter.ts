@@ -30,6 +30,7 @@ import {
   extractSwapParams,
   enforceLiveRiskGate,
   recordLiveTradeVolume,
+  enforcePostQuoteSlippageGate,
 } from './uniswap-v2.adapter';
 
 // ───────────────────────────────────────────────────────────────────────
@@ -152,12 +153,24 @@ export class BiswapV2Adapter implements VenueAdapter {
       const swapPath = params.path ?? [params.tokenIn, params.tokenOut];
 
       // 6. Calculate amountOutMin via on-chain quote + slippage
-      const amountOutMin = await this.calculateAmountOutMin(
+      const { amountOutMin, expectedAmountOut } = await this.calculateAmountOutMin(
         params,
         provider,
         routerAddress,
         swapPath,
       );
+
+      // P9-5: post-quote live slippage gate using the REAL on-chain quote.
+      await enforcePostQuoteSlippageGate({
+        dexRiskPolicy: this.dexRiskPolicy,
+        priceOracle: this.priceOracle,
+        adapterName: 'BiswapV2Adapter',
+        chainId: params.chainId,
+        tokenIn: params.tokenIn,
+        tokenOut: params.tokenOut,
+        amountIn: params.amountIn,
+        expectedAmountOut,
+      });
 
       // 7. Estimate gas and check policy
       const recipient = params.recipient ?? selectedWallet.address;
@@ -310,7 +323,7 @@ export class BiswapV2Adapter implements VenueAdapter {
     provider: JsonRpcProvider,
     routerAddress: Address,
     swapPath: readonly string[],
-  ): Promise<string> {
+  ): Promise<{ amountOutMin: string; expectedAmountOut: string }> {
     const routerContract = new Contract(
       routerAddress,
       UniswapV2RouterABI,
@@ -332,7 +345,7 @@ export class BiswapV2Adapter implements VenueAdapter {
       `amountOutMin: expected=${expectedAmountOutStr} slippageBps=${slippageBps} minOut=${amountOutMin}`,
     );
 
-    return amountOutMin;
+    return { amountOutMin, expectedAmountOut: expectedAmountOutStr };
   }
 
   buildSwapTxRequest(

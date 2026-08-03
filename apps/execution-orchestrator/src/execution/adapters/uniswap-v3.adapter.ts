@@ -31,6 +31,7 @@ import {
   applySlippage,
   getSlippageBps,
   enforceLiveRiskGate,
+  enforcePostQuoteSlippageGate,
   recordLiveTradeVolume,
 } from './uniswap-v2.adapter';
 
@@ -353,11 +354,34 @@ export class UniswapV3Adapter implements VenueAdapter {
 
       // 5. Calculate amountOutMinimum: live QuoterV2 quote (with fallback to
       //    detection-time amountOutExpected) + slippage tolerance.
-      const { amountOutMin, usedLiveQuote } = await this.calculateAmountOutMin(params);
+      const { amountOutMin, usedLiveQuote, expectedAmountOut } = await this.calculateAmountOutMin(params);
 
       this.logger.debug(
         `amountOutMin: expected=${params.amountOutExpected} minOut=${amountOutMin} liveQuote=${usedLiveQuote}`,
       );
+
+      // 5.5 P9-5: post-quote live slippage gate using the REAL quote. This is
+      // the protection the pre-flight gate could not provide. If the Quoter was
+      // unreachable and we fell back to the detection-time `amountOutExpected`,
+      // the gate still runs — a stale quote that no longer reflects the pool
+      // state will show an unrealistic impact and block the trade. This keeps
+      // the testnet fallback path (Quoter not deployed) usable while still
+      // protecting live mainnet against stale-quote swaps.
+      if (!usedLiveQuote) {
+        this.logger.warn(
+          `Using stale detection-time amountOutExpected for slippage check on chain ${params.chainId} (QuoterV2 unreachable) — post-quote gate still applies`,
+        );
+      }
+      await enforcePostQuoteSlippageGate({
+        dexRiskPolicy: this.dexRiskPolicy,
+        priceOracle: this.priceOracle,
+        adapterName: 'UniswapV3Adapter',
+        chainId: params.chainId,
+        tokenIn: params.tokenIn,
+        tokenOut: params.tokenOut,
+        amountIn: params.amountIn,
+        expectedAmountOut,
+      });
 
       // 6. Estimate gas and check policy
       const recipient = params.recipient ?? selectedWallet.address;
@@ -514,13 +538,14 @@ export class UniswapV3Adapter implements VenueAdapter {
    * back to the detection-time `amountOutExpected` when the Quoter is
    * unavailable (testnet / RPC error / ZERO_ADDRESS deployment).
    *
-   * Returns `{ amountOutMin, usedLiveQuote }` so the caller can record the
-   * fallback as a metric. Slippage tolerance (`slippageBps`) is applied in
-   * both paths via `applySlippage`.
+   * Returns `{ amountOutMin, usedLiveQuote, expectedAmountOut }` so the caller
+   * can record the fallback as a metric AND run the post-quote slippage gate
+   * (P9-5) against the real quote. Slippage tolerance (`slippageBps`) is
+   * applied in both paths via `applySlippage`.
    */
   async calculateAmountOutMin(
     params: DexSwapParamsV3,
-  ): Promise<{ amountOutMin: string; usedLiveQuote: boolean }> {
+  ): Promise<{ amountOutMin: string; usedLiveQuote: boolean; expectedAmountOut: string }> {
     const slippageBps = getSlippageBps(params.slippageBps);
 
     // Try live QuoterV2 first.
@@ -533,13 +558,18 @@ export class UniswapV3Adapter implements VenueAdapter {
     });
 
     if (liveQuote !== null) {
-      return { amountOutMin: applySlippage(liveQuote, slippageBps), usedLiveQuote: true };
+      return {
+        amountOutMin: applySlippage(liveQuote, slippageBps),
+        usedLiveQuote: true,
+        expectedAmountOut: liveQuote,
+      };
     }
 
     this.quoteFallbackCounter.inc({ chain_id: String(params.chainId), reason: 'fallback' });
     return {
       amountOutMin: applySlippage(params.amountOutExpected, slippageBps),
       usedLiveQuote: false,
+      expectedAmountOut: params.amountOutExpected,
     };
   }
 

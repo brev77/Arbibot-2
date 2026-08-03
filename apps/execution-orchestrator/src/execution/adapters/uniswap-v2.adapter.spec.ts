@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterAll, jest } from '@jest/globals';
 import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
 
-import { UniswapV2Adapter, applySlippage, getSlippageBps } from './uniswap-v2.adapter';
+import { UniswapV2Adapter, applySlippage, getSlippageBps, enforcePostQuoteSlippageGate } from './uniswap-v2.adapter';
 
 // ───────────────────────────────────────────────────────────────────────
 // Valid Ethereum addresses for ethers.js v6 compatibility
@@ -67,6 +67,7 @@ const mockDexRiskPolicy: Record<string, any> = {
     poolLiquidityUsd: 0,
   }),
   recordTradeVolume: jest.fn<any>().mockResolvedValue(undefined),
+  getEffectiveConfig: jest.fn<any>().mockResolvedValue({ maxSlippageBps: 100000, maxOpenPositions: 10, maxTradeSizeUsd: 100000, dailyVolumeLimitUsd: 1000000, allowedProtocols: ['uniswap-v2','uniswap-v3','sushiswap','pancakeswap-v2','biswap'], blockedTokens: [] }),
 };
 
 const mockPriceOracle: Record<string, any> = {
@@ -436,7 +437,7 @@ describe('UniswapV2Adapter', () => {
       });
 
       // Mock calculateAmountOutMin to avoid real Contract.call
-      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('950000');
+      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '950000', expectedAmountOut: '950000' });
 
       wallet._mockWait.mockResolvedValue({
         status: 1,
@@ -474,7 +475,7 @@ describe('UniswapV2Adapter', () => {
         estimatedCostEth: '0.01',
       });
 
-      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('950000');
+      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '950000', expectedAmountOut: '950000' });
 
       await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('gas price exceeds policy');
 
@@ -498,7 +499,7 @@ describe('UniswapV2Adapter', () => {
         estimatedCostEth: '0.0002',
       });
 
-      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('950000');
+      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '950000', expectedAmountOut: '950000' });
 
       wallet._mockWait.mockResolvedValue({
         status: 0,
@@ -528,7 +529,7 @@ describe('UniswapV2Adapter', () => {
         estimatedCostEth: '0.0002',
       });
 
-      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('950000');
+      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '950000', expectedAmountOut: '950000' });
 
       wallet._mockWait.mockResolvedValue(null);
 
@@ -570,7 +571,7 @@ describe('UniswapV2Adapter', () => {
         withinPolicy: true,
         estimatedCostEth: '0.0002',
       });
-      jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('950000');
+      jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '950000', expectedAmountOut: '950000' });
       wallet._mockWait.mockResolvedValue({ status: 1, gasUsed: 180000n, blockNumber: 12345 });
 
       await adapter.submitLeg(plan, leg);
@@ -652,7 +653,7 @@ describe('UniswapV2Adapter', () => {
         withinPolicy: true,
         estimatedCostEth: '0.0002',
       });
-      jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('950000');
+      jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '950000', expectedAmountOut: '950000' });
       wallet._mockWait.mockResolvedValue({ status: 1, gasUsed: 180000n, blockNumber: 12345 });
 
       await adapter.submitLeg(plan, leg);
@@ -680,12 +681,100 @@ describe('UniswapV2Adapter', () => {
         withinPolicy: true,
         estimatedCostEth: '0.0002',
       });
-      jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('950000');
+      jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '950000', expectedAmountOut: '950000' });
       wallet._mockWait.mockResolvedValue({ status: 0, gasUsed: 180000n, blockNumber: 12345 });
 
       await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('reverted on-chain');
 
       expect(mockDexRiskPolicy.recordTradeVolume).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────
+  // P9-5: post-quote live slippage gate. Computes the REAL market price impact
+  // from the on-chain router quote and blocks when it exceeds the configured
+  // maxSlippageBps. Previously the only slippage check compared the tolerance
+  // to itself (50 > 50 = false → always allowed).
+  // ─────────────────────────────────────────────────────────────────────
+  describe('enforcePostQuoteSlippageGate (P9-5)', () => {
+    const CHAIN = 42161 as never;
+    const TOKEN_IN = '0xTokenIn' as never;
+    const TOKEN_OUT = '0xTokenOut' as never;
+
+    function buildMocks(opts: { inDecimals: number; outDecimals: number; inUsd: number | null; outUsd: number | null; maxSlippageBps: number }) {
+      const dexRiskPolicy = {
+        getEffectiveConfig: jest.fn<any>().mockResolvedValue({ maxSlippageBps: opts.maxSlippageBps }),
+      };
+      const priceOracle = {
+        getTokenDecimals: jest.fn<any>((_c: number, addr: string) =>
+          Promise.resolve(addr === TOKEN_IN ? opts.inDecimals : opts.outDecimals),
+        ),
+        getTokenPriceUsd: jest.fn<any>((_c: number, addr: string) =>
+          Promise.resolve(addr === TOKEN_IN ? opts.inUsd : opts.outUsd),
+        ),
+      };
+      return { dexRiskPolicy, priceOracle };
+    }
+
+    it('passes when real impact is within maxSlippageBps (same decimals)', async () => {
+      const { dexRiskPolicy, priceOracle } = buildMocks({ inDecimals: 18, outDecimals: 18, inUsd: 2500, outUsd: 2500, maxSlippageBps: 50 });
+      // amountIn=1e18, expectedOut=0.999e18 → impact ≈ 10 bps (< 50).
+      await expect(
+        enforcePostQuoteSlippageGate({
+          dexRiskPolicy: dexRiskPolicy as any, priceOracle: priceOracle as any, adapterName: 'Test',
+          chainId: CHAIN, tokenIn: TOKEN_IN, tokenOut: TOKEN_OUT,
+          amountIn: '1000000000000000000', expectedAmountOut: '999000000000000000',
+        }),
+      ).resolves.toBeUndefined();
+    });
+
+    it('blocks when real impact exceeds maxSlippageBps (same decimals)', async () => {
+      const { dexRiskPolicy, priceOracle } = buildMocks({ inDecimals: 18, outDecimals: 18, inUsd: 2500, outUsd: 2500, maxSlippageBps: 50 });
+      // amountIn=1e18, expectedOut=0.95e18 → impact ≈ 500 bps (> 50).
+      await expect(
+        enforcePostQuoteSlippageGate({
+          dexRiskPolicy: dexRiskPolicy as any, priceOracle: priceOracle as any, adapterName: 'Test',
+          chainId: CHAIN, tokenIn: TOKEN_IN, tokenOut: TOKEN_OUT,
+          amountIn: '1000000000000000000', expectedAmountOut: '950000000000000000',
+        }),
+      ).rejects.toThrow(/live slippage gate blocked — real price impact 5\d\d bps exceeds max 50 bps/);
+    });
+
+    it('does NOT block when expectedOut > amountIn (arbitrage edge, impact clamped to 0)', async () => {
+      const { dexRiskPolicy, priceOracle } = buildMocks({ inDecimals: 6, outDecimals: 6, inUsd: 1, outUsd: 1, maxSlippageBps: 10 });
+      await expect(
+        enforcePostQuoteSlippageGate({
+          dexRiskPolicy: dexRiskPolicy as any, priceOracle: priceOracle as any, adapterName: 'Test',
+          chainId: CHAIN, tokenIn: TOKEN_IN, tokenOut: TOKEN_OUT,
+          amountIn: '1000000', expectedAmountOut: '1005000',
+        }),
+      ).resolves.toBeUndefined();
+    });
+
+    it('fail-closes when decimals cannot be resolved', async () => {
+      const dexRiskPolicy = { getEffectiveConfig: jest.fn<any>().mockResolvedValue({ maxSlippageBps: 50 }) };
+      const priceOracle = {
+        getTokenDecimals: jest.fn<any>().mockResolvedValue(null),
+        getTokenPriceUsd: jest.fn<any>().mockResolvedValue(1),
+      };
+      await expect(
+        enforcePostQuoteSlippageGate({
+          dexRiskPolicy: dexRiskPolicy as any, priceOracle: priceOracle as any, adapterName: 'Test',
+          chainId: CHAIN, tokenIn: TOKEN_IN, tokenOut: TOKEN_OUT,
+          amountIn: '1000', expectedAmountOut: '999',
+        }),
+      ).rejects.toThrow(/cannot read decimals for slippage check/);
+    });
+
+    it('fail-closes when cross-decimals USD price cannot be resolved', async () => {
+      const { dexRiskPolicy, priceOracle } = buildMocks({ inDecimals: 18, outDecimals: 6, inUsd: null, outUsd: 1, maxSlippageBps: 50 });
+      await expect(
+        enforcePostQuoteSlippageGate({
+          dexRiskPolicy: dexRiskPolicy as any, priceOracle: priceOracle as any, adapterName: 'Test',
+          chainId: CHAIN, tokenIn: TOKEN_IN, tokenOut: TOKEN_OUT,
+          amountIn: '1000000000000000000', expectedAmountOut: '1990000000',
+        }),
+      ).rejects.toThrow(/cannot price tokens for cross-decimals slippage check/);
     });
   });
 });

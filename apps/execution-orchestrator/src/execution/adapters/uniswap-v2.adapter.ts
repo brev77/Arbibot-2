@@ -329,10 +329,14 @@ export async function enforceLiveRiskGate(args: {
   }
 
   // 4. evaluateTrade. Throwing on denial keeps the leg in `created` (retryable).
+  // P9-5: the real market price impact is NOT known at pre-flight (no on-chain
+  // quote yet) — passing the slippage *tolerance* here made the gate vacuous
+  // (50 > 50 = false → always allowed). estimatedSlippageBps is now 0; the real
+  // impact is checked post-quote by enforcePostQuoteSlippageGate.
   const risk = await dexRiskPolicy.evaluateTrade({
     chainId,
     amountInUsd,
-    estimatedSlippageBps: getSlippageBps(args.slippageBps),
+    estimatedSlippageBps: 0,
     estimatedGasCostUsd,
     tokenIn,
     tokenOut,
@@ -360,6 +364,84 @@ export async function recordLiveTradeVolume(
   await dexRiskPolicy.recordTradeVolume(chainId, amountInUsd).catch(() => {
     /* logged inside recordTradeVolume; swap already broadcast */
   });
+}
+
+/**
+ * P9-5: post-quote live slippage gate.
+ *
+ * Computes the REAL market price impact from the on-chain router quote
+ * (`expectedAmountOut` for `amountIn`) and blocks the trade if it exceeds the
+ * configured `dex.limits.maxSlippageBps`. This is the protection the pre-flight
+ * `enforceLiveRiskGate` could not provide — before the quote it only knew the
+ * slippage *tolerance*, not the actual impact, so its check was `tolerance >
+ * tolerance` = always false.
+ *
+ * Impact formula (decimals-corrected):
+ *   impactBps = (amountInUnits - expectedOutUnits) / amountInUnits * 10000
+ *
+ * When tokenIn and tokenOut have the same decimals this is exact. When they
+ * differ, we normalize both to USD via the price oracle and compare notional
+ * in / notional out (the only universally correct comparison across decimals).
+ * Fail-closed: if neither path resolves (no decimals / no price), the trade is
+ * blocked — broadcasting without a slippage bound is never safe.
+ */
+export async function enforcePostQuoteSlippageGate(args: {
+  readonly dexRiskPolicy: DexRiskPolicyService;
+  readonly priceOracle: PriceOracleService;
+  readonly adapterName: string;
+  readonly chainId: ChainId;
+  readonly tokenIn: Address;
+  readonly tokenOut: Address;
+  readonly amountIn: string;
+  readonly expectedAmountOut: string;
+}): Promise<void> {
+  const { dexRiskPolicy, priceOracle, adapterName, chainId, tokenIn, tokenOut, amountIn, expectedAmountOut } = args;
+
+  const config = await dexRiskPolicy.getEffectiveConfig();
+  const maxSlippageBps = config.maxSlippageBps;
+
+  // Resolve decimals for both legs (fail-closed on null).
+  const tokenInDecimals = await priceOracle.getTokenDecimals(chainId, tokenIn);
+  const tokenOutDecimals = await priceOracle.getTokenDecimals(chainId, tokenOut);
+  if (tokenInDecimals === null || tokenOutDecimals === null) {
+    throw new VenueSubmitClientError(
+      `${adapterName}: cannot read decimals for slippage check (tokenIn=${tokenIn}, tokenOut=${tokenOut}) on chain ${chainId} — live slippage gate blocked`,
+      { category: 'semantic' },
+    );
+  }
+
+  const amountInUnits = Number(BigInt(amountIn)) / 10 ** tokenInDecimals;
+  const expectedOutUnits = Number(BigInt(expectedAmountOut)) / 10 ** tokenOutDecimals;
+
+  let impactBps: number;
+  if (tokenInDecimals === tokenOutDecimals && amountInUnits > 0) {
+    // Same decimals → direct ratio is exact.
+    impactBps = Math.round(((amountInUnits - expectedOutUnits) / amountInUnits) * 10000);
+  } else {
+    // Different decimals → compare in USD (fail-closed if price missing).
+    const tokenInUsd = await priceOracle.getTokenPriceUsd(chainId, tokenIn);
+    const tokenOutUsd = await priceOracle.getTokenPriceUsd(chainId, tokenOut);
+    if (tokenInUsd === null || tokenOutUsd === null || amountInUnits <= 0) {
+      throw new VenueSubmitClientError(
+        `${adapterName}: cannot price tokens for cross-decimals slippage check on chain ${chainId} — live slippage gate blocked`,
+        { category: 'semantic' },
+      );
+    }
+    const notionalInUsd = amountInUnits * tokenInUsd;
+    const notionalOutUsd = expectedOutUnits * tokenOutUsd;
+    impactBps = Math.round(((notionalInUsd - notionalOutUsd) / notionalInUsd) * 10000);
+  }
+
+  // Clamp negative (arbitrage edge — out > in) to 0; only real losses count.
+  impactBps = Math.max(0, impactBps);
+
+  if (impactBps > maxSlippageBps) {
+    throw new VenueSubmitClientError(
+      `${adapterName}: live slippage gate blocked — real price impact ${impactBps} bps exceeds max ${maxSlippageBps} bps ` +
+        `(amountIn=${amountIn} expectedOut=${expectedAmountOut} on chain ${chainId})`,
+      { category: 'semantic' },
+    );
+  }
 }
 
 // ───────────────────────────────────────────────────────────────────────
@@ -461,12 +543,30 @@ export class UniswapV2Adapter implements VenueAdapter {
       const swapPath = params.path ?? [params.tokenIn, params.tokenOut];
 
       // 6. Calculate amountOutMin via on-chain quote + slippage
-      const amountOutMin = await this.calculateAmountOutMin(
+      const { amountOutMin, expectedAmountOut } = await this.calculateAmountOutMin(
         params,
         provider,
         routerAddress,
         swapPath,
       );
+
+      // 6.5 P9-5: post-quote live slippage gate. enforceLiveRiskGate (pre-flight)
+      // cannot know the real market impact before the on-chain quote, so it
+      // passed the slippage *tolerance* as estimatedSlippageBps (always ≤ max →
+      // always allowed). Here we have the real router quote: compute the actual
+      // price impact from amountIn vs expectedAmountOut and block if it exceeds
+      // the configured maxSlippageBps. This catches sandwich/manipulation risk
+      // that the tolerance-only check missed.
+      await enforcePostQuoteSlippageGate({
+        dexRiskPolicy: this.dexRiskPolicy,
+        priceOracle: this.priceOracle,
+        adapterName: 'UniswapV2Adapter',
+        chainId: params.chainId,
+        tokenIn: params.tokenIn,
+        tokenOut: params.tokenOut,
+        amountIn: params.amountIn,
+        expectedAmountOut,
+      });
 
       // 7. Estimate gas and check policy
       const recipient = params.recipient ?? selectedWallet.address;
@@ -627,13 +727,18 @@ export class UniswapV2Adapter implements VenueAdapter {
    * Steps:
    * 1. Call router `getAmountsOut(amountIn, path)` for expected output
    * 2. Apply slippage tolerance: `minOut = expectedOut * (10000 - bps) / 10000`
+   *
+   * Returns both `amountOutMin` (for the on-chain call) and `expectedAmountOut`
+   * (the raw router quote). P9-5 uses `expectedAmountOut` to compute the real
+   * market price impact and block trades whose impact exceeds the policy cap —
+   * previously the only slippage check compared the tolerance to itself.
    */
   async calculateAmountOutMin(
     params: DexSwapParams,
     provider: JsonRpcProvider,
     routerAddress: Address,
     swapPath: readonly string[],
-  ): Promise<string> {
+  ): Promise<{ amountOutMin: string; expectedAmountOut: string }> {
     const routerContract = new Contract(
       routerAddress,
       UniswapV2RouterABI,
@@ -657,7 +762,7 @@ export class UniswapV2Adapter implements VenueAdapter {
       `amountOutMin: expected=${expectedAmountOutStr} slippageBps=${slippageBps} minOut=${amountOutMin}`,
     );
 
-    return amountOutMin;
+    return { amountOutMin, expectedAmountOut: expectedAmountOutStr };
   }
 
   /**

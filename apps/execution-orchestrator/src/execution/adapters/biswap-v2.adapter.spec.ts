@@ -64,6 +64,7 @@ const mockDexRiskPolicy: Record<string, any> = {
     poolLiquidityUsd: 0,
   }),
   recordTradeVolume: jest.fn<any>().mockResolvedValue(undefined),
+  getEffectiveConfig: jest.fn<any>().mockResolvedValue({ maxSlippageBps: 100000, maxOpenPositions: 10, maxTradeSizeUsd: 100000, dailyVolumeLimitUsd: 1000000, allowedProtocols: ['uniswap-v2','uniswap-v3','sushiswap','pancakeswap-v2','biswap'], blockedTokens: [] }),
 };
 
 const mockPriceOracle: Record<string, any> = {
@@ -365,7 +366,7 @@ describe('BiswapV2Adapter', () => {
         estimatedCostEth: '0.00066',
       });
 
-      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('599000000');
+      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '599000000', expectedAmountOut: '599000000' });
 
       wallet._mockWait.mockResolvedValue({
         status: 1,
@@ -412,7 +413,7 @@ describe('BiswapV2Adapter', () => {
         estimatedCostEth: '0.01',
       });
 
-      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('599000000');
+      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '599000000', expectedAmountOut: '599000000' });
 
       await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('gas price exceeds policy');
 
@@ -440,7 +441,7 @@ describe('BiswapV2Adapter', () => {
         estimatedCostEth: '0.0002',
       });
 
-      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('599000000');
+      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '599000000', expectedAmountOut: '599000000' });
 
       wallet._mockWait.mockResolvedValue({
         status: 0,
@@ -474,7 +475,7 @@ describe('BiswapV2Adapter', () => {
         estimatedCostEth: '0.0002',
       });
 
-      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('599000000');
+      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '599000000', expectedAmountOut: '599000000' });
 
       wallet._mockWait.mockResolvedValue(null);
 
@@ -520,7 +521,7 @@ describe('BiswapV2Adapter', () => {
         withinPolicy: true,
         estimatedCostEth: '0.0002',
       });
-      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('599000000');
+      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '599000000', expectedAmountOut: '599000000' });
       wallet._mockWait.mockResolvedValue({ status: 1, gasUsed: 200000n, blockNumber: 12345678 });
 
       await adapter.submitLeg(plan, leg);
@@ -591,7 +592,7 @@ describe('BiswapV2Adapter', () => {
         withinPolicy: true,
         estimatedCostEth: '0.0002',
       });
-      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('599000000');
+      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '599000000', expectedAmountOut: '599000000' });
       wallet._mockWait.mockResolvedValue({ status: 1, gasUsed: 200000n, blockNumber: 12345678 });
 
       await adapter.submitLeg(plan, leg);
@@ -618,7 +619,7 @@ describe('BiswapV2Adapter', () => {
         withinPolicy: true,
         estimatedCostEth: '0.0002',
       });
-      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue('599000000');
+      const spy = jest.spyOn(adapter, 'calculateAmountOutMin').mockResolvedValue({ amountOutMin: '599000000', expectedAmountOut: '599000000' });
       wallet._mockWait.mockResolvedValue({ status: 0, gasUsed: 200000n, blockNumber: 12345678 });
 
       await expect(adapter.submitLeg(plan, leg)).rejects.toThrow('reverted on-chain');
