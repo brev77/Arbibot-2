@@ -26,6 +26,14 @@ const mockWalletManager: Record<string, any> = {
   selectWallet: jest.fn(),
 };
 
+// P9-3: nonce manager pass-through mock — runs the broadcast fn with a dummy
+// nonce without acquiring a real per-wallet lock (unit tests don't need serialization).
+const mockNonceManager: Record<string, any> = {
+  withBroadcastLock: jest.fn((_chainId: number, _address: string, _provider: unknown, fn: (nonce: number) => Promise<unknown>) => fn(0)),
+  acquireNextNonce: jest.fn(() => Promise.resolve(0)),
+  recordNonceDrift: jest.fn(),
+};
+
 const mockGasEstimator: Record<string, any> = {
   estimateGas: jest.fn(),
   // Cost-estimation: gate derives a gas→USD estimate via these two methods.
@@ -168,6 +176,7 @@ describe('UniswapV3Adapter', () => {
     adapter = new UniswapV3Adapter(
       mockRpcProviderManager as any,
       mockWalletManager as any,
+      mockNonceManager as any,
       mockGasEstimator as any,
       mockTokenApprove as any,
       mockDexRiskPolicy as any,

@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Contract, Interface, JsonRpcProvider, TransactionReceipt } from 'ethers';
+import { Contract, Interface, JsonRpcProvider, Provider, TransactionReceipt } from 'ethers';
 import { Counter, Histogram } from 'prom-client';
 import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
 import {
@@ -18,6 +18,7 @@ import {
 } from '../../venue/venue-adapter';
 import { RpcProviderManager } from '../rpc/rpc-provider-manager.service';
 import { WalletManagerService, type SelectedWallet } from '../wallet-manager.service';
+import { NonceManagerService } from '../nonce-manager.service';
 import { GasEstimatorService } from '../gas/gas-estimator.service';
 import { TokenApproveService } from '../token/token-approve.service';
 import { DexRiskPolicyService } from '../risk/dex-risk-policy.service';
@@ -93,6 +94,7 @@ export class BiswapV2Adapter implements VenueAdapter {
   constructor(
     private readonly rpcProviderManager: RpcProviderManager,
     private readonly walletManager: WalletManagerService,
+    private readonly nonceManager: NonceManagerService,
     private readonly gasEstimator: GasEstimatorService,
     private readonly tokenApprove: TokenApproveService,
     private readonly dexRiskPolicy: DexRiskPolicyService,
@@ -181,21 +183,28 @@ export class BiswapV2Adapter implements VenueAdapter {
         );
       }
 
-      // 8. Submit transaction
-      const tx = await selectedWallet.wallet.sendTransaction({
-        ...txRequest,
-        gasLimit: gasEstimation.gasLimit,
-        maxFeePerGas: gasEstimation.feeData.maxFeePerGas,
-        maxPriorityFeePerGas: gasEstimation.feeData.maxPriorityFeePerGas,
-        type: 2,
-      });
+      // 8. Submit transaction (P9-3: explicit nonce under per-wallet lock)
+      const tx = await this.nonceManager.withBroadcastLock(
+        params.chainId,
+        selectedWallet.address,
+        selectedWallet.wallet.provider as Provider,
+        (nonce) =>
+          selectedWallet.wallet.sendTransaction({
+            ...txRequest,
+            nonce,
+            gasLimit: gasEstimation.gasLimit,
+            maxFeePerGas: gasEstimation.feeData.maxFeePerGas,
+            maxPriorityFeePerGas: gasEstimation.feeData.maxPriorityFeePerGas,
+            type: 2,
+          }),
+      );
 
       this.logger.log(
         `submitLeg: tx sent hash=${tx.hash} plan=${plan.id} leg=${leg.id} ` +
         `gasLimit=${gasEstimation.gasLimit}`,
       );
 
-      // 9. Wait for receipt (1 confirmation)
+      // 9. Wait for receipt (1 confirmation) — outside the nonce lock
       const receipt: TransactionReceipt | null = await tx.wait(1);
 
       if (!receipt) {

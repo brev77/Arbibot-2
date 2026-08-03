@@ -5,7 +5,7 @@ import type {
   CapitalReservationEntity,
   OutboxEventEntity,
 } from '@arbibot/persistence';
-import type { DataSource, EntityManager, Repository } from 'typeorm';
+import { QueryFailedError, type DataSource, type EntityManager, type Repository } from 'typeorm';
 
 import { ReserveCapitalDto } from './dto/reserve-capital.dto';
 import { CapitalService, CapitalCeilingExceededError } from './capital.service';
@@ -232,6 +232,134 @@ describe('CapitalService', () => {
       await expect(service.reserve(validDto({ amountUsd: 100 }))).rejects.toBeInstanceOf(
         CapitalCeilingExceededError,
       );
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────
+  // P9-9 (live-readiness): idempotency on correlation_id. A retried
+  // POST /capital/reservations must NOT create a second active reservation.
+  // Migration 051 added a partial unique index; reserve() catches 23505 and
+  // returns the existing active row instead of throwing.
+  // ─────────────────────────────────────────────────────────────────────
+  describe('P9-9 correlation_id idempotency', () => {
+    // PG driverError shape: { code: '23505', message: 'duplicate key ... constraint "..."' }
+    function pgUniqueViolation(constraint: string): QueryFailedError {
+      const driverError = Object.assign(new Error(`duplicate key value violates unique constraint "${constraint}"`), {
+        code: '23505',
+      });
+      return new QueryFailedError('UPDATE capital_reservations', [], driverError);
+    }
+
+    function buildServiceWithExisting(existing: CapitalReservationEntity | null): {
+      svc: CapitalService;
+      repo: Repository<CapitalReservationEntity>;
+    } {
+      const em = {
+        create: jest.fn((_Entity: unknown, row: object) => ({ ...row })),
+        save: jest.fn(() => {
+          // Simulate the partial unique index raising 23505 at commit because a
+          // reservation with this correlation_id is already active.
+          throw pgUniqueViolation('uniq_capital_res_active_per_correlation');
+        }),
+        query: jest.fn(async () => Promise.resolve([[{ sum: '0' }], [{ sum: '0' }]].shift() ?? [{ sum: '0' }])),
+      } as unknown as EntityManager;
+      const dataSource = {
+        transaction: jest.fn(async (fn: (m: EntityManager) => Promise<unknown>) => fn(em)),
+      } as unknown as DataSource;
+      const repo = {
+        findOne: jest.fn(async () => Promise.resolve(existing)),
+      } as unknown as Repository<CapitalReservationEntity>;
+      const svc = new CapitalService(
+        dataSource,
+        repo,
+        { record: jest.fn(), appendEntry: jest.fn() },
+        { getMaxActiveCapitalUsd: jest.fn().mockResolvedValue(1000) } as unknown as CapitalLimitsService,
+      );
+      return { svc, repo };
+    }
+
+    it('returns the existing active reservation on duplicate correlation_id (idempotent retry)', async () => {
+      const existing: CapitalReservationEntity = {
+        id: 'existing-id',
+        correlationId: 'dup-correlation',
+        planId: null,
+        amountUsd: '100',
+        state: 'active',
+        expiresAt: new Date(Date.now() + 60_000),
+        entityVersion: 1,
+        createdAt: new Date(),
+      };
+      const { svc, repo } = buildServiceWithExisting(existing);
+
+      const result = await svc.reserve(validDto({ correlationId: 'dup-correlation' }));
+
+      expect(result.id).toBe('existing-id');
+      expect(result.state).toBe('active');
+      // repo.findOne called with the correlation_id + active filter (idempotent lookup)
+      expect(repo.findOne).toHaveBeenCalledWith({
+        where: { correlationId: 'dup-correlation', state: 'active' },
+      });
+    });
+
+    it('does NOT swallow unrelated 23505 violations (different constraint)', async () => {
+      const em = {
+        create: jest.fn((_Entity: unknown, row: object) => ({ ...row })),
+        save: jest.fn(() => {
+          throw pgUniqueViolation('some_other_constraint');
+        }),
+        query: jest.fn(async () => Promise.resolve([{ sum: '0' }])),
+      } as unknown as EntityManager;
+      const dataSource = {
+        transaction: jest.fn(async (fn: (m: EntityManager) => Promise<unknown>) => fn(em)),
+      } as unknown as DataSource;
+      const svc = new CapitalService(
+        dataSource,
+        {} as unknown as Repository<CapitalReservationEntity>,
+        { record: jest.fn(), appendEntry: jest.fn() },
+        { getMaxActiveCapitalUsd: jest.fn().mockResolvedValue(1000) } as unknown as CapitalLimitsService,
+      );
+
+      await expect(svc.reserve(validDto())).rejects.toBeInstanceOf(QueryFailedError);
+    });
+
+    it('retries reserve when the colliding row disappears between commit and lookup (edge case)', async () => {
+      // First attempt: 23505 (colliding active row exists).
+      // Lookup: returns null (the colliding row was concurrently expired).
+      // Second attempt: succeeds.
+      let attempt = 0;
+      const em = {
+        create: jest.fn((_Entity: unknown, row: object) => ({ ...row, id: `id-${attempt}` })),
+        save: jest.fn(() => {
+          attempt += 1;
+          if (attempt === 1) {
+            throw pgUniqueViolation('uniq_capital_res_active_per_correlation');
+          }
+          // Second attempt succeeds; payload construction reads expiresAt/entityVersion.
+          return {
+            id: 'new-reservation',
+            state: 'active',
+            correlationId: 'ephemeral',
+            expiresAt: new Date(Date.now() + 60_000),
+            entityVersion: 1,
+          };
+        }),
+        query: jest.fn(async () => Promise.resolve([{ sum: '0' }])),
+      } as unknown as EntityManager;
+      const dataSource = {
+        transaction: jest.fn(async (fn: (m: EntityManager) => Promise<unknown>) => fn(em)),
+      } as unknown as DataSource;
+      const repo = {
+        findOne: jest.fn(async () => Promise.resolve(null)), // colliding row gone
+      } as unknown as Repository<CapitalReservationEntity>;
+      const svc = new CapitalService(
+        dataSource,
+        repo,
+        { record: jest.fn(), appendEntry: jest.fn() },
+        { getMaxActiveCapitalUsd: jest.fn().mockResolvedValue(1000) } as unknown as CapitalLimitsService,
+      );
+
+      const result = await svc.reserve(validDto({ correlationId: 'ephemeral' }));
+      expect(result.id).toBe('new-reservation');
     });
   });
 });

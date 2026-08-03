@@ -342,6 +342,57 @@ describe('KeyVaultService', () => {
       const decrypted = await sB.decryptPrivateKey(encrypted);
       expect(decrypted).toBe(privateKey);
     });
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // P9-10 (live-readiness): runtime fail-closed in production. A hardcoded
+    // fallback salt in source lets an attacker brute-force the master key if
+    // they obtain PRIVATE_KEY_ENCRYPTION_KEY + the wallet_keys table. In
+    // production the service must refuse to start without a real per-deploy
+    // salt. Dev/test keeps the fallback for backward compatibility.
+    // ─────────────────────────────────────────────────────────────────────────
+    describe('production fail-closed (P9-10)', () => {
+      const originalNodeEnv = process.env.NODE_ENV;
+
+      afterEach(() => {
+        // Restore NODE_ENV so subsequent test blocks get the default.
+        if (originalNodeEnv === undefined) {
+          delete process.env.NODE_ENV;
+        } else {
+          process.env.NODE_ENV = originalNodeEnv;
+        }
+      });
+
+      it('throws in production when VAULT_MASTER_KEY_SALT is unset', async () => {
+        process.env.NODE_ENV = 'production';
+        delete process.env.VAULT_MASTER_KEY_SALT;
+        await expect(buildService()).rejects.toThrow(/VAULT_MASTER_KEY_SALT is required in production/);
+      });
+
+      it('starts in production when VAULT_MASTER_KEY_SALT is set', async () => {
+        process.env.NODE_ENV = 'production';
+        process.env.VAULT_MASTER_KEY_SALT = 'prod-unique-salt-2026';
+        const s = await buildService();
+        const encrypted = await s.encryptPrivateKey(privateKey, 'prod-key');
+        const decrypted = await s.decryptPrivateKey(encrypted);
+        expect(decrypted).toBe(privateKey);
+      });
+
+      it('allows the fallback salt in non-production (dev/test backward-compat)', async () => {
+        process.env.NODE_ENV = 'test';
+        delete process.env.VAULT_MASTER_KEY_SALT;
+        const s = await buildService();
+        const encrypted = await s.encryptPrivateKey(privateKey, 'dev-key');
+        const decrypted = await s.decryptPrivateKey(encrypted);
+        expect(decrypted).toBe(privateKey);
+      });
+
+      it('allows the fallback salt when NODE_ENV is unset', async () => {
+        delete process.env.NODE_ENV;
+        delete process.env.VAULT_MASTER_KEY_SALT;
+        const s = await buildService();
+        expect(s).toBeDefined();
+      });
+    });
   });
 
   // ─────────────────────────────────────────────────────────────────────────

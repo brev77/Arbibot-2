@@ -6,6 +6,7 @@ import { CapitalReservationEntity, PortfolioPositionEntity } from '@arbibot/pers
 import { CapitalController } from './capital.controller';
 import { CapitalService } from './capital.service';
 import { CapitalLimitsService } from './capital-limits.service';
+import { CapitalReservationSweeperWorker } from './capital-reservation-sweeper.worker';
 
 @Module({
   // PortfolioPositionEntity is registered so capital-service can read
@@ -13,6 +14,6 @@ import { CapitalLimitsService } from './capital-limits.service';
   // single-writer for that table remains portfolio-service.
   imports: [TypeOrmModule.forFeature([CapitalReservationEntity, PortfolioPositionEntity])],
   controllers: [CapitalController],
-  providers: [CapitalService, CapitalLimitsService],
+  providers: [CapitalService, CapitalLimitsService, CapitalReservationSweeperWorker],
 })
 export class CapitalModule {}

@@ -11,6 +11,7 @@ import {
 } from '@arbibot/persistence';
 
 import { WalletManagerService } from './wallet-manager.service';
+import { NonceManagerService } from './nonce-manager.service';
 import { TypeOrmWalletKeyStore } from './wallet-key-store.typeorm';
 import { DexFillTrackerService } from './dex-fill-tracker.service';
 import { DexOutboxEventsService } from './dex-outbox-events.service';
@@ -53,6 +54,7 @@ import { CrossChainReconWorker } from './workers/cross-chain-recon.worker';
   controllers: [RpcHealthController, DexHealthController, BridgeReconController],
   providers: [
     WalletManagerService,
+    NonceManagerService,
     TypeOrmWalletKeyStore,
     {
       // Bind the WalletKeyStore port to the TypeORM adapter so KeyVaultService
@@ -92,6 +94,7 @@ import { CrossChainReconWorker } from './workers/cross-chain-recon.worker';
   ],
   exports: [
     WalletManagerService,
+    NonceManagerService,
     DexFillTrackerService,
     DexOutboxEventsService,
     GasEstimatorService,

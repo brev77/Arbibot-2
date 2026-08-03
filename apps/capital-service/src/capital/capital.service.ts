@@ -9,7 +9,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, QueryFailedError, Repository } from 'typeorm';
 import { Gauge } from 'prom-client';
 import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
 
@@ -68,6 +68,39 @@ export class CapitalService {
   }
 
   async reserve(dto: ReserveCapitalDto): Promise<CapitalReservationEntity> {
+    // P9-9 (live-readiness): idempotency on `correlationId`. A retried
+    // `POST /capital/reservations` (timeout / retry middleware) would otherwise
+    // create a SECOND active reservation — doubling the consumed ceiling or
+    // allowing a plan to execute on twice the capital. Migration 051 added a
+    // partial unique index `uniq_capital_res_active_per_correlation` on
+    // `(correlation_id) WHERE state = 'active'`. When a concurrent/retried
+    // reserve() collides on the same correlation_id, PG raises unique-violation
+    // (code 23505) at commit; we catch it and return the existing active row,
+    // making the endpoint idempotent within the ACTIVE window. Expired/released
+    // rows are unconstrained, so a correlation_id may be reused later.
+    try {
+      return await this.attemptReserve(dto);
+    } catch (err) {
+      if (isPgUniqueViolationForCorrelation(err)) {
+        this.logger.warn(
+          `Duplicate capital reservation for correlationId ${dto.correlationId} — returning existing active reservation (idempotent retry, P9-9).`,
+        );
+        const existing = await this.repo.findOne({
+          where: { correlationId: dto.correlationId, state: 'active' },
+        });
+        if (existing !== null) {
+          return existing;
+        }
+        // Edge case: the row that caused the unique violation was concurrently
+        // expired/released between commit and this lookup. Fall through and
+        // retry the reserve once.
+        return this.attemptReserve(dto);
+      }
+      throw err;
+    }
+  }
+
+  private async attemptReserve(dto: ReserveCapitalDto): Promise<CapitalReservationEntity> {
     const saved = await this.dataSource.transaction(async (em) => {
       // D4-B-3-CEILING: aggregate capital gate. Fail-closed ceiling comes from
       // CapitalLimitsService (config-service + env lower-bound); may throw
@@ -243,4 +276,33 @@ export class CapitalService {
       registers: [registry],
     });
   }
+}
+
+/**
+ * Detects a PostgreSQL unique-violation (SQLSTATE 23505) raised by the partial
+ * unique index `uniq_capital_res_active_per_correlation` (migration 051) when a
+ * concurrent/retried `reserve()` collides on the same `correlation_id` in the
+ * ACTIVE window. Used by `reserve()` to fall back to the existing row instead
+ * of throwing — making the HTTP endpoint idempotent on `correlationId`.
+ */
+function isPgUniqueViolationForCorrelation(err: unknown): boolean {
+  if (!(err instanceof QueryFailedError)) {
+    return false;
+  }
+  const code =
+    typeof err.driverError === 'object' &&
+    err.driverError !== null &&
+    'code' in err.driverError
+      ? String((err.driverError as { code?: string }).code)
+      : '';
+  // The constraint name appears in the driver error message; verify it is our
+  // partial index so we don't swallow unrelated 23505 violations (e.g. a future
+  // unique constraint on a different column).
+  const message =
+    typeof err.driverError === 'object' &&
+    err.driverError !== null &&
+    'message' in err.driverError
+      ? String((err.driverError as { message?: string }).message)
+      : '';
+  return code === '23505' && message.includes('uniq_capital_res_active_per_correlation');
 }

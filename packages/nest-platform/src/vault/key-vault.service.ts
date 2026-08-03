@@ -84,13 +84,25 @@ export class KeyVaultService implements OnModuleInit {
     // the salt is taken from VAULT_MASTER_KEY_SALT so each deploy can use a
     // unique value. For backward compatibility — keys already encrypted in
     // `wallet_keys` under the historical hardcoded salt must stay decryptable —
-    // we fall back to that constant when the env var is unset. Production
-    // (`tools/validate-env.sh`) fails closed and REQUIRES an explicit value, so
-    // the fallback only ever applies in dev/tests where the historical salt is
-    // still in use. Per-key encryption already uses a random salt
-    // (`randomBytes(saltLength)` in encryptPrivateKey); this only affects the
-    // master-key derivation step.
+    // we fall back to that constant when the env var is unset in dev/tests.
+    //
+    // P9-10 (live-readiness): in production (`NODE_ENV === 'production'`) the
+    // fallback is fail-closed — the service refuses to start. A hardcoded salt
+    // in source lets an attacker who obtains `PRIVATE_KEY_ENCRYPTION_KEY` +
+    // the `wallet_keys` table brute-force the master key without guessing the
+    // salt. `tools/validate-env.sh` already gates this at deploy-time; this is
+    // the runtime defense-in-depth (service won't boot in prod without a real
+    // per-deploy salt). Dev/test keeps the fallback so existing encrypted keys
+    // under the historical salt remain decryptable without extra config.
     const VAULT_SALT_FALLBACK = 'arbibot-vault-salt-v1';
+    const isProduction = process.env.NODE_ENV === 'production';
+    if (isProduction && !process.env.VAULT_MASTER_KEY_SALT) {
+      throw new Error(
+        'VAULT_MASTER_KEY_SALT is required in production (NODE_ENV=production). ' +
+          'Set a unique per-deploy salt before encrypting production wallet keys ' +
+          '(see docs/adr-vault-salt.md). Refusing to start with the hardcoded fallback salt.',
+      );
+    }
     const salt = process.env.VAULT_MASTER_KEY_SALT ?? VAULT_SALT_FALLBACK;
     if (salt === VAULT_SALT_FALLBACK) {
       this.logger.warn(
