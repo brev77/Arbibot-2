@@ -125,6 +125,35 @@ export class OpportunitiesService {
     return this.repo.findOne({ where: { id } });
   }
 
+  /**
+   * PLAN10 P10-FB: mark an opportunity as live-completed, keyed by live_execution_plan_id.
+   *
+   * Called via the settlement-relay HTTP callback (EO → opp-service) after a plan reaches
+   * `completed`. Idempotent: if the opportunity is already in `live_completed`, returns
+   * 200 no-op. If no opportunity references this planId, returns 404 (the plan may belong
+   * to a non-live-auto-drive path, e.g. manual operator plan — callback is a no-op there).
+   *
+   * Single-writer: opp-service owns the opportunity row (the only writer of its state).
+   */
+  async markLiveCompleted(planId: string): Promise<{ opportunityId: string; state: string; updated: boolean }> {
+    return this.dataSource.transaction(async (em) => {
+      const opp = await em.findOne(ArbitrageOpportunityEntity, {
+        where: { liveExecutionPlanId: planId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (opp === null) {
+        throw new NotFoundException(`No opportunity with live_execution_plan_id=${planId}`);
+      }
+      if (opp.state === 'live_completed') {
+        return { opportunityId: opp.id, state: opp.state, updated: false };
+      }
+      opp.state = 'live_completed';
+      opp.entityVersion += 1;
+      await em.save(ArbitrageOpportunityEntity, opp);
+      return { opportunityId: opp.id, state: opp.state, updated: true };
+    });
+  }
+
   async enrich(
     id: string,
     dto: EnrichOpportunityDto,

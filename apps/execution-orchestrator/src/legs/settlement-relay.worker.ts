@@ -2,7 +2,7 @@ import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/commo
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { EVENT_NAMES } from '@arbibot/contracts';
-import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
+import { getArbibotMetricsRegistry, signedFetch } from '@arbibot/nest-platform';
 import { Counter } from 'prom-client';
 import { OutboxEventEntity } from '@arbibot/persistence';
 
@@ -152,6 +152,18 @@ export class SettlementRelayWorker implements OnModuleInit, OnModuleDestroy {
       }
       if (row.eventType === EVENT_NAMES.planCompleted) {
         await this.releaseCapitalFromOutbox(row);
+        // PLAN10 P10-FB: notify opportunity-service that the live plan completed, so the
+        // opportunity state advances. This is an HTTP callback (NOT an outbox read) because
+        // `planCompleted` already has two consumers (this relay + kafka-bridge) and the
+        // shared `processed_at` column would race — see PLAN10 §P10-FB rationale. The
+        // callback is idempotent (opp-service returns 200 no-op if already completed).
+        // Best-effort: a failure here does NOT block capital release or row marking — the
+        // opportunity state is informational, not capital-critical.
+        await this.notifyOpportunityLiveCompleted(row).catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          this.logger.warn(`opportunity live-completed callback failed (plan ${row.entityId}): ${msg}`);
+          this.failedCounter.inc({ event_type: row.eventType, reason: 'opp_callback_error' });
+        });
         this.deliveredCounter.inc({ event_type: row.eventType, target: 'capital' });
         return true;
       }
@@ -198,6 +210,42 @@ export class SettlementRelayWorker implements OnModuleInit, OnModuleDestroy {
       return;
     }
     await this.fillOutbound.releaseCapitalPublic(reservationId);
+  }
+
+  /**
+   * PLAN10 P10-FB: notify opportunity-service that a live plan completed.
+   *
+   * HTTP callback (not outbox read) — avoids the `processed_at` race between this relay
+   * and kafka-bridge on `planCompleted` rows. The opp endpoint updates the opportunity
+   * state by `live_execution_plan_id`; idempotent (200 no-op if already completed).
+   *
+   * `messageId` from the outbox row is sent as `x-arbibot-msg-id` for opp-service inbox
+   * dedup (defense-in-depth; the UPDATE-by-planId is itself idempotent).
+   *
+   * Skipped entirely when OPPORTUNITY_API_BASE is unset (e.g. hermetic tests) — the
+   * callback is informational, not capital-critical.
+   */
+  private async notifyOpportunityLiveCompleted(row: OutboxEventEntity): Promise<void> {
+    const base = process.env.OPPORTUNITY_API_BASE?.trim();
+    if (base === undefined || base.length === 0) {
+      return; // informational only; skip silently in hermetic tests
+    }
+    const planId = typeof row.entityId === 'string' ? row.entityId : null;
+    if (planId === null) {
+      return;
+    }
+    const url = `${base.replace(/\/$/, '')}/opportunities/${planId}/live-completed`;
+    const messageId = row.messageId ?? '';
+    await signedFetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(messageId.length > 0 ? { 'x-arbibot-msg-id': messageId } : {}),
+      },
+      body: JSON.stringify({ planId }),
+      signal: AbortSignal.timeout(5_000),
+    });
   }
 }
 

@@ -395,7 +395,13 @@ C1/H2/M6 и т.д. ссылочны через `tracker_ref`, операцион
 > (сформирован из глубокого аудита кода 2026-08-03 execution-пути: broadcast
 > внутри DB-tx, `on_chain_transactions` никогда не пишется, nonce-гонки,
 > reconciliation-детекторы мёртвые, live slippage-gate всегда проходит).
-> Scope: **single-chain Arbitrum live-readiness**; cross-chain → PLAN10).
+> Scope: **single-chain Arbitrum live-readiness**; cross-chain → отдельный план).
+> Скоуп четвёртого плана (`DEVELOPMENT_PLAN10.md`) — initiatives `#35–#44`
+> (сформирован из аудита 2026-08-04 архитектурного gap: risk_checked opportunities
+> не доходят до live-execution — нет worker'а, создающего execution plans.
+> Гибрид: opp-service setup-only saga + EO LegAutoDriverWorker + HTTP callback
+> feedback; правки Гермеса Р1-2/Р2-1…6 учтены). Scope: **live auto-execution
+> (single-chain)**; cross-chain → отдельный план.
 
 | # | step_id | Вектор(ы) | gate | tracker | impact | effort | score | status | plan |
 |---|---------|-----------|------|---------|--------|--------|-------|--------|------|
@@ -433,6 +439,16 @@ C1/H2/M6 и т.д. ссылочны через `tracker_ref`, операцион
 | 32 | `SEC-CAPITAL-IDEMPOTENCY` | SEC | live-blocker | new | 3 | 2 | 12 | accepted | PLAN9 (`P9-9`) |
 | 33 | `SEC-VAULT-SALT-ASSERT` | SEC | live-blocker | new | 3 | 1 | 15 | accepted | PLAN9 (`P9-10`) |
 | 34 | `SEC-GAS-POLICY-CLAMP` | SEC (FUNC) | paper-check | new | 3 | 2 | 12 | accepted | PLAN9 (`P9-11`) |
+| 35 | `FUNC-LIVE-AUTO-CONFIG` | FUNC (SEC) | live-blocker | new | 4 | 1 | 20 | proposed | PLAN10 (`P10-1`) |
+| 36 | `SEC-LIVE-KILL-SWITCH-READ` | SEC (FUNC) | live-blocker | new | 4 | 2 | 16 | proposed | PLAN10 (`P10-2`) |
+| 37 | `FUNC-TOKEN-RESOLVER` | FUNC (SEC) | live-blocker | new | 4 | 3 | 12 | proposed | PLAN10 (`P10-3`) |
+| 38 | `FUNC-LIVE-PLAN-SETUP` | FUNC (SEC) | live-blocker | new | 4 | 3 | 12 | proposed | PLAN10 (`P10-4`) |
+| 39 | `FUNC-LIVE-AUTO-DRIVE` | FUNC (SEC) | live-blocker | new | 5 | 3 | 15 | proposed | PLAN10 (`P10-5`) |
+| 40 | `REL-LEG-AUTO-DRIVER` | REL (SEC) | live-blocker | new | 5 | 4 | 10 | proposed | PLAN10 (`P10-EO`) |
+| 41 | `REL-LIVE-COMPLETION-CALLBACK` | REL (ARCH) | live-blocker | new | 3 | 2 | 12 | proposed | PLAN10 (`P10-FB`) |
+| 42 | `FUNC-NOTIONAL-TO-AMOUNTIN` | FUNC (SEC) | paper-check | new | 3 | 2 | 12 | proposed | PLAN10 (`P10-AMT`) |
+| 43 | `TEST-LIVE-AUTO-DRIVE` | TEST (SEC) | live-blocker | new | 4 | 3 | 12 | proposed | PLAN10 (`P10-8`) |
+| 44 | `REL-LIVE-AUTO-DRIVE-SMOKE` | REL (DEVOPS) | live-blocker | new | 3 | 2 | 12 | proposed | PLAN10 (`P10-9`) |
 
 ### Легенда
 
@@ -459,6 +475,6 @@ C1/H2/M6 и т.д. ссылочны через `tracker_ref`, операцион
 
 ---
 
-*Актуализировано: 2026-08-03 (после старта PLAN9). Все факты о состоянии кода
-проверены чтением файлов на эту дату (коммит `c134b0f`). При изменении кода —
-обновить этот файл по принципу P2.*
+*Актуализировано: 2026-08-04 (PLAN10 proposed — initiatives #35–#44, live
+auto-execution). Все факты о состоянии кода проверены чтением файлов на эту дату.
+При изменении кода — обновить этот файл по принципу P2.*

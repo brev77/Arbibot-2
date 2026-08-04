@@ -2,6 +2,7 @@ import {
   IsArray,
   IsEnum,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -195,6 +196,16 @@ export class CreateMultiLegPlanDto {
   @MinLength(1)
   @MaxLength(512)
   routeKey?: string;
+
+  /**
+   * PLAN10 P10-AMT: plan-level notional (USD). Fallback for legs that omit `amountIn`:
+   * `beginExecution` converts notionalUsd → per-leg amountIn (bigint) via PriceOracle.
+   * If legs already carry `amountIn` (pre-quoted, Модель #1 from the worker), this field
+   * is ignored. Fail-closed when neither amountIn nor notionalUsd resolves a leg's size.
+   */
+  @IsOptional()
+  @IsNumber()
+  notionalUsd?: number;
 
   /** Ordered list of leg descriptors (minimum 2 for cross-chain). */
   @IsArray()

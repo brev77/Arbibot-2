@@ -61,7 +61,7 @@ ENV_FILE="${PANIC_ENV_FILE:-.env}"
 COMPOSE_FILE="${PANIC_COMPOSE_FILE:-infra/docker-compose.prod.yml}"
 AUDIT_URL="${AUDIT_SERVICE_URL:-http://127.0.0.1:3013}"
 LOCK_FILE="${PANIC_LOCK_FILE:-/tmp/arbibot-recover.lock}"
-RESTART_SERVICES=(execution-orchestrator paper-trading-service risk-service)
+RESTART_SERVICES=(execution-orchestrator opportunity-service paper-trading-service risk-service)
 
 now_iso() { date -u +"%Y-%m-%dT%H:%M:%SZ"; }
 OPERATOR_ID="${PANIC_OPERATOR_ID:-$(id -un 2>/dev/null || echo unknown-operator)}"
@@ -135,6 +135,9 @@ unflip_env "RISK_POLICY_JOBS_ENABLED" "true"
 # PAPER_AUTO_DRIVE_ENABLED is intentionally NOT auto-restored: auto-drive is opt-in / safe-by-default.
 # After a panic the operator must explicitly re-enable it via /settings (paper.auto_drive.enabled=true)
 # or by setting the env var — recovery must not auto-restart automated paper trading.
+# PLAN10 P10-7: same for LIVE_AUTO_DRIVE_ENABLED + LEG_AUTO_DRIVE_ENABLED — these move REAL
+# capital, so recovery must NEVER auto-restart automated live execution. Operator must
+# explicitly set both env vars to re-enable live auto-trade after a panic.
 
 echo ">> Step 2/3: restarting services to re-read env" >&2
 if $DRY_RUN; then

@@ -106,6 +106,21 @@ export class OpportunitiesController {
     };
   }
 
+  /**
+   * PLAN10 P10-FB: live-completion callback from execution-orchestrator settlement-relay.
+   *
+   * Called after a live plan reaches `completed`. Idempotent (200 no-op if already
+   * completed). Returns 404 if no opportunity references this planId (non-auto-drive plan).
+   * The `:planId` is the execution plan id (settlement-relay knows only planId, not oppId).
+   */
+  @Post(':planId/live-completed')
+  @HttpCode(HttpStatus.OK)
+  async liveCompleted(
+    @Param('planId', new ParseUUIDPipe({ version: '4' })) planId: string,
+  ) {
+    return this.service.markLiveCompleted(planId);
+  }
+
   @Get()
   async list() {
     const items = await this.service.list();

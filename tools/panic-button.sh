@@ -49,7 +49,7 @@ AUDIT_URL="${AUDIT_SERVICE_URL:-http://127.0.0.1:3013}"
 LOCK_FILE="${PANIC_LOCK_FILE:-/tmp/arbibot-panic.lock}"
 
 # Services that must re-read env to pick up the kill-switch flips.
-RESTART_SERVICES=(execution-orchestrator paper-trading-service risk-service)
+RESTART_SERVICES=(execution-orchestrator opportunity-service paper-trading-service risk-service)
 
 now_iso() { date -u +"%Y-%m-%dT%H:%M:%SZ"; }
 OPERATOR_ID="${PANIC_OPERATOR_ID:-$(id -un 2>/dev/null || echo unknown-operator)}"
@@ -142,6 +142,10 @@ flip_env "DEX_LIVE_KILL_SWITCH" "true"
 flip_env "PAPER_DISCOVERY_ENABLED" "false"
 flip_env "RISK_POLICY_JOBS_ENABLED" "false"
 flip_env "PAPER_AUTO_DRIVE_ENABLED" "false"
+# PLAN10 P10-7: halt both live auto-execution workers (opp-service LiveAutoDriveWorker +
+# execution-orchestrator LegAutoDriverWorker). These move real capital and MUST stop on panic.
+flip_env "LIVE_AUTO_DRIVE_ENABLED" "false"
+flip_env "LEG_AUTO_DRIVE_ENABLED" "false"
 echo "  (PAPER_DEX_MAINNET_ENABLED NOT flipped — documented but not read by any service; see playbook §4 TODO)" >&2
 
 echo ">> Step 3/3: restarting services to re-read env" >&2

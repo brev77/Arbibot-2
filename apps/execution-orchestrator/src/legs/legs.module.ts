@@ -15,6 +15,7 @@ import { MockVenueAdapter } from '../venue/mock-venue.adapter';
 import { VENUE_ADAPTER } from '../venue/venue-adapter';
 
 import { FillOutboundService } from './fill-outbound.service';
+import { LegAutoDriverWorker } from './leg-auto-driver.worker';
 import { LegsService } from './legs.service';
 import { PartialFillPlaybookService } from './partial-fill-playbook.service';
 import { PlanExecutionController } from './plan-execution.controller';
@@ -40,6 +41,7 @@ import { SettlementRelayWorker } from './settlement-relay.worker';
     PartialFillPlaybookService,
     StuckPlanReaperWorker,
     SettlementRelayWorker,
+    LegAutoDriverWorker,
     MockVenueAdapter,
     {
       provide: VENUE_ADAPTER,

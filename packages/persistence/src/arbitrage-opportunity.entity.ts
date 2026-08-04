@@ -20,6 +20,15 @@ export class ArbitrageOpportunityEntity {
   @Column({ name: 'risk_decision_id', type: 'uuid', nullable: true })
   riskDecisionId!: string | null;
 
+  /**
+   * PLAN10 P10-6: dedup marker for LiveAutoDriveWorker (opp-service). Set after a
+   * live execution plan is created for this opportunity. Tick filter
+   * `state='risk_checked' AND live_execution_plan_id IS NULL` skips already-dispatched
+   * opportunities. `null` until a live plan is created (migration 054).
+   */
+  @Column({ name: 'live_execution_plan_id', type: 'uuid', nullable: true })
+  liveExecutionPlanId!: string | null;
+
   @Column({ type: 'jsonb', default: () => "'{}'::jsonb" })
   payload!: Record<string, unknown>;
 
