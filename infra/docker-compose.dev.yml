@@ -39,8 +39,12 @@ services:
       POSTGRES_USER: arbibot
       POSTGRES_PASSWORD: arbibot
       POSTGRES_DB: arbibot
+    # Bind to 127.0.0.1 only — Postgres must NEVER be reachable from the public internet.
+    # Previous '15432:5432' opened it on 0.0.0.0 and triggered an abuse report from the
+    # hosting provider (2026-08-05). Host apps connect via 127.0.0.1:15432; if you need
+    # access from another host, use an SSH tunnel, not a public port.
     ports:
-      - '15432:5432'
+      - '127.0.0.1:15432:5432'
     volumes:
       - arbibot_pg_data:/var/lib/postgresql/data
     healthcheck:
@@ -52,13 +56,27 @@ services:
 
   redis:
     image: redis:7-alpine
+    # Bind to 127.0.0.1 only — Redis must NEVER be reachable from the public internet.
+    # Previous '6379:6379' opened it on 0.0.0.0 with NO password and triggered an abuse
+    # report from the hosting provider (2026-08-05). An exposed unauthenticated Redis is
+    # a root-compromise vector (CONFIG SET dir + SAVE to write authorized_keys).
     ports:
-      - '6379:6379'
-    command: ['redis-server', '--appendonly', 'yes']
+      - '127.0.0.1:6379:6379'
+    # Authentication + dangerous-command rename. REDIS_PASSWORD is sourced from the host
+    # .env (default empty = no auth, which is fine for local dev on 127.0.0.1 only).
+    # The healthcheck authenticates with the same password when set.
+    command:
+      - 'sh'
+      - '-c'
+      - |
+        redis-server --appendonly yes
+        $${REDIS_PASSWORD:+--requirepass "$$REDIS_PASSWORD" --rename-command CONFIG "" --rename-command FLUSHALL "" --rename-command FLUSHDB ""}
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
     volumes:
       - arbibot_redis_data:/data
     healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
+      test: ['CMD-SHELL', "redis-cli $${REDIS_PASSWORD:+-a \"$$REDIS_PASSWORD\" --no-auth-warning} ping | grep -q PONG"]
       interval: 5s
       timeout: 3s
       retries: 5
