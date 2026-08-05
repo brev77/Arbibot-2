@@ -227,7 +227,15 @@ export class PriceOracleService {
       ]);
       // Chainlink feeds return the price scaled by 10^decimals (typically 8).
       // answer is signed int256; prices are positive.
-      if (decimals <= 0 || round.answer <= 0n) {
+      // NOTE: `decimals` is a plain number (from ethers ABI result), `round.answer` is bigint.
+      // Mixing them in the same comparison (`decimals <= 0 || round.answer <= 0n`) throws
+      // "Cannot mix BigInt and other types" — split the checks so each side has a consistent
+      // type. This was the live regression after the Chainlink address fix: the address
+      // resolved correctly but every read failed at this line.
+      if (!Number.isFinite(decimals) || decimals <= 0) {
+        return null;
+      }
+      if (round.answer <= 0n) {
         return null;
       }
       const scaled = Number(round.answer) / 10 ** decimals;
