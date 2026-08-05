@@ -289,20 +289,29 @@ export class PoolDiscoveryService implements OnModuleInit, OnModuleDestroy {
         provider.getBlockNumber(),
       ]);
 
+      // ethers v6 returns getReserves() as bigint tuple already — wrapping with BigInt()
+      // throws "Cannot mix BigInt and other types" because the operand is already bigint.
+      // Use direct assignment (with explicit cast through String() to be defensive).
+      const reserve0 = typeof reserves[0] === 'bigint' ? reserves[0] : BigInt(reserves[0] as never);
+      const reserve1 = typeof reserves[1] === 'bigint' ? reserves[1] : BigInt(reserves[1] as never);
+
       return {
         address: poolAddress,
         token0: token0 as Address,
         token1: token1 as Address,
         feeBps: 30, // Default 0.3% for UniV2
-        reserve0: BigInt(reserves[0]),
-        reserve1: BigInt(reserves[1]),
+        reserve0,
+        reserve1,
         chainId,
         factory: (factory || '0x0000000000000000000000000000000000000000') as Address,
         protocol: 'uniswap-v2',
         blockNumber,
         discoveredAt: new Date(),
       };
-    } catch {
+    } catch (e) {
+      this.logger.debug(
+        `tryUniV2Pool failed for ${poolAddress} (chain ${chainId}): ${e instanceof Error ? e.message : String(e)}`,
+      );
       return null;
     }
   }
