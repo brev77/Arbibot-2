@@ -31,6 +31,30 @@ const STAPLE_DECIMALS: Record<string, number> = {
   USDT: 6,
 };
 
+/**
+ * Hard-coded decimals for well-known Arbitrum One token addresses (fix #2).
+ *
+ * Why: the scanner emits real token addresses in `instrumentKey` (e.g. MAGIC/USDC),
+ * not tickers. Without this map, `resolveDecimals` returned null for every address
+ * → `resolve()` returned null → LiveAutoDriveWorker skipped every long-tail opp with
+ * `skip_no_token`. This is the same set of tokens the PriceOracleService recognises.
+ */
+const KNOWN_DECIMALS_BY_ADDRESS: Record<string, number> = {
+  '0x82af49447d8a07e3bd95bd0d56f35241523fbab1': 18, // WETH
+  '0xaf88d065e77c8cc2239327c5edb3a432268e5831': 6, // USDC (native)
+  '0xff970a61a04b1ca14834a43f5de4533ebddb5cc8': 6, // USDC.e (bridged)
+  '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9': 6, // USDT
+  '0x912ce59144191c1204e64859c7384b37e22328d5': 18, // ARB
+  '0xfc5a1a6eb076a2c7ad06ed22c90d7e710e35ad0a': 18, // GMX
+  '0x539bde0d7dbd336b79148aa742883198bbf60342': 18, // MAGIC
+  '0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f': 8, // WBTC
+  '0xf97f4df75117a78c1a5a0dbb814af92458539fb4': 18, // LINK
+  '0xfa7f8980b0f1e64a2062791cc3b0871572f1f7f0': 18, // UNI
+  '0xda10009cbd5d07dd0cecc66161fc93d7c9000da1': 18, // DAI
+  '0x11cdb42b0eb46d95f990bedd4695a6e3fa034978': 18, // CRV
+  '0x13ad51ed4f1b7e9dc168d8a00cb3f4ddd85efa60': 18, // LDO
+};
+
 /** Address regex (EIP-55 not enforced — case-insensitive 40-hex). */
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 
@@ -217,10 +241,13 @@ export class TokenResolverService {
 
   private resolveDecimals(token: string): number | null {
     if (ADDRESS_RE.test(token)) {
-      // We don't have a decimals lookup for arbitrary addresses in MVP; only tickers.
-      // (On-chain decimals read is Phase 2 via PriceOracleService.) Fail-closed for now
-      // unless the address matches a staple we recognise by ticker elsewhere — but here
-      // we only know the address. Long-tail addresses → null → skip.
+      // Look up known decimals by address (case-insensitive). Covers the Arbitrum One
+      // staples + the long-tail tokens the scanner emits. Unknown long-tail addresses
+      // still fall through to null → resolve() returns null → worker skips the opp.
+      const known = KNOWN_DECIMALS_BY_ADDRESS[token.toLowerCase()];
+      if (typeof known === 'number') {
+        return known;
+      }
       return null;
     }
     return tickerToDecimals(token);

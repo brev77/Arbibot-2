@@ -52,11 +52,83 @@ interface PoolCacheEntry {
 }
 
 /**
+ * Seed pool address (chainId + address) for warm-up. The cache is in-memory and
+ * empty after a process restart; without warm-up the first N pricing calls hit
+ * null pools and fail-closed. Seeds are discovered once on startup and re-freshed
+ * on every discovery loop tick so reserves stay current.
+ */
+interface SeedPoolEntry {
+  chainId: ChainId;
+  address: Address;
+}
+
+/**
+ * Default seed pools — the highest-volume WETH/stablecore pairs on Arbitrum One
+ * (single-chain live MVP). Operators can override / extend via the
+ * `POOL_DISCOVERY_SEED_ADDRESSES` env (comma-separated `chainId:0xADDR` entries).
+ *
+ * These are the pools PriceOracleService.priceArbitraryViaPool() scans for when
+ * valuing long-tail tokens (it looks for a token↔WETH pair). Without warm-up
+ * those reads return null and the live cost gate blocks every trade.
+ */
+const DEFAULT_SEED_POOLS: SeedPoolEntry[] = [
+  // Arbitrum One (42161) — UniV2/Sushi style pools for the staples the
+  // TokenResolverService emits. Reserves feed both priceArbitraryViaPool and
+  // TradeCostEstimator.findPoolForLeg.
+  { chainId: 42161, address: '0x905dFCD5644206F71a25581E4b5A22D803Dc7C47' }, // Sushi WETH/USDC.e
+  { chainId: 42161, address: '0xC31E54c7a869B9FcBEAc43A6895C5d10928303C0' }, // Sushi WETH/USDT
+  { chainId: 42161, address: '0xfA9fFAe777E0f0DE07C1a45c316D4Ff1B3df0D33' }, // Sushi ARB/WETH (deprecated addr)
+];
+
+/**
+ * Parse the `POOL_DISCOVERY_SEED_ADDRESSES` env (format: `42161:0xADDR,42161:0xADDR`)
+ * into typed entries. Returns the DEFAULT_SEED_POOLS when unset. Malformed entries
+ * are logged and skipped — never throw (warm-up is best-effort).
+ */
+function loadSeedPools(log: (msg: string) => void): SeedPoolEntry[] {
+  const raw = process.env.POOL_DISCOVERY_SEED_ADDRESSES;
+  if (raw === undefined || raw.length === 0) {
+    return DEFAULT_SEED_POOLS;
+  }
+  const out: SeedPoolEntry[] = [];
+  for (const token of raw.split(/[,\s]+/)) {
+    const t = token.trim();
+    if (t.length === 0) continue;
+    const colon = t.lastIndexOf(':');
+    if (colon <= 0) {
+      log(`Skipping malformed POOL_DISCOVERY_SEED_ADDRESSES entry "${t}" (expected chainId:0xADDR)`);
+      continue;
+    }
+    const chainId = Number.parseInt(t.slice(0, colon), 10);
+    const address = t.slice(colon + 1);
+    if (!Number.isFinite(chainId) || chainId <= 0 || !/^0x[a-fA-F0-9]{40}$/.test(address)) {
+      log(`Skipping malformed POOL_DISCOVERY_SEED_ADDRESSES entry "${t}"`);
+      continue;
+    }
+    // Address is a branded template literal type (`0x${string}`); the regex above already
+    // constrained the shape, so the cast here is the canonical escape hatch. Disable the
+    // lint rule inline — the assertion DOES change the type from `string` to `0x${string}`.
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+    out.push({ chainId: chainId as ChainId, address: address as Address });
+  }
+  return out.length > 0 ? out : DEFAULT_SEED_POOLS;
+}
+
+/**
  * Pool Discovery Service
  * Step: DEX-1-0-POOL-DISCOVERY
  *
  * Discovers DEX liquidity pools from on-chain factory contracts.
  * Uses Redis-compatible in-memory cache with configurable TTL.
+ *
+ * Warm-up (fix for workaround #6 — Hermes hardcoded 8 pools in PriceOracle
+ * because the cache was always empty after restart):
+ *   - On startup, asynchronously discover the seed pools (default + env override).
+ *   - The discovery loop (when enabled) re-discovers seeds every tick so reserves
+ *     stay current and don't silently expire into null.
+ *   - Warm-up is fire-and-forget so it doesn't block module init; first pricing
+ *     reads that race the warm-up will still miss, but every subsequent call hits
+ *     a populated cache.
  */
 @Injectable()
 export class PoolDiscoveryService implements OnModuleInit, OnModuleDestroy {
@@ -68,21 +140,55 @@ export class PoolDiscoveryService implements OnModuleInit, OnModuleDestroy {
   private discoveryTimer?: NodeJS.Timeout;
   private readonly DISCOVERY_INTERVAL_MS = 60_000; // 1 minute
 
+  private readonly seedPools: SeedPoolEntry[];
+
   // Metrics
   private discoveredPoolsGauge!: Gauge<string>;
   private discoveryLatencyHistogram!: Histogram<string>;
   private cacheHitCounter!: Counter<string>;
   private cacheMissCounter!: Counter<string>;
 
-  constructor(private readonly rpcProviderManager: RpcProviderManager) {}
+  constructor(private readonly rpcProviderManager: RpcProviderManager) {
+    this.seedPools = loadSeedPools((m) => this.logger.warn(m));
+  }
 
   onModuleInit() {
     this.initializeMetrics();
-    this.logger.log('Pool Discovery Service initialized');
+    this.logger.log(
+      `Pool Discovery Service initialized (seeds: ${this.seedPools.length} pool(s))`,
+    );
+
+    // Warm-up: fire-and-forget discovery of seed pools. Does NOT block module init —
+    // the cache fills as RPC responds; calls that race it will miss and fail-closed
+    // (the next call after warm-up completes hits the cache).
+    void this.warmUpSeedPools();
 
     if (process.env.POOL_DISCOVERY_ENABLED === 'true') {
       this.startDiscoveryLoop();
     }
+  }
+
+  /**
+   * Discover seed pools once on startup. Failures are logged and swallowed —
+   * warm-up is best-effort and must never break module init.
+   */
+  private async warmUpSeedPools(): Promise<void> {
+    if (this.seedPools.length === 0) return;
+    const start = Date.now();
+    let ok = 0;
+    for (const seed of this.seedPools) {
+      try {
+        const pool = await this.discoverPool(seed.chainId, seed.address);
+        if (pool !== null) ok++;
+      } catch (err) {
+        this.logger.warn(
+          `Seed pool warm-up failed for ${seed.address} (chain ${seed.chainId}): ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+    this.logger.log(
+      `Seed pool warm-up done: ${ok}/${this.seedPools.length} discovered in ${Date.now() - start}ms`,
+    );
   }
 
   onModuleDestroy() {
@@ -259,17 +365,32 @@ export class PoolDiscoveryService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Start periodic discovery loop
+   * Start periodic discovery loop. Re-discovers seed pools on every tick so their
+   * reserves stay current (the TTL would otherwise silently null them out and
+   * break priceArbitraryViaPool mid-run), then sweeps expired entries.
    */
   private startDiscoveryLoop(): void {
     const intervalMs = parseInt(process.env.POOL_DISCOVERY_INTERVAL_MS || String(this.DISCOVERY_INTERVAL_MS), 10);
 
     this.discoveryTimer = setInterval(() => {
-      this.cleanupExpiredEntries();
+      // Re-discover seeds first (best-effort; failures are logged inside discoverPool).
+      void Promise.all(
+        this.seedPools.map(async (seed) => {
+          try {
+            await this.discoverPool(seed.chainId, seed.address);
+          } catch {
+            // Swallow — keep the loop alive. discoverPool already logged the error.
+          }
+        }),
+      ).then(() => {
+        this.cleanupExpiredEntries();
+      });
     }, intervalMs);
 
     this.discoveryTimer.unref?.();
-    this.logger.log(`Pool discovery loop started (interval: ${intervalMs}ms)`);
+    this.logger.log(
+      `Pool discovery loop started (interval: ${intervalMs}ms, seeds: ${this.seedPools.length})`,
+    );
   }
 
   /**

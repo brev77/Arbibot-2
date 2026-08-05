@@ -47,9 +47,32 @@ describe('TokenResolverService', () => {
     it('resolves address pair verbatim (Arbitrum mainnet chain)', () => {
       const magic = '0x539bde0d7c7a39d0b4873a3e75e4bb56b1b58442';
       const usdc = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831';
-      // Long-tail base address (MAGIC) → decimals unresolvable in MVP → null.
+      // Long-tail base address (MAGIC typo) → decimals unresolvable → null.
       const r = svc.resolve(`arb:42161:${magic}-${usdc}`, 10, { buyPrice: 0.5 });
       expect(r).toBeNull();
+    });
+
+    it('resolves a known long-tail address pair (fix #2: KNOWN_DECIMALS_BY_ADDRESS)', () => {
+      // Real MAGIC address — in KNOWN_DECIMALS_BY_ADDRESS (18 decimals).
+      const magic = '0x539bde0d7dbd336b79148aa742883198bbf60342';
+      const usdc = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831';
+      const r = svc.resolve(`arb:42161:${magic}-${usdc}`, 10, { buyPrice: 0.04 });
+      expect(r).not.toBeNull();
+      expect(r!.tokens.decimals0).toBe(18); // MAGIC
+      expect(r!.tokens.decimals1).toBe(6); // USDC
+      // buy: $10 USDC = 10_000_000
+      expect(r!.amountIns.buyAmountIn).toBe('10000000');
+      // sell: 10/0.04 = 250 MAGIC * 10^18 = 250_000_000_000_000_000_000
+      expect(r!.amountIns.sellAmountIn).toBe('250000000000000000000');
+    });
+
+    it('resolves a WBTC pair with 8-decimal known address', () => {
+      const wbtc = '0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f';
+      const weth = '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1';
+      const r = svc.resolve(`arb:42161:${wbtc}-${weth}`, 10, { buyPrice: 15 });
+      expect(r).not.toBeNull();
+      expect(r!.tokens.decimals0).toBe(8); // WBTC
+      expect(r!.tokens.decimals1).toBe(18); // WETH
     });
   });
 

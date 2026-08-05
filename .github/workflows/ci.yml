@@ -46,6 +46,24 @@ jobs:
       - name: Paper/live import-graph boundary scan (PL.1/PL.2)
         run: bash tools/ci-paper-live-boundary.sh
 
+  address-checksum:
+    runs-on: ubuntu-latest
+    # EIP-55 checksum guard for packages/contracts-eth/src/addresses/*.ts. ethers v6 rejects
+    # bad-checksum addresses with INVALID_ARGUMENT before any RPC call — this silently
+    # breaks Chainlink feeds, DEX routers, token contracts. Catches the class of bug that
+    # took down live trading on 2026-08-05 (corrupted Chainlink ETH/USD address that passed
+    # type-checks but was rejected at runtime). See docs/live-rpc-diagnosis-2026-08-05.md.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Address checksum validation (EIP-55)
+        run: bash tools/ci-address-checksum.sh
+
   hermes-agent-smoke:
     runs-on: ubuntu-latest
     # Hermes Agent wiring smoke (Plan 5 regression guard). Catches the class of bug that let

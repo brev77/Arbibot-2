@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { Provider, JsonRpcProvider, FallbackProvider } from 'ethers';
+import { Provider, JsonRpcProvider, FallbackProvider, Network } from 'ethers';
 import { Histogram, Counter } from 'prom-client';
 import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
 
@@ -81,12 +81,19 @@ export class RpcProviderManager implements OnModuleInit, OnModuleDestroy {
       }
 
       try {
-        const primary = new JsonRpcProvider(config.primary, config.chainId);
+        // staticNetwork (fix #12): pin the chain id at construction so ethers v6 does NOT
+        // issue a discovery `eth_chainId` call on every request. Without this, a provider
+        // that momentarily sees a different chain id (mixed network responses from a load-
+        // balanced RPC, or a misconfigured env pointing a mainnet URL at a testnet) silently
+        // throws `NETWORK_ERROR: network changed: 1 => 42161` on every read. Pinning fails
+        // fast on mismatched config instead of corrupting every downstream read.
+        const network = new Network(String(config.chainId), config.chainId);
+        const primary = new JsonRpcProvider(config.primary, network, { staticNetwork: true });
         let backup: JsonRpcProvider | undefined;
         let combined: FallbackProvider | undefined;
 
         if (config.backup) {
-          backup = new JsonRpcProvider(config.backup, config.chainId);
+          backup = new JsonRpcProvider(config.backup, network, { staticNetwork: true });
           // Create fallback provider with primary as priority
           combined = new FallbackProvider([primary, backup], 1);
         }

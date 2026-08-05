@@ -180,8 +180,12 @@ export class StuckPlanReaperWorker implements OnModuleInit, OnModuleDestroy {
           return 'already-advanced' as const;
         }
         // Check for a confirmed on-chain tx (P9-2 row written in Phase 3).
+        // Note: `venue_ref` lives on execution_legs, NOT on on_chain_transactions —
+        // the previous SELECT referenced a column that does not exist on this table
+        // (fix #11). The query ran but threw every tick, masking the recovery path;
+        // legs stayed stuck in `submitting` until the reaper silently errored out.
         const confirmedTx = await em.query(
-          `SELECT id, tx_hash, venue_ref FROM on_chain_transactions
+          `SELECT id, tx_hash FROM on_chain_transactions
            WHERE leg_id = $1 AND status = 'confirmed'
            ORDER BY created_at DESC LIMIT 1`,
           [leg.id],

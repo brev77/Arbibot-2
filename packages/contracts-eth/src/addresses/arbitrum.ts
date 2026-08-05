@@ -54,9 +54,9 @@ export const ArbitrumMainnetAddresses: ArbitrumAddresses = {
   // Source: https://docs.chain.link/data-feeds/price-feeds/addresses
   // NOTE: USDC/USDT feeds are not consumed in v1 (PriceOracleService treats
   // stables as $1); retained for future depeg detection.
-  chainlinkEthUsd: '0x639Fe6ab55C921f74e7fac1EE960C052051f9ef9',
-  chainlinkUsdcUsd: '0x50834F3163468741E928E2838d6D35C6c75C56F9',
-  chainlinkUsdtUsd: '0x3f3f5dF88dC9F13eac4DF188Ce0FC83aB5F5e08',
+  chainlinkEthUsd: '0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612',
+  chainlinkUsdcUsd: '0x0000000000000000000000000000000000000000',
+  chainlinkUsdtUsd: '0x0000000000000000000000000000000000000000',
 };
 
 /**
@@ -72,14 +72,14 @@ export const ArbitrumSepoliaAddresses: ArbitrumAddresses = {
   // QuoterV2 not deployed on Arbitrum Sepolia — null triggers fail-closed fallback.
   quoterV2: '0x0000000000000000000000000000000000000000',
   // SushiSwap
-  sushiSwapRouter: '0x4752ba5dbc23f44d87826276bf6fd6b6c874abfc',
-  sushiSwapFactory: '0xd1F20C1c6864211b0Ce7b6AdF4d82E5B85cAb2c0',
+  sushiSwapRouter: '0x4752ba5DBc23F44D87826276BF6Fd6B6c874abfc',
+  sushiSwapFactory: '0xd1f20c1c6864211b0cE7b6aDF4D82E5b85CAb2C0',
   // WETH
   weth: '0x4200000000000000000000000000000000000006',
   // USDC
-  usdc: '0x75faf114eafb1acbe2a3976482854f7f230fa178',
+  usdc: '0x75FAf114EAFB1ACBE2A3976482854F7F230fA178',
   // USDT
-  usdt: '0x319c9e4a6554Ae6e5D75979e9d009D84B6Fb53f6',
+  usdt: '0x319c9e4a6554Ae6e5d75979E9D009D84B6fB53F6',
   // Chainlink feeds — not reliably deployed on Sepolia; oracle returns null.
   chainlinkEthUsd: '0x0000000000000000000000000000000000000000',
   chainlinkUsdcUsd: '0x0000000000000000000000000000000000000000',

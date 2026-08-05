@@ -424,18 +424,37 @@ export class TradeCostEstimatorService {
       }
 
       // DEX leg: estimate against a minimal swap tx request.
+      // Fix #10: previously `from: ZERO_ADDRESS, value: amountIn` — Arbitrum RPC rejects
+      // this with `insufficient funds` / `execution reverted` because the zero-address has
+      // no balance. value=0n makes the estimate succeed (we only need the gasLimit shape,
+      // not an actual transfer). On failure we fall back to a coarse 180K-gas estimate so
+      // transient RPC hiccups don't block the cost gate.
       const txRequest = {
         to: tokenIn ?? '0x',
         data: '0x',
-        value: amountIn,
-        from: '0x0000000000000000000000000000000000000000',
+        value: 0n,
       };
-      const gas = await this.gasEstimator.estimateGas(chainId, txRequest);
-      const cost = this.gasEstimator.estimateGasCostUsd(gas.gasLimit, gas.feeData, nativeUsd);
-      if (cost === null) {
-        return { kind: 'error', reason: 'gas→USD conversion failed' };
+      try {
+        const gas = await this.gasEstimator.estimateGas(chainId, txRequest);
+        const cost = this.gasEstimator.estimateGasCostUsd(gas.gasLimit, gas.feeData, nativeUsd);
+        if (cost === null) {
+          return { kind: 'error', reason: 'gas→USD conversion failed' };
+        }
+        return { kind: 'value', usd: cost.costUsd };
+      } catch (e) {
+        // Coarse fallback: 180K gas is a conservative Arbitrum DEX swap gas limit. The cost
+        // gate cares about order-of-magnitude (sub-dollar vs dollar-scale), not precision.
+        this.logger.debug(
+          `estimateGas threw for chain ${chainId} (${e instanceof Error ? e.message : String(e)}) — using coarse 180K fallback`,
+        );
+        const feeData = await this.gasEstimator.getEip1559FeeData(chainId);
+        const approxGasLimit = 180_000n;
+        const cost = this.gasEstimator.estimateGasCostUsd(approxGasLimit, feeData, nativeUsd);
+        if (cost === null) {
+          return { kind: 'error', reason: 'coarse gas→USD conversion failed' };
+        }
+        return { kind: 'value', usd: cost.costUsd };
       }
-      return { kind: 'value', usd: cost.costUsd };
     } catch (e) {
       return {
         kind: 'error',

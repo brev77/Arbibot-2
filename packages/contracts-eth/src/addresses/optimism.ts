@@ -44,7 +44,7 @@ export interface OptimismAddresses {
  */
 export const OptimismMainnetAddresses: OptimismAddresses = {
   // Velodrome (Solidly V2 fork — volatile pools only for accurate v2Price)
-  velodromeRouter: '0xa062aE8ADF9c7717BA7a2364a8F8a25202F1fCB1',
+  velodromeRouter: '0xa062AE8AdF9C7717ba7a2364A8F8a25202F1fCb1',
   velodromeFactory: '0xF1046053aa5682b4F9a81b5481394DA16BE5FF5a',
   // Uniswap V3
   uniswapV3Router: '0xE592427A0AEce92De3Edee1F18E0157C05861564',
@@ -58,11 +58,11 @@ export const OptimismMainnetAddresses: OptimismAddresses = {
   // OP token (native governance token, 18 decimals)
   op: '0x4200000000000000000000000000000000000042',
   // VELO token (18 decimals)
-  velo: '0x3c8B650257cFb5f272f799F5e62b4134f0225b14',
+  velo: '0x3C8b650257CFb5F272F799f5e62B4134F0225B14',
   // Chainlink price feed proxies (AggregatorV3Interface)
   // Source: https://docs.chain.link/data-feeds/price-feeds/addresses
-  chainlinkEthUsd: '0x13e3Ee699D1909E989722E753853AE31b37A0592',
-  chainlinkUsdcUsd: '0x16a9FA2DAc0a2785583D7eAA421b852666a58a8F',
+  chainlinkEthUsd: '0x13E3EE699D1909E989722e753853AE31b37A0592',
+  chainlinkUsdcUsd: '0x16A9FA2dAC0A2785583d7EaA421B852666A58A8F',
 };
 
 /**

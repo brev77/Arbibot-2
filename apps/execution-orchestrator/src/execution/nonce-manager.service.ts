@@ -5,6 +5,58 @@ import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
 import { Counter, Gauge } from 'prom-client';
 
 /**
+ * Timeout for the RPC `getTransactionCount` read inside {@link withBroadcastLock}.
+ *
+ * P9-3 follow-up: the broadcast path was hanging because an unresponsive RPC
+ * made `provider.getTransactionCount(address, 'pending')` never resolve. Since
+ * {@link serialize} chains every call per address, one hung read poisoned the
+ * whole per-wallet queue (and every leg on that wallet stayed `submitting`).
+ * This bound (env-overridable) makes the nonce read fail-closed instead of
+ * hanging forever; the per-wallet queue is NOT poisoned on timeout (see
+ * {@link serialize}).
+ */
+const BROADCAST_RPC_TIMEOUT_MS = process.env.BROADCAST_RPC_TIMEOUT_MS
+  ? Number.parseInt(process.env.BROADCAST_RPC_TIMEOUT_MS, 10)
+  : 30_000;
+
+/**
+ * Timeout for the broadcast `fn(nonce)` itself (the actual `sendTransaction`).
+ *
+ * Broadcast is allowed to take longer than a plain RPC read (mempool acceptance,
+ * fee negotiation), but it MUST NOT be infinite. Defaults to 2× the RPC read
+ * timeout. On timeout the lock releases (the queue is not poisoned) and the
+ * caller sees `Error('broadcast fn timeout')`.
+ */
+const BROADCAST_FN_TIMEOUT_MS = process.env.BROADCAST_FN_TIMEOUT_MS
+  ? Number.parseInt(process.env.BROADCAST_FN_TIMEOUT_MS, 10)
+  : BROADCAST_RPC_TIMEOUT_MS * 2;
+
+/**
+ * Reject after `ms` with `Error(message)`. Used to bound RPC/broadcast calls
+ * that have no native timeout. The returned timer is exposed via `clear` so the
+ * caller can cancel it when the wrapped promise settles first (otherwise the
+ * Node event loop keeps the timer alive for the full duration on every call).
+ */
+function raceTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  message: string,
+): { promise: Promise<T>; clear: () => void } {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  return {
+    promise: Promise.race([promise, timeout]),
+    clear: () => {
+      if (timer !== undefined) {
+        clearTimeout(timer);
+      }
+    },
+  };
+}
+
+/**
  * Nonce Manager Service (P9-3)
  *
  * Per-wallet async mutex + monotonic nonce tracker. Eliminates the nonce race
@@ -114,13 +166,61 @@ export class NonceManagerService {
     fn: (nonce: number) => Promise<T>,
   ): Promise<T> {
     return this.serialize(address, async () => {
-      const nonce = await provider.getTransactionCount(address, 'pending');
+      const acquireStart = Date.now();
+      this.logger.log(
+        `withBroadcastLock: acquiring nonce for ${address} (chain ${chainId}) at ${new Date().toISOString()}`,
+      );
+
+      // Bound the RPC nonce read. A hung `getTransactionCount` previously
+      // poisoned the per-wallet queue (serialize chains all calls); on timeout
+      // we throw, serialize releases the slot for the next caller, and the leg
+      // stays `submitting` for the reaper.
+      const nonceRace = raceTimeout(
+        provider.getTransactionCount(address, 'pending'),
+        BROADCAST_RPC_TIMEOUT_MS,
+        'RPC timeout reading nonce',
+      );
+      let nonce: number;
+      try {
+        nonce = await nonceRace.promise;
+      } finally {
+        nonceRace.clear();
+      }
+
+      this.logger.log(
+        `withBroadcastLock: nonce acquired: ${nonce} for ${address} took=${Date.now() - acquireStart}ms`,
+      );
+
+      // Bound the broadcast fn itself. `sendTransaction` is usually fast, but
+      // fee negotiation / mempool back-pressure can stall it; we refuse to hold
+      // the per-wallet lock indefinitely. On timeout the queue is released
+      // (serialize does not poison on rejection) and the caller sees the error.
+      const fnRace = raceTimeout(
+        fn(nonce),
+        BROADCAST_FN_TIMEOUT_MS,
+        'broadcast fn timeout',
+      );
+      let result: T;
+      try {
+        result = await fnRace.promise;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.warn(
+          `withBroadcastLock: broadcast failed for ${address} nonce=${nonce} took=${Date.now() - acquireStart}ms: ${msg}`,
+        );
+        throw err;
+      } finally {
+        fnRace.clear();
+      }
+
       // On failure the nonce may or may not have been consumed depending on
       // where the error occurred (pre-broadcast vs RPC rejection). The next
       // acquire re-reads the RPC pending count, so we do NOT increment locally
       // on failure — the RPC is the source of truth.
-      const result = await fn(nonce);
       this.txSubmittedCounter.inc({ chain_id: String(chainId) });
+      this.logger.log(
+        `withBroadcastLock: broadcast fn done for ${address} nonce=${nonce} took=${Date.now() - acquireStart}ms`,
+      );
       return result;
     });
   }

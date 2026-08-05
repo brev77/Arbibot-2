@@ -79,9 +79,9 @@ export const BnbMainnetAddresses: BnbAddresses = {
   // Source: https://docs.chain.link/data-feeds/price-feeds/addresses
   // NOTE: USDC/USDT feeds are not consumed in v1 (PriceOracleService treats
   // stables as $1); retained for future depeg detection.
-  chainlinkBnbUsd: '0x0567F2323251f0Aab15c8dFbF732C0a1150aCE56',
-  chainlinkUsdcUsd: '0xE20CA8D7546932360123796D9F43550bC89C74E8',
-  chainlinkUsdtUsd: '0xB1Ad49dB8f0663920F4F7d709e54D1aC395d76Cd',
+  chainlinkBnbUsd: '0x0567f2323251F0AAb15c8DfBf732C0a1150ace56',
+  chainlinkUsdcUsd: '0xE20ca8D7546932360123796d9F43550BC89c74e8',
+  chainlinkUsdtUsd: '0xB1Ad49dB8F0663920f4F7D709E54d1aC395d76cd',
 };
 
 /**
@@ -108,7 +108,7 @@ export const BnbTestnetAddresses: BnbAddresses = {
   // WBNB
   wbnb: '0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd',
   // USDT (testnet)
-  usdt: '0x337610d27c682F34CbC18Be42BA2e79e04c15e35',
+  usdt: '0x337610d27C682f34CBc18be42bA2E79e04c15e35',
   // USDC (testnet)
   usdc: '0x64544969ed7EBf5f083679233325356EbE738930',
   // BUSD (testnet)

@@ -7,6 +7,9 @@ const mockGetBlockNumber = jest.fn().mockResolvedValue(12345);
 
 // Mock ethers at the module level
 jest.mock('ethers', () => ({
+  // Network is constructed by the service to pin staticNetwork; stub it as a plain
+  // class so the `new Network(name, chainId)` call returns a truthy object.
+  Network: jest.fn().mockImplementation((name: string, chainId: number) => ({ name, chainId })),
   JsonRpcProvider: jest.fn().mockImplementation(() => ({
     getBlockNumber: mockGetBlockNumber,
   })),

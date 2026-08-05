@@ -142,6 +142,23 @@ export class LegAutoDriverWorker implements OnModuleInit, OnModuleDestroy {
     return n;
   }
 
+  /**
+   * Upper bound for a single `markSent` call. markSent performs the on-chain
+   * broadcast (two-phase P9-1: created→submitting commit, broadcast, submitting
+   * →sent commit) plus a tx.wait for the receipt. A hung RPC inside markSent
+   * blocks the whole worker (isRunning guard) and stalls every other plan. On
+   * timeout the leg stays `submitting` and the stuck-plan-reaper (P9-7)
+   * reconciles it — the tx is NOT lost (the confirmation poller resolves it).
+   */
+  private markSentTimeoutMs(): number {
+    const raw = process.env.MARK_SENT_TIMEOUT_MS;
+    const n = raw !== undefined ? Number.parseInt(raw, 10) : Number.NaN;
+    if (!Number.isFinite(n) || n <= 0) {
+      return 90_000;
+    }
+    return n;
+  }
+
   private async runCycle(): Promise<void> {
     if (this.isShuttingDown || this.isRunning) {
       return;
@@ -235,8 +252,36 @@ export class LegAutoDriverWorker implements OnModuleInit, OnModuleDestroy {
       }
 
       try {
-        await this.legs.markSent(planId, leg.id);
+        // Bound the markSent call: it performs the on-chain broadcast + receipt
+        // wait, which previously could hang the whole worker (isRunning guard).
+        // On timeout the leg stays `submitting` and the reaper reconciles it.
+        let markSentTimer: ReturnType<typeof setTimeout> | undefined;
+        const markSentTimeout = new Promise<never>((_, reject) => {
+          markSentTimer = setTimeout(
+            () => reject(new Error('markSent timeout')),
+            this.markSentTimeoutMs(),
+          );
+        });
+        try {
+          await Promise.race([
+            this.legs.markSent(planId, leg.id),
+            markSentTimeout,
+          ]);
+        } finally {
+          if (markSentTimer !== undefined) {
+            clearTimeout(markSentTimer);
+          }
+        }
       } catch (err) {
+        // markSent timeout: leg stays submitting; reaper (P9-7) recovers. Do NOT
+        // treat this as a 422/503 — the broadcast may still land on-chain.
+        if (err instanceof Error && err.message === 'markSent timeout') {
+          this.metrics.legsProcessed.inc({ outcome: 'mark_sent_timeout' });
+          this.logger.warn(
+            `markSent timeout for leg ${leg.id} — leg stays submitting, reaper will recover`,
+          );
+          continue;
+        }
         // 503 transient: leg stays submitting; reaper reconciles. 422: leg failed.
         const status = this.httpStatus(err);
         if (status === 503) {

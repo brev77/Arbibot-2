@@ -60,6 +60,7 @@ describe('PoolDiscoveryService', () => {
     delete process.env.POOL_DISCOVERY_ENABLED;
     delete process.env.POOL_CACHE_TTL_MS;
     delete process.env.POOL_DISCOVERY_INTERVAL_MS;
+    delete process.env.POOL_DISCOVERY_SEED_ADDRESSES;
   });
 
   describe('onModuleInit', () => {
@@ -79,6 +80,55 @@ describe('PoolDiscoveryService', () => {
       // Second service instance on the same registry should not throw
       const svc2 = await buildService();
       expect(svc2).toBeDefined();
+    });
+
+    it('warms up seed pools on init (fix #6 — no more empty cache after restart)', async () => {
+      // Stub the UniV2 pool contract shape used by discoverPool.
+      MockedContract.mockImplementation(() => ({
+        token0: jest.fn().mockResolvedValue('0xWETH'),
+        token1: jest.fn().mockResolvedValue('0xUSDC'),
+        getReserves: jest.fn().mockResolvedValue([1000n, 2000n, 0]),
+        factory: jest.fn().mockResolvedValue('0xFactory'),
+        fee: jest.fn().mockResolvedValue(500),
+        liquidity: jest.fn().mockResolvedValue(1000n),
+      }));
+      const svc = await buildService();
+      // Warm-up is fire-and-forget; let it settle.
+      await new Promise((r) => setTimeout(r, 50));
+      // At least one seed pool should now be cached (default seeds include 3 Arbitrum pools).
+      const cached = svc.getCachedPools(42161);
+      expect(cached.length).toBeGreaterThan(0);
+      svc.onModuleDestroy();
+    });
+
+    it('honours POOL_DISCOVERY_SEED_ADDRESSES env override', async () => {
+      process.env.POOL_DISCOVERY_SEED_ADDRESSES = '42161:0xCaFfE00000000000000000000000000000000001';
+      MockedContract.mockImplementation(() => ({
+        token0: jest.fn().mockResolvedValue('0xWETH'),
+        token1: jest.fn().mockResolvedValue('0xUSDC'),
+        getReserves: jest.fn().mockResolvedValue([100n, 200n, 0]),
+        factory: jest.fn().mockResolvedValue('0xFactory'),
+      }));
+      const svc = await buildService();
+      await new Promise((r) => setTimeout(r, 50));
+      const cached = svc.getCachedPools(42161);
+      // The env-overridden address should be in the cache (the others should not).
+      expect(cached.some((p) => p.address === '0xCaFfE00000000000000000000000000000000001')).toBe(true);
+      svc.onModuleDestroy();
+      delete process.env.POOL_DISCOVERY_SEED_ADDRESSES;
+    });
+
+    it('warm-up never throws on RPC failure (best-effort, does not break module init)', async () => {
+      // Force the contract constructor itself to throw — both UniV2 and UniV3 paths
+      // catch it inside discoverPool and return null. warmUpSeedPools swallows null
+      // results and logs. Module init must never throw.
+      MockedContract.mockImplementation(() => {
+        throw new Error('RPC down — cannot construct contract');
+      });
+      const svc = await buildService(); // would throw here if warm-up broke init
+      await new Promise((r) => setTimeout(r, 50));
+      expect(svc.getCachedPools(42161).length).toBe(0); // nothing cached — that's fine
+      svc.onModuleDestroy();
     });
   });
 

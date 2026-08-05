@@ -123,6 +123,122 @@ describe('NonceManagerService (P9-3)', () => {
     });
   });
 
+  describe('withBroadcastLock — RPC timeout (P9-3 follow-up)', () => {
+    const originalEnv = process.env.BROADCAST_RPC_TIMEOUT_MS;
+
+    afterEach(() => {
+      if (originalEnv === undefined) {
+        delete process.env.BROADCAST_RPC_TIMEOUT_MS;
+      } else {
+        process.env.BROADCAST_RPC_TIMEOUT_MS = originalEnv;
+      }
+    });
+
+    it('rejects with "RPC timeout reading nonce" when getTransactionCount hangs forever', async () => {
+      // Use a very small timeout via env so the test stays fast. The constant
+      // is read at module load, so we re-import the service under isolateModules
+      // AFTER setting the env override.
+      process.env.BROADCAST_RPC_TIMEOUT_MS = '50';
+
+      let isolatedService: NonceManagerService;
+      jest.isolateModules(() => {
+        // Re-clear the metrics registry for the freshly-constructed service so
+        // the double-registration guard (existing Counters) does not throw.
+        getArbibotMetricsRegistry().clear();
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { NonceManagerService: FreshNonceManagerService } = require('./nonce-manager.service');
+        isolatedService = new FreshNonceManagerService();
+      });
+
+      // Provider whose getTransactionCount never resolves (simulated hung RPC).
+      const hungProvider = {
+        getTransactionCount: jest.fn(() => new Promise<number>(() => undefined)),
+      };
+
+      const start = Date.now();
+      await expect(
+        isolatedService!.withBroadcastLock(
+          42161,
+          '0xHung',
+          hungProvider as never,
+          () => Promise.resolve('should-not-reach'),
+        ),
+      ).rejects.toThrow('RPC timeout reading nonce');
+
+      // Sanity: it actually bailed on the timeout, not instantly.
+      expect(Date.now() - start).toBeGreaterThanOrEqual(40);
+      expect(hungProvider.getTransactionCount).toHaveBeenCalledWith('0xHung', 'pending');
+    });
+
+    it('does NOT poison the per-wallet queue after a nonce-read timeout', async () => {
+      // After a hung read times out, a subsequent call on the same wallet must
+      // still acquire the slot and run (serialize swallows the stored tail).
+      process.env.BROADCAST_RPC_TIMEOUT_MS = '50';
+
+      let isolatedService: NonceManagerService;
+      jest.isolateModules(() => {
+        getArbibotMetricsRegistry().clear();
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { NonceManagerService: FreshNonceManagerService } = require('./nonce-manager.service');
+        isolatedService = new FreshNonceManagerService();
+      });
+
+      // First call: nonce read hangs → times out.
+      const hungProvider = {
+        getTransactionCount: jest.fn(() => new Promise<number>(() => undefined)),
+      };
+      await expect(
+        isolatedService!.withBroadcastLock(
+          42161,
+          '0xRecover',
+          hungProvider as never,
+          () => Promise.resolve('first'),
+        ),
+      ).rejects.toThrow('RPC timeout reading nonce');
+
+      // Second call: healthy provider → must succeed (queue not poisoned).
+      const healthyProvider = {
+        getTransactionCount: jest.fn(() => Promise.resolve(11)),
+      };
+      const result = await isolatedService!.withBroadcastLock(
+        42161,
+        '0xRecover',
+        healthyProvider as never,
+        (nonce) => Promise.resolve(`ok nonce=${nonce}`),
+      );
+      expect(result).toBe('ok nonce=11');
+    });
+
+    it('rejects with "broadcast fn timeout" when the broadcast fn hangs forever', async () => {
+      // Bound the broadcast fn via the env (BROADCAST_FN_TIMEOUT_MS). The
+      // default is 2× the RPC timeout; we set both small for a fast test.
+      process.env.BROADCAST_RPC_TIMEOUT_MS = '50';
+      process.env.BROADCAST_FN_TIMEOUT_MS = '60';
+      try {
+        let isolatedService: NonceManagerService;
+        jest.isolateModules(() => {
+          getArbibotMetricsRegistry().clear();
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const { NonceManagerService: FreshNonceManagerService } = require('./nonce-manager.service');
+          isolatedService = new FreshNonceManagerService();
+        });
+
+        const healthyProvider = {
+          getTransactionCount: jest.fn(() => Promise.resolve(3)),
+        };
+
+        await expect(
+          isolatedService!.withBroadcastLock(42161, '0xFnHang', healthyProvider as never, () =>
+            // Broadcast fn never resolves (simulated stuck sendTransaction).
+            new Promise<string>(() => undefined),
+          ),
+        ).rejects.toThrow('broadcast fn timeout');
+      } finally {
+        delete process.env.BROADCAST_FN_TIMEOUT_MS;
+      }
+    });
+  });
+
   describe('acquireNextNonce', () => {
     it('returns the RPC pending nonce', async () => {
       const { provider } = buildProvider(() => 99);

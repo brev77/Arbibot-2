@@ -226,6 +226,68 @@ describe('LegAutoDriverWorker', () => {
       expect(legsMock.markAcknowledged).not.toHaveBeenCalled();
     });
   });
+
+  describe('markSent hang (P9-3 follow-up)', () => {
+    it('records mark_sent_timeout and continues to the next leg when markSent hangs', async () => {
+      // Bound the timeout via env so the test stays fast (default 90s would stall
+      // the suite). markSentTimeoutMs() re-reads env per call → no module reload.
+      process.env.MARK_SENT_TIMEOUT_MS = '50';
+
+      legsRepoMock.find.mockResolvedValue([
+        makeLeg({ id: 'leg-1', legIndex: 0 }),
+        makeLeg({ id: 'leg-2', legIndex: 1 }),
+      ]);
+      plansRepoMock.findOne.mockResolvedValue({
+        id: 'plan-1',
+        state: 'executing',
+        playbookConfig: { legs: [{ venueKey: 'uniswap-v2' }, { venueKey: 'sushiswap' }] },
+      });
+
+      // leg-1's markSent hangs forever (never resolves) — simulates a stuck
+      // broadcast holding the worker. leg-2's markSent resolves normally.
+      legsMock.markSent.mockImplementation((planId: string, legId: string) => {
+        if (legId === 'leg-1') {
+          return new Promise(() => undefined); // hangs forever
+        }
+        return Promise.resolve({ id: legId, state: 'sent' });
+      });
+      // leg-2 reaches the post-markSent state check → 'sent'.
+      legsRepoMock.findOne.mockResolvedValue({ id: 'leg-2', state: 'sent' });
+      legsMock.markAcknowledged.mockResolvedValue({});
+      legsMock.applyFill.mockResolvedValue({ id: 'leg-2', state: 'filled' });
+
+      const metrics = (worker as unknown as {
+        metrics: { legsProcessed: { inc: (labels: { outcome: string }) => void } };
+      }).metrics;
+      const incSpy = jest.spyOn(metrics.legsProcessed, 'inc');
+
+      await (worker as unknown as { drivePendingLegs: () => Promise<void> }).drivePendingLegs();
+
+      // leg-1 timed out (mark_sent_timeout metric) and the worker continued to leg-2.
+      expect(incSpy).toHaveBeenCalledWith({ outcome: 'mark_sent_timeout' });
+      // leg-2's markSent WAS called (worker did not abort the whole plan).
+      expect(legsMock.markSent).toHaveBeenCalledWith('plan-1', 'leg-2');
+      // leg-2 proceeded to ack + fill.
+      expect(legsMock.markAcknowledged).toHaveBeenCalledWith('plan-1', 'leg-2');
+      expect(legsMock.applyFill).toHaveBeenCalled();
+    });
+
+    it('uses default 90s when MARK_SENT_TIMEOUT_MS is unset/invalid', () => {
+      delete process.env.MARK_SENT_TIMEOUT_MS;
+      getArbibotMetricsRegistrySafe(); // clear registry to avoid double-registration
+      const w = new LegAutoDriverWorker(
+        legsMock as unknown as never,
+        plansMock as unknown as never,
+        killSwitchMock as unknown as never,
+        legsRepoMock as unknown as never,
+        plansRepoMock as unknown as never,
+      );
+      expect((w as unknown as { markSentTimeoutMs: () => number }).markSentTimeoutMs()).toBe(90_000);
+
+      process.env.MARK_SENT_TIMEOUT_MS = 'not-a-number';
+      expect((w as unknown as { markSentTimeoutMs: () => number }).markSentTimeoutMs()).toBe(90_000);
+    });
+  });
 });
 
 // Avoid prom-client double-registration across specs by clearing the registry between suites.

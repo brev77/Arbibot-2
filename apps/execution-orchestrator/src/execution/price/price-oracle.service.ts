@@ -37,7 +37,42 @@ import { DiscoveredPool, PoolDiscoveryService } from '../pool/pool-discovery.ser
  * "cannot value this position" and fail-closed on live paths.
  */
 
-const PRICE_CACHE_TTL_MS = 10_000; // 10s — prices move fast, but per-leg churn is low
+// Cache TTL for resolved prices. 60s balances price freshness against RPC rate limits —
+// public Arbitrum RPCs throttle around ~50 req/min and transient 429s were poisoning the
+// cache when nulls were cached at the previous 10s TTL. Resolved prices only land here;
+// nulls are never cached (transient failures should be retried on the next call, not
+// served from cache). See docs/live-rpc-diagnosis-2026-08-05.md.
+const PRICE_CACHE_TTL_MS = 60_000;
+
+/**
+ * Hard-coded decimals for well-known Arbitrum One tokens (fix #9).
+ *
+ * Why: `erc20.decimals()` is an extra RPC call per token per cold start. Public
+ * Arbitrum RPCs throttle aggressively, and a transient rate-limit on that call
+ * cascades into the cost gate blocking every trade. These are the tokens the
+ * TokenResolverService emits on the live MVP path (USDC, USDT, WETH + the
+ * long-tail scanner pairs). The map is consulted first; an on-chain read only
+ * runs for tokens not in the map.
+ *
+ * Addresses are lowercase to match the cache key normalization. Source: each
+ * token contract on Arbitrum One (decimals() call).
+ */
+const KNOWN_DECIMALS_BY_ADDRESS: Record<string, number> = {
+  // Arbitrum One (42161) — staples + the long-tail tokens the scanner emits.
+  '0x82af49447d8a07e3bd95bd0d56f35241523fbab1': 18, // WETH
+  '0xaf88d065e77c8cc2239327c5edb3a432268e5831': 6, // USDC (native)
+  '0xff970a61a04b1ca14834a43f5de4533ebddb5cc8': 6, // USDC.e (bridged)
+  '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9': 6, // USDT
+  '0x912ce59144191c1204e64859c7384b37e22328d5': 18, // ARB
+  '0xfc5a1a6eb076a2c7ad06ed22c90d7e710e35ad0a': 18, // GMX
+  '0x539bde0d7dbd336b79148aa742883198bbf60342': 18, // MAGIC
+  '0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f': 8, // WBTC
+  '0xf97f4df75117a78c1a5a0dbb814af92458539fb4': 18, // LINK
+  '0xfa7f8980b0f1e64a2062791cc3b0871572f1f7f0': 18, // UNI
+  '0xda10009cbd5d07dd0cecc66161fc93d7c9000da1': 18, // DAI
+  '0x11cdb42b0eb46d95f990bedd4695a6e3fa034978': 18, // CRV
+  '0x13ad51ed4f1b7e9dc168d8a00cb3f4ddd85efa60': 18, // LDO
+};
 const METRIC_NAME = 'arb_price_oracle_lookup_total';
 
 interface PriceCacheEntry {
@@ -113,8 +148,13 @@ export class PriceOracleService {
         );
         return null;
       });
-      // Cache both resolved prices and explicit nulls (avoid retry-storm within TTL).
-      this.priceCache.set(key, { price, expiresAt: Date.now() + PRICE_CACHE_TTL_MS });
+      // Cache RESOLVED prices only — do NOT cache nulls. Caching nulls (previous behaviour)
+      // meant a transient RPC failure (rate limit, momentary network blip) would freeze every
+      // subsequent price read at null for the whole TTL window, blocking the live cost gate
+      // even after the RPC recovered. Now a null retries on the next call.
+      if (price !== null) {
+        this.priceCache.set(key, { price, expiresAt: Date.now() + PRICE_CACHE_TTL_MS });
+      }
       this.lookupCounter.inc({ result: price === null ? 'failed' : 'miss' });
       return price;
     })();
@@ -307,6 +347,16 @@ export class PriceOracleService {
     const cached = this.decimalsCache.get(key);
     if (cached !== undefined) {
       return cached;
+    }
+    // Fallback for well-known tokens (fix #9). Avoids an RPC call on the hot path
+    // and survives transient RPC rate-limits that would otherwise null-out decimals
+    // and fail-closed the cost gate.
+    if (chainId === ChainId.ARBITRUM_ONE_MAINNET) {
+      const known = KNOWN_DECIMALS_BY_ADDRESS[tokenLower];
+      if (typeof known === 'number') {
+        this.decimalsCache.set(key, known);
+        return known;
+      }
     }
     try {
       const provider = this.getProvider(chainId);

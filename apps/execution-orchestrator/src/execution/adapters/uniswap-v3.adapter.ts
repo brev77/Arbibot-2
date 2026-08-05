@@ -91,6 +91,17 @@ const DEFAULT_DEADLINE_SECONDS = 600;
 const DEFAULT_FEE = 3000;
 
 /**
+ * Timeout for the ERC20 approve step (allowance read + approve broadcast + receipt
+ * wait) inside {@link UniswapV3Adapter.ensureApproval}. Approve runs OUTSIDE the
+ * swap's `withBroadcastLock`, so a hung approve previously left the leg in
+ * `submitting` with no bound. On timeout the approve call is abandoned; the leg
+ * fails fast instead of hanging.
+ */
+const APPROVE_TX_TIMEOUT_MS = process.env.APPROVE_TX_TIMEOUT_MS
+  ? Number.parseInt(process.env.APPROVE_TX_TIMEOUT_MS, 10)
+  : 60_000;
+
+/**
  * Resolve V3 SwapRouter address for a given chainId.
  * Supports Arbitrum, Base, BNB Chain (mainnet + testnet).
  */
@@ -313,6 +324,16 @@ export class UniswapV3Adapter implements VenueAdapter {
   ): Promise<VenueLegSubmitResult> {
     const timer = this.swapLatency.startTimer({ chain_id: 'unknown' });
 
+    // Instrumentation: track each step's duration so a hung broadcast path
+    // points at the exact stage (risk gate / wallet / approval / quote /
+    // broadcast / receipt) instead of a generic "leg stuck in submitting".
+    const stepStart = Date.now();
+    const step = (name: string, extra: string = ''): void => {
+      this.logger.log(
+        `submitLeg step=${name} plan=${plan.id} leg=${leg.id} took=${Date.now() - stepStart}ms${extra.length > 0 ? ` ${extra}` : ''}`,
+      );
+    };
+
     try {
       // 1. Extract swap parameters
       const params = extractSwapParamsV3(plan, leg);
@@ -341,6 +362,7 @@ export class UniswapV3Adapter implements VenueAdapter {
         amountIn: params.amountIn,
         slippageBps: params.slippageBps,
       });
+      step('risk_gate_passed', `amountInUsd=${amountInUsd}`);
 
       // 3. Select wallet
       const selectedWallet = await this.walletManager.selectWallet(
@@ -349,9 +371,11 @@ export class UniswapV3Adapter implements VenueAdapter {
         params.tokenIn,
         BigInt(params.amountIn),
       );
+      step('wallet_selected', `address=${selectedWallet.address}`);
 
       // 4. Ensure ERC20 approval for the router
       await this.ensureApproval(params, selectedWallet, routerAddress);
+      step('approval_confirmed');
 
       // 5. Calculate amountOutMinimum: live QuoterV2 quote (with fallback to
       //    detection-time amountOutExpected) + slippage tolerance.
@@ -360,6 +384,7 @@ export class UniswapV3Adapter implements VenueAdapter {
       this.logger.debug(
         `amountOutMin: expected=${params.amountOutExpected} minOut=${amountOutMin} liveQuote=${usedLiveQuote}`,
       );
+      step('amount_out_min', `amountOutMin=${amountOutMin} usedLiveQuote=${usedLiveQuote}`);
 
       // 5.5 P9-5: post-quote live slippage gate using the REAL quote. This is
       // the protection the pre-flight gate could not provide. If the Quoter was
@@ -383,6 +408,7 @@ export class UniswapV3Adapter implements VenueAdapter {
         amountIn: params.amountIn,
         expectedAmountOut,
       });
+      step('slippage_gate_passed');
 
       // 6. Estimate gas and check policy
       const recipient = params.recipient ?? selectedWallet.address;
@@ -406,8 +432,13 @@ export class UniswapV3Adapter implements VenueAdapter {
           { category: 'semantic' },
         );
       }
+      step('gas_estimated', `gasLimit=${gasEstimation.gasLimit}`);
 
       // 7. Submit transaction (P9-3: explicit nonce under per-wallet lock)
+      this.logger.log(
+        `submitLeg step=broadcast_acquiring_lock plan=${plan.id} leg=${leg.id} ` +
+        `address=${selectedWallet.address} took=${Date.now() - stepStart}ms`,
+      );
       const tx = await this.nonceManager.withBroadcastLock(
         params.chainId,
         selectedWallet.address,
@@ -424,7 +455,8 @@ export class UniswapV3Adapter implements VenueAdapter {
       );
 
       this.logger.log(
-        `submitLeg: tx sent hash=${tx.hash} plan=${plan.id} leg=${leg.id} ` +
+        `submitLeg step=broadcast_tx_sent plan=${plan.id} leg=${leg.id} ` +
+        `hash=${tx.hash} took=${Date.now() - stepStart}ms ` +
         `gasLimit=${gasEstimation.gasLimit} estimatedCost=${gasEstimation.estimatedCostEth} ETH`,
       );
 
@@ -444,6 +476,7 @@ export class UniswapV3Adapter implements VenueAdapter {
           'failed',
         );
       }
+      step('receipt_confirmed', `status=${receipt.status} hash=${tx.hash}`);
 
       // 9. Success
       timer({ chain_id: chainLabel });
@@ -513,13 +546,22 @@ export class UniswapV3Adapter implements VenueAdapter {
     routerAddress: Address,
   ): Promise<void> {
     const amountIn = BigInt(params.amountIn);
+    const approveStart = Date.now();
 
+    this.logger.log(
+      `ensureApproval: reading allowance token=${params.tokenIn} ` +
+      `owner=${selectedWallet.address} spender=${routerAddress}`,
+    );
     const currentAllowance = await this.tokenApprove.getAllowance({
       chainId: params.chainId,
       tokenAddress: params.tokenIn,
       owner: selectedWallet.address,
       spender: routerAddress,
     });
+    this.logger.log(
+      `ensureApproval: allowance read current=${currentAllowance} required=${amountIn} ` +
+      `took=${Date.now() - approveStart}ms`,
+    );
 
     if (currentAllowance >= amountIn) {
       this.logger.debug(
@@ -531,17 +573,47 @@ export class UniswapV3Adapter implements VenueAdapter {
     this.logger.log(
       `Insufficient allowance (${currentAllowance} < ${amountIn}), approving ${params.tokenIn} for ${routerAddress}`,
     );
+    this.logger.log(
+      `ensureApproval: sending approve tx token=${params.tokenIn} spender=${routerAddress} ` +
+      `amount=${amountIn} wallet=${selectedWallet.address}`,
+    );
 
-    const result = await this.tokenApprove.approveToken({
-      chainId: params.chainId,
-      tokenAddress: params.tokenIn,
-      spender: routerAddress,
-      amount: amountIn,
-      // P9-6: approve from the SAME wallet that will swap — previously
-      // approveToken did its own round-robin selectWallet and could land on a
-      // different wallet, leaving allowance 0 on the swap wallet.
-      wallet: { address: selectedWallet.address, wallet: selectedWallet.wallet },
+    // Bound the approve call (allowance read happens above; this bounds the
+    // broadcast + receipt wait). Approve runs OUTSIDE the swap's broadcast
+    // lock, so without this bound a hung RPC inside approveToken would leave
+    // the leg in `submitting` forever.
+    let approveTimer: ReturnType<typeof setTimeout> | undefined;
+    const approveTimeout = new Promise<never>((_, reject) => {
+      approveTimer = setTimeout(
+        () => reject(new Error('ERC20 approve tx timeout')),
+        APPROVE_TX_TIMEOUT_MS,
+      );
     });
+    let result;
+    try {
+      result = await Promise.race([
+        this.tokenApprove.approveToken({
+          chainId: params.chainId,
+          tokenAddress: params.tokenIn,
+          spender: routerAddress,
+          amount: amountIn,
+          // P9-6: approve from the SAME wallet that will swap — previously
+          // approveToken did its own round-robin selectWallet and could land on a
+          // different wallet, leaving allowance 0 on the swap wallet.
+          wallet: { address: selectedWallet.address, wallet: selectedWallet.wallet },
+        }),
+        approveTimeout,
+      ]);
+    } finally {
+      if (approveTimer !== undefined) {
+        clearTimeout(approveTimer);
+      }
+    }
+
+    this.logger.log(
+      `ensureApproval: approve tx result status=${result.status} tx=${result.txHash} ` +
+      `took=${Date.now() - approveStart}ms`,
+    );
 
     if (result.status === 'failed') {
       throw new VenueSubmitClientError(

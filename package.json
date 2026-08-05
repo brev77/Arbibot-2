@@ -40,6 +40,7 @@
     "ci:paper-live-boundary": "bash tools/ci-paper-live-boundary.sh",
     "ci:hermes-agent-smoke": "bash tools/ci-hermes-agent-smoke.sh",
     "ci:scanner-smoke": "bash tools/ci-scanner-smoke.sh",
+    "ci:address-checksum": "bash tools/ci-address-checksum.sh",
     "e2e:scanner-smoke": "node tools/e2e-scanner-smoke.mjs",
     "seed:outbox-smoke-events": "node tools/seed-outbox-events.mjs",
     "seed:outbox-smoke-events:all": "node tools/seed-outbox-events.mjs all",

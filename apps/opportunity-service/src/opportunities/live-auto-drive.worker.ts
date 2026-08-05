@@ -11,6 +11,7 @@ import { LiveAutoDriveConfigService } from './live-auto-drive-config.service';
 import { LiveKillSwitchService } from './live-kill-switch.service';
 import { TokenResolverService, type OpportunityEvidence } from './token-resolver.service';
 import { PlanSetupOrchestrator } from './plan-setup-orchestrator.service';
+import { RiskClientService } from './risk-client.service';
 
 /**
  * LiveAutoDriveWorker (PLAN10 P10-5, opp-service).
@@ -83,6 +84,7 @@ export class LiveAutoDriveWorker implements OnModuleInit, OnModuleDestroy {
     private readonly killSwitch: LiveKillSwitchService,
     private readonly tokenResolver: TokenResolverService,
     private readonly planSetup: PlanSetupOrchestrator,
+    private readonly riskClient: RiskClientService,
     @InjectRepository(ArbitrageOpportunityEntity)
     private readonly repo: Repository<ArbitrageOpportunityEntity>,
     private readonly dataSource: DataSource,
@@ -235,11 +237,33 @@ export class LiveAutoDriveWorker implements OnModuleInit, OnModuleDestroy {
           continue;
         }
 
-        const correlationId = opp.correlationId ?? randomUUID();
+        // Inherit correlationId from the approved risk decision so the resulting plan
+        // passes assertApprovedRiskViaHttp (plans.service.ts: plan.correlationId must equal
+        // risk.correlationId when plan.correlationId !== null). Falling back to a random
+        // UUID (with warn) keeps the worker resilient if risk-service is unreachable, but
+        // sacrifices plan↔risk trace correlation — log loudly so it's visible.
+        let correlationId = opp.correlationId ?? randomUUID();
+        const riskDecisionId = opp.riskDecisionId ?? '';
+        if (riskDecisionId.length > 0) {
+          try {
+            const decision = await this.riskClient.getRiskDecision(riskDecisionId);
+            if (decision !== null) {
+              correlationId = decision.correlationId;
+            } else {
+              this.logger.warn(
+                `Could not fetch risk decision ${riskDecisionId} for opp ${opp.id} — using fallback correlationId; plan↔risk trace may be broken`,
+              );
+            }
+          } catch (err) {
+            this.logger.warn(
+              `getRiskDecision threw for opp ${opp.id} (${this.errorMessage(err)}) — using fallback correlationId`,
+            );
+          }
+        }
         try {
           const result = await this.planSetup.orchestrate({
             correlationId,
-            riskDecisionId: opp.riskDecisionId ?? '',
+            riskDecisionId,
             routeKey: instrumentKey,
             notionalUsd: cfg.notionalUsd,
             tokens: resolved.tokens,

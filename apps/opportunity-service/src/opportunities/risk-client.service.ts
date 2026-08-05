@@ -19,6 +19,18 @@ export type EvaluateRiskHttpResponse = {
   riskMode: string;
 };
 
+/**
+ * Shape of `GET /risk-decisions/:id` on risk-service (RiskDecisionResponseDto).
+ * Used by LiveAutoDriveWorker to inherit `correlationId` from the approved risk
+ * decision so that `plan.correlationId === risk.correlationId` passes the
+ * assertApprovedRiskViaHttp check in execution-orchestrator (plans.service.ts).
+ */
+export type RiskDecisionRecord = {
+  id: string;
+  correlationId: string;
+  outcome: string;
+};
+
 @Injectable()
 export class RiskClientService {
   private readonly baseUrl: string;
@@ -98,6 +110,53 @@ export class RiskClientService {
       entityVersion: typeof o.entityVersion === 'number' ? o.entityVersion : 1,
       riskMode: typeof o.riskMode === 'string' ? o.riskMode : 'standard',
     };
+  }
+
+  /**
+   * Fetch a risk decision by id (GET /risk-decisions/:id). Used by the
+   * LiveAutoDriveWorker to inherit the risk decision's `correlationId` so the
+   * resulting execution plan passes `assertApprovedRiskViaHttp` (plans.service.ts:
+   * `plan.correlationId !== null && risk.correlationId !== plan.correlationId`).
+   *
+   * Returns null on transient/404 errors so the worker can fall back to a
+   * random correlationId (with a warn log) — never blocks plan creation.
+   */
+  async getRiskDecision(id: string): Promise<RiskDecisionRecord | null> {
+    if (id.length === 0) {
+      return null;
+    }
+    let res: Response;
+    try {
+      res = await signedFetch(`${this.baseUrl}/risk-decisions/${id}`, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+      });
+    } catch {
+      // Network error — treat as transient; caller falls back.
+      return null;
+    }
+    if (!res.ok) {
+      // 404 (decision deleted/not found) or 5xx — caller falls back.
+      return null;
+    }
+    const text = await res.text();
+    let json: unknown;
+    try {
+      json = text.length > 0 ? (JSON.parse(text) as unknown) : null;
+    } catch {
+      return null;
+    }
+    if (json === null || typeof json !== 'object') {
+      return null;
+    }
+    const o = json as Record<string, unknown>;
+    const decisionId = typeof o.id === 'string' ? o.id : id;
+    const correlationId = typeof o.correlationId === 'string' ? o.correlationId : '';
+    const outcome = typeof o.outcome === 'string' ? o.outcome : 'unknown';
+    if (correlationId.length === 0) {
+      return null;
+    }
+    return { id: decisionId, correlationId, outcome };
   }
 
   private throwForRiskHttpStatus(status: number, bodyText: string): never {

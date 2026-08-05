@@ -130,6 +130,13 @@ export class PlanSetupOrchestrator {
 
   private async createPlan(input: PlanSetupInput, slippageBps: number): Promise<PlanView> {
     const { tokens, amountIns } = input;
+    // Pre-quoted amountOutExpected (fix #4, Модель #1): the buy leg expects to receive the
+    // base amount that the sell leg will then use as its amountIn; the sell leg expects to
+    // receive the quote amount the buy leg started with. UniV3 adapters REQUIRE amountOutExpected
+    // and fee in the leg payload — without them submitLeg throws "no swap params for plan".
+    // fee=500 = 0.05% pool fee tier (the most liquid tier for the pairs the scanner emits).
+    const buyAmountOutExpected = amountIns.sellAmountIn;
+    const sellAmountOutExpected = amountIns.buyAmountIn;
     const body = {
       correlationId: input.correlationId,
       riskDecisionId: input.riskDecisionId,
@@ -143,6 +150,8 @@ export class PlanSetupOrchestrator {
           tokenIn: tokens.token1Address, // quote (USDC) → buy base
           tokenOut: tokens.token0Address,
           amountIn: amountIns.buyAmountIn,
+          amountOutExpected: buyAmountOutExpected,
+          fee: 500,
           slippageBps,
         },
         {
@@ -152,6 +161,8 @@ export class PlanSetupOrchestrator {
           tokenIn: tokens.token0Address, // base → sell for quote
           tokenOut: tokens.token1Address,
           amountIn: amountIns.sellAmountIn,
+          amountOutExpected: sellAmountOutExpected,
+          fee: 500,
           slippageBps,
         },
       ],

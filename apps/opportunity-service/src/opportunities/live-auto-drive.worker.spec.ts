@@ -7,6 +7,7 @@ import { LiveAutoDriveConfigService } from './live-auto-drive-config.service';
 import { LiveAutoDriveWorker } from './live-auto-drive.worker';
 import { LiveKillSwitchService } from './live-kill-switch.service';
 import { PlanSetupOrchestrator } from './plan-setup-orchestrator.service';
+import { RiskClientService } from './risk-client.service';
 import { TokenResolverService } from './token-resolver.service';
 
 /**
@@ -80,6 +81,7 @@ describe('LiveAutoDriveWorker', () => {
   };
   const tokenResolverMock: { resolve: jest.Mock } = { resolve: jest.fn() };
   const planSetupMock: { orchestrate: jest.Mock } = { orchestrate: jest.fn() };
+  const riskClientMock: { getRiskDecision: jest.Mock } = { getRiskDecision: jest.fn() };
   const repoMock = { find: jest.fn(), count: jest.fn() };
   const txMock = jest.fn();
 
@@ -100,11 +102,13 @@ describe('LiveAutoDriveWorker', () => {
       enabled: true,
     });
     configMock.ensureEffectiveConfigLoaded.mockResolvedValue(undefined);
+    riskClientMock.getRiskDecision.mockResolvedValue({ id: 'rd-1', correlationId: 'risk-corr-1', outcome: 'approved' });
     worker = new LiveAutoDriveWorker(
       configMock as unknown as LiveAutoDriveConfigService,
       killSwitchMock as unknown as LiveKillSwitchService,
       tokenResolverMock as unknown as TokenResolverService,
       planSetupMock as unknown as PlanSetupOrchestrator,
+      riskClientMock as unknown as RiskClientService,
       repoMock as unknown as never,
       { transaction: txMock } as unknown as DataSource,
     );
@@ -163,6 +167,78 @@ describe('LiveAutoDriveWorker', () => {
         buyVenueKey: 'uniswap-v2',
         sellVenueKey: 'sushiswap',
       }));
+    });
+
+    it('inherits correlationId from the risk decision (proper rework of workaround #3)', async () => {
+      // plan.correlationId MUST equal risk.correlationId for assertApprovedRiskViaHttp to pass.
+      // The worker fetches the decision via getRiskDecision and uses decision.correlationId,
+      // NOT the opp's own correlationId (which may differ).
+      repoMock.find.mockResolvedValue([makeOpp({ correlationId: 'opp-corr-X' })]);
+      repoMock.count.mockResolvedValue(0);
+      tokenResolverMock.resolve.mockReturnValue({
+        tokens: { token0Address: '0xWETH', token1Address: '0xUSDC', decimals0: 18, decimals1: 6, chainId: 42161 },
+        amountIns: { buyAmountIn: '10000000', sellAmountIn: '5000000000000000' },
+      });
+      planSetupMock.orchestrate.mockResolvedValue({ planId: 'plan-1', reservationId: 'resv-1' });
+      riskClientMock.getRiskDecision.mockResolvedValue({ id: 'rd-1', correlationId: 'risk-corr-Y', outcome: 'approved' });
+      txMock.mockImplementation(async (cb: (em: unknown) => Promise<unknown>) => {
+        const em = { query: () => Promise.resolve([{ rowCount: 1 }]) };
+        return cb(em);
+      });
+
+      await worker.trigger();
+      // Risk-corr-Y must override opp-corr-X.
+      expect(riskClientMock.getRiskDecision).toHaveBeenCalledWith('rd-1');
+      expect(planSetupMock.orchestrate).toHaveBeenCalledWith(expect.objectContaining({
+        correlationId: 'risk-corr-Y',
+        riskDecisionId: 'rd-1',
+      }));
+    });
+
+    it('falls back to opp correlationId when risk-service is unreachable (resilience)', async () => {
+      repoMock.find.mockResolvedValue([makeOpp({ correlationId: 'opp-fallback' })]);
+      repoMock.count.mockResolvedValue(0);
+      tokenResolverMock.resolve.mockReturnValue({
+        tokens: { token0Address: '0xWETH', token1Address: '0xUSDC', decimals0: 18, decimals1: 6, chainId: 42161 },
+        amountIns: { buyAmountIn: '10000000', sellAmountIn: '5000000000000000' },
+      });
+      planSetupMock.orchestrate.mockResolvedValue({ planId: 'plan-1', reservationId: 'resv-1' });
+      riskClientMock.getRiskDecision.mockResolvedValue(null); // risk-service unreachable / 404
+      txMock.mockImplementation(async (cb: (em: unknown) => Promise<unknown>) => {
+        const em = { query: () => Promise.resolve([{ rowCount: 1 }]) };
+        return cb(em);
+      });
+
+      await worker.trigger();
+      // Fallback uses opp.correlationId; plan still created (with trace correlation caveat).
+      expect(planSetupMock.orchestrate).toHaveBeenCalledWith(expect.objectContaining({
+        correlationId: 'opp-fallback',
+      }));
+    });
+  });
+
+  describe('concurrent-plan gate (fix #1)', () => {
+    it('saturated: repo.count >= maxConcurrentPlans → no find, no plans', async () => {
+      configMock.getConfig.mockReturnValue({
+        intervalMs: 10_000, batchSize: 5, maxConcurrentPlans: 3, minNetProfitUsd: 5, notionalUsd: 10, enabled: true,
+      });
+      repoMock.count.mockResolvedValue(3); // saturated at the cap
+      repoMock.find.mockResolvedValue([makeOpp()]); // would otherwise be picked
+
+      const r = await worker.trigger();
+      expect(r.plansCreated).toBe(0);
+      expect(planSetupMock.orchestrate).not.toHaveBeenCalled();
+    });
+
+    it('not saturated: repo.count < maxConcurrentPlans → proceeds to find', async () => {
+      configMock.getConfig.mockReturnValue({
+        intervalMs: 10_000, batchSize: 5, maxConcurrentPlans: 3, minNetProfitUsd: 5, notionalUsd: 10, enabled: true,
+      });
+      repoMock.count.mockResolvedValue(2); // under the cap
+      repoMock.find.mockResolvedValue([]);
+      const r = await worker.trigger();
+      expect(r.plansCreated).toBe(0); // no opps to process
+      expect(repoMock.find).toHaveBeenCalled();
     });
   });
 

@@ -186,4 +186,42 @@ describe('PlanSetupOrchestrator', () => {
     expect(sellLeg.tokenOut).toBe(TOKENS.token1Address);
     expect(sellLeg.amountIn).toBe(AMOUNT_INS.sellAmountIn);
   });
+
+  it('legs include pre-quoted amountOutExpected + fee (fix #4 — UniV3 needs both)', async () => {
+    // UniV3 adapters require amountOutExpected and fee in the leg payload; without them
+    // submitLeg throws "no swap params for plan". The buy leg's amountOutExpected equals
+    // the sell leg's amountIn (Модель #1: buy expects to receive the base amount the sell
+    // will consume), and vice versa.
+    let capturedBody: unknown;
+    global.fetch = ((url: string, init: RequestInit) => {
+      const u = String(url);
+      if (u.endsWith('/multi-leg')) {
+        capturedBody = JSON.parse(typeof init.body === 'string' ? init.body : '');
+        return Promise.resolve(mockResponse({ id: 'plan-1', state: 'planned' }));
+      }
+      if (u.endsWith('/reservations')) return Promise.resolve(mockResponse({ id: 'resv-1', state: 'active' }));
+      if (u.endsWith('/link-reservation')) return Promise.resolve(mockResponse({ state: 'reserved' }));
+      if (u.endsWith('/arm')) return Promise.resolve(mockResponse({ state: 'armed' }));
+      if (u.endsWith('/begin-execution')) return Promise.resolve(mockResponse({ plan: { state: 'executing' }, legs: [] }));
+      return Promise.resolve(mockResponse({}));
+    }) as unknown as typeof fetch;
+
+    await svc.orchestrate(makeInput());
+    const body = capturedBody as {
+      legs: Array<{
+        amountIn: string;
+        amountOutExpected?: string;
+        fee?: number;
+      }>;
+    };
+    expect(body.legs).toHaveLength(2);
+    const buyLeg = body.legs[0]!;
+    const sellLeg = body.legs[1]!;
+    // Cross-quote: buy's amountOutExpected = sell's amountIn (the base amount).
+    expect(buyLeg.amountOutExpected).toBe(AMOUNT_INS.sellAmountIn);
+    expect(sellLeg.amountOutExpected).toBe(AMOUNT_INS.buyAmountIn);
+    // fee tier 500 (= 0.05%) on both legs — required by UniV3 adapters.
+    expect(buyLeg.fee).toBe(500);
+    expect(sellLeg.fee).toBe(500);
+  });
 });

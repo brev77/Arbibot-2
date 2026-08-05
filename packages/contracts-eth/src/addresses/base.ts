@@ -46,21 +46,21 @@ export const BaseMainnetAddresses: BaseAddresses = {
   // Uniswap V3 QuoterV2 — pre-trade quote for cost estimation (cost-estimation)
   quoterV2: '0x3d4Ba44E389a089B36D2c2596e99161E3a58a0Ec',
   // SushiSwap V2
-  sushiSwapRouter: '0x6BDED42c6DA8FBf0d2bA55B2fa120Ec19711BCee',
-  sushiSwapFactory: '0x7DAe51AE332a0e1F979B1b1d01eD6d68468e41eC',
+  sushiSwapRouter: '0x6bdEd42c6DA8fBf0d2ba55b2Fa120Ec19711bCee',
+  sushiSwapFactory: '0x7Dae51aE332A0E1F979b1B1d01ED6D68468e41ec',
   // WETH (Wrapped Ether on Base)
   weth: '0x4200000000000000000000000000000000000006',
   // USDC (native USDC on Base)
   usdc: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
   // USDT
-  usdt: '0xfdeBeC2fcC5819D3B0a2499F5CC2b2b2AA1a806e',
+  usdt: '0xFdEbec2Fcc5819D3b0a2499f5Cc2B2b2aa1A806E',
   // Chainlink price feed proxies.
   // Source: https://docs.chain.link/data-feeds/price-feeds/addresses
   // NOTE: USDC/USDT feeds are not consumed in v1 (PriceOracleService treats
   // stables as $1); retained for future depeg detection.
-  chainlinkEthUsd: '0x71041dddad3595F9Ced3DccF3A44C052051f9ef9',
-  chainlinkUsdcUsd: '0x591e825C558479126A8A70Ec109BA6f3c9f1E42C',
-  chainlinkUsdtUsd: '0xdFc0FAD3c803CF5DB8c1B85113ebe4F0FD2c1F37',
+  chainlinkEthUsd: '0x71041DDdAD3595f9cEd3DcCF3a44C052051F9EF9',
+  chainlinkUsdcUsd: '0x591e825c558479126a8a70Ec109bA6F3C9F1e42C',
+  chainlinkUsdtUsd: '0xDfc0FAd3C803Cf5Db8C1b85113ebe4f0Fd2c1f37',
 };
 
 /**
@@ -79,7 +79,7 @@ export const BaseSepoliaAddresses: BaseAddresses = {
   sushiSwapRouter: '0x0000000000000000000000000000000000000000',
   sushiSwapFactory: '0x0000000000000000000000000000000000000000',
   // WETH
-  weth: '0x39B068B95720a4d9D492A6A41CF37E75D67DcE1D',
+  weth: '0x39B068b95720a4D9d492A6A41Cf37e75D67dcE1D',
   // USDC
   usdc: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
   // USDT
