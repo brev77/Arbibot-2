@@ -64,13 +64,16 @@ services:
       - '127.0.0.1:6379:6379'
     # Authentication + dangerous-command rename. REDIS_PASSWORD is sourced from the host
     # .env (default empty = no auth, which is fine for local dev on 127.0.0.1 only).
-    # The healthcheck authenticates with the same password when set.
-    command:
-      - 'sh'
-      - '-c'
-      - |
-        redis-server --appendonly yes
-        $${REDIS_PASSWORD:+--requirepass "$$REDIS_PASSWORD" --rename-command CONFIG "" --rename-command FLUSHALL "" --rename-command FLUSHDB ""}
+    # Note: use shell form (string), NOT a YAML list — the multi-arg form was splitting
+    # the ${REDIS_PASSWORD:+...} expansion onto its own line as a separate shell command,
+    # silently skipping --requirepass. One-line sh -c keeps the expansion in the same
+    # command invocation as redis-server.
+    command: >-
+      sh -c 'exec redis-server --appendonly yes
+      $${REDIS_PASSWORD:+--requirepass "$$REDIS_PASSWORD"
+      --rename-command CONFIG ""
+      --rename-command FLUSHALL ""
+      --rename-command FLUSHDB ""}'
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
     volumes:
