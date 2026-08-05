@@ -84,6 +84,10 @@ describe('LiveAutoDriveWorker', () => {
   const riskClientMock: { getRiskDecision: jest.Mock } = { getRiskDecision: jest.fn() };
   const repoMock = { find: jest.fn(), count: jest.fn() };
   const txMock = jest.fn();
+  // Concurrent-plan gate now reads via dataSource.query (raw SQL counting rows with
+  // live_execution_plan_id IS NOT NULL). Default to "0 in-flight" so the gate lets the
+  // worker proceed; tests that need to simulate saturation override this.
+  const queryMock = jest.fn().mockResolvedValue([{ cnt: 0 }]);
 
   beforeEach(() => {
     clearEnv();
@@ -103,6 +107,7 @@ describe('LiveAutoDriveWorker', () => {
     });
     configMock.ensureEffectiveConfigLoaded.mockResolvedValue(undefined);
     riskClientMock.getRiskDecision.mockResolvedValue({ id: 'rd-1', correlationId: 'risk-corr-1', outcome: 'approved' });
+    queryMock.mockResolvedValue([{ cnt: 0 }]);
     worker = new LiveAutoDriveWorker(
       configMock as unknown as LiveAutoDriveConfigService,
       killSwitchMock as unknown as LiveKillSwitchService,
@@ -110,7 +115,7 @@ describe('LiveAutoDriveWorker', () => {
       planSetupMock as unknown as PlanSetupOrchestrator,
       riskClientMock as unknown as RiskClientService,
       repoMock as unknown as never,
-      { transaction: txMock } as unknown as DataSource,
+      { transaction: txMock, query: queryMock } as unknown as DataSource,
     );
   });
 
@@ -218,11 +223,12 @@ describe('LiveAutoDriveWorker', () => {
   });
 
   describe('concurrent-plan gate (fix #1)', () => {
-    it('saturated: repo.count >= maxConcurrentPlans → no find, no plans', async () => {
+    it('saturated: dataSource.query returns cnt >= maxConcurrentPlans → no find, no plans', async () => {
       configMock.getConfig.mockReturnValue({
         intervalMs: 10_000, batchSize: 5, maxConcurrentPlans: 3, minNetProfitUsd: 5, notionalUsd: 10, enabled: true,
       });
-      repoMock.count.mockResolvedValue(3); // saturated at the cap
+      // 3 active markers = saturated at the cap (maxConcurrentPlans=3).
+      queryMock.mockResolvedValue([{ cnt: 3 }]);
       repoMock.find.mockResolvedValue([makeOpp()]); // would otherwise be picked
 
       const r = await worker.trigger();
@@ -230,11 +236,11 @@ describe('LiveAutoDriveWorker', () => {
       expect(planSetupMock.orchestrate).not.toHaveBeenCalled();
     });
 
-    it('not saturated: repo.count < maxConcurrentPlans → proceeds to find', async () => {
+    it('not saturated: cnt < maxConcurrentPlans → proceeds to find', async () => {
       configMock.getConfig.mockReturnValue({
         intervalMs: 10_000, batchSize: 5, maxConcurrentPlans: 3, minNetProfitUsd: 5, notionalUsd: 10, enabled: true,
       });
-      repoMock.count.mockResolvedValue(2); // under the cap
+      queryMock.mockResolvedValue([{ cnt: 2 }]); // under the cap
       repoMock.find.mockResolvedValue([]);
       const r = await worker.trigger();
       expect(r.plansCreated).toBe(0); // no opps to process

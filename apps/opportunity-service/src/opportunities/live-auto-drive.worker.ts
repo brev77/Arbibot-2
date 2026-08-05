@@ -174,12 +174,20 @@ export class LiveAutoDriveWorker implements OnModuleInit, OnModuleDestroy {
     const start = Date.now();
     let plansCreated = 0;
     try {
-      // Concurrent-plan gate: count opportunities with an active live_execution_plan_id
-      // (marker is set after plan creation; stale markers from completed plans are acceptable
-      // for a coarse cap — the precise capital ceiling is enforced by capital-service).
-      const inFlight = await this.repo.count({
-        where: { state: 'risk_checked' },
-      });
+      // Concurrent-plan gate: count opportunities that ALREADY have an active live plan
+      // (live_execution_plan_id IS NOT NULL). The previous implementation counted EVERY
+      // risk_checked opportunity (~25k+ on a live host), so the gate was always saturated
+      // and the worker never created a single plan. Markers from completed plans stay on
+      // the row, so this is a coarse cap — the precise capital ceiling is enforced by
+      // capital-service at reserve time.
+      const inFlightRows = await this.dataSource.query(
+        `SELECT count(*)::int AS cnt FROM arbitrage_opportunities
+         WHERE state = 'risk_checked' AND live_execution_plan_id IS NOT NULL`,
+      );
+      const inFlight =
+        Array.isArray(inFlightRows) && inFlightRows.length > 0
+          ? (inFlightRows[0]?.cnt ?? 0)
+          : 0;
       if (inFlight >= cfg.maxConcurrentPlans) {
         // Saturated: skip this tick entirely (capital ceiling is the hard gate).
         return { plansCreated: 0 };
