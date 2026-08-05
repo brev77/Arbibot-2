@@ -64,16 +64,19 @@ services:
       - '127.0.0.1:6379:6379'
     # Authentication + dangerous-command rename. REDIS_PASSWORD is sourced from the host
     # .env (default empty = no auth, which is fine for local dev on 127.0.0.1 only).
-    # Note: use shell form (string), NOT a YAML list — the multi-arg form was splitting
-    # the ${REDIS_PASSWORD:+...} expansion onto its own line as a separate shell command,
-    # silently skipping --requirepass. One-line sh -c keeps the expansion in the same
-    # command invocation as redis-server.
+    # Only CONFIG is renamed — it is the only command that enables the root-compromise
+    # vector (CONFIG SET dir + SAVE writes to authorized_keys). FLUSHALL/FLUSHDB are
+    # left intact because renaming them breaks loading of existing AOF files that contain
+    # those commands (Redis aborts with "Unknown command 'FLUSHALL' reading the append
+    # only file"). With requirepass + bind 127.0.0.1 + CONFIG disabled, the attack surface
+    # is closed even if a future misconfiguration exposes the port again.
+    # Note: use shell form (string), NOT a YAML list — the multi-arg form split the
+    # ${REDIS_PASSWORD:+...} expansion onto its own line as a separate shell command,
+    # silently skipping --requirepass.
     command: >-
       sh -c 'exec redis-server --appendonly yes
       $${REDIS_PASSWORD:+--requirepass "$$REDIS_PASSWORD"
-      --rename-command CONFIG ""
-      --rename-command FLUSHALL ""
-      --rename-command FLUSHDB ""}'
+      --rename-command CONFIG ""}'
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
     volumes:
