@@ -70,14 +70,17 @@ interface SeedPoolEntry {
  * These are the pools PriceOracleService.priceArbitraryViaPool() scans for when
  * valuing long-tail tokens (it looks for a token↔WETH pair). Without warm-up
  * those reads return null and the live cost gate blocks every trade.
+ *
+ * Addresses sourced from SushiSwap factory getPair() on Arbitrum One
+ * (0xc35DADB65012eC5796536bD9864eD8773aBc74C4) — verified to return real bytecode
+ * and live reserves on-chain (2026-08-05). Previous hardcoded values were typos
+ * with bad checksums and the warm-up silently no-op'd on every restart.
  */
 const DEFAULT_SEED_POOLS: SeedPoolEntry[] = [
-  // Arbitrum One (42161) — UniV2/Sushi style pools for the staples the
-  // TokenResolverService emits. Reserves feed both priceArbitraryViaPool and
-  // TradeCostEstimator.findPoolForLeg.
-  { chainId: 42161, address: '0x905dFCD5644206F71a25581E4b5A22D803Dc7C47' }, // Sushi WETH/USDC.e
-  { chainId: 42161, address: '0xC31E54c7a869B9FcBEAc43A6895C5d10928303C0' }, // Sushi WETH/USDT
-  { chainId: 42161, address: '0xfA9fFAe777E0f0DE07C1a45c316D4Ff1B3df0D33' }, // Sushi ARB/WETH (deprecated addr)
+  // Arbitrum One (42161) — SushiSwap V2 pools for the staples.
+  { chainId: 42161, address: '0x57b85FEf094e10b5eeCDF350Af688299E9553378' }, // WETH/USDC (native)
+  { chainId: 42161, address: '0x905dfCD5649217c42684f23958568e533C711Aa3' }, // WETH/USDC.e (bridged)
+  { chainId: 42161, address: '0xCB0E5bFa72bBb4d16AB5aA0c60601c438F04b4ad' }, // WETH/USDT
 ];
 
 /**
