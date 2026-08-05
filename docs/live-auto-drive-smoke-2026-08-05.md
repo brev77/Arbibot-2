@@ -92,3 +92,55 @@ will keep creating-and-failing plans at the cost gate. The capital is not at ris
 - `docs/live-rpc-diagnosis-2026-08-05.md` — full Phase 1 diagnosis
 - `docs/live-auto-drive-smoke-2026-08-05.md` — this file
 - Commits: `0ad81d0`, `28260f0`, `6bbe45e` on `main`
+
+---
+
+## Update 14:10 UTC — additional regressions fixed in-flight
+
+After the initial smoke, the deploy cycle caught two more regressions that had been
+hidden behind the corrupted-address error (they only became visible once Chainlink
+started returning data):
+
+### BigInt comparison (commit `82dcf3b`)
+
+`price-oracle.service.ts:230` mixed `decimals: number` and `round.answer: bigint` in
+the same expression: `decimals <= 0 || round.answer <= 0n`. V8 throws "Cannot mix
+BigInt and other types". Split into two separate checks. After this fix Chainlink
+ETH/USD reads succeed.
+
+### Pool discovery — real Sushi addresses + BigInt wrap (commits `4470e87`, `10e6eef`)
+
+Two compounding bugs in `pool-discovery.service.ts`:
+
+1. **Wrong seed pool addresses** — the three hardcoded SushiSwap V2 pools were typos
+   with bad checksums (e.g. `0x905d...c7c47` instead of the real `0x905d...11aa3`).
+   Warm-up ran but every pool was rejected as "not recognized on chain 42161".
+   Sourced the correct addresses from SushiSwap factory `getPair()` and verified each
+   returns real bytecode + live reserves on-chain.
+
+2. **`BigInt(bigint)` wrapping** — `tryUniV2Pool` wrapped `getReserves()` results in
+   `BigInt()`, but ethers v6 already returns bigint values. `BigInt(bigvalue)` throws
+   "Cannot mix BigInt and other types" — silently caught by the empty catch block,
+   so the pool was rejected. Added a `typeof === 'bigint'` fast path.
+
+After both fixes: `Seed pool warm-up done: 2/3 discovered` (was 0/3). One pool still
+fails intermittently — the discovery loop will keep retrying.
+
+### Remaining architectural gap (NOT fixed in this session)
+
+Long-tail tokens (MAGIC, GMX, ARB, etc.) trade primarily on **Uniswap V3**, not
+SushiSwap V2. The current `PriceOracle.priceArbitraryViaPool()` skips V3 pools
+("V3 reserves are unreliable for pricing") and looks for V2 token↔WETH pairs that
+don't exist for these tokens. As a result, the live cost gate fail-closes every
+plan that involves a V3-only token because `getTokenPriceUsd(MAGIC)` returns null.
+
+Two paths forward (next session):
+1. **UniV3 slot0.sqrtPriceX96 → price derivation** — read the V3 pool's `slot0()` and
+   compute `price = (sqrtPriceX96 / 2^96)^2 × 10^(decimals0 - decimals1)`. V3 pools
+   do expose a precise price even though "reserves" are not meaningful.
+2. **QuoterV2.quoteExactInputSingle via simulate()** — proper on-chain quote. QuoterV2
+   is not view-only on Arbitrum, so it needs `eth_call` with a simulate payload.
+
+Until one of these lands, the live pipeline will create plans but the cost gate will
+keep blocking at the long-tail pricing step. The system is fail-safe (no capital at
+risk — blocked before broadcast), but not yet productive.
