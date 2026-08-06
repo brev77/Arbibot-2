@@ -81,20 +81,27 @@ export class RpcProviderManager implements OnModuleInit, OnModuleDestroy {
       }
 
       try {
-        // Note on staticNetwork (fix #12 reverted on Aéza): ethers v6 with `staticNetwork: true`
-        // throws `NETWORK_ERROR: network changed` when the RPC load-balancer occasionally returns
-        // a response signed for a different chain (QuickNode Arbitrum sometimes replies with
-        // chainId=1). That bricked every PriceOracle read on the live host. Pinning the network
-        // is correct in theory, but only when the RPC itself is reliable — we now construct the
-        // provider WITHOUT staticNetwork so ethers re-derives on each call and a single bad
-        // response does not poison the cache. The trade-off is a missing fail-fast on env
-        // misconfiguration; the new ci-address-checksum guard + /health/rpc cover that instead.
-        const primary = new JsonRpcProvider(config.primary, config.chainId);
+        // Pin the network with `staticNetwork: true`. ethers v6 `getNetwork()` compares the
+        // cached network against a fresh `_detectNetwork()` on every call; without a pin that
+        // triggers a background `eth_chainId` round-trip per request. A load-balanced RPC
+        // (QuickNode Arbitrum) sometimes routes that call to an Ethereum-mainnet node (chainId=1)
+        // instead of Arbitrum (42161); the mismatch then throws
+        // `NETWORK_ERROR: network changed: 1 => 42161` and bricks every PriceOracle read.
+        //
+        // With the pin, `_detectNetwork()` returns the cached network WITHOUT an RPC call
+        // (ethers@6.17.0 provider-jsonrpc.js `_detectNetwork`), so the comparison is always
+        // 42161===42161 and `NETWORK_ERROR` cannot fire on load-balancer drift. The prior
+        // commit 6bbe45e reverted this pin under the opposite claim — that was incorrect: the
+        // `network changed` symptom is caused by the ABSENCE of a pin, not its presence.
+        //
+        // Trade-off: a pin masks a persistent env misconfiguration (URL points at the wrong
+        // chain). That is covered by the `ci-address-checksum` guard and `/health/rpc`.
+        const primary = new JsonRpcProvider(config.primary, config.chainId, { staticNetwork: true });
         let backup: JsonRpcProvider | undefined;
         let combined: FallbackProvider | undefined;
 
         if (config.backup) {
-          backup = new JsonRpcProvider(config.backup, config.chainId);
+          backup = new JsonRpcProvider(config.backup, config.chainId, { staticNetwork: true });
           // Create fallback provider with primary as priority
           combined = new FallbackProvider([primary, backup], 1);
         }
