@@ -1,8 +1,9 @@
-import { IsObject, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
+import { IsObject, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 export class AppendAuditDto {
   @IsOptional()
-  @IsUUID('4')
+  @IsString()
+  @MaxLength(255)
   idempotencyKey?: string;
 
   @IsOptional()

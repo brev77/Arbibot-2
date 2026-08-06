@@ -224,6 +224,29 @@ describe('AuditService', () => {
       expect(rows[0]?.idempotencyKey).toBe('44444444-4444-4444-8444-444444444444');
     });
 
+    it('accepts semantic (non-UUID) idempotency keys used by callers (regression: DTO was @IsUUID)', async () => {
+      // Callers across the monorepo emit human-readable keys like
+      // `execution:BeginExecution:${plan.id}` and `cost-estimate:${plan.id}:${legIndex}`.
+      // The DTO previously enforced @IsUUID('4'), which rejected every such key at the
+      // validation boundary (HTTP 400), leaving audit idempotency entirely non-functional
+      // — duplicate rows sailed through because nothing reached the DB UNIQUE check.
+      // This test pins the @IsString contract at the service level: any stable string key
+      // must deduplicate. See docs/plan-hermes-live-correctness-2026-08-06.md (#47).
+      const semanticKey = 'execution:BeginExecution:plan-42';
+
+      const first = await service.append(dto({ idempotencyKey: semanticKey }));
+      expect(first.replay).toBe(false);
+      expect(first.entity.idempotencyKey).toBe(semanticKey);
+
+      // Second call with the same key + matching payload → replay, no new row.
+      const second = await service.append(dto({ idempotencyKey: semanticKey }));
+      expect(second.replay).toBe(true);
+      expect(second.entity.idempotencyKey).toBe(semanticKey);
+      expect(emSaveSpy).toHaveBeenCalledTimes(1); // only the first insert
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.idempotencyKey).toBe(semanticKey);
+    });
+
     it('handles 23505 unique-violation race by re-finding and replaying', async () => {
       // Simulate concurrent insert: first findOne misses, em.save throws 23505,
       // second findOne finds the row that won the race.
