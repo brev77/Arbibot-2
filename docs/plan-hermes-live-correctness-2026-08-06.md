@@ -486,8 +486,41 @@ Cross-chain bridge-блокеры (неверные mainnet-адреса, fake S
 (включая MAGIC/WETH) priced корректно, если он попал в кэш discovery. Добавление
 конкретных seed-пулов для MAGIC — опциональная операционная задача, не блокер.
 
+### Paper-deploy smoke (Aéza, 2026-08-06)
+
+Деплой на `arbibot-paper` (79.137.202.225): `git pull` (`10e6eef`→`a23903b`) + build
+4 пакетов (contracts-eth, audit-service, execution-orchestrator, scanner-service) +
+pm2 delete+start 3 сервисов. `pm2 save` для reboot-persistence.
+
+**DoD #46 (staticNetwork) — валидирован на real QuickNode endpoint:**
+- execution-orchestrator поднялся чисто, RPC-провайдеры инициализированы для 42161/8453/56.
+- В логах за 200 строк после рестарта **0** `NETWORK_ERROR` / `network changed`
+  (по обоим сервисам: EO + scanner). Pin работает как задано — load-balancer drift
+  больше не вызывает `getNetwork()` mismatch.
+
+**`npm run smoke:live-testnet` (dry-run) — результат:**
+- **HEALTH: 4/4 ✓** — execution/capital/reconciliation/opportunity здоровы.
+- **CAPITAL: 3/3 ✓** — rehearsal прошёл (reserve $1 → release), capital-ceiling gate работает.
+- **KILLDRILL: skipped** (`SMOKE_SKIP_KILLDRILL=true` — осознанно, не трогаем shared kill-switch на стенде; #46 уже валидирован логами выше).
+- **RECON: 1 fail** — **но 0 фактически открытых mismatches.** Smoke-скрипт упал, т.к.
+  reconciliation-service возвращает resolved-записи вопреки фильтру `?status=open`
+  (проверено отдельно: 6 returned, все `status: resolved`, actually open: 0). Это
+  pre-existing minor bug в API reconciliation-service (игнорирует query-фильтр),
+  вне скоупа PLAN11. Все gates работают корректно.
+
+**Найденная проблема (вне PLAN11, зафиксирована):** Chainlink ETH/USD read на сервере
+падает с `CALL_EXCEPTION` на адресу `0x639Fe6ab...`. Адрес корректный (на публичном
+`arb1.arbitrum.io/rpc` контракт есть и `latestRoundData` работает), но настроенный
+`RPC_ARBITRUM_MAINNET_URL` (QuickNode) возвращает пустой ответ на `eth_call`/
+`eth_getCode`/`eth_chainId` — endpoint нерабочий (quota/ключ). Это pre-existing
+состояние стенда (не регрессия PLAN11 — Chainlink падал и на `957e9d5`), но блокирует
+полноценную V3 pricing validation на этом стенде, т.к. V3-цена умножается на
+Chainlink WETH/USD. Операционная задача: обновить RPC endpoint (новый QuickNode ключ
+или публичный `arb1.arbitrum.io/rpc`).
+
 ---
 
 *Составлено: 2026-08-06 на основе факт-чека коммита `957e9d5`. Все `file:line`
-верифицированы прямым чтением кода + `node_modules/ethers@6.17.0`. Реализовано и
-проверено в той же сессии. При изменении кода — обновить этот файл по принципу P2.*
+верифицированы прямым чтением кода + `node_modules/ethers@6.17.0`. Реализовано,
+проверено локально (build/test зелёные) и deploied на paper-стенд Aéza (smoke dry-run,
+DoD #46 валидирован). При изменении кода — обновить этот файл по принципу P2.*
