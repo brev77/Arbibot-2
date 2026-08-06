@@ -294,6 +294,10 @@ describe('PoolDiscoveryService', () => {
     });
 
     it('getCachedPools returns cached pools for matching chain', async () => {
+      // onModuleInit fires warmUpSeedPools as `void` (not awaited) — let it settle before
+      // clearing, so the background seed warm-up doesn't race with this test's assertions.
+      await new Promise((r) => setTimeout(r, 0));
+      service.clearCacheForTest();
       MockedContract.mockImplementation(() => ({
         token0: jest.fn().mockResolvedValue('0xtokena'),
         token1: jest.fn().mockResolvedValue('0xtokenb'),

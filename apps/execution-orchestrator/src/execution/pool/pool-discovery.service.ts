@@ -92,6 +92,16 @@ const DEFAULT_SEED_POOLS: SeedPoolEntry[] = [
   { chainId: 42161, address: '0x57b85FEf094e10b5eeCDF350Af688299E9553378' }, // WETH/USDC (native)
   { chainId: 42161, address: '0x905dfCD5649217c42684f23958568e533C711Aa3' }, // WETH/USDC.e (bridged)
   { chainId: 42161, address: '0xCB0E5bFa72bBb4d16AB5aA0c60601c438F04b4ad' }, // WETH/USDT
+  // Long-tail token/WETH pools (UniV3 0.05%) — PriceOracle needs these in cache to value
+  // non-stable tokens via sqrtPriceX96 (V3 pricing branch). Without them getTokenPriceUsd
+  // returns null → notional null → confidence 'modeled' (non-blocking, but imprecise).
+  // Addresses verified on-chain via eth_getCode + slot0 (2026-08-06, BlockPi).
+  { chainId: 42161, address: '0xF44f17A6Fc5D2f0Ad1FF47e682570fa5A8eb9050' }, // MAGIC/WETH (UniV3 0.05%)
+  { chainId: 42161, address: '0xb435ebfE0BF4CE66810AA4d44e3a5CA875D40DB1' }, // GMX/WETH (UniV3 0.05%)
+  { chainId: 42161, address: '0x91308bC9Ce8Ca2db82aA30C65619856cC939d907' }, // LINK/WETH (UniV3 0.05%)
+  { chainId: 42161, address: '0xff96D42dc8E2700ABAb1f1F82Ecf699caA1a2056' }, // UNI/WETH (UniV3 0.05%)
+  { chainId: 42161, address: '0x14Cc036360C896c20Bc816A2a7aA514bC843766f' }, // CRV/WETH (UniV3 0.05%)
+  { chainId: 42161, address: '0xE4Cd69C5F4bc7803b2Fb745C984446b935b54249' }, // LDO/WETH (UniV3 0.05%)
 ];
 
 /**
@@ -209,6 +219,11 @@ export class PoolDiscoveryService implements OnModuleInit, OnModuleDestroy {
     if (this.discoveryTimer) {
       clearInterval(this.discoveryTimer);
     }
+  }
+
+  /** Clear all cached pools (test hook). */
+  clearCacheForTest(): void {
+    this.poolCache.clear();
   }
 
   /**
