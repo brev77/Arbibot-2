@@ -524,3 +524,72 @@ Chainlink WETH/USD. Операционная задача: обновить RPC 
 верифицированы прямым чтением кода + `node_modules/ethers@6.17.0`. Реализовано,
 проверено локально (build/test зелёные) и deploied на paper-стенд Aéza (smoke dry-run,
 DoD #46 валидирован). При изменении кода — обновить этот файл по принципу P2.*
+
+---
+
+## 10. Пост-фикс корректировка: pinFallbackNetwork (#46 дополнение)
+
+### Контекст
+
+После деплоя PLAN11 + варианта C (backup RPC) на Aéza обнаружилось, что #46 fix
+(`staticNetwork: true`) **неполный**: он покрывает только single-provider path, но
+`FallbackProvider` (когда есть backup) обходит pin через свой `_detectNetwork`.
+
+**Механика (ethers@6.17.0):**
+- `provider-fallback.js:281` — `FallbackProvider._detectNetwork()` вызывает
+  `this._perform({ method: "chainId" })`.
+- `_translatePerform` case `'chainId'` → `provider.getNetwork()` на **каждом** child.
+- Это обходит `staticNetwork: true` на `JsonRpcProvider`, делая живой `eth_chainId`.
+- Load-balanced RPC (QuickNode, PublicNode, даже BlockPi через FallbackProvider)
+  отдаёт chainId=1 → `NETWORK_ERROR: network changed: 1 => 42161`.
+
+Подтверждено live: BlockPi через curl отдаёт 42161 стабильно (5/5), но через ethers
+`FallbackProvider` — `network changed`. Значит дело не в провайдере, а в коде.
+
+### Fix — `pinFallbackNetwork` (коммит `6b583ba`)
+
+`apps/execution-orchestrator/src/execution/rpc/rpc-provider-manager.service.ts`:
+новая exported-функция `pinFallbackNetwork(fb, chainId)` патчит `_detectNetwork`
+на инстансе `FallbackProvider`, возвращая `Network.from(chainId)` без RPC. Применяется
+в `initializeProviders` при наличии backup.
+
+**Почему instance-patch, а не subclass:** rpc-provider-manager spec мокает весь
+`ethers` через `jest.mock('ethers', () => ({...}))` без `Network`. `extends
+FallbackProvider` связывался бы с реальным классом на этапе определения, обходя мок.
+Instance-patch работает и с реальным, и с мокнутым ethers.
+
+**Дополнительно исправлен latent-баг:** оригинальный `new FallbackProvider([primary, backup], 1)`
+передавал `1` как network (chainId 1 = Ethereum mainnet) — маскировался мок-тестами.
+Исправлено на `([primary, backup], chainId, { quorum: 1 })`.
+
+### Тесты
+- `pin-fallback-network.spec.ts` (новый, 3 теста, real ethers): `_detectNetwork`
+  возвращает pinned chainId без RPC; `getNetwork()` не бросает NETWORK_ERROR;
+  instance identity сохранён.
+- `rpc-provider-manager.service.spec.ts`: 22/22 (совместимость с mock-окружением).
+
+### Деплой на Aéza (2026-08-06)
+- Сервер: `git pull` до `6b583ba`, rebuild EO, restart EO+scanner.
+- RPC config (вариант C + BlockPi, после отказа Hermes'а от PublicNode):
+  - Primary: `https://arbitrum.blockpi.network/v1/rpc/<KEY>` (платный, без drift).
+  - Backup: `https://arb1.arbitrum.io/rpc` (публичный, страховка).
+- Отброшена uncommitted правка Hermes `LATENCY_THRESHOLD_MS=500` → каноничный `100`.
+
+### Результат (post-restart, uptime > 80s)
+- `network changed` (NETWORK_ERROR): **0** (было 17 в логах pre-restart процесса).
+- `native/USD read failed`: **0** (Chainlink ETH/USD читается).
+- `PoolDiscoveryService: Seed pool warm-up done: 3/3` ✅.
+- `Cost gate BLOCKED`: всё ещё ~8/30сек — **но по другой причине** (не NETWORK_ERROR).
+  Ошибок PriceOracle (`arbitrary token pricing failed`, `decimals read failed`) нет —
+  значит цена возвращается, блок где-то в `evaluatePlanGate`. Это отдельная задача,
+  не относится к #46/RPC — требует нового расследования.
+
+### Урок
+PLAN11 #46 был правильным по направлению, но неполным: staticNetwork чинит
+`JsonRpcProvider`, но не `FallbackProvider`. Корректный fix требует pinned
+`_detectNetwork` на уровне FallbackProvider. Это дополнение к #46, не новая инициатива.
+
+### Очистка stuck plans (отдельно)
+7842 armed plans — **следствие** cost-gate-blocked цикла (план создаётся → блокируется
+→ остаётся armed). Это не dead-lock и не причина зависания (ТЗ Hermes неточно здесь).
+Очистка имеет смысл как housekeeping после того, как cost gate перестанет блокировать.
