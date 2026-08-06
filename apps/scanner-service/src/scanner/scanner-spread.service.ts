@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
+import { spreadBps } from '@arbibot/contracts-eth';
 
 import type { PoolSnapshot } from './scanner-pool.service';
-import { spreadBps } from './v3-price';
 
 /**
  * A cross-venue arbitrage opportunity between two pools pricing the SAME token pair on the

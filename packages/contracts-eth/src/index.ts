@@ -16,6 +16,9 @@ export { ArbitrumOutboxABI } from './abis/arbitrum-outbox';
 export { OptimismPortalABI } from './abis/optimism-portal';
 export { LayerZeroEndpointV2ABI, LZ_V2_HEADER } from './abis/layerzero-endpoint-v2';
 
+// Math — DEX price derivation (shared by scanner-service + execution-orchestrator)
+export { v3PriceRaw, v3Price, v2Price, spreadBps } from './math/uniswap-v3-price';
+
 // Addresses — Arbitrum
 export {
   ArbitrumAddresses,

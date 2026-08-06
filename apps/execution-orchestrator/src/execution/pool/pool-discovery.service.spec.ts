@@ -218,6 +218,7 @@ describe('PoolDiscoveryService', () => {
           token1: jest.fn().mockResolvedValue('0xt1'),
           fee: jest.fn().mockResolvedValue(3000),
           liquidity: jest.fn().mockResolvedValue(5000n),
+          slot0: jest.fn().mockResolvedValue([1n << 96n, 0, 0, 0, 0, 0, false]),
           factory: jest.fn().mockResolvedValue('0xfactoryv3'),
         };
       });
@@ -228,6 +229,8 @@ describe('PoolDiscoveryService', () => {
       expect(result?.feeBps).toBe(30); // 3000 / 100
       expect(result?.reserve0).toBe(5000n);
       expect(result?.reserve1).toBe(5000n);
+      // sqrtPriceX96 must be populated from slot0[0] for V3 pricing.
+      expect(result?.sqrtPriceX96).toBe(1n << 96n);
     });
 
     it('uses zero-address factory when V3 factory() rejects', async () => {
@@ -249,6 +252,7 @@ describe('PoolDiscoveryService', () => {
           token1: jest.fn().mockResolvedValue('0xt1'),
           fee: jest.fn().mockResolvedValue(500),
           liquidity: jest.fn().mockResolvedValue(1000n),
+          slot0: jest.fn().mockResolvedValue([1n << 96n, 0, 0, 0, 0, 0, false]),
           factory: jest.fn().mockRejectedValue(new Error('no factory')),
         };
       });

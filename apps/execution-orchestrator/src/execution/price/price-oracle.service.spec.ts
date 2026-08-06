@@ -201,16 +201,113 @@ describe('PriceOracleService', () => {
     expect(price).toBeNull();
   });
 
-  it('skips V3 pools for pricing (reserves unreliable)', async () => {
+  it('prices a V3-only token via slot0.sqrtPriceX96 (token = token0, WETH = token1)', async () => {
+    // Regression for the V3 pricing gap (docs/plan-hermes-live-correctness-2026-08-06.md #45).
+    // Previously every V3 pool returned null and blocked the cost gate for V3-only tokens.
     const token = '0xcccccccccccccccccccccccccccccccccccccccc' as Address;
+    const weth = ArbitrumMainnetAddresses.weth;
+    // Construct a sqrtPriceX96 that encodes ~1 WETH per token with token decimals 18.
+    // v3Price returns token1-per-token0; here token=token0 (18) and WETH=token1 (18),
+    // so raw price = 1 WETH per token → with ETH=2500 USD, tokenPriceUsd ≈ 2500.
+    const rawPrice = 1; // 1 WETH per 1 token (smallest units, equal decimals)
+    const sqrtRaw = Math.sqrt(rawPrice);
+    const sqrtPriceX96 = BigInt(Math.floor(sqrtRaw * Number(2n ** 96n)));
     pools.getCachedPools.mockReturnValue([
       {
         address: '0xpool' as Address,
-        token0: ArbitrumMainnetAddresses.weth,
+        token0: token,
+        token1: weth,
+        feeBps: 500,
+        reserve0: 1n, // liquidity — MUST be ignored for V3 pricing
+        reserve1: 1n,
+        sqrtPriceX96,
+        chainId: ChainId.ARBITRUM_ONE_MAINNET,
+        factory: weth,
+        protocol: 'uniswap-v3',
+        blockNumber: 1,
+        discoveredAt: new Date(),
+      },
+    ]);
+
+    // decimals() for the token (18); Chainlink ETH/USD = 2500.
+    let decimalsCallCount = 0;
+    MockedContract.mockImplementation((_addr: string) => ({
+      decimals: jest.fn().mockImplementation(() => {
+        decimalsCallCount += 1;
+        return Promise.resolve(decimalsCallCount === 1 ? 18 : 8);
+      }),
+      latestRoundData: jest.fn().mockResolvedValue({
+        roundId: 1n,
+        answer: 250_000_000_000n, // ETH = 2500 USD
+        startedAt: 1n,
+        updatedAt: 1n,
+        answeredInRound: 1n,
+      }),
+    }));
+
+    const price = await service.getTokenPriceUsd(ChainId.ARBITRUM_ONE_MAINNET, token);
+    expect(price).not.toBeNull();
+    expect(price).toBeGreaterThan(2400);
+    expect(price).toBeLessThan(2600);
+  });
+
+  it('prices a V3 token when token = token1 (inverts t1-per-t0 → WETH-per-token)', async () => {
+    const token = '0xc1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1' as Address;
+    const weth = ArbitrumMainnetAddresses.weth;
+    // token0 = WETH, token1 = token. v3Price returns token-per-WETH; for WETH-per-token
+    // the code inverts it. Encode 1 token per WETH → inverted also 1 → tokenPriceUsd ≈ ETH price.
+    const sqrtPriceX96 = BigInt(Math.floor(1 * Number(2n ** 96n)));
+    pools.getCachedPools.mockReturnValue([
+      {
+        address: '0xpool2' as Address,
+        token0: weth,
         token1: token,
         feeBps: 500,
         reserve0: 1n,
         reserve1: 1n,
+        sqrtPriceX96,
+        chainId: ChainId.ARBITRUM_ONE_MAINNET,
+        factory: weth,
+        protocol: 'uniswap-v3',
+        blockNumber: 1,
+        discoveredAt: new Date(),
+      },
+    ]);
+
+    let decimalsCallCount = 0;
+    MockedContract.mockImplementation((_addr: string) => ({
+      decimals: jest.fn().mockImplementation(() => {
+        decimalsCallCount += 1;
+        return Promise.resolve(decimalsCallCount === 1 ? 18 : 8);
+      }),
+      latestRoundData: jest.fn().mockResolvedValue({
+        roundId: 1n,
+        answer: 250_000_000_000n,
+        startedAt: 1n,
+        updatedAt: 1n,
+        answeredInRound: 1n,
+      }),
+    }));
+
+    const price = await service.getTokenPriceUsd(ChainId.ARBITRUM_ONE_MAINNET, token);
+    expect(price).not.toBeNull();
+    expect(price).toBeGreaterThan(2400);
+    expect(price).toBeLessThan(2600);
+  });
+
+  it('returns null for a V3 pool missing sqrtPriceX96 (stale cache entry)', async () => {
+    // Defensive: a V3 pool cached before the sqrtPriceX96 field was populated must not be
+    // priced from liquidity-as-reserves. Treated as unpriceable (fail-closed).
+    const token = '0xc2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2' as Address;
+    pools.getCachedPools.mockReturnValue([
+      {
+        address: '0xpool3' as Address,
+        token0: token,
+        token1: ArbitrumMainnetAddresses.weth,
+        feeBps: 500,
+        reserve0: 1n,
+        reserve1: 1n,
+        // sqrtPriceX96 intentionally undefined
         chainId: ChainId.ARBITRUM_ONE_MAINNET,
         factory: ArbitrumMainnetAddresses.weth,
         protocol: 'uniswap-v3',

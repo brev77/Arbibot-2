@@ -24,10 +24,16 @@ interface UniV3PoolContract {
   fee(): Promise<number>;
   factory(): Promise<string>;
   liquidity(): Promise<bigint>;
+  slot0(): Promise<[bigint, number, number, number, number, number, boolean]>;
 }
 
 /**
- * Discovered DEX pool
+ * Discovered DEX pool.
+ *
+ * `sqrtPriceX96` is populated ONLY for V3 pools and is the authoritative price source
+ * (`slot0.sqrtPriceX96`). For V3 pools `reserve0`/`reserve1` carry `liquidity` (not a
+ * price) and MUST NOT be used for pricing — use `v3Price(sqrtPriceX96, d0, d1)` from
+ * `@arbibot/contracts-eth`. For V2/Sushi pools `reserve0`/`reserve1` are real reserves.
  */
 export interface DiscoveredPool {
   address: Address;
@@ -36,6 +42,11 @@ export interface DiscoveredPool {
   feeBps: number;
   reserve0: bigint;
   reserve1: bigint;
+  /**
+   * V3-only: `slot0.sqrtPriceX96`, the encoded token1/token0 price ratio. `undefined`
+   * for V2/Sushi pools. See `PriceOracleService.priceArbitraryViaPool` V3 branch.
+   */
+  sqrtPriceX96?: bigint;
   chainId: ChainId;
   factory: Address;
   protocol: 'uniswap-v2' | 'uniswap-v3' | 'sushiswap';
@@ -335,16 +346,20 @@ export class PoolDiscoveryService implements OnModuleInit, OnModuleDestroy {
       ];
 
       const contract = new Contract(poolAddress, abi, provider) as unknown as UniV3PoolContract;
-      const [token0, token1, fee, factory, blockNumber] = await Promise.all([
+      const [token0, token1, fee, factory, blockNumber, liquidity, slot0] = await Promise.all([
         contract.token0(),
         contract.token1(),
         contract.fee(),
         contract.factory().catch(() => null),
         provider.getBlockNumber(),
+        contract.liquidity(),
+        contract.slot0(),
       ]);
 
-      // For V3, reserves are represented as liquidity + slot0
-      const liquidity = await contract.liquidity();
+      // V3 price is encoded in slot0.sqrtPriceX96; `liquidity` is not a price and is kept
+      // in reserve0/reserve1 only for cache-shape compatibility (callers MUST use
+      // sqrtPriceX96 for V3 pricing via v3Price() from @arbibot/contracts-eth).
+      const sqrtPriceX96 = slot0[0];
 
       return {
         address: poolAddress,
@@ -353,6 +368,7 @@ export class PoolDiscoveryService implements OnModuleInit, OnModuleDestroy {
         feeBps: Number(fee) / 100,
         reserve0: BigInt(liquidity),
         reserve1: BigInt(liquidity),
+        sqrtPriceX96,
         chainId,
         factory: (factory || '0x0000000000000000000000000000000000000000') as Address,
         protocol: 'uniswap-v3',

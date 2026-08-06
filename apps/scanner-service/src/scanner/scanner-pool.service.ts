@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Contract } from 'ethers';
 import { Counter, Gauge } from 'prom-client';
 import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
+import { v2Price, v3Price } from '@arbibot/contracts-eth';
 
 import {
   ERC20_DECIMALS_ABI,
@@ -12,7 +13,6 @@ import {
 } from './scanner-pool.constants';
 import { DEFAULT_SCANNER_POOL_CACHE_TTL_MS } from './scanner-config.constants';
 import { ScannerRpcService } from './scanner-rpc.service';
-import { v2Price, v3Price } from './v3-price';
 
 /** Typed view-method surfaces for the V2/V3 pool contracts (cast from ethers Contract). */
 interface UniV2PoolContract {

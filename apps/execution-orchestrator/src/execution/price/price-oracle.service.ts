@@ -11,6 +11,7 @@ import {
   getArbitrumAddresses,
   getBaseAddresses,
   getBnbAddresses,
+  v3Price,
 } from '@arbibot/contracts-eth';
 import { RpcProviderManager } from '../rpc/rpc-provider-manager.service';
 import { DiscoveredPool, PoolDiscoveryService } from '../pool/pool-discovery.service';
@@ -23,10 +24,12 @@ import { DiscoveredPool, PoolDiscoveryService } from '../pool/pool-discovery.ser
  *      ignores depeg — feed addresses are retained for future use).
  *   2. WETH / WBNB → Chainlink AggregatorV3 (ETH/USD on Arbitrum+Base,
  *      BNB/USD on BNB Chain).
- *   3. ARBITRARY token → discover a UniV2-style token↔WETH pool, derive the
- *      token price in WETH from `reserve0/reserve1` + token decimals, then
- *      multiply by the WETH/WBNB USD price (tier 2). V3 pools are NOT used for
- *      pricing (their "reserves" in DiscoveredPool are faked = liquidity).
+ *   3. ARBITRARY token → discover a token↔WETH pool and derive the token price
+ *      in WETH, then multiply by the WETH/WBNB USD price (tier 2). For V2/Sushi
+ *      pools price is derived from `reserve0/reserve1`; for V3 pools from
+ *      `slot0.sqrtPriceX96` via `v3Price()` (@arbibot/contracts-eth). V3
+ *      `reserve0`/`reserve1` in `DiscoveredPool` carry `liquidity` and MUST NOT
+ *      be used for pricing.
  *
  * In-memory price cache (TTL 10s, single-flight) + decimals cache (permanent,
  * decimals never change). All on-chain reads are best-effort: any failure
@@ -261,10 +264,16 @@ export class PriceOracleService {
   }
 
   /**
-   * Price an arbitrary token via a token↔WETH UniV2 pool:
-   *   tokenPriceUsd = (reserveWETH / decimalsWETH) / (reserveToken / decimalsToken) × wethUsd
+   * Price an arbitrary token via a token↔WETH pool, then convert to USD via the
+   * Chainlink native/USD price (tier 2).
    *
-   * V3 pools are ignored (their reserves are faked in DiscoveredPool).
+   * - V2/Sushi pools: `tokenPriceInWeth = (wethReserve / 10^18) / (tokenReserve / 10^tokenDecimals)`.
+   * - V3 pools: price is decoded from `slot0.sqrtPriceX96` via `v3Price()` and, when
+   *   needed, inverted so it is expressed in WETH-per-token (regardless of which side
+   *   of the pool is WETH). V3 `reserve0`/`reserve1` carry `liquidity`, not a price.
+   *
+   * `tokenPriceUsd = tokenPriceInWeth × wethUsd`. Returns null when the pool, decimals,
+   * Chainlink feed, or any intermediate value is unavailable (fail-closed).
    */
   private async priceArbitraryViaPool(chainId: ChainId, tokenLower: Address): Promise<number | null> {
     const wrappedNative = this.getWrappedNative(chainId);
@@ -278,10 +287,6 @@ export class PriceOracleService {
     if (pool === null) {
       return null;
     }
-    if (pool.protocol === 'uniswap-v3') {
-      // V3 reserves are unreliable for pricing in v1; skip.
-      return null;
-    }
 
     try {
       const tokenDecimals = await this.getTokenDecimals(chainId, tokenLower);
@@ -290,23 +295,46 @@ export class PriceOracleService {
       }
       const wethDecimals = 18; // WETH/WBNB are always 18 decimals.
 
-      // Determine which side of the pool is WETH.
-      const [tokenReserve, wethReserve] =
-        pool.token0.toLowerCase() === wethLower
-          ? [pool.reserve1, pool.reserve0] // token1 is the arbitrary token
-          : [pool.reserve0, pool.reserve1]; // token0 is the arbitrary token
+      // Protocol-specific token price in WETH (human units, WETH per 1 token).
+      let priceInWeth: number;
+      if (pool.protocol === 'uniswap-v3') {
+        if (pool.sqrtPriceX96 === undefined) {
+          // Stale cache entry from before the sqrtPriceX96 field was populated; treat as
+          // unpriceable rather than guessing from liquidity-as-reserves.
+          return null;
+        }
+        // v3Price returns token1-per-token0 in human units. We need WETH-per-token.
+        const tokenIsToken0 = pool.token0.toLowerCase() === tokenLower;
+        const decimals0 = tokenIsToken0 ? tokenDecimals : wethDecimals;
+        const decimals1 = tokenIsToken0 ? wethDecimals : tokenDecimals;
+        const t1PerT0 = v3Price(pool.sqrtPriceX96, decimals0, decimals1);
+        if (!(t1PerT0 > 0)) {
+          return null;
+        }
+        // token1 is WETH when token is token0 → t1PerT0 is already WETH-per-token.
+        // When token is token1 → invert (token-per-WETH) to get WETH-per-token.
+        priceInWeth = tokenIsToken0 ? t1PerT0 : 1 / t1PerT0;
+      } else {
+        // V2/Sushi: derive from reserves. Determine which side of the pool is WETH.
+        const [tokenReserve, wethReserve] =
+          pool.token0.toLowerCase() === wethLower
+            ? [pool.reserve1, pool.reserve0] // token1 is the arbitrary token
+            : [pool.reserve0, pool.reserve1]; // token0 is the arbitrary token
 
-      if (tokenReserve <= 0n || wethReserve <= 0n) {
-        return null;
+        if (tokenReserve <= 0n || wethReserve <= 0n) {
+          return null;
+        }
+        const wethFloat = Number(wethReserve) / 10 ** wethDecimals;
+        const tokenFloat = Number(tokenReserve) / 10 ** tokenDecimals;
+        if (tokenFloat <= 0 || wethFloat <= 0) {
+          return null;
+        }
+        priceInWeth = wethFloat / tokenFloat;
       }
 
-      // tokenPriceInWeth = (wethReserve / 10^18) / (tokenReserve / 10^tokenDecimals)
-      const wethFloat = Number(wethReserve) / 10 ** wethDecimals;
-      const tokenFloat = Number(tokenReserve) / 10 ** tokenDecimals;
-      if (tokenFloat <= 0 || wethFloat <= 0) {
+      if (!(priceInWeth > 0)) {
         return null;
       }
-      const priceInWeth = wethFloat / tokenFloat;
 
       const wethUsd = await this.readChainlinkNativeUsd(chainId);
       if (wethUsd === null) {
