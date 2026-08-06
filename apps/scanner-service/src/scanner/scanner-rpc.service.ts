@@ -4,12 +4,28 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
-import { FallbackProvider, JsonRpcProvider, Provider } from 'ethers';
+import { FallbackProvider, JsonRpcProvider, Network, Provider } from 'ethers';
 import { Counter, Gauge, Histogram } from 'prom-client';
 import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
 import { ChainId } from '@arbibot/contracts-eth';
 
 import { DEFAULT_SCANNER_RPC_RATE_LIMIT_RPS } from './scanner-config.constants';
+
+/**
+ * Pin a FallbackProvider's network detection to a fixed chainId.
+ *
+ * Same fix as execution-orchestrator's pinFallbackNetwork (commit 6b583ba): ethers v6
+ * FallbackProvider._detectNetwork bypasses the child staticNetwork pin via a live
+ * eth_chainId to each child, which triggers `NETWORK_ERROR: network changed: 1 => 42161`
+ * on load-balancer drift (BlockPi + public backup). This patch returns Network.from(chainId)
+ * without any RPC so detection cannot fail. See PLAN11 §10.
+ */
+function pinFallbackNetwork(fb: FallbackProvider, chainId: number): FallbackProvider {
+  const pinned = Network.from(chainId);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (fb as any)._detectNetwork = async () => pinned;
+  return fb;
+}
 import { TokenBucket } from './token-bucket';
 
 /** Maps a supported chain id to the env-var network token (ARBITRUM/BASE/BNB/ETHEREUM/OPTIMISM). */
@@ -262,12 +278,19 @@ export class ScannerRpcService implements OnModuleInit, OnModuleDestroy {
         continue;
       }
       try {
-        const primaryProvider = new JsonRpcProvider(primary, chainId);
+        // staticNetwork: true + pinned FallbackProvider — same fix as execution-orchestrator
+        // (PLAN11 #46 + §10). Without it, FallbackProvider._detectNetwork dispatches a live
+        // eth_chainId per child and throws NETWORK_ERROR on load-balancer drift, which silently
+        // nulls every pool read (0 pools, 0 spreads). See pinFallbackNetwork above.
+        const primaryProvider = new JsonRpcProvider(primary, chainId, { staticNetwork: true });
         let backupProvider: JsonRpcProvider | undefined;
         let combined: FallbackProvider | undefined;
         if (backup !== undefined) {
-          backupProvider = new JsonRpcProvider(backup, chainId);
-          combined = new FallbackProvider([primaryProvider, backupProvider], 1);
+          backupProvider = new JsonRpcProvider(backup, chainId, { staticNetwork: true });
+          combined = pinFallbackNetwork(
+            new FallbackProvider([primaryProvider, backupProvider], chainId, { quorum: 1 }),
+            chainId,
+          );
         }
         this.providers.set(chainId, {
           primary: primaryProvider,
