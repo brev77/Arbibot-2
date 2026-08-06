@@ -84,7 +84,9 @@ interface PriceCacheEntry {
 }
 
 interface AggregatorV3Contract {
-  decimals(): Promise<number>;
+  // ethers v6 returns uint8 decimals() as number via JsonRpcProvider but as
+  // bigint via FallbackProvider (aggregated child result). Callers normalize.
+  decimals(): Promise<number | bigint>;
   latestRoundData(): Promise<{
     roundId: bigint;
     answer: bigint;
@@ -230,18 +232,22 @@ export class PriceOracleService {
       ]);
       // Chainlink feeds return the price scaled by 10^decimals (typically 8).
       // answer is signed int256; prices are positive.
-      // NOTE: `decimals` is a plain number (from ethers ABI result), `round.answer` is bigint.
-      // Mixing them in the same comparison (`decimals <= 0 || round.answer <= 0n`) throws
-      // "Cannot mix BigInt and other types" — split the checks so each side has a consistent
-      // type. This was the live regression after the Chainlink address fix: the address
-      // resolved correctly but every read failed at this line.
-      if (!Number.isFinite(decimals) || decimals <= 0) {
+      // NOTE on types: ethers v6 returns uint8 `decimals()` as a plain number when read
+      // via a single JsonRpcProvider, but as a **bigint** (e.g. 8n) when read via a
+      // FallbackProvider (it aggregates child results and returns bigint for small uints).
+      // `round.answer` is always bigint. Normalize decimals to a number before any
+      // arithmetic/comparison: `Number.isFinite(8n)` is false and `10 ** 8n` throws
+      // "Cannot mix BigInt and other types". This was the silent cost-gate blocker after
+      // pinFallbackNetwork (commit 6b583ba) made FallbackProvider actually work — before
+      // that, NETWORK_ERROR masked this path entirely.
+      const dec = typeof decimals === 'bigint' ? Number(decimals) : decimals;
+      if (!Number.isFinite(dec) || dec <= 0) {
         return null;
       }
       if (round.answer <= 0n) {
         return null;
       }
-      const scaled = Number(round.answer) / 10 ** decimals;
+      const scaled = Number(round.answer) / 10 ** dec;
       return Number.isFinite(scaled) && scaled > 0 ? scaled : null;
     } catch (e) {
       this.logger.warn(

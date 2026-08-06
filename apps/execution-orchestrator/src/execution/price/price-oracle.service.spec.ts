@@ -96,6 +96,32 @@ describe('PriceOracleService', () => {
     expect(price).toBeCloseTo(2500, 1);
   });
 
+  it('normalizes Chainlink decimals returned as bigint (FallbackProvider aggregation)', async () => {
+    // Regression: ethers v6 returns uint8 decimals() as number via single
+    // JsonRpcProvider but as bigint (8n) via FallbackProvider (aggregated child
+    // result). The previous code did `Number.isFinite(decimals)` / `decimals <= 0`
+    // / `10 ** decimals` — all of which throw or fail on a bigint, silently
+    // nulling the Chainlink price and blocking the live cost gate. After
+    // pinFallbackNetwork made FallbackProvider work, this became the active
+    // failure mode. See docs/plan-hermes-live-correctness-2026-08-06.md §11.
+    MockedContract.mockImplementation(() => ({
+      decimals: jest.fn().mockResolvedValue(8n), // bigint, as FallbackProvider returns
+      latestRoundData: jest.fn().mockResolvedValue({
+        roundId: 1n,
+        answer: 250_000_000_000n,
+        startedAt: 1n,
+        updatedAt: 1n,
+        answeredInRound: 1n,
+      }),
+    }));
+
+    const price = await service.getTokenPriceUsd(
+      ChainId.ARBITRUM_ONE_MAINNET,
+      ArbitrumMainnetAddresses.weth,
+    );
+    expect(price).toBeCloseTo(2500, 1);
+  });
+
   it('reads WBNB price from Chainlink BNB/USD feed', async () => {
     MockedContract.mockImplementation(() => ({
       decimals: jest.fn().mockResolvedValue(8),
