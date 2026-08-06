@@ -4,16 +4,59 @@ import { Histogram, Counter } from 'prom-client';
 import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
 
 /**
+ * Pin a FallbackProvider's network detection to a fixed chainId.
+ *
+ * ethers v6 `FallbackProvider._detectNetwork()` (provider-fallback.js) calls
+ * `this._perform({ method: "chainId" })`, which `_translatePerform` routes to
+ * `provider.getNetwork()` on each child — bypassing the `staticNetwork: true`
+ * pin on the underlying `JsonRpcProvider`. A load-balanced RPC (QuickNode,
+ * PublicNode) that routes one `eth_chainId` to an Ethereum-mainnet node
+ * (chainId=1) and the next to Arbitrum (42161) then throws
+ * `NETWORK_ERROR: network changed: 1 => 42161` on every read, bricking
+ * PriceOracle. The PLAN11 #46 `staticNetwork: true` pin only fixes the
+ * single-provider path; this override closes the FallbackProvider path too.
+ *
+ * After this patch, `_detectNetwork` returns a minimal `{ chainId }` object
+ * without any RPC call, so network detection cannot fail on load-balancer drift.
+ * AbstractProvider.getNetwork only reads `.chainId` from the detected network,
+ * so a plain object suffices (and avoids importing ethers.Network, which would
+ * break the rpc-provider-manager spec that mocks the ethers module without
+ * exposing Network).
+ */
+export function pinFallbackNetwork(fb: FallbackProvider, chainId: number): FallbackProvider {
+  // Build a real Network so AbstractProvider.getNetwork()'s `expected.matches(actual)`
+  // comparison (Network.matches → BigInt chainId equality) succeeds. A plain
+  // `{ chainId }` object would fail that check (`network changed: 42161 => 42161`)
+  // because getNetwork compares a Network instance against the detected value.
+  // Lazy-require keeps this compatible with the rpc-provider-manager spec, which
+  // jest.mocks the ethers module without exposing Network.
+  // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-explicit-any
+  const NetworkCtor = (require('ethers') as any).Network as
+    | { from: (c: number) => { chainId: bigint } }
+    | undefined;
+  const pinned =
+    NetworkCtor !== undefined
+      ? NetworkCtor.from(chainId)
+      : ({ chainId: BigInt(chainId) } as { chainId: bigint });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
+  (fb as any)._detectNetwork = async () => pinned;
+  return fb;
+}
+
+/**
  * RPC Provider Manager
  * Step: DEX-1-0-RPC
- * 
+ *
  * Manages RPC providers with failover and health monitoring
  */
 @Injectable()
 export class RpcProviderManager implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RpcProviderManager.name);
 
-  private providers = new Map<number, { primary: JsonRpcProvider; backup?: JsonRpcProvider; combined?: FallbackProvider }>();
+  private providers = new Map<
+    number,
+    { primary: JsonRpcProvider; backup?: JsonRpcProvider; combined?: FallbackProvider }
+  >();
   private healthStatus = new Map<number, { healthy: boolean; latency: number; error?: string }>();
   private latencyMetrics = new Map<number, Histogram<string>>();
   private failureMetrics = new Map<number, Counter<string>>();
@@ -102,8 +145,14 @@ export class RpcProviderManager implements OnModuleInit, OnModuleDestroy {
 
         if (config.backup) {
           backup = new JsonRpcProvider(config.backup, config.chainId, { staticNetwork: true });
-          // Create fallback provider with primary as priority
-          combined = new FallbackProvider([primary, backup], 1);
+          // Pin the FallbackProvider's network detection: the parent's
+          // _detectNetwork bypasses the child staticNetwork pin via a live eth_chainId
+          // to each child, which triggers NETWORK_ERROR on load-balancer drift. The
+          // pinned patch returns the known chainId without any RPC. See pinFallbackNetwork.
+          combined = pinFallbackNetwork(
+            new FallbackProvider([primary, backup], config.chainId, { quorum: 1 }),
+            config.chainId,
+          );
         }
 
         this.providers.set(config.chainId, { primary, backup, combined });
