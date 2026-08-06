@@ -160,7 +160,10 @@
 Что делает бота более прибыльным/полезным сверх feature-complete ядра.
 
 **Baseline:** все формальные шаги планов 1–6 + DEX выполнены; PAD (paper
-AutoDrive) доставлен; bridge fee estimation реализован (C1 закрыт).
+AutoDrive) доставлен; bridge fee estimation реализован (C1 закрыт); V3 pricing
+для long-tail токенов реализован через канон `@arbibot/contracts-eth`
+(`v3Price()` из `slot0.sqrtPriceX96`, #45 — закрывает блокер для V3-only токенов
+типа MAGIC).
 
 **Пробелы:**
 - 🟡 2 `TODO` в `apps/paper-trading-service/src/paper-discovery/paper-discovery.service.ts:627,632`
@@ -402,6 +405,9 @@ C1/H2/M6 и т.д. ссылочны через `tracker_ref`, операцион
 > Гибрид: opp-service setup-only saga + EO LegAutoDriverWorker + HTTP callback
 > feedback; правки Гермеса Р1-2/Р2-1…6 учтены). Scope: **live auto-execution
 > (single-chain)**; cross-chain → отдельный план.
+> Скоуп пятого плана (`docs/plan-hermes-live-correctness-2026-08-06.md`) — initiatives
+> `#45–#47` (сформирован из факт-чека анализа Hermes 2026-08-05: V3 pricing блокер,
+> staticNetwork-реверс, audit-UUID валидация). Все `done`.
 
 | # | step_id | Вектор(ы) | gate | tracker | impact | effort | score | status | plan |
 |---|---------|-----------|------|---------|--------|--------|-------|--------|------|
@@ -449,6 +455,9 @@ C1/H2/M6 и т.д. ссылочны через `tracker_ref`, операцион
 | 42 | `FUNC-NOTIONAL-TO-AMOUNTIN` | FUNC (SEC) | paper-check | new | 3 | 2 | 12 | proposed | PLAN10 (`P10-AMT`) |
 | 43 | `TEST-LIVE-AUTO-DRIVE` | TEST (SEC) | live-blocker | new | 4 | 3 | 12 | proposed | PLAN10 (`P10-8`) |
 | 44 | `REL-LIVE-AUTO-DRIVE-SMOKE` | REL (DEVOPS) | live-blocker | new | 3 | 2 | 12 | proposed | PLAN10 (`P10-9`) |
+| 45 | `FUNC-V3-PRICING` | FUNC (SEC) | live-blocker | new | 5 | 3 | 15 | done | PLAN11 |
+| 46 | `SEC-RPC-STATIC-NETWORK` | SEC (REL) | live-blocker | new | 4 | 1 | 20 | done | PLAN11 |
+| 47 | `REL-AUDIT-IDEMPOTENCY-UUID` | REL (SEC) | paper-check | new | 3 | 1 | 15 | done | PLAN11 |
 
 ### Легенда
 
@@ -475,6 +484,7 @@ C1/H2/M6 и т.д. ссылочны через `tracker_ref`, операцион
 
 ---
 
-*Актуализировано: 2026-08-04 (PLAN10 proposed — initiatives #35–#44, live
-auto-execution). Все факты о состоянии кода проверены чтением файлов на эту дату.
-При изменении кода — обновить этот файл по принципу P2.*
+*Актуализировано: 2026-08-06 (PLAN11 done — initiatives #45–#47: V3 pricing,
+staticNetwork pin, audit UUID; post-Hermes correctness sweep). Все факты о
+состоянии кода проверены чтением файлов на эту дату. При изменении кода —
+обновить этот файл по принципу P2.*
