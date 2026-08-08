@@ -24,7 +24,7 @@
 # scraped by a simple healthcheck so a failing backup makes the container
 # unhealthy (visible in `docker compose ps`).
 
-FROM postgres:16-alpine
+FROM postgres:18-alpine
 
 # busybox crond is already in alpine; install aws-cli only if S3 upload is used
 # (kept optional — the image stays small when S3 is not configured).
