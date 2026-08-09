@@ -102,6 +102,11 @@ const DEFAULT_SEED_POOLS: SeedPoolEntry[] = [
   { chainId: 42161, address: '0xff96D42dc8E2700ABAb1f1F82Ecf699caA1a2056' }, // UNI/WETH (UniV3 0.05%)
   { chainId: 42161, address: '0x14Cc036360C896c20Bc816A2a7aA514bC843766f' }, // CRV/WETH (UniV3 0.05%)
   { chainId: 42161, address: '0xE4Cd69C5F4bc7803b2Fb745C984446b935b54249' }, // LDO/WETH (UniV3 0.05%)
+  // WBTC/WETH (UniV3 0.05%). Verified on-chain 2026-08-09: contract 22142 bytes,
+  // token0=0x2f2a2543...(WBTC), token1=0x82af4944...(WETH), fee=0.05%, live liquidity.
+  // Required for the V3 pricing branch — without it the live path fails
+  // "cannot price tokenIn 0x2f2a... (WBTC)" at the cost gate.
+  { chainId: 42161, address: '0x2f5e87C9312fa29aed5c179E456625D79015299c' }, // WBTC/WETH (UniV3 0.05%)
 ];
 
 /**
