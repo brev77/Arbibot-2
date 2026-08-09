@@ -1,12 +1,11 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { KeyVaultModule, WALLET_KEY_STORE } from '@arbibot/nest-platform';
+import { KeyVaultModule } from '@arbibot/nest-platform';
 import {
   BridgeTransferEntity,
   DexDailyVolumeEntity,
   OnChainTransaction,
-  WalletKeyEntity,
   WalletState,
 } from '@arbibot/persistence';
 
@@ -14,7 +13,6 @@ import { WalletManagerService } from './wallet-manager.service';
 import { NonceManagerService } from './nonce-manager.service';
 import { OnChainTransactionService } from './on-chain-transaction.service';
 import { TxConfirmationPollerWorker } from './tx-confirmation.service';
-import { TypeOrmWalletKeyStore } from './wallet-key-store.typeorm';
 import { DexFillTrackerService } from './dex-fill-tracker.service';
 import { DexOutboxEventsService } from './dex-outbox-events.service';
 import { GasEstimatorService } from './gas/gas-estimator.service';
@@ -51,7 +49,7 @@ import { CrossChainReconWorker } from './workers/cross-chain-recon.worker';
 @Module({
   imports: [
     KeyVaultModule,
-    TypeOrmModule.forFeature([WalletState, OnChainTransaction, BridgeTransferEntity, DexDailyVolumeEntity, WalletKeyEntity]),
+    TypeOrmModule.forFeature([WalletState, OnChainTransaction, BridgeTransferEntity, DexDailyVolumeEntity]),
   ],
   controllers: [RpcHealthController, DexHealthController, BridgeReconController],
   providers: [
@@ -59,13 +57,6 @@ import { CrossChainReconWorker } from './workers/cross-chain-recon.worker';
     NonceManagerService,
     OnChainTransactionService,
     TxConfirmationPollerWorker,
-    TypeOrmWalletKeyStore,
-    {
-      // Bind the WalletKeyStore port to the TypeORM adapter so KeyVaultService
-      // persists encrypted keys to the wallet_keys table (D4-B-4-KEYS).
-      provide: WALLET_KEY_STORE,
-      useExisting: TypeOrmWalletKeyStore,
-    },
     DexFillTrackerService,
     DexOutboxEventsService,
     RpcProviderManager,
