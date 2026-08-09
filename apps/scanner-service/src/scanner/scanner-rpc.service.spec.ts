@@ -27,6 +27,10 @@ jest.mock('ethers', () => {
     __esModule: true,
     JsonRpcProvider: FakeJsonRpcProvider,
     FallbackProvider: FakeFallbackProvider,
+    // pinFallbackNetwork uses Network.from(chainId); provide a stub so the spec
+    // (which mocks the whole ethers module) doesn't blow up on `Network` being
+    // undefined.
+    Network: { from: (c: number) => ({ chainId: BigInt(c) }) },
   };
 });
 
