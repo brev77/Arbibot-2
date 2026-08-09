@@ -120,35 +120,38 @@ function normalizePrivateKey(pk) {
   return pk.startsWith('0x') ? pk.slice(2) : pk;
 }
 
-// ── Crypto (mirrors KeyVaultService.encryptPrivateKey) ─────────────────────
+// ── Crypto (must EXACTLY match KeyVaultService encryptPrivateKey) ──────────
+// PLAN12 #2: this previously used a SINGLE scrypt pass over a combined salt
+// (deploySalt + perKeySalt), which is NOT what KeyVaultService does. The service
+// runs a DOUBLE scrypt: (1) derive a master key from the encryption key + the
+// deploy salt at construction (key-vault.service.ts:121), then (2) derive a
+// per-key key from that master key + the per-key random salt at encrypt/decrypt
+// time (key-vault.service.ts:164 / :234). A key encrypted with the old single-
+// pass scheme could never be decrypted by the service → "Unsupported state or
+// unable to authenticate data" (AES-256-GCM auth failure) on the live host.
+// The server-side reencrypt-key.mjs workaround patched already-imported rows;
+// this fixes the root cause so future imports are service-compatible.
 const ALGORITHM = 'aes-256-gcm';
 const KEY_LENGTH = 32; // 256 bits
 const IV_LENGTH = 16;
 const SALT_LENGTH = 32;
-const SCRYPT_N = 16384;
-const SCRYPT_R = 8;
-const SCRYPT_P = 1;
 
-function deriveMasterKey(encryptionKey, salt) {
-  // scryptSync signature: (password, salt, keylen[, options]).
-  // P8-3 note: KeyVaultService uses scryptSync(encryptionKey, salt, keyLength) with
-  // Node defaults (N=16384, r=8, p=1, maxmem=32mb). We mirror those defaults so the
-  // ciphertext is decryptable by the service. The VAULT_MASTER_KEY_SALT (P7-6) is
-  // pre-pended to the per-key random salt to bind the ciphertext to this deploy.
-  return scryptSync(encryptionKey, salt, KEY_LENGTH);
+function deriveMasterKey(encryptionKey, deploySalt) {
+  // Step 1 — mirrors key-vault.service.ts:121
+  // (scryptSync with Node defaults: N=16384, r=8, p=1, maxmem=32mb).
+  return scryptSync(encryptionKey, deploySalt, KEY_LENGTH);
 }
 
 function encryptPrivateKey(privateKey, encryptionKey, deploySalt) {
   const clean = normalizePrivateKey(privateKey);
-  const iv = randomBytes(IV_LENGTH);
-  const perKeySalt = randomBytes(SALT_LENGTH);
-  // Bind to deploy: master key + deploy salt + per-key salt (defense-in-depth).
-  const combinedSalt = Buffer.concat([
-    Buffer.from(deploySalt, 'utf8'),
-    perKeySalt,
-  ]);
-  const derivedKey = deriveMasterKey(encryptionKey, combinedSalt);
+  const masterKey = deriveMasterKey(encryptionKey, deploySalt);
 
+  // Step 2 — mirrors key-vault.service.ts:160-164: per-key random salt drives a
+  // second scrypt pass over the master key.
+  const perKeySalt = randomBytes(SALT_LENGTH);
+  const derivedKey = scryptSync(masterKey, perKeySalt, KEY_LENGTH);
+
+  const iv = randomBytes(IV_LENGTH);
   const cipher = createCipheriv(ALGORITHM, derivedKey, iv);
   let encrypted = cipher.update(clean, 'utf8', 'hex');
   encrypted += cipher.final('hex');
@@ -159,11 +162,12 @@ function encryptPrivateKey(privateKey, encryptionKey, deploySalt) {
   return {
     encryptedData,
     iv: iv.toString('hex'),
-    // Persist the FULL combined salt (deploy + per-key) so the service can
-    // re-derive: it reads VAULT_MASTER_KEY_SALT from env (same deploy salt) and
-    // this stored salt. We store combined as hex for the chk_wallet_keys_salt_hex
-    // CHECK constraint.
-    salt: combinedSalt.toString('hex'),
+    // Persist ONLY the per-key salt (hex). The service re-derives the master key
+    // from VAULT_MASTER_KEY_SALT itself (constructor) and reads this per-key salt
+    // from the row at decrypt time (Buffer.from(salt, 'hex'), key-vault.service.ts:233).
+    // Storing the combined salt (old bug) made the service re-derive from a
+    // different salt than the one used here → auth-tag mismatch.
+    salt: perKeySalt.toString('hex'),
     algorithm: ALGORITHM,
   };
 }
