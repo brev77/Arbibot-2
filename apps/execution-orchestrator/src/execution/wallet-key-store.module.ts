@@ -27,7 +27,8 @@ import { TypeOrmWalletKeyStore } from './wallet-key-store.typeorm';
  * This module is `@Global()` so the token is app-wide, matching the port's
  * documented intent ("bound by the host app… KeyVaultService falls back to
  * in-memory when unbound", wallet-key-store.ts). Single-writer boundary is
- * unchanged: only `KeyVaultService` calls `decryptPrivateKey` (K2 leakage guard).
+ * unchanged: plaintext keys are produced solely inside KeyVaultService (the K2
+ * leakage-guard owner); this module only wires the persistence port.
  */
 @Global()
 @Module({

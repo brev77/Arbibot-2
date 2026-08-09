@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { Provider, JsonRpcProvider, FallbackProvider } from 'ethers';
+import { Provider, JsonRpcProvider, FallbackProvider, Network } from 'ethers';
 import { Histogram, Counter } from 'prom-client';
 import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
 
@@ -28,18 +28,15 @@ export function pinFallbackNetwork(fb: FallbackProvider, chainId: number): Fallb
   // comparison (Network.matches → BigInt chainId equality) succeeds. A plain
   // `{ chainId }` object would fail that check (`network changed: 42161 => 42161`)
   // because getNetwork compares a Network instance against the detected value.
-  // Lazy-require keeps this compatible with the rpc-provider-manager spec, which
-  // jest.mocks the ethers module without exposing Network.
-  // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-explicit-any
-  const NetworkCtor = (require('ethers') as any).Network as
-    | { from: (c: number) => { chainId: bigint } }
-    | undefined;
-  const pinned =
-    NetworkCtor !== undefined
-      ? NetworkCtor.from(chainId)
-      : ({ chainId: BigInt(chainId) } as { chainId: bigint });
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
-  (fb as any)._detectNetwork = async () => pinned;
+  // The rpc-provider-manager spec mocks ethers including Network.from, so a
+  // static import is safe (no lazy require needed).
+  const pinned = Network.from(chainId);
+  // _detectNetwork must return a Promise<Network> (ethers contract). Resolve
+  // synchronously without an RPC call — `async () => pinned` would satisfy the
+  // type but trips @typescript-eslint/require-await (no await expression).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (fb as unknown as { _detectNetwork: () => Promise<Network> })._detectNetwork =
+    () => Promise.resolve(pinned);
   return fb;
 }
 

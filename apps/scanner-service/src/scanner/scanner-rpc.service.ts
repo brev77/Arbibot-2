@@ -22,8 +22,11 @@ import { DEFAULT_SCANNER_RPC_RATE_LIMIT_RPS } from './scanner-config.constants';
  */
 function pinFallbackNetwork(fb: FallbackProvider, chainId: number): FallbackProvider {
   const pinned = Network.from(chainId);
+  // _detectNetwork must return a Promise<Network> (ethers contract). Resolve
+  // synchronously without an RPC call — `async () => pinned` would satisfy the
+  // type but trips @typescript-eslint/require-await (no await expression).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (fb as any)._detectNetwork = async () => pinned;
+  (fb as any)._detectNetwork = () => Promise.resolve(pinned);
   return fb;
 }
 import { TokenBucket } from './token-bucket';

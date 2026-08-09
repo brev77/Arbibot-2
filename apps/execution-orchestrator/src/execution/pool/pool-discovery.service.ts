@@ -322,9 +322,12 @@ export class PoolDiscoveryService implements OnModuleInit, OnModuleDestroy {
 
       // ethers v6 returns getReserves() as bigint tuple already — wrapping with BigInt()
       // throws "Cannot mix BigInt and other types" because the operand is already bigint.
-      // Use direct assignment (with explicit cast through String() to be defensive).
-      const reserve0 = typeof reserves[0] === 'bigint' ? reserves[0] : BigInt(reserves[0] as never);
-      const reserve1 = typeof reserves[1] === 'bigint' ? reserves[1] : BigInt(reserves[1] as never);
+      // The typeof guard narrows to bigint in the true branch; the false branch converts
+      // whatever fallback type ethers declared (number | string) via BigInt().
+      const r0 = reserves[0];
+      const r1 = reserves[1];
+      const reserve0 = typeof r0 === 'bigint' ? r0 : BigInt(r0);
+      const reserve1 = typeof r1 === 'bigint' ? r1 : BigInt(r1);
 
       return {
         address: poolAddress,

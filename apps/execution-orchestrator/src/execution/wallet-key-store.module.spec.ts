@@ -1,6 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { WalletKeyEntity } from '@arbibot/persistence';
 import {
   AuditClientModule,
@@ -46,18 +45,20 @@ describe('WalletKeyStoreModule (DI visibility)', () => {
     process.env.PRIVATE_KEY_ENCRYPTION_KEY = testEncryptionKey;
 
     // Minimal in-memory repository mock (mirrors wallet-key-store.typeorm.spec.ts).
+    // Synchronous mock bodies wrapped in Promise.resolve (Repository methods are
+    // async by contract) — `async () =>` would trip @typescript-eslint/require-await.
     const rows = new Map<string, WalletKeyEntity>();
     repo = {
-      save: jest.fn(async (e: WalletKeyEntity) => {
+      save: jest.fn((e: WalletKeyEntity) => {
         rows.set(e.keyId, e);
-        return e;
+        return Promise.resolve(e);
       }),
-      findOne: jest.fn(async ({ where }: { where: { keyId?: string } }) => {
+      findOne: jest.fn(({ where }: { where: { keyId?: string } }) => {
         const id = where?.keyId;
-        return id ? (rows.get(id) ?? null) : null;
+        return Promise.resolve(id ? (rows.get(id) ?? null) : null);
       }),
-      find: jest.fn(async () => Array.from(rows.values())),
-      update: jest.fn(async () => undefined),
+      find: jest.fn(() => Promise.resolve(Array.from(rows.values()))),
+      update: jest.fn(() => Promise.resolve(undefined)),
     };
 
     module = await Test.createTestingModule({

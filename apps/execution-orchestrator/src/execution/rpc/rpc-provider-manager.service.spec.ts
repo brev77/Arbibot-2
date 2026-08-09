@@ -13,6 +13,10 @@ jest.mock('ethers', () => ({
   FallbackProvider: jest.fn().mockImplementation(() => ({
     getBlockNumber: mockGetBlockNumber,
   })),
+  // pinFallbackNetwork uses Network.from(chainId); provide a stub so the spec
+  // (which mocks the whole ethers module) doesn't blow up on `Network` being
+  // undefined. Returns an object with the chainId the real Network carries.
+  Network: { from: (c: number) => ({ chainId: BigInt(c) }) },
 }));
 
 describe('RpcProviderManager', () => {
