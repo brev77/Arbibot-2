@@ -214,7 +214,11 @@ export class FillOutboundService {
       `${base.replace(/\/$/, '')}/capital/reservations/${reservationId}/release`,
       { method: 'POST', headers, body: '{}' },
     );
-    if (!res.ok) {
+    // 409 = reservation is already terminal (expired/released). That is the desired end-state
+    // for a release call, so treat it as success — otherwise PlanFailed rows whose reservation
+    // expired before the relay drained them (e.g. the 30-min stuck-plan threshold exceeds the
+    // reservation TTL) retry forever and starve the opportunity-marker-clear callback.
+    if (!res.ok && res.status !== 409) {
       throw new Error(
         `Capital release failed: ${res.status} ${await res.text()}`,
       );
