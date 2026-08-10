@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { getArbitrumAddresses, getBaseAddresses, getBnbAddresses, getOptimismAddresses } from '@arbibot/contracts-eth';
 
 /**
- * TokenResolverService (PLAN10 P10-3, opp-service).
+ * TokenResolverService (PLAN10 P10-3, opp-service; PLAN12 #48 amountIn fix).
  *
  * Closes the mapping gap between a scanner opportunity and a CreateMultiLegPlanDto.
  *
@@ -10,8 +10,15 @@ import { getArbitrumAddresses, getBaseAddresses, getBnbAddresses, getOptimismAdd
  * works **only from `instrumentKey`** (format `arb:{chainId}:{addr0}-{addr1}`), which carries
  * the real token addresses. It also computes pre-quoted `amountIn` values (Модель #1):
  *
- *   buyAmountIn  = notional in quote-token smallest units (e.g. $10 USDC = 10_000_000)
- *   sellAmountIn = expected amountOut from the buy leg = notional / buyPrice × 10^baseDecimals
+ *   buyAmountIn  = quote-token amount for the notional = (notionalUsd / quoteUsd) × 10^quoteDecimals
+ *   sellAmountIn = expected amountOut from the buy leg  = (notionalUsd / quoteUsd) / buyPrice × 10^baseDecimals
+ *
+ * `quoteUsd` is the USD price of the quote token (token1), resolved by the caller via the EO
+ * `PriceOracleService` (PLAN12 #48). For stables quoteUsd = 1 (backward-compatible with the
+ * previous formula); for WETH-quoted pairs it is the live ETH/USD price — without it the old
+ * `notionalUsd × 10^decimals` formula treated 1 WETH-wei as $1, generating catastrophic amounts
+ * (50 × 10^18 = 50 WETH ≈ $130k for a $50 notional). `computeAmountIns` fails closed (null)
+ * when quoteUsd is missing/invalid — the worker skips with `skip_no_price`.
  *
  * Risk (documented, Модель #1 accepted for MVP): if the buy leg receives less than quoted
  * (real slippage > forecast), the pre-set sell amountIn will exceed the actual received
@@ -71,11 +78,6 @@ export interface AmountIns {
   buyAmountIn: string;
   /** Sell leg input amount in smallest token units (bigint string, pre-quoted). */
   sellAmountIn: string;
-}
-
-export interface ResolveResult {
-  tokens: ResolvedTokens;
-  amountIns: AmountIns;
 }
 
 /** Evidence block from the scanner payload (subset we consume). */
@@ -179,15 +181,16 @@ export class TokenResolverService {
   private readonly logger = new Logger(TokenResolverService.name);
 
   /**
-   * Resolve tokens + pre-quoted amountIns from a scanner opportunity.
-   * Returns null on any unresolvable input (unknown token, missing price, malformed key)
-   * → the worker skips the opportunity (fail-closed, metric skip_no_token / skip_no_price).
+   * Resolve token addresses + decimals from a scanner opportunity's instrumentKey.
+   * Pure + synchronous (no network I/O) — the USD price is resolved separately by the
+   * caller (LivePriceClientService → EO PriceOracleService) and passed into
+   * `computeAmountIns`. Returns null on any unresolvable input (unknown token, malformed
+   * key, unsupported chain) → the worker skips with `skip_no_token`.
+   *
+   * `resolveTokens` and `computeAmountIns` were split (PLAN12 #48) so the async oracle
+   * lookup can happen between them without making this service network-bound.
    */
-  resolve(
-    instrumentKey: string,
-    notionalUsd: number,
-    evidence: OpportunityEvidence | undefined,
-  ): ResolveResult | null {
+  resolveTokens(instrumentKey: string): ResolvedTokens | null {
     const parsed = parseInstrumentKey(instrumentKey);
     if (parsed === null) {
       this.logger.debug(`unparseable instrumentKey: ${instrumentKey}`);
@@ -215,19 +218,13 @@ export class TokenResolverService {
       return null;
     }
 
-    const tokens: ResolvedTokens = {
+    return {
       token0Address,
       token1Address,
       decimals0,
       decimals1,
       chainId: parsed.chainId,
     };
-
-    const amountIns = this.computeAmountIns(tokens, notionalUsd, evidence);
-    if (amountIns === null) {
-      return null;
-    }
-    return { tokens, amountIns };
   }
 
   private resolveAddress(token: string, book: AddressBook): string | null {
@@ -254,33 +251,45 @@ export class TokenResolverService {
   }
 
   /**
-   * Pre-quoted amountIns (Модель #1).
+   * Pre-quoted amountIns (Модель #1), USD-aware (PLAN12 #48).
    *
    * Convention for a 2-leg arb (buy base on venue A, sell base on venue B):
-   *   Leg 0 (buy):  tokenIn = quote (USDC), tokenOut = base. amountIn = notional in quote units.
-   *   Leg 1 (sell): tokenIn = base, tokenOut = quote. amountIn = expected amountOut of leg 0
-   *                 = notional / buyPrice × 10^baseDecimals.
+   *   Leg 0 (buy):  tokenIn = quote (token1), tokenOut = base. amountIn = notional converted
+   *                 to quote-token smallest units.
+   *   Leg 1 (sell): tokenIn = base, tokenOut = quote. amountIn = expected amountOut of leg 0.
    *
-   * `evidence.buyPrice` is quote-per-base (e.g. USDC per MAGIC). If absent → null (skip).
+   * `quoteUsd` is the USD price of the quote token (token1), resolved by the caller via the
+   * EO PriceOracleService. For stables quoteUsd = 1 (the formula reduces to the previous
+   * behaviour); for WETH-quoted pairs it is the live ETH/USD price. Without it the old
+   * `notionalUsd × 10^decimals` formula generated 50 × 10^18 = 50 WETH for a $50 notional.
+   *
+   * `evidence.buyPrice` is quote-per-base in human units (e.g. WETH per CRV). If absent → null.
+   * Fails closed (null) on missing/invalid quoteUsd or buyPrice — worker skips with skip_no_price.
    */
-  private computeAmountIns(
+  computeAmountIns(
     tokens: ResolvedTokens,
     notionalUsd: number,
     evidence: OpportunityEvidence | undefined,
+    quoteUsd: number,
   ): AmountIns | null {
     if (!Number.isFinite(notionalUsd) || notionalUsd <= 0) {
       return null;
     }
-    // quote token = token1 (USDC/USDT) — we assume the quote is the stablecoin leg.
-    const buyAmountIn = BigInt(Math.round(notionalUsd * 10 ** tokens.decimals1)).toString();
+    if (!Number.isFinite(quoteUsd) || quoteUsd <= 0) {
+      return null;
+    }
+
+    // notional USD → quote-token human units (e.g. $50 / $2600 per WETH = 0.0192 WETH).
+    const quoteAmount = notionalUsd / quoteUsd;
+    const buyAmountIn = BigInt(Math.round(quoteAmount * 10 ** tokens.decimals1)).toString();
 
     const buyPrice = evidence?.buyPrice;
     if (typeof buyPrice !== 'number' || !Number.isFinite(buyPrice) || buyPrice <= 0) {
       this.logger.debug('missing/invalid evidence.buyPrice; cannot pre-quote sell amountIn');
       return null;
     }
-    // expected base received = notional(quote) / price(quote per base)
-    const expectedBase = notionalUsd / buyPrice;
+    // expected base received = quoteAmount / price(quote per base)
+    const expectedBase = quoteAmount / buyPrice;
     const sellAmountIn = BigInt(Math.round(expectedBase * 10 ** tokens.decimals0)).toString();
     return { buyAmountIn, sellAmountIn };
   }

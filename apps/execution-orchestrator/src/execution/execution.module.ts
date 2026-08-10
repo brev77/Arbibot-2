@@ -22,6 +22,7 @@ import { PoolDiscoveryService } from './pool/pool-discovery.service';
 import { DexRiskPolicyService } from './risk/dex-risk-policy.service';
 import { DexKillSwitchService } from './risk/dex-kill-switch.service';
 import { PriceOracleService } from './price/price-oracle.service';
+import { PriceController } from './price/price.controller';
 import { TokenApproveService } from './token/token-approve.service';
 import { SlippageProtectionService } from './slippage/slippage-protection.service';
 import { TradeCostEstimatorService } from '../cost/trade-cost-estimator.service';
@@ -51,7 +52,7 @@ import { CrossChainReconWorker } from './workers/cross-chain-recon.worker';
     KeyVaultModule,
     TypeOrmModule.forFeature([WalletState, OnChainTransaction, BridgeTransferEntity, DexDailyVolumeEntity]),
   ],
-  controllers: [RpcHealthController, DexHealthController, BridgeReconController],
+  controllers: [RpcHealthController, DexHealthController, BridgeReconController, PriceController],
   providers: [
     WalletManagerService,
     NonceManagerService,

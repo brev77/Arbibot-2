@@ -9,6 +9,7 @@ import { ArbitrageOpportunityEntity } from '@arbibot/persistence';
 
 import { LiveAutoDriveConfigService } from './live-auto-drive-config.service';
 import { LiveKillSwitchService } from './live-kill-switch.service';
+import { LivePriceClientService } from './live-price-client.service';
 import { TokenResolverService, type OpportunityEvidence } from './token-resolver.service';
 import { PlanSetupOrchestrator } from './plan-setup-orchestrator.service';
 import { RiskClientService } from './risk-client.service';
@@ -85,6 +86,7 @@ export class LiveAutoDriveWorker implements OnModuleInit, OnModuleDestroy {
     private readonly tokenResolver: TokenResolverService,
     private readonly planSetup: PlanSetupOrchestrator,
     private readonly riskClient: RiskClientService,
+    private readonly livePrice: LivePriceClientService,
     @InjectRepository(ArbitrageOpportunityEntity)
     private readonly repo: Repository<ArbitrageOpportunityEntity>,
     private readonly dataSource: DataSource,
@@ -232,9 +234,25 @@ export class LiveAutoDriveWorker implements OnModuleInit, OnModuleDestroy {
 
         const evidence = payload.evidence as OpportunityEvidence | undefined;
 
-        const resolved = this.tokenResolver.resolve(instrumentKey, cfg.notionalUsd, evidence);
-        if (resolved === null) {
+        // PLAN12 #48: resolve tokens (sync) → USD price of the quote token (async oracle) →
+        // amountIns (sync). The oracle lookup is mandatory: without it the old
+        // `notionalUsd × 10^decimals` formula assumed every quote token was a $1 stablecoin,
+        // generating catastrophic amounts for WETH-quoted pairs (50 WETH for a $50 notional).
+        const tokens = this.tokenResolver.resolveTokens(instrumentKey);
+        if (tokens === null) {
           this.metrics.plansCreated.inc({ outcome: 'skip_no_token' });
+          continue;
+        }
+
+        const quoteUsd = await this.livePrice.getTokenPriceUsd(tokens.chainId, tokens.token1Address);
+        if (quoteUsd === null) {
+          this.metrics.plansCreated.inc({ outcome: 'skip_no_price' });
+          continue;
+        }
+
+        const amountIns = this.tokenResolver.computeAmountIns(tokens, cfg.notionalUsd, evidence, quoteUsd);
+        if (amountIns === null) {
+          this.metrics.plansCreated.inc({ outcome: 'skip_no_price' });
           continue;
         }
 
@@ -274,8 +292,8 @@ export class LiveAutoDriveWorker implements OnModuleInit, OnModuleDestroy {
             riskDecisionId,
             routeKey: instrumentKey,
             notionalUsd: cfg.notionalUsd,
-            tokens: resolved.tokens,
-            amountIns: resolved.amountIns,
+            tokens,
+            amountIns,
             buyVenueKey: buyVenue,
             sellVenueKey: sellVenue,
           });

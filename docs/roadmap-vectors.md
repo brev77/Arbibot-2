@@ -408,6 +408,9 @@ C1/H2/M6 и т.д. ссылочны через `tracker_ref`, операцион
 > Скоуп пятого плана (`docs/plan-hermes-live-correctness-2026-08-06.md`) — initiatives
 > `#45–#47` (сформирован из факт-чека анализа Hermes 2026-08-05: V3 pricing блокер,
 > staticNetwork-реверс, audit-UUID валидация). Все `done`.
+> Скоуп шестого плана (`docs/plan-amountin-usd-oracle-2026-08-10.md`) — initiative `#48`
+> (capital-safety: `computeAmountIns` отождествлял `notionalUsd` с human-units token1,
+> генерируя 50 WETH вместо $50 для WETH-quoted пар; фикс через USD price oracle). `done`.
 
 | # | step_id | Вектор(ы) | gate | tracker | impact | effort | score | status | plan |
 |---|---------|-----------|------|---------|--------|--------|-------|--------|------|
@@ -458,6 +461,7 @@ C1/H2/M6 и т.д. ссылочны через `tracker_ref`, операцион
 | 45 | `FUNC-V3-PRICING` | FUNC (SEC) | live-blocker | new | 5 | 3 | 15 | done | PLAN11 |
 | 46 | `SEC-RPC-STATIC-NETWORK` | SEC (REL) | live-blocker | new | 4 | 1 | 20 | done | PLAN11 |
 | 47 | `REL-AUDIT-IDEMPOTENCY-UUID` | REL (SEC) | paper-check | new | 3 | 1 | 15 | done | PLAN11 |
+| 48 | `FUNC-AMOUNTIN-USD-ORACLE` | FUNC (SEC) | live-blocker | new | 5 | 2 | 20 | done | PLAN12 |
 
 ### Легенда
 
@@ -484,7 +488,8 @@ C1/H2/M6 и т.д. ссылочны через `tracker_ref`, операцион
 
 ---
 
-*Актуализировано: 2026-08-06 (PLAN11 done — initiatives #45–#47: V3 pricing,
+*Актуализировано: 2026-08-10 (PLAN12 done — initiative #48: `amountIn` USD oracle,
+capital-safety фикс для WETH-quoted пар; PLAN11 done — initiatives #45–#47: V3 pricing,
 staticNetwork pin, audit UUID; post-Hermes correctness sweep). Все факты о
 состоянии кода проверены чтением файлов на эту дату. При изменении кода —
 обновить этот файл по принципу P2.*

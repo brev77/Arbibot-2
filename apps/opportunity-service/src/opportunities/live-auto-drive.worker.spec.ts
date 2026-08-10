@@ -6,6 +6,7 @@ import { ArbitrageOpportunityEntity } from '@arbibot/persistence';
 import { LiveAutoDriveConfigService } from './live-auto-drive-config.service';
 import { LiveAutoDriveWorker } from './live-auto-drive.worker';
 import { LiveKillSwitchService } from './live-kill-switch.service';
+import { LivePriceClientService } from './live-price-client.service';
 import { PlanSetupOrchestrator } from './plan-setup-orchestrator.service';
 import { RiskClientService } from './risk-client.service';
 import { TokenResolverService } from './token-resolver.service';
@@ -79,7 +80,15 @@ describe('LiveAutoDriveWorker', () => {
     assertLiveNotHalted: jest.fn(),
     isLiveHalted: jest.fn(),
   };
-  const tokenResolverMock: { resolve: jest.Mock } = { resolve: jest.fn() };
+  // PLAN12 #48: resolveTokens (sync) + computeAmountIns (sync) replace the old single
+  // resolve() call; livePrice.getTokenPriceUsd (async) happens between them.
+  const tokensFixture = { token0Address: '0xWETH', token1Address: '0xUSDC', decimals0: 18, decimals1: 6, chainId: 42161 };
+  const amountInsFixture = { buyAmountIn: '10000000', sellAmountIn: '5000000000000000' };
+  const tokenResolverMock: { resolveTokens: jest.Mock; computeAmountIns: jest.Mock } = {
+    resolveTokens: jest.fn(),
+    computeAmountIns: jest.fn(),
+  };
+  const livePriceMock: { getTokenPriceUsd: jest.Mock } = { getTokenPriceUsd: jest.fn() };
   const planSetupMock: { orchestrate: jest.Mock } = { orchestrate: jest.fn() };
   const riskClientMock: { getRiskDecision: jest.Mock } = { getRiskDecision: jest.fn() };
   const repoMock = { find: jest.fn(), count: jest.fn() };
@@ -107,6 +116,10 @@ describe('LiveAutoDriveWorker', () => {
     });
     configMock.ensureEffectiveConfigLoaded.mockResolvedValue(undefined);
     riskClientMock.getRiskDecision.mockResolvedValue({ id: 'rd-1', correlationId: 'risk-corr-1', outcome: 'approved' });
+    // PLAN12 #48: by default tokens resolve + oracle returns $1 (USDC) + amountIns computed.
+    tokenResolverMock.resolveTokens.mockReturnValue(tokensFixture);
+    tokenResolverMock.computeAmountIns.mockReturnValue(amountInsFixture);
+    livePriceMock.getTokenPriceUsd.mockResolvedValue(1);
     queryMock.mockResolvedValue([{ cnt: 0 }]);
     worker = new LiveAutoDriveWorker(
       configMock as unknown as LiveAutoDriveConfigService,
@@ -114,6 +127,7 @@ describe('LiveAutoDriveWorker', () => {
       tokenResolverMock as unknown as TokenResolverService,
       planSetupMock as unknown as PlanSetupOrchestrator,
       riskClientMock as unknown as RiskClientService,
+      livePriceMock as unknown as LivePriceClientService,
       repoMock as unknown as never,
       { transaction: txMock, query: queryMock } as unknown as DataSource,
     );
@@ -140,7 +154,7 @@ describe('LiveAutoDriveWorker', () => {
       killSwitchMock.assertLiveNotHalted.mockRejectedValue(new ConflictException('halted'));
       repoMock.find.mockResolvedValue([makeOpp()]);
       repoMock.count.mockResolvedValue(1);
-      tokenResolverMock.resolve.mockReturnValue(null); // would skip anyway, but halt checked first
+      tokenResolverMock.resolveTokens.mockReturnValue(null); // would skip anyway, but halt checked first
       const r = await worker.trigger();
       // The first per-opp assertLiveNotHalted throws ConflictException → runCycleInner aborts.
       expect(r.plansCreated).toBe(0);
@@ -151,10 +165,7 @@ describe('LiveAutoDriveWorker', () => {
     it('creates a plan and stamps marker for a risk_checked opp', async () => {
       repoMock.find.mockResolvedValue([makeOpp()]);
       repoMock.count.mockResolvedValue(0); // not saturated
-      tokenResolverMock.resolve.mockReturnValue({
-        tokens: { token0Address: '0xWETH', token1Address: '0xUSDC', decimals0: 18, decimals1: 6, chainId: 42161 },
-        amountIns: { buyAmountIn: '10000000', sellAmountIn: '5000000000000000' },
-      });
+      // PLAN12 #48: resolveTokens + computeAmountIns defaults from beforeEach cover this case.
       planSetupMock.orchestrate.mockResolvedValue({ planId: 'plan-1', reservationId: 'resv-1' });
       txMock.mockImplementation(async (cb: (em: unknown) => Promise<unknown>) => {
         const em = {
@@ -180,10 +191,7 @@ describe('LiveAutoDriveWorker', () => {
       // NOT the opp's own correlationId (which may differ).
       repoMock.find.mockResolvedValue([makeOpp({ correlationId: 'opp-corr-X' })]);
       repoMock.count.mockResolvedValue(0);
-      tokenResolverMock.resolve.mockReturnValue({
-        tokens: { token0Address: '0xWETH', token1Address: '0xUSDC', decimals0: 18, decimals1: 6, chainId: 42161 },
-        amountIns: { buyAmountIn: '10000000', sellAmountIn: '5000000000000000' },
-      });
+      // PLAN12 #48: resolveTokens + computeAmountIns defaults from beforeEach cover this case.
       planSetupMock.orchestrate.mockResolvedValue({ planId: 'plan-1', reservationId: 'resv-1' });
       riskClientMock.getRiskDecision.mockResolvedValue({ id: 'rd-1', correlationId: 'risk-corr-Y', outcome: 'approved' });
       txMock.mockImplementation(async (cb: (em: unknown) => Promise<unknown>) => {
@@ -203,10 +211,7 @@ describe('LiveAutoDriveWorker', () => {
     it('falls back to opp correlationId when risk-service is unreachable (resilience)', async () => {
       repoMock.find.mockResolvedValue([makeOpp({ correlationId: 'opp-fallback' })]);
       repoMock.count.mockResolvedValue(0);
-      tokenResolverMock.resolve.mockReturnValue({
-        tokens: { token0Address: '0xWETH', token1Address: '0xUSDC', decimals0: 18, decimals1: 6, chainId: 42161 },
-        amountIns: { buyAmountIn: '10000000', sellAmountIn: '5000000000000000' },
-      });
+      // PLAN12 #48: resolveTokens + computeAmountIns defaults from beforeEach cover this case.
       planSetupMock.orchestrate.mockResolvedValue({ planId: 'plan-1', reservationId: 'resv-1' });
       riskClientMock.getRiskDecision.mockResolvedValue(null); // risk-service unreachable / 404
       txMock.mockImplementation(async (cb: (em: unknown) => Promise<unknown>) => {
@@ -262,10 +267,7 @@ describe('LiveAutoDriveWorker', () => {
     it('concurrent marker race: UPDATE affects 0 rows → skip_marker_race, no double count', async () => {
       repoMock.find.mockResolvedValue([makeOpp()]);
       repoMock.count.mockResolvedValue(0);
-      tokenResolverMock.resolve.mockReturnValue({
-        tokens: { token0Address: '0xWETH', token1Address: '0xUSDC', decimals0: 18, decimals1: 6, chainId: 42161 },
-        amountIns: { buyAmountIn: '10000000', sellAmountIn: '5000000000000000' },
-      });
+      // PLAN12 #48: resolveTokens + computeAmountIns defaults from beforeEach cover this case.
       planSetupMock.orchestrate.mockResolvedValue({ planId: 'plan-1', reservationId: 'resv-1' });
       // Simulate the optimistic UPDATE returning 0 affected rows (concurrent tick won the race).
       txMock.mockImplementation(async (cb: (em: unknown) => Promise<unknown>) => {
@@ -283,7 +285,31 @@ describe('LiveAutoDriveWorker', () => {
     it('skip_no_token: resolver returns null → no plan', async () => {
       repoMock.find.mockResolvedValue([makeOpp()]);
       repoMock.count.mockResolvedValue(0);
-      tokenResolverMock.resolve.mockReturnValue(null);
+      tokenResolverMock.resolveTokens.mockReturnValue(null);
+      const r = await worker.trigger();
+      expect(r.plansCreated).toBe(0);
+      expect(planSetupMock.orchestrate).not.toHaveBeenCalled();
+    });
+
+    it('skip_no_price: oracle returns null → no plan (PLAN12 #48 fail-closed)', async () => {
+      // Tokens resolve, but the EO PriceOracleService cannot price the quote token
+      // (e.g. long-tail without a WETH pool, or EO unreachable). The worker must skip
+      // rather than fall back to the catastrophic `notionalUsd × 10^decimals` formula.
+      repoMock.find.mockResolvedValue([makeOpp()]);
+      repoMock.count.mockResolvedValue(0);
+      tokenResolverMock.resolveTokens.mockReturnValue(tokensFixture);
+      livePriceMock.getTokenPriceUsd.mockResolvedValue(null);
+      const r = await worker.trigger();
+      expect(r.plansCreated).toBe(0);
+      expect(planSetupMock.orchestrate).not.toHaveBeenCalled();
+      expect(livePriceMock.getTokenPriceUsd).toHaveBeenCalledWith(42161, '0xUSDC');
+    });
+
+    it('skip_no_price: computeAmountIns returns null (invalid buyPrice) → no plan', async () => {
+      repoMock.find.mockResolvedValue([makeOpp()]);
+      repoMock.count.mockResolvedValue(0);
+      tokenResolverMock.resolveTokens.mockReturnValue(tokensFixture);
+      tokenResolverMock.computeAmountIns.mockReturnValue(null);
       const r = await worker.trigger();
       expect(r.plansCreated).toBe(0);
       expect(planSetupMock.orchestrate).not.toHaveBeenCalled();
@@ -302,10 +328,7 @@ describe('LiveAutoDriveWorker', () => {
     it('planSetup throws → worker logs, continues to next opp (no crash)', async () => {
       repoMock.find.mockResolvedValue([makeOpp({ id: 'opp-fail' }), makeOpp({ id: 'opp-ok' })]);
       repoMock.count.mockResolvedValue(0);
-      tokenResolverMock.resolve.mockReturnValue({
-        tokens: { token0Address: '0xWETH', token1Address: '0xUSDC', decimals0: 18, decimals1: 6, chainId: 42161 },
-        amountIns: { buyAmountIn: '10000000', sellAmountIn: '5000000000000000' },
-      });
+      // PLAN12 #48: resolveTokens + computeAmountIns defaults from beforeEach cover this case.
       planSetupMock.orchestrate
         .mockRejectedValueOnce(new Error('begin-execution 422'))
         .mockResolvedValueOnce({ planId: 'plan-2', reservationId: 'resv-2' });
