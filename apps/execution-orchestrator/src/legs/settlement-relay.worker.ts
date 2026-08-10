@@ -31,7 +31,7 @@ import { PlansService } from '../plans/plans.service';
  * moved here. `EXECUTION_SETTLEMENT_ENABLED=false` keeps the relay off for
  * hermetic unit tests.
  */
-const SETTLEMENT_EVENT_TYPES = [EVENT_NAMES.legFilled, EVENT_NAMES.planCompleted];
+const SETTLEMENT_EVENT_TYPES = [EVENT_NAMES.legFilled, EVENT_NAMES.planCompleted, EVENT_NAMES.planFailed];
 
 const TRANSIENT_HTTP = new Set([429, 502, 503, 504]);
 
@@ -167,6 +167,21 @@ export class SettlementRelayWorker implements OnModuleInit, OnModuleDestroy {
         this.deliveredCounter.inc({ event_type: row.eventType, target: 'capital' });
         return true;
       }
+      if (row.eventType === EVENT_NAMES.planFailed) {
+        // PLAN14 #4a: planFailed → release the linked capital reservation (same path as
+        // planCompleted) + notify opportunity-service to clear the live_execution_plan_id
+        // marker (which frees the LiveAutoDrive slot gate — it counts the marker, not the
+        // plan state). Capital release is idempotent (capital-service returns the released
+        // row on repeat); the opp callback is best-effort (informational, not capital-critical).
+        await this.releaseCapitalFromOutbox(row);
+        await this.notifyOpportunityLiveFailed(row).catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          this.logger.warn(`opportunity live-failed callback failed (plan ${row.entityId}): ${msg}`);
+          this.failedCounter.inc({ event_type: row.eventType, reason: 'opp_callback_error' });
+        });
+        this.deliveredCounter.inc({ event_type: row.eventType, target: 'capital' });
+        return true;
+      }
       // Unknown event type — mark as delivered to avoid a stuck row.
       this.logger.warn(`Settlement relay: unknown event type ${row.eventType} (row ${row.id}) — marking processed`);
       return true;
@@ -235,6 +250,37 @@ export class SettlementRelayWorker implements OnModuleInit, OnModuleDestroy {
       return;
     }
     const url = `${base.replace(/\/$/, '')}/opportunities/${planId}/live-completed`;
+    const messageId = row.messageId ?? '';
+    await signedFetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(messageId.length > 0 ? { 'x-arbibot-msg-id': messageId } : {}),
+      },
+      body: JSON.stringify({ planId }),
+      signal: AbortSignal.timeout(5_000),
+    });
+  }
+
+  /**
+   * PLAN14 #4a: notify opportunity-service that a live plan FAILED.
+   *
+   * Mirror of {@link notifyOpportunityLiveCompleted} but hits `/live-failed`. The opp
+   * endpoint clears `live_execution_plan_id` (frees the LiveAutoDrive slot gate) and
+   * sets the opportunity state to `live_failed`. Idempotent (200 no-op if already failed).
+   * Best-effort: skipped when OPPORTUNITY_API_BASE is unset (informational, not capital-critical).
+   */
+  private async notifyOpportunityLiveFailed(row: OutboxEventEntity): Promise<void> {
+    const base = process.env.OPPORTUNITY_API_BASE?.trim();
+    if (base === undefined || base.length === 0) {
+      return;
+    }
+    const planId = typeof row.entityId === 'string' ? row.entityId : null;
+    if (planId === null) {
+      return;
+    }
+    const url = `${base.replace(/\/$/, '')}/opportunities/${planId}/live-failed`;
     const messageId = row.messageId ?? '';
     await signedFetch(url, {
       method: 'POST',

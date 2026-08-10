@@ -13,9 +13,11 @@ import {
   EVENT_NAMES,
   PLAN_ARMED_PAYLOAD_SCHEMA_VERSION,
   PLAN_COMPLETED_PAYLOAD_SCHEMA_VERSION,
+  PLAN_FAILED_PAYLOAD_SCHEMA_VERSION,
   SERVICE_IDS,
   type PlanArmedPayloadV1,
   type PlanCompletedPayloadV1,
+  type PlanFailedPayloadV1,
 } from '@arbibot/contracts';
 import {
   ExecutionLegEntity,
@@ -299,6 +301,118 @@ export class PlansService {
         payload: { state: saved.state },
       });
       return { completed: true, plan: saved };
+    });
+  }
+
+  /**
+   * Mark a plan FAILED — single-writer transition armed/executing → failed (PLAN14 #2).
+   *
+   * Currently called only by the StuckPlanReaper auto-fail path (env-guarded). Emits a
+   * `planFailed` outbox row so the settlement-relay releases the linked capital reservation
+   * and the opportunity-service clears its `live_execution_plan_id` marker (freeing the
+   * LiveAutoDrive slot gate — which counts the marker, NOT the plan state).
+   *
+   * Also sweeps the plan's non-terminal legs (created/submitting/partiallyFilled) → failed
+   * in the same transaction, so no dangling legs remain under a failed plan.
+   *
+   * Idempotent: calling on an already-terminal plan (completed/failed/canceled/...) is a
+   * no-op that returns `{ failed: false }` — no duplicate outbox row, no error. This lets
+   * the reaper retry safely and lets a manual operator call it on an already-failed plan.
+   *
+   * Mirrors the structure of {@link tryMarkPlanCompletedWhenAllLegsFilled}: pessimistic_write
+   * lock, state precondition check, entityVersion bump, outbox event, audit record.
+   *
+   * @param planId the plan to fail
+   * @param reason informational — 'stuck_reaper' (auto-fail) or 'manual' (operator)
+   */
+  async markFailed(
+    planId: string,
+    reason: 'stuck_reaper' | 'manual',
+  ): Promise<{ failed: boolean; plan: ExecutionPlanEntity | null }> {
+    return this.dataSource.transaction(async (em) => {
+      const plan = await em.findOne(ExecutionPlanEntity, {
+        where: { id: planId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (plan === null) {
+        return { failed: false, plan: null };
+      }
+      // Idempotency: only armed/executing can transition to failed. Any other state
+      // (incl. already failed, completed, canceled) is a no-op.
+      if (plan.state !== 'armed' && plan.state !== 'executing') {
+        return { failed: false, plan };
+      }
+
+      plan.state = 'failed';
+      plan.entityVersion += 1;
+      const saved = await em.save(ExecutionPlanEntity, plan);
+
+      // Sweep non-terminal legs → failed (same tx). Avoids dangling created/submitting
+      // legs under a failed plan. Terminal leg states (filled/failed/rejected/canceled/
+      // timedOut/acknowledged) are left as-is.
+      const legsForPlan = await em.find(ExecutionLegEntity, {
+        where: { planId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      const nonTerminalLegs = legsForPlan.filter(
+        (l) =>
+          l.state === 'created' ||
+          l.state === 'submitting' ||
+          l.state === 'partiallyFilled',
+      );
+      for (const leg of nonTerminalLegs) {
+        leg.state = 'failed';
+        leg.entityVersion += 1;
+        await em.save(ExecutionLegEntity, leg);
+      }
+
+      const messageId = randomUUID();
+      const createdAt = new Date();
+      const correlationForEnvelope =
+        saved.correlationId !== null && saved.correlationId.trim().length > 0
+          ? saved.correlationId
+          : saved.id;
+      const payload: PlanFailedPayloadV1 = {
+        planId: saved.id,
+        state: 'failed',
+        entityVersion: saved.entityVersion,
+        capitalReservationId: saved.capitalReservationId,
+        reason,
+      };
+      const envelope = {
+        messageId,
+        correlationId: correlationForEnvelope,
+        entityType: 'ExecutionPlan',
+        entityId: saved.id,
+        version: PLAN_FAILED_PAYLOAD_SCHEMA_VERSION,
+        sourceModule: SERVICE_IDS.executionOrchestrator,
+        eventTs: createdAt.toISOString(),
+        eventName: EVENT_NAMES.planFailed,
+        payload,
+      };
+      const outbox = em.create(OutboxEventEntity, {
+        messageId,
+        eventType: EVENT_NAMES.planFailed,
+        entityType: 'ExecutionPlan',
+        entityId: saved.id,
+        schemaVersion: PLAN_FAILED_PAYLOAD_SCHEMA_VERSION,
+        payload: payload as unknown as Record<string, unknown>,
+        envelope: envelope as unknown as Record<string, unknown>,
+        processedAt: null,
+      });
+      await em.save(OutboxEventEntity, outbox);
+
+      this.audit.record({
+        idempotencyKey: `execution:MarkPlanFailed:${saved.id}:v${saved.entityVersion}`,
+        correlationId: saved.correlationId ?? undefined,
+        actor: 'execution-orchestrator',
+        action: 'MarkPlanFailed',
+        resourceType: 'ExecutionPlan',
+        resourceId: saved.id,
+        payload: { state: saved.state, reason, legsSwept: nonTerminalLegs.length },
+      });
+
+      return { failed: true, plan: saved };
     });
   }
 

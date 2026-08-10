@@ -18,6 +18,7 @@ export const EVENT_NAMES = {
   planArmed: 'PlanArmed',
   legFilled: 'LegFilled',
   planCompleted: 'PlanCompleted',
+  planFailed: 'PlanFailed',
   opportunityDetected: 'OpportunityDetected',
   snapshotUpdated: 'SnapshotUpdated',
   paperPromotionCandidateRequested: 'PaperPromotionCandidateRequested',
@@ -167,6 +168,30 @@ export type PlanCompletedPayloadV1 = {
 };
 
 export type PlanCompletedEnvelopeV1 = EventEnvelope<PlanCompletedPayloadV1>;
+
+/**
+ * Outbox / envelope `version` and `outbox_events.schema_version` for PlanFailed (PLAN14).
+ *
+ * Emitted by `PlansService.markFailed` when a plan transitions armed/executing → failed
+ * (currently only from the StuckPlanReaper auto-fail path, env-guarded). Consumed by:
+ *   - settlement-relay → releases the linked capital reservation (same path as planCompleted)
+ *   - opportunity-service → clears `live_execution_plan_id` (frees the LiveAutoDrive slot gate)
+ *
+ * `reason` is informational (which path failed the plan). The capital-reservation and
+ * opportunity-marker effects are identical regardless of reason.
+ */
+export const PLAN_FAILED_PAYLOAD_SCHEMA_VERSION = 1 as const;
+
+export type PlanFailedPayloadV1 = {
+  readonly planId: string;
+  readonly state: 'failed';
+  readonly entityVersion: number;
+  readonly capitalReservationId: string | null;
+  /** What failed the plan — 'stuck_reaper' (auto-fail) or 'manual' (operator). Informational. */
+  readonly reason: 'stuck_reaper' | 'manual';
+};
+
+export type PlanFailedEnvelopeV1 = EventEnvelope<PlanFailedPayloadV1>;
 
 // ---------------------------------------------------------------------------
 // DEX Transaction outbox events (DEX-1-2-OUTBOX-EVENTS)

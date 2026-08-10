@@ -121,6 +121,20 @@ export class OpportunitiesController {
     return this.service.markLiveCompleted(planId);
   }
 
+  /**
+   * PLAN14 #4b: settlement-relay callback when a live plan FAILED.
+   * Clears `live_execution_plan_id` (frees the LiveAutoDrive slot gate) and sets the
+   * opportunity state to `live_failed` (terminal — operator decides whether to re-queue).
+   * The `:planId` is the execution plan id.
+   */
+  @Post(':planId/live-failed')
+  @HttpCode(HttpStatus.OK)
+  async liveFailed(
+    @Param('planId', new ParseUUIDPipe({ version: '4' })) planId: string,
+  ) {
+    return this.service.markLiveFailed(planId);
+  }
+
   @Get()
   async list() {
     const items = await this.service.list();

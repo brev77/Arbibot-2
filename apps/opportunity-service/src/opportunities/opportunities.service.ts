@@ -154,6 +154,43 @@ export class OpportunitiesService {
     });
   }
 
+  /**
+   * PLAN14 #4b: mark an opportunity's live plan as FAILED, keyed by live_execution_plan_id.
+   *
+   * Called via the settlement-relay HTTP callback (EO → opp-service) after a plan reaches
+   * `failed` (currently only from the StuckPlanReaper auto-fail path). Clears the
+   * `live_execution_plan_id` marker — this is what frees the LiveAutoDrive slot gate, which
+   * counts `state='risk_checked' AND live_execution_plan_id IS NOT NULL`. Sets state to
+   * `live_failed` (terminal — NOT re-queued to `risk_checked`, to avoid looping on a stale
+   * opportunity the operator should decide whether to re-queue).
+   *
+   * Idempotent: if the opportunity is already in a non-`risk_checked` state (completed/failed),
+   * returns 200 no-op. If no opportunity references this planId, returns 404 (the plan may
+   * belong to a non-live-auto-drive path — callback is a no-op there).
+   *
+   * Single-writer: opp-service owns the opportunity row.
+   */
+  async markLiveFailed(planId: string): Promise<{ opportunityId: string; state: string; updated: boolean }> {
+    return this.dataSource.transaction(async (em) => {
+      const opp = await em.findOne(ArbitrageOpportunityEntity, {
+        where: { liveExecutionPlanId: planId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (opp === null) {
+        throw new NotFoundException(`No opportunity with live_execution_plan_id=${planId}`);
+      }
+      // Idempotent: already advanced out of risk_checked (completed/failed) → no-op.
+      if (opp.state !== 'risk_checked') {
+        return { opportunityId: opp.id, state: opp.state, updated: false };
+      }
+      opp.state = 'live_failed';
+      opp.liveExecutionPlanId = null;
+      opp.entityVersion += 1;
+      await em.save(ArbitrageOpportunityEntity, opp);
+      return { opportunityId: opp.id, state: opp.state, updated: true };
+    });
+  }
+
   async enrich(
     id: string,
     dto: EnrichOpportunityDto,

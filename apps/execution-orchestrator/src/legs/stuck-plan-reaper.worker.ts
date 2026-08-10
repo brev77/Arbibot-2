@@ -5,6 +5,8 @@ import { ExecutionLegEntity, ExecutionPlanEntity } from '@arbibot/persistence';
 import { getArbibotMetricsRegistry } from '@arbibot/nest-platform';
 import { Counter } from 'prom-client';
 
+import { PlansService } from '../plans/plans.service';
+
 /**
  * Stuck-Plan Reaper Worker (P9-7).
  *
@@ -26,8 +28,15 @@ import { Counter } from 'prom-client';
  *      An operator can manually re-arm the plan if the tx later appears on-chain.
  *
  * Also detects plans stuck in `armed`/`executing` older than
- * PLAN_STUCK_TIMEOUT_MS (default 30 min) — surfaced as an alert metric only
- * (no automatic terminal transition for plans; an operator investigates).
+ * PLAN_STUCK_TIMEOUT_MS (default 30 min). PLAN14 #3: when
+ * STUCK_REAPER_AUTO_FAIL_PLANS=true (default OFF, safe-by-default), stuck plans
+ * are auto-failed via PlansService.markFailed — which emits `planFailed` outbox
+ * so the settlement-relay releases capital and opportunity-service clears its
+ * `live_execution_plan_id` marker (freeing the LiveAutoDrive slot gate). Before
+ * failing, the reaper re-checks that no leg has a pending on-chain tx (mirrors
+ * reapStuckLeg's on_chain_transactions check) — a plan with a genuinely
+ * mid-broadcast leg is skipped. When the flag is OFF, behavior is unchanged
+ * (alert metric + log only).
  *
  * Boundary (guard BV1): this worker ONLY writes to ExecutionLeg/ExecutionPlan
  * (owned by execution-orchestrator). It does NOT touch capital_reservations —
@@ -43,11 +52,13 @@ export class StuckPlanReaperWorker implements OnModuleInit, OnModuleDestroy {
   private readonly stuckLegCounter: Counter;
   private readonly stuckPlanCounter: Counter;
   private readonly recoveredLegCounter: Counter;
+  private readonly autoFailedPlanCounter: Counter;
 
   constructor(
     private readonly dataSource: DataSource,
     @InjectRepository(ExecutionLegEntity)
     private readonly legsRepo: Repository<ExecutionLegEntity>,
+    private readonly plansService: PlansService,
   ) {
     const registry = getArbibotMetricsRegistry();
     const legMetric = 'arb_execution_stuck_leg_detected_total';
@@ -80,6 +91,16 @@ export class StuckPlanReaperWorker implements OnModuleInit, OnModuleDestroy {
             labelNames: ['outcome'],
             registers: [registry],
           });
+    const autoFailMetric = 'arb_execution_stuck_plan_auto_failed_total';
+    this.autoFailedPlanCounter =
+      registry.getSingleMetric(autoFailMetric) instanceof Counter
+        ? (registry.getSingleMetric(autoFailMetric) as Counter)
+        : new Counter({
+            name: autoFailMetric,
+            help: 'Stuck plans auto-failed by the reaper (PLAN14 #3)',
+            labelNames: ['reason'],
+            registers: [registry],
+          });
   }
 
   onModuleInit(): void {
@@ -105,14 +126,20 @@ export class StuckPlanReaperWorker implements OnModuleInit, OnModuleDestroy {
     this.logger.log('Stuck-plan reaper shutting down');
   }
 
-  async runCycle(): Promise<{ legsRecovered: number; legsFailed: number; plansStuck: number }> {
+  async runCycle(): Promise<{
+    legsRecovered: number;
+    legsFailed: number;
+    plansStuck: number;
+    plansAutoFailed: number;
+  }> {
     if (this.isRunning || this.isShuttingDown) {
-      return { legsRecovered: 0, legsFailed: 0, plansStuck: 0 };
+      return { legsRecovered: 0, legsFailed: 0, plansStuck: 0, plansAutoFailed: 0 };
     }
     this.isRunning = true;
     let legsRecovered = 0;
     let legsFailed = 0;
     let plansStuck = 0;
+    let plansAutoFailed = 0;
     try {
       const legTimeoutMs = Number(process.env.LEG_STUCK_TIMEOUT_MS ?? 300_000);
       const planTimeoutMs = Number(process.env.PLAN_STUCK_TIMEOUT_MS ?? 1_800_000);
@@ -136,26 +163,60 @@ export class StuckPlanReaperWorker implements OnModuleInit, OnModuleDestroy {
         }
       }
 
-      // 2. Surface stuck plans (alert-only, no auto-transition).
+      // 2. Stuck plans. PLAN14 #3: fetch rows (not just count) and, when
+      // STUCK_REAPER_AUTO_FAIL_PLANS=true, auto-fail them via PlansService.markFailed
+      // (which emits planFailed → settlement-relay releases capital + opp-service clears
+      // the live_execution_plan_id marker). Default OFF (safe-by-default); when OFF the
+      // behavior is unchanged (alert metric + log only).
       const planCutoff = new Date(Date.now() - planTimeoutMs);
       const stuckPlans = await this.dataSource
         .getRepository(ExecutionPlanEntity)
         .createQueryBuilder('plan')
         .where('plan.state IN (:...states)', { states: ['armed', 'executing'] })
         .andWhere('plan.updatedAt < :cutoff', { cutoff: planCutoff })
-        .getCount();
-      if (stuckPlans > 0) {
-        this.stuckPlanCounter.inc({ state: 'armed_or_executing' }, stuckPlans);
+        .getMany();
+      if (stuckPlans.length > 0) {
+        this.stuckPlanCounter.inc({ state: 'armed_or_executing' }, stuckPlans.length);
         this.logger.warn(
-          `${stuckPlans} plan(s) stuck in armed/executing for >${planTimeoutMs}ms — operator investigation required`,
+          `${stuckPlans.length} plan(s) stuck in armed/executing for >${planTimeoutMs}ms`,
         );
-        plansStuck = stuckPlans;
+        plansStuck = stuckPlans.length;
+
+        const autoFailEnabled = process.env.STUCK_REAPER_AUTO_FAIL_PLANS === 'true';
+        if (autoFailEnabled) {
+          for (const plan of stuckPlans) {
+            // Safety: skip plans with a genuinely mid-broadcast leg (a submitting leg
+            // with a pending on-chain tx). Such a plan may legitimately still progress;
+            // the leg-reaper (5-min cycle) handles those legs. Reuse the same
+            // on_chain_transactions existence check as reapStuckLeg.
+            const hasPendingTx = await this.planHasPendingOnChainTx(plan.id);
+            if (hasPendingTx) {
+              this.logger.log(
+                `auto-fail: skipping plan ${plan.id} (has a submitting leg with a pending on-chain tx — giving the leg reaper a chance)`,
+              );
+              continue;
+            }
+            try {
+              const result = await this.plansService.markFailed(plan.id, 'stuck_reaper');
+              if (result.failed) {
+                plansAutoFailed += 1;
+                this.autoFailedPlanCounter.inc({ reason: 'stuck_reaper' });
+                this.logger.warn(
+                  `auto-fail: plan ${plan.id} → failed (stuck >${planTimeoutMs}ms, no pending on-chain tx). Capital + opportunity marker will be released via planFailed outbox.`,
+                );
+              }
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err);
+              this.logger.error(`auto-fail: markFailed(${plan.id}) threw: ${msg}`);
+            }
+          }
+        }
       }
-      return { legsRecovered, legsFailed, plansStuck };
+      return { legsRecovered, legsFailed, plansStuck, plansAutoFailed };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(`Stuck-plan reaper cycle failed: ${msg}`);
-      return { legsRecovered, legsFailed, plansStuck };
+      return { legsRecovered, legsFailed, plansStuck, plansAutoFailed };
     } finally {
       this.isRunning = false;
     }
@@ -228,6 +289,36 @@ export class StuckPlanReaperWorker implements OnModuleInit, OnModuleDestroy {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(`Reaper failed to reconcile stuck leg ${leg.id}: ${msg}`);
       return 'failed';
+    }
+  }
+
+  /**
+   * PLAN14 #3: check whether a plan has a `submitting` leg with a pending on-chain tx.
+   * Used by the auto-fail path to skip plans that may still be genuinely mid-broadcast
+   * (the leg-reaper on its 5-min cycle owns those). Mirrors the on_chain_transactions
+   * existence check in {@link reapStuckLeg} but at the plan level: any submitting leg of
+   * the plan with ANY on-chain tx row (pending or confirmed) counts as "in flight".
+   */
+  private async planHasPendingOnChainTx(planId: string): Promise<boolean> {
+    try {
+      const submittingLegs = await this.legsRepo.find({
+        where: { planId, state: 'submitting' as ExecutionLegEntity['state'] },
+        select: ['id'],
+      });
+      if (submittingLegs.length === 0) {
+        return false;
+      }
+      const legIds = submittingLegs.map((l) => l.id);
+      const rows = await this.dataSource.query(
+        `SELECT 1 FROM on_chain_transactions
+         WHERE leg_id = ANY($1::uuid[])
+         LIMIT 1`,
+        [legIds],
+      );
+      return Array.isArray(rows) && rows.length > 0;
+    } catch {
+      // On query error, be conservative (don't skip auto-fail on a transient DB error).
+      return false;
     }
   }
 }
