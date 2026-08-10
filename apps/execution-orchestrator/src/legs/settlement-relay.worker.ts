@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
+import { DataSource, IsNull } from 'typeorm';
 import { EVENT_NAMES } from '@arbibot/contracts';
 import { getArbibotMetricsRegistry, signedFetch } from '@arbibot/nest-platform';
 import { Counter } from 'prom-client';
@@ -108,10 +108,14 @@ export class SettlementRelayWorker implements OnModuleInit, OnModuleDestroy {
     try {
       const rows = await this.dataSource.transaction(async (em) => {
         // Lock a small batch of unprocessed settlement rows.
+        // IsNull() is required — `processedAt: undefined as never` (the previous form) is
+        // IGNORED by TypeORM's FindOptionsWhere, so the query returned ALL rows including
+        // already-processed ones, causing the relay to re-deliver LegFilled/PlanCompleted
+        // rows every cycle and starve PlanFailed rows later in created_at order.
         const batch = await em.find(OutboxEventEntity, {
           where: SETTLEMENT_EVENT_TYPES.map((eventType) => ({
             eventType,
-            processedAt: undefined as never,
+            processedAt: IsNull(),
           })),
           take: Number(process.env.SETTLEMENT_RELAY_BATCH_SIZE ?? 10),
           order: { createdAt: 'ASC' },
