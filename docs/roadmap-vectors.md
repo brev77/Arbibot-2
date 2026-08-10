@@ -412,11 +412,13 @@ C1/H2/M6 и т.д. ссылочны через `tracker_ref`, операцион
 > (capital-safety: `computeAmountIns` отождествлял `notionalUsd` с human-units token1,
 > генерируя 50 WETH вместо $50 для WETH-quoted пар; фикс через USD price oracle). `done`.
 > Скоуп седьмого плана (`docs/plan-slippage-same-decimals-2026-08-10.md`) — initiatives
-> `#49–#50`: `#49` (capital-safety: `enforcePostQuoteSlippageGate` сравнивал raw human-units
-> при одинаковых decimals — 42.92 CRV vs 0.005467 WETH = 9999 bps, блокируя каждый cross-token
-> arb; фикс — всегда USD compare); `#50` (gas leak: ERC20 `approve` выполнялся до slippage
+> `#49–#51`: `#49` (capital-safety: `enforcePostQuoteSlippageGate` сравнивал raw human-units при одинаковых
+> decimals — 42.92 CRV vs 0.005467 WETH = 9999 bps, блокируя каждый cross-token arb; фикс —
+> всегда USD compare); `#50` (gas leak: ERC20 `approve` выполнялся до slippage
 > gate — каждый gate-blocked своп тратил gas на approve tx; фикс — переставить quote+gate
-> перед approve во всех 5 адаптерах). Оба `done`.
+> перед approve во всех 5 адаптерах); `#51` (native wrap: кошелёк содержит naked ETH, но DEX
+> router требует WETH — `TRANSFER_FROM_FAILED`; фикс — `ensureWrappedNativeBalance` перед
+> approve во всех 5 адаптерах). Все `done`.
 
 | # | step_id | Вектор(ы) | gate | tracker | impact | effort | score | status | plan |
 |---|---------|-----------|------|---------|--------|--------|-------|--------|------|
@@ -470,6 +472,7 @@ C1/H2/M6 и т.д. ссылочны через `tracker_ref`, операцион
 | 48 | `FUNC-AMOUNTIN-USD-ORACLE` | FUNC (SEC) | live-blocker | new | 5 | 2 | 20 | done | PLAN12 |
 | 49 | `SEC-SLIPPAGE-SAME-DECIMALS` | SEC (FUNC) | live-blocker | new | 5 | 1 | 25 | done | PLAN13 |
 | 50 | `SEC-APPROVE-AFTER-GATE` | SEC (FUNC) | live-blocker | new | 4 | 1 | 20 | done | PLAN13 |
+| 51 | `FUNC-WRAP-NATIVE-BEFORE-SWAP` | FUNC (SEC) | live-blocker | new | 5 | 2 | 20 | done | PLAN13 |
 
 ### Легенда
 

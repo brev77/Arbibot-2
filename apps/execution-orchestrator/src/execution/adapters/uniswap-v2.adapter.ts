@@ -26,6 +26,7 @@ import { GasEstimatorService } from '../gas/gas-estimator.service';
 import { TokenApproveService } from '../token/token-approve.service';
 import { DexRiskPolicyService } from '../risk/dex-risk-policy.service';
 import { PriceOracleService } from '../price/price-oracle.service';
+import { ensureWrappedNativeBalance } from './native-wrap';
 
 // ───────────────────────────────────────────────────────────────────────
 // Types
@@ -568,6 +569,14 @@ export class UniswapV2Adapter implements VenueAdapter {
 
       // 6.5 Ensure ERC20 approval for the router (PLAN13 #50: moved after slippage gate so
       // a gate-blocked swap does not spend gas on an approve tx).
+      // PLAN13 #51: if tokenIn is the wrapped native (WETH/WBNB) and the wallet holds only
+      // naked ETH, wrap the shortfall so the router's transferFrom succeeds.
+      await ensureWrappedNativeBalance({
+        chainId: params.chainId,
+        tokenIn: params.tokenIn,
+        amountIn: params.amountIn,
+        wallet: selectedWallet,
+      });
       await this.ensureApproval(params, selectedWallet, routerAddress);
 
       // 7. Estimate gas and check policy

@@ -35,6 +35,7 @@ import {
   enforcePostQuoteSlippageGate,
   recordLiveTradeVolume,
 } from './uniswap-v2.adapter';
+import { ensureWrappedNativeBalance } from './native-wrap';
 
 // ───────────────────────────────────────────────────────────────────────
 // Types
@@ -411,6 +412,14 @@ export class UniswapV3Adapter implements VenueAdapter {
 
       // 5. Ensure ERC20 approval for the router (PLAN13 #50: moved after slippage gate so
       // a gate-blocked swap does not spend gas on an approve tx).
+      // PLAN13 #51: if tokenIn is the wrapped native (WETH/WBNB) and the wallet holds only
+      // naked ETH, wrap the shortfall so the router's transferFrom succeeds.
+      await ensureWrappedNativeBalance({
+        chainId: params.chainId,
+        tokenIn: params.tokenIn,
+        amountIn: params.amountIn,
+        wallet: selectedWallet,
+      });
       await this.ensureApproval(params, selectedWallet, routerAddress);
       step('approval_confirmed');
 

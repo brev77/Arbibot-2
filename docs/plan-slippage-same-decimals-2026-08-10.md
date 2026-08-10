@@ -84,6 +84,7 @@ coincidentally работает. Ни один тест не проверял **
 |---|---------|-----------|------|---------|--------|--------|-------|--------|------|
 | 49 | `SEC-SLIPPAGE-SAME-DECIMALS` | SEC (FUNC) | **live-blocker** | new | 5 | 1 | 25 | done | PLAN13 |
 | 50 | `SEC-APPROVE-AFTER-GATE` | SEC (FUNC) | **live-blocker** | new | 4 | 1 | 20 | done | PLAN13 |
+| 51 | `FUNC-WRAP-NATIVE-BEFORE-SWAP` | FUNC (SEC) | **live-blocker** | new | 5 | 2 | 20 | done | PLAN13 |
 
 ### Легенда
 
@@ -190,6 +191,42 @@ view call, не требует allowance и не тратит gas. Перест�
       до approve.
 - [x] Build/lint/test EO green (871/871, 55 suites — моки шагов не завязаны на порядок).
 - [x] `docs/roadmap-vectors.md` — инициатива #50 → `done`.
+
+### #51. `FUNC-WRAP-NATIVE-BEFORE-SWAP` — native wrap перед swap
+
+| Поле | Значение |
+|------|----------|
+| **Вектор** | `FUNC` (live execution), вторичный `SEC` (capital safety) |
+| **gate** | `live-blocker` |
+| **impact / effort / score** | 5 / 2 / 20 |
+| **Корневые файлы** | `apps/execution-orchestrator/src/execution/adapters/native-wrap.ts` (новый), `apps/execution-orchestrator/src/execution/adapters/{uniswap-v2,sushiswap-v2,pancakeswap-v2,biswap-v2,uniswap-v3}.adapter.ts` |
+
+#### Проблема (подтверждено on-chain read)
+
+Кошелёк `0xDea3…46f3` содержит **0.0058 ETH, но 0 WETH**. DEX routers работают с ERC20
+(`swapExactTokensForTokens` → `transferFrom`), поэтому swap где `tokenIn=WETH` падает с
+`TransferHelper: TRANSFER_FROM_FAILED` — router не может списать WETH, которого нет на балансе.
+
+Это блокирует каждый arb где quote-token = WETH (CRV/WETH, MAGIC/WETH, UNI/WETH и т.д.) —
+большинство пар на Arbitrum.
+
+#### Решение
+
+Создан `ensureWrappedNativeBalance()` (`native-wrap.ts`) — вызывается перед `ensureApproval`
+в каждом из 5 адаптеров. Если `tokenIn` = wrapped native (WETH/WBNB) и баланс ниже `amountIn`,
+отправляет `WETH.deposit({value: shortfall})` (wrap ETH → WETH 1:1). Idempotent: если баланс
+уже достаточен (например WETH получен с предыдущего buy leg) — no-op.
+
+**Resilience:** если `balanceOf` падает (RPC down, mock wallet без provider), helper логирует
+warn и продолжает — swap сам упадёт с понятной ошибкой если WETH действительно нужен.
+
+#### DoD
+
+- [x] `ensureWrappedNativeBalance` создан, вызывается перед approve во всех 5 адаптерах.
+- [x] Unit-тесты: no-op для non-native tokenIn, no-op при достаточном балансе, wrap shortfall,
+      partial balance, revert handling (5 тестов).
+- [x] Build/lint/test EO green (876/876, 56 suites).
+- [x] `docs/roadmap-vectors.md` — инициатива #51 → `done`.
 
 ---
 
