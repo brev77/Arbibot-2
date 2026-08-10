@@ -13,26 +13,9 @@ import { ScannerFilterService } from './scanner-filter.service';
 import { ScannerDedupService } from './scanner-dedup.service';
 import { ScannerPublisherService } from './scanner-publisher.service';
 import { ScannerConfigService } from './scanner-config.service';
+import { resolveQuoteUsd } from './scanner-stablecoins';
 import type { PoolSnapshot } from './scanner-pool.service';
 import type { CrossVenueSpread } from './scanner-spread.service';
-
-/**
- * Stablecoin quote-token addresses (lowercased) — when token1 is one of these, the
- * pool's USD liquidity equals the quote reserve directly (no native-asset price needed).
- * Covers the mainnet USDC/USDT variants on Arbitrum, Base, and BNB Chain. PLAN13 #2.
- */
-const STABLE_QUOTE_ADDRESSES = new Set<string>([
-  // Arbitrum One
-  '0xaf88d065e77c8cc2239327c5edb3a432268e5831', // USDC (native)
-  '0xff970a61a0441d484cfed813f5a3d11da5e1d19a', // USDC.e (bridged)
-  '0xfd086bc7cd5c481dcc9c85ebe7830bdb9567fcf5', // USDT
-  // Base
-  '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913', // USDC (native)
-  '0x036cbd53842c5426634e7929541ec2318f3dcf7e', // USDC (bridged)
-  // BNB Chain
-  '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d', // USDC
-  '0x55d398326f99059ff775485246999027b3197955', // USDT
-]);
 
 /**
  * Pipeline orchestrator (S2-4-INTEGRATE).
@@ -143,11 +126,12 @@ export class ScannerPipelineService {
       const nativeUsd = Number(process.env.SCANNER_NATIVE_USD ?? 0);
 
       for (const pairPools of byPair.values()) {
-        // Per-pair quoteUsd: 1.0 for stablecoin quotes (USDC/USDT), nativeUsd for WETH/WBNB.
+        // Per-pair quoteUsd: 1.0 when EITHER token is a stablecoin (checked both legs — some
+        // pools sort the stable as token0), else the native-asset USD price (SCANNER_NATIVE_USD).
         const first = pairPools[0];
         const quoteUsd =
-          first !== undefined && STABLE_QUOTE_ADDRESSES.has(first.token1.toLowerCase())
-            ? 1
+          first !== undefined
+            ? resolveQuoteUsd(first.token0, first.token1, nativeUsd)
             : nativeUsd;
         const spread = this.spreadService.detect(
           pairPools,

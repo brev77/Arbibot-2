@@ -12,6 +12,7 @@ import {
   type FactoryMapping,
 } from './scanner-pool.constants';
 import { DEFAULT_SCANNER_POOL_CACHE_TTL_MS } from './scanner-config.constants';
+import { resolveQuoteUsd } from './scanner-stablecoins';
 import { ScannerRpcService } from './scanner-rpc.service';
 
 /** Typed view-method surfaces for the V2/V3 pool contracts (cast from ethers Contract). */
@@ -203,9 +204,35 @@ export class ScannerPoolService {
     // Try V2 first (cheaper, one multicall). Fall back to V3 if V2 calls revert.
     const v2 = await this.tryV2(chainId, poolAddress, provider).catch(() => null);
     if (v2 !== null) {
-      return v2;
+      return this.withLiquidityUsd(v2);
     }
-    return this.tryV3(chainId, poolAddress, provider).catch(() => null);
+    const v3 = await this.tryV3(chainId, poolAddress, provider).catch(() => null);
+    if (v3 !== null) {
+      return this.withLiquidityUsd(v3);
+    }
+    return null;
+  }
+
+  /**
+   * Populate `liquidityUsd` on a freshly-read pool snapshot (PLAN13/Hermes improvement).
+   *
+   * Previously `liquidityUsd` was always `null` and the spread-service computed USD liquidity
+   * on-the-fly in `bestSpreadForPair`. Filling it here makes the value available on the
+   * snapshot itself — for observability (logs show each pool's USD liquidity), for future
+   * filters that read `PoolSnapshot` directly, and so the spread filter doesn't recompute it.
+   *
+   * USD conversion: `resolveQuoteUsd` returns 1.0 when EITHER token is a stablecoin (checked
+   * both legs — some pools sort the stable as token0), else the native-asset USD price from
+   * `SCANNER_NATIVE_USD`. V3 pools return null (their reserve fields hold `liquidity`, not
+   * real reserves). Pure + synchronous; `SCANNER_NATIVE_USD` is read once per call.
+   */
+  private withLiquidityUsd(snapshot: PoolSnapshot): PoolSnapshot {
+    if (snapshot.family === 'v3') {
+      return snapshot; // V3 reserve0/1 hold `liquidity`, not real reserves — leave null.
+    }
+    const nativeUsd = Number(process.env.SCANNER_NATIVE_USD ?? 0);
+    const quoteUsd = resolveQuoteUsd(snapshot.token0, snapshot.token1, nativeUsd);
+    return { ...snapshot, liquidityUsd: computePoolLiquidityUsdFromSnapshot(snapshot, quoteUsd) };
   }
 
   private async tryV2(
@@ -311,4 +338,41 @@ export class ScannerPoolService {
   resolveFactoryMapping(chainId: number, factoryAddress: string): FactoryMapping | undefined {
     return resolveFactory(chainId, factoryAddress);
   }
+}
+
+/**
+ * Compute a V2 pool's approximate liquidity in USD from its reserves (PLAN13 #1, relocated
+ * from spread-service so it can populate `PoolSnapshot.liquidityUsd` at read time).
+ *
+ * Only meaningful for V2 pools, which carry real `getReserves()` values. V3 pools store
+ * `liquidity` in reserve0/reserve1 — the caller passes `quoteUsd` and this function returns
+ * the sum of both legs' USD value; V3 snapshots are skipped upstream (`withLiquidityUsd`).
+ *
+ * `quoteUsd` is the USD price of the quote token: `1.0` for stablecoins (resolved by
+ * `resolveQuoteUsd` from either token0 or token1), else `SCANNER_NATIVE_USD` for WETH/WBNB.
+ * Returns 0 when reserves are null/missing (defensive — treated as illiquid, fail-safe).
+ *
+ * Exported so the spread-service dead-pool filter can reuse the same math without duplicating.
+ */
+export function computePoolLiquidityUsdFromSnapshot(
+  pool: PoolSnapshot,
+  quoteUsd: number,
+): number | null {
+  if (pool.family === 'v3') {
+    return null;
+  }
+  const { reserve0, reserve1, decimals0, decimals1, quotePerBase } = pool;
+  if (reserve0 === null || reserve1 === null) {
+    return 0;
+  }
+  if (decimals0 <= 0 || decimals1 <= 0 || !Number.isFinite(quotePerBase) || quotePerBase <= 0) {
+    return 0;
+  }
+  if (!Number.isFinite(quoteUsd) || quoteUsd <= 0) {
+    return 0;
+  }
+  const baseHuman = Number(reserve0) / 10 ** decimals0;
+  const quoteHumanFromBase = baseHuman * quotePerBase;
+  const quoteHuman = Number(reserve1) / 10 ** decimals1;
+  return (quoteHumanFromBase + quoteHuman) * quoteUsd;
 }
