@@ -373,12 +373,11 @@ export class UniswapV3Adapter implements VenueAdapter {
       );
       step('wallet_selected', `address=${selectedWallet.address}`);
 
-      // 4. Ensure ERC20 approval for the router
-      await this.ensureApproval(params, selectedWallet, routerAddress);
-      step('approval_confirmed');
-
-      // 5. Calculate amountOutMinimum: live QuoterV2 quote (with fallback to
-      //    detection-time amountOutExpected) + slippage tolerance.
+      // 4. Calculate amountOutMinimum: live QuoterV2 quote (with fallback to
+      //    detection-time amountOutExpected) + slippage tolerance. (PLAN13 #50: quote BEFORE
+      //    approve — QuoterV2.quoteExactInputSingle is a read-only view call, no allowance
+      //    needed. This lets the slippage gate reject a bad swap before we spend gas on an
+      //    ERC20 approve tx.)
       const { amountOutMin, usedLiveQuote, expectedAmountOut } = await this.calculateAmountOutMin(params);
 
       this.logger.debug(
@@ -386,7 +385,7 @@ export class UniswapV3Adapter implements VenueAdapter {
       );
       step('amount_out_min', `amountOutMin=${amountOutMin} usedLiveQuote=${usedLiveQuote}`);
 
-      // 5.5 P9-5: post-quote live slippage gate using the REAL quote. This is
+      // 4.5 P9-5: post-quote live slippage gate using the REAL quote. This is
       // the protection the pre-flight gate could not provide. If the Quoter was
       // unreachable and we fell back to the detection-time `amountOutExpected`,
       // the gate still runs — a stale quote that no longer reflects the pool
@@ -409,6 +408,11 @@ export class UniswapV3Adapter implements VenueAdapter {
         expectedAmountOut,
       });
       step('slippage_gate_passed');
+
+      // 5. Ensure ERC20 approval for the router (PLAN13 #50: moved after slippage gate so
+      // a gate-blocked swap does not spend gas on an approve tx).
+      await this.ensureApproval(params, selectedWallet, routerAddress);
+      step('approval_confirmed');
 
       // 6. Estimate gas and check policy
       const recipient = params.recipient ?? selectedWallet.address;

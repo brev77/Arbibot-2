@@ -83,6 +83,7 @@ coincidentally работает. Ни один тест не проверял **
 | # | step_id | Вектор(ы) | gate | tracker | impact | effort | score | status | plan |
 |---|---------|-----------|------|---------|--------|--------|-------|--------|------|
 | 49 | `SEC-SLIPPAGE-SAME-DECIMALS` | SEC (FUNC) | **live-blocker** | new | 5 | 1 | 25 | done | PLAN13 |
+| 50 | `SEC-APPROVE-AFTER-GATE` | SEC (FUNC) | **live-blocker** | new | 4 | 1 | 20 | done | PLAN13 |
 
 ### Легенда
 
@@ -142,6 +143,53 @@ decimals). Текст: `cannot price tokens for slippage check (tokenIn=..., tok
 - [x] Тест CRV/WETH (real loss) — blocks.
 - [x] Build/lint/test EO green (871/871, 55 suites).
 - [x] `docs/roadmap-vectors.md` — инициатива #49 → `done`.
+
+### #50. `SEC-APPROVE-AFTER-GATE` — approve после slippage gate
+
+| Поле | Значение |
+|------|----------|
+| **Вектор** | `SEC` (capital safety — gas leak), вторичный `FUNC` |
+| **gate** | `live-blocker` |
+| **impact / effort / score** | 4 / 1 / 20 |
+| **Корневые файлы** | `apps/execution-orchestrator/src/execution/adapters/{uniswap-v2,sushiswap-v2,pancakeswap-v2,biswap-v2,uniswap-v3}.adapter.ts` (5 адаптеров) |
+
+#### Проблема (подтверждено кодом)
+
+Во всех 5 DEX-адаптерах порядок шагов `submitLeg` был:
+
+```
+3. selectWallet
+4. ensureApproval    ← broadcast ERC20 approve tx (тратит gas)
+5. calculateAmountOutMin (quote — read-only view call, gas-free)
+6. enforcePostQuoteSlippageGate  ← блокирует если price impact > max
+7. broadcast swap tx
+```
+
+Если gate блокирует (step 6), approve (step 4) **уже выполнен** — gas потрачен впустую.
+Каждый failed-at-gate attempt терял ~$0.015 на approve. Hermes наблюдал падение ETH
+баланса: `0.005824 → 0.005816 ETH` за серию failed attempts.
+
+#### Решение
+
+Переставить quote + gate **перед** approve во всех 5 адаптерах:
+
+```
+3. selectWallet
+4. calculateAmountOutMin (quote — read-only, gas-free)
+5. enforcePostQuoteSlippageGate  ← блокирует ДО approve → gas не тратится
+6. ensureApproval    ← только если gate прошёл
+7. broadcast swap tx
+```
+
+Quote (`getAmountsOut` для V2 / `QuoterV2.quoteExactInputSingle` для V3) — это read-only
+view call, не требует allowance и не тратит gas. Перестановка безопасна.
+
+#### DoD
+
+- [x] Все 5 адаптеров (UniV2, SushiV2, PancakeV2, BiswapV2, UniV3) выполняют quote+gate
+      до approve.
+- [x] Build/lint/test EO green (871/871, 55 suites — моки шагов не завязаны на порядок).
+- [x] `docs/roadmap-vectors.md` — инициатива #50 → `done`.
 
 ---
 

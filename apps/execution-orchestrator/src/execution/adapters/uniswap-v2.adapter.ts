@@ -535,13 +535,12 @@ export class UniswapV2Adapter implements VenueAdapter {
         BigInt(params.amountIn),
       );
 
-      // 4. Ensure ERC20 approval for the router
-      await this.ensureApproval(params, selectedWallet, routerAddress);
-
-      // 5. Build swap path
+      // 4. Build swap path
       const swapPath = params.path ?? [params.tokenIn, params.tokenOut];
 
-      // 6. Calculate amountOutMin via on-chain quote + slippage
+      // 5. Calculate amountOutMin via on-chain quote + slippage (PLAN13 #50: quote BEFORE
+      // approve — getAmountsOut is a read-only view call, no allowance needed. This lets the
+      // slippage gate reject a bad swap before we spend gas on an ERC20 approve tx.)
       const { amountOutMin, expectedAmountOut } = await this.calculateAmountOutMin(
         params,
         provider,
@@ -549,7 +548,7 @@ export class UniswapV2Adapter implements VenueAdapter {
         swapPath,
       );
 
-      // 6.5 P9-5: post-quote live slippage gate. enforceLiveRiskGate (pre-flight)
+      // 6. P9-5: post-quote live slippage gate. enforceLiveRiskGate (pre-flight)
       // cannot know the real market impact before the on-chain quote, so it
       // passed the slippage *tolerance* as estimatedSlippageBps (always ≤ max →
       // always allowed). Here we have the real router quote: compute the actual
@@ -566,6 +565,10 @@ export class UniswapV2Adapter implements VenueAdapter {
         amountIn: params.amountIn,
         expectedAmountOut,
       });
+
+      // 6.5 Ensure ERC20 approval for the router (PLAN13 #50: moved after slippage gate so
+      // a gate-blocked swap does not spend gas on an approve tx).
+      await this.ensureApproval(params, selectedWallet, routerAddress);
 
       // 7. Estimate gas and check policy
       const recipient = params.recipient ?? selectedWallet.address;
