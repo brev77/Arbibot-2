@@ -90,6 +90,7 @@ const scannerVolumeRangeSchema = z
 const scannerFiltersSchema = z
   .object({
     minSpreadBps: z.number().nonnegative().optional(),
+    minPoolLiquidityUsd: z.number().nonnegative().optional(),
     minLiquidityUsd: z.number().nonnegative().optional(),
     volumeRange: scannerVolumeRangeSchema.optional(),
     blacklistTokens: z.array(z.string()).optional(),

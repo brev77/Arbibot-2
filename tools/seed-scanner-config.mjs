@@ -38,6 +38,10 @@ const SCANNER_DEFAULTS = JSON.stringify({
   opportunityPublishTimeoutMs: 5000,
   defaultFilters: {
     minSpreadBps: 30,
+    // PLAN13 #2: minimum V2-pool USD liquidity — dead pools (abandoned pairs with < $500 of
+    // reserves) are dropped before buy/sell selection. Requires SCANNER_NATIVE_USD for WETH
+    // pairs; stablecoin (USDC/USDT) pairs are priced at 1.0. 0 / unset = filter off.
+    minPoolLiquidityUsd: 500,
     minLiquidityUsd: 50000,
     volumeRange: { enabled: false, min1hUsd: 0, max24hUsd: 0 },
     blacklistTokens: [],

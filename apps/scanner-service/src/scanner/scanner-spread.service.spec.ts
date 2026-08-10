@@ -179,4 +179,133 @@ describe('ScannerSpreadService', () => {
       expect(service.detect(pools)).toBeNull();
     });
   });
+
+  describe('detect — dead-pool filter (PLAN13 #2)', () => {
+    // A healthy V2 pool: 1 WETH (1e18) reserve × $2000 = $2000 + 2000 USDC (2e9) × $1.
+    // reserve0 = base (WETH), reserve1 = quote (USDC). quotePerBase = USDC per WETH = 2000.
+    const healthyV2 = (overrides: Partial<PoolSnapshot> = {}): PoolSnapshot =>
+      makePool({
+        venueKey: 'sushiswap',
+        family: 'v2',
+        token0: '0xWETH',
+        token1: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', // USDC (Arbitrum, lowercase-checked later)
+        decimals0: 18,
+        decimals1: 6,
+        quotePerBase: 2000,
+        reserve0: 1_000_000_000_000_000_000n, // 1 WETH
+        reserve1: 2_000_000_000n, // 2000 USDC
+        ...overrides,
+      });
+    // A dead V2 pool: 0.001 WETH + 0.5 USDC ≈ $2.50 liquidity.
+    const deadV2 = (overrides: Partial<PoolSnapshot> = {}): PoolSnapshot =>
+      healthyV2({
+        venueKey: 'sushiswap-dead',
+        poolAddress: '0xDEAD',
+        reserve0: 1_000_000_000_000_000n, // 0.001 WETH
+        reserve1: 500_000n, // 0.5 USDC
+        quotePerBase: 500, // anomalous cheap price from the tiny reserves
+        ...overrides,
+      });
+
+    it('excludes a V2 pool below the liquidity threshold before buy/sell selection', () => {
+      // Without the filter the dead pool's anomalous price (500) would dominate the spread.
+      // With the filter it is dropped, so no spread forms against the dead pool.
+      const pools = [healthyV2({ quotePerBase: 2000 }), deadV2({ quotePerBase: 500 })];
+      // minPoolLiquidityUsd=500, quoteUsd=1 (USDC quote). healthy ~$4000, dead ~$2.50.
+      const result = service.detect(pools, 0, 1000, 500, 1);
+      // Only one pool survives → null (cannot form a 2-venue spread).
+      expect(result).toBeNull();
+    });
+
+    it('keeps both pools when both are above the threshold', () => {
+      const pools = [
+        healthyV2({ venueKey: 'a', quotePerBase: 2000 }),
+        healthyV2({ venueKey: 'b', poolAddress: '0xB', quotePerBase: 2010 }),
+      ];
+      const result = service.detect(pools, 0, 1000, 500, 1);
+      expect(result).not.toBeNull();
+      expect((result as CrossVenueSpread).spreadBps).toBeGreaterThan(0);
+    });
+
+    it('exempts V3 pools from the reserve threshold (their reserves are liquidity, not TVL)', () => {
+      // A V3 pool with "reserves" (actually liquidity) that would fail the threshold if treated as V2.
+      const v3 = healthyV2({
+        family: 'v3',
+        venueKey: 'uniswap-v3',
+        reserve0: 0n,
+        reserve1: 0n,
+        quotePerBase: 1990,
+      });
+      const pools = [healthyV2({ venueKey: 'sushiswap', quotePerBase: 2000 }), v3];
+      const result = service.detect(pools, 0, 1000, 500, 1);
+      // V3 is exempt → spread forms between V2 and V3.
+      expect(result).not.toBeNull();
+    });
+
+    it('is OFF when minPoolLiquidityUsd is undefined (backward-compat)', () => {
+      const pools = [healthyV2({ quotePerBase: 2000 }), deadV2({ quotePerBase: 500 })];
+      // No threshold → dead pool participates, anomalous spread forms.
+      const result = service.detect(pools);
+      expect(result).not.toBeNull();
+    });
+
+    it('is OFF when quoteUsd is 0 (no native price configured, fail-open)', () => {
+      const pools = [healthyV2({ quotePerBase: 2000 }), deadV2({ quotePerBase: 500 })];
+      // WETH quote but nativeUsd=0 → cannot price V2 reserves → filter no-op.
+      const result = service.detect(pools, 0, 1000, 500, 0);
+      expect(result).not.toBeNull();
+    });
+  });
+
+  describe('computePoolLiquidityUsd (PLAN13 #1)', () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { computePoolLiquidityUsd } = require('./scanner-spread.service') as {
+      computePoolLiquidityUsd: (p: PoolSnapshot, quoteUsd: number) => number | null;
+    };
+
+    it('returns null for V3 pools (reserves are liquidity, not real)', () => {
+      const v3 = makePool({ family: 'v3', reserve0: 1000n, reserve1: 1000n });
+      expect(computePoolLiquidityUsd(v3, 2000)).toBeNull();
+    });
+
+    it('prices a USDC-quoted V2 pool at quoteUsd=1', () => {
+      // 1 WETH reserve × quotePerBase 2000 = 2000 USDC worth of base; + 2000 USDC reserve = 4000 USDC.
+      const pool = makePool({
+        family: 'v2',
+        decimals0: 18,
+        decimals1: 6,
+        quotePerBase: 2000,
+        reserve0: 1_000_000_000_000_000_000n,
+        reserve1: 2_000_000_000n,
+      });
+      expect(computePoolLiquidityUsd(pool, 1)).toBeCloseTo(4000, 0);
+    });
+
+    it('prices a WETH-quoted V2 pool using the native USD price', () => {
+      // Same reserves but quoteUsd=$2000 → 4000 USDC × $2000 = $8,000,000. (Synthetic test for math.)
+      const pool = makePool({
+        family: 'v2',
+        decimals0: 18,
+        decimals1: 6,
+        quotePerBase: 2000,
+        reserve0: 1_000_000_000_000_000_000n,
+        reserve1: 2_000_000_000n,
+      });
+      expect(computePoolLiquidityUsd(pool, 2000)).toBeCloseTo(8_000_000, -5);
+    });
+
+    it('returns 0 when reserves are null (defensive — treated as illiquid)', () => {
+      const pool = makePool({ family: 'v2', reserve0: null, reserve1: null });
+      expect(computePoolLiquidityUsd(pool, 2000)).toBe(0);
+    });
+
+    it('returns 0 when quoteUsd is 0 (cannot price)', () => {
+      const pool = makePool({
+        family: 'v2',
+        reserve0: 1_000_000_000_000_000_000n,
+        reserve1: 2_000_000_000n,
+      });
+      expect(computePoolLiquidityUsd(pool, 0)).toBe(0);
+    });
+  });
 });

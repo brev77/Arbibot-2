@@ -19,6 +19,15 @@ export interface ScannerVolumeRangeJson {
 /** Per-instance / per-default filters (AND-combined). */
 export interface ScannerFiltersJson {
   readonly minSpreadBps?: number;
+  /**
+   * Minimum USD LIQUIDITY a V2 pool must hold to participate in a spread (PLAN13 #2).
+   * V2 pools below this threshold (dead/abandoned pairs with negligible reserves) are
+   * dropped BEFORE buy/sell selection, so their garbage price can't form a bogus spread.
+   * V3 pools are exempt (their reserve fields hold `liquidity`, not real reserves).
+   * NOTE: distinct from `minLiquidityUsd` below, which is a netProfit proxy, not reserves.
+   * Requires SCANNER_NATIVE_USD env for WETH-quoted pairs (stablecoin quotes use 1.0).
+   */
+  readonly minPoolLiquidityUsd?: number;
   readonly minLiquidityUsd?: number;
   readonly volumeRange?: ScannerVolumeRangeJson;
   readonly blacklistTokens?: string[];
