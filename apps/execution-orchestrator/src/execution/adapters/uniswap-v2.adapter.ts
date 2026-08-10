@@ -414,24 +414,22 @@ export async function enforcePostQuoteSlippageGate(args: {
   const amountInUnits = Number(BigInt(amountIn)) / 10 ** tokenInDecimals;
   const expectedOutUnits = Number(BigInt(expectedAmountOut)) / 10 ** tokenOutDecimals;
 
-  let impactBps: number;
-  if (tokenInDecimals === tokenOutDecimals && amountInUnits > 0) {
-    // Same decimals → direct ratio is exact.
-    impactBps = Math.round(((amountInUnits - expectedOutUnits) / amountInUnits) * 10000);
-  } else {
-    // Different decimals → compare in USD (fail-closed if price missing).
-    const tokenInUsd = await priceOracle.getTokenPriceUsd(chainId, tokenIn);
-    const tokenOutUsd = await priceOracle.getTokenPriceUsd(chainId, tokenOut);
-    if (tokenInUsd === null || tokenOutUsd === null || amountInUnits <= 0) {
-      throw new VenueSubmitClientError(
-        `${adapterName}: cannot price tokens for cross-decimals slippage check on chain ${chainId} — live slippage gate blocked`,
-        { category: 'semantic' },
-      );
-    }
-    const notionalInUsd = amountInUnits * tokenInUsd;
-    const notionalOutUsd = expectedOutUnits * tokenOutUsd;
-    impactBps = Math.round(((notionalInUsd - notionalOutUsd) / notionalInUsd) * 10000);
+  // Always compare in USD — same decimals does NOT mean same value (PLAN13 #49).
+  // 42.92 CRV (18 dec) and 0.005467 WETH (18 dec) are both 18 decimals, but the former is
+  // ~$10 and the latter is ~$10 — comparing raw human units (as the previous same-decimals
+  // branch did) yielded ~9999 bps and blocked every cross-token arb with equal decimals.
+  // The oracle's 60s cache + single-flight keep the extra lookups cheap on the hot path.
+  const tokenInUsd = await priceOracle.getTokenPriceUsd(chainId, tokenIn);
+  const tokenOutUsd = await priceOracle.getTokenPriceUsd(chainId, tokenOut);
+  if (tokenInUsd === null || tokenOutUsd === null || amountInUnits <= 0) {
+    throw new VenueSubmitClientError(
+      `${adapterName}: cannot price tokens for slippage check (tokenIn=${tokenIn}, tokenOut=${tokenOut}) on chain ${chainId} — live slippage gate blocked`,
+      { category: 'semantic' },
+    );
   }
+  const notionalInUsd = amountInUnits * tokenInUsd;
+  const notionalOutUsd = expectedOutUnits * tokenOutUsd;
+  let impactBps = Math.round(((notionalInUsd - notionalOutUsd) / notionalInUsd) * 10000);
 
   // Clamp negative (arbitrage edge — out > in) to 0; only real losses count.
   impactBps = Math.max(0, impactBps);

@@ -774,7 +774,37 @@ describe('UniswapV2Adapter', () => {
           chainId: CHAIN, tokenIn: TOKEN_IN, tokenOut: TOKEN_OUT,
           amountIn: '1000000000000000000', expectedAmountOut: '1990000000',
         }),
-      ).rejects.toThrow(/cannot price tokens for cross-decimals slippage check/);
+      ).rejects.toThrow(/cannot price tokens for slippage check/);
+    });
+
+    // PLAN13 #49 — the "same decimals → direct ratio" branch was removed because equal
+    // decimals does NOT mean equal value. CRV (18) and WETH (18) have the same decimals
+    // but different prices; the old branch compared raw human units (42.92 vs 0.005467) and
+    // derived 9999 bps, blocking every cross-token arb with matching decimals.
+    it('passes for CRV/WETH arb: equal decimals, different price, profitable (PLAN13 #49)', async () => {
+      const { dexRiskPolicy, priceOracle } = buildMocks({ inDecimals: 18, outDecimals: 18, inUsd: 0.23, outUsd: 1900, maxSlippageBps: 50 });
+      // amountIn=42.92 CRV (≈$9.87), expectedOut=0.005467 WETH (≈$10.39) → arbitrage edge.
+      // The old same-decimals branch computed (42.92-0.005467)/42.92×10000 = 9999 → BLOCKED.
+      // USD comparison: ($9.87-$10.39)/$9.87 → negative → clamped to 0 → PASSED.
+      await expect(
+        enforcePostQuoteSlippageGate({
+          dexRiskPolicy: dexRiskPolicy as any, priceOracle: priceOracle as any, adapterName: 'Test',
+          chainId: CHAIN, tokenIn: TOKEN_IN, tokenOut: TOKEN_OUT,
+          amountIn: '42928716850243592192', expectedAmountOut: '5467890176566390',
+        }),
+      ).resolves.toBeUndefined();
+    });
+
+    it('blocks CRV/WETH when USD impact exceeds max (same decimals, real loss)', async () => {
+      const { dexRiskPolicy, priceOracle } = buildMocks({ inDecimals: 18, outDecimals: 18, inUsd: 0.23, outUsd: 1900, maxSlippageBps: 50 });
+      // amountIn=42.92 CRV (≈$9.87), expectedOut=0.004 WETH (≈$7.60) → ~2303 bps real loss → BLOCKED.
+      await expect(
+        enforcePostQuoteSlippageGate({
+          dexRiskPolicy: dexRiskPolicy as any, priceOracle: priceOracle as any, adapterName: 'Test',
+          chainId: CHAIN, tokenIn: TOKEN_IN, tokenOut: TOKEN_OUT,
+          amountIn: '42928716850243592192', expectedAmountOut: '4000000000000000',
+        }),
+      ).rejects.toThrow(/live slippage gate blocked — real price impact 2\d{3} bps exceeds max 50 bps/);
     });
   });
 });

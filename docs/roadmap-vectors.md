@@ -411,6 +411,10 @@ C1/H2/M6 и т.д. ссылочны через `tracker_ref`, операцион
 > Скоуп шестого плана (`docs/plan-amountin-usd-oracle-2026-08-10.md`) — initiative `#48`
 > (capital-safety: `computeAmountIns` отождествлял `notionalUsd` с human-units token1,
 > генерируя 50 WETH вместо $50 для WETH-quoted пар; фикс через USD price oracle). `done`.
+> Скоуп седьмого плана (`docs/plan-slippage-same-decimals-2026-08-10.md`) — initiative `#49`
+> (capital-safety: `enforcePostQuoteSlippageGate` сравнивал raw human-units при одинаковых
+> decimals — 42.92 CRV vs 0.005467 WETH = 9999 bps, блокируя каждый cross-token arb; фикс —
+> всегда USD compare). `done`.
 
 | # | step_id | Вектор(ы) | gate | tracker | impact | effort | score | status | plan |
 |---|---------|-----------|------|---------|--------|--------|-------|--------|------|
@@ -462,6 +466,7 @@ C1/H2/M6 и т.д. ссылочны через `tracker_ref`, операцион
 | 46 | `SEC-RPC-STATIC-NETWORK` | SEC (REL) | live-blocker | new | 4 | 1 | 20 | done | PLAN11 |
 | 47 | `REL-AUDIT-IDEMPOTENCY-UUID` | REL (SEC) | paper-check | new | 3 | 1 | 15 | done | PLAN11 |
 | 48 | `FUNC-AMOUNTIN-USD-ORACLE` | FUNC (SEC) | live-blocker | new | 5 | 2 | 20 | done | PLAN12 |
+| 49 | `SEC-SLIPPAGE-SAME-DECIMALS` | SEC (FUNC) | live-blocker | new | 5 | 1 | 25 | done | PLAN13 |
 
 ### Легенда
 
@@ -488,8 +493,8 @@ C1/H2/M6 и т.д. ссылочны через `tracker_ref`, операцион
 
 ---
 
-*Актуализировано: 2026-08-10 (PLAN12 done — initiative #48: `amountIn` USD oracle,
-capital-safety фикс для WETH-quoted пар; PLAN11 done — initiatives #45–#47: V3 pricing,
-staticNetwork pin, audit UUID; post-Hermes correctness sweep). Все факты о
-состоянии кода проверены чтением файлов на эту дату. При изменении кода —
-обновить этот файл по принципу P2.*
+*Актуализировано: 2026-08-10 (PLAN13 done — initiative #49: slippage gate same-decimals
+баг; PLAN12 done — initiative #48: `amountIn` USD oracle, capital-safety фикс для WETH-quoted
+пар; PLAN11 done — initiatives #45–#47: V3 pricing, staticNetwork pin, audit UUID;
+post-Hermes correctness sweep). Все факты о состоянии кода проверены чтением файлов на
+эту дату. При изменении кода — обновить этот файл по принципу P2.*
