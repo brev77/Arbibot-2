@@ -124,7 +124,10 @@ export class FillOutboundService {
       );
     }
     const path = PORTFOLIO_HTTP_ROUTES.confirmFill.replace(/^POST\s+/, '');
-    const url = `${base.replace(/\/$/, '')}/${path}`;
+    // PORTFOLIO_HTTP_ROUTES values carry a leading slash ('/positions/confirm-fill');
+    // concatenating `${base}/${path}` would produce a double slash ('//positions/...')
+    // and a 404. Strip the leading slash from the path.
+    const url = `${base.replace(/\/$/, '')}/${path.replace(/^\/+/, '')}`;
     const cid = getCorrelationId();
     const headers: Record<string, string> = {
       accept: 'application/json',

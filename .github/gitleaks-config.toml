@@ -35,6 +35,10 @@ paths = [
   '''apps/scanner-service/src/scanner/scanner-pool\.constants\.ts''',
   '''apps/scanner-service/src/scanner/scanner-volume\.constants\.ts''',
   '''docs/scanner-service-plan\.md''',
+  # Crypto round-trip verification script (PLAN12 #2): contains the well-known Hardhat
+  # test key #0 (ac0974bec...) and a test master-key (0123456789abcdef...) — both public
+  # test fixtures, never production secrets. gitleaks `generic-api-key` false-positives on them.
+  '''tools/wallet-key-import\.crypto-roundtrip\.mjs''',
 ]
 regexes = [
   # Placeholders in env examples
