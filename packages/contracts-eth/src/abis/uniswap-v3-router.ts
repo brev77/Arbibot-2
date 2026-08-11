@@ -1,9 +1,14 @@
 /**
- * Uniswap V3 SwapRouter02 ABI
+ * Uniswap V3 SwapRouter ABI (canonical ISwapRouter — NOT SwapRouter02).
  * Source: https://docs.uniswap.org/contracts/v3/reference/deployments
  *
  * Minimal ABI for single-pool exactInputSingle / exactOutputSingle + multicall + WETH hooks.
- * Multi-hop exactInput / exactOutput deferred to a later iteration (see DEX-1-1-ADAPTER-UNI3).
+ * Multi-hop exactInput / exactOutput included (FIX-A: deadline added).
+ *
+ * FIX-A (2026-08-11): the deployed Arbitrum SwapRouter
+ * (0xE592427A0AEce92De3Edee1F18E0157C05861564) exposes the canonical V3 selector
+ * 0x414bf389 (8-field struct WITH `deadline`), NOT the 7-field SwapRouter02 variant
+ * (0x04e45aaf, no deadline). Bytecode scan confirmed the latter is absent on-chain.
  */
 export const UniswapV3RouterABI = [
   // ── WETH helpers ──
@@ -61,6 +66,15 @@ export const UniswapV3RouterABI = [
     type: 'function',
   },
   // ── Exact Input Single ──
+  //
+  // FIX-A (live-blocker, 2026-08-11): the deployed Arbitrum SwapRouter
+  // (0xE592427A0AEce92De3Edee1F18E0157C05861564) does NOT expose selector
+  // 0x04e45aaf (7-field struct without `deadline`). Bytecode scan confirmed
+  // the deployed contract only contains selector 0x414bf389 — the canonical
+  // Uniswap V3 `exactInputSingle` with an 8-field struct that includes
+  // `deadline` (placed after `recipient`, per ISwapRouter.sol). Without
+  // `deadline`, every V3 leg reverted with phantom `require(false)` on
+  // estimateGas (function does not exist on the contract).
   {
     inputs: [
       {
@@ -69,6 +83,7 @@ export const UniswapV3RouterABI = [
           { internalType: 'address', name: 'tokenOut', type: 'address' },
           { internalType: 'uint24', name: 'fee', type: 'uint24' },
           { internalType: 'address', name: 'recipient', type: 'address' },
+          { internalType: 'uint256', name: 'deadline', type: 'uint256' },
           { internalType: 'uint256', name: 'amountIn', type: 'uint256' },
           { internalType: 'uint256', name: 'amountOutMinimum', type: 'uint256' },
           { internalType: 'uint160', name: 'sqrtPriceLimitX96', type: 'uint160' },
@@ -84,6 +99,7 @@ export const UniswapV3RouterABI = [
     type: 'function',
   },
   // ── Exact Output Single ──
+  // FIX-A: `deadline` added after `recipient` (canonical V3 struct).
   {
     inputs: [
       {
@@ -92,6 +108,7 @@ export const UniswapV3RouterABI = [
           { internalType: 'address', name: 'tokenOut', type: 'address' },
           { internalType: 'uint24', name: 'fee', type: 'uint24' },
           { internalType: 'address', name: 'recipient', type: 'address' },
+          { internalType: 'uint256', name: 'deadline', type: 'uint256' },
           { internalType: 'uint256', name: 'amountOut', type: 'uint256' },
           { internalType: 'uint256', name: 'amountInMaximum', type: 'uint256' },
           { internalType: 'uint160', name: 'sqrtPriceLimitX96', type: 'uint160' },
@@ -107,12 +124,14 @@ export const UniswapV3RouterABI = [
     type: 'function',
   },
   // ── Exact Input (multi-hop) ──
+  // FIX-A: `deadline` added after `recipient` (canonical V3 struct).
   {
     inputs: [
       {
         components: [
           { internalType: 'bytes', name: 'path', type: 'bytes' },
           { internalType: 'address', name: 'recipient', type: 'address' },
+          { internalType: 'uint256', name: 'deadline', type: 'uint256' },
           { internalType: 'uint256', name: 'amountIn', type: 'uint256' },
           { internalType: 'uint256', name: 'amountOutMinimum', type: 'uint256' },
         ],
@@ -127,12 +146,14 @@ export const UniswapV3RouterABI = [
     type: 'function',
   },
   // ── Exact Output (multi-hop) ──
+  // FIX-A: `deadline` added after `recipient` (canonical V3 struct).
   {
     inputs: [
       {
         components: [
           { internalType: 'bytes', name: 'path', type: 'bytes' },
           { internalType: 'address', name: 'recipient', type: 'address' },
+          { internalType: 'uint256', name: 'deadline', type: 'uint256' },
           { internalType: 'uint256', name: 'amountOut', type: 'uint256' },
           { internalType: 'uint256', name: 'amountInMaximum', type: 'uint256' },
         ],

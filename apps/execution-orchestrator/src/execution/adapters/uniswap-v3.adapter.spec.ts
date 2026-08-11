@@ -277,8 +277,11 @@ describe('UniswapV3Adapter', () => {
       expect(result.to).toBe(ROUTER);
       expect(result.value).toBe(0n);
       expect(result.from).toBe(FROM);
-      // exactInputSingle function selector = 0x04e45aaf
-      expect(result.data).toContain('04e45aaf');
+      // FIX-A (2026-08-11): exactInputSingle now encodes the canonical V3 8-field
+      // struct WITH deadline (selector 0x414bf389). The previous 7-field SwapRouter02
+      // selector (0x04e45aaf, no deadline) is absent from the deployed Arbitrum
+      // SwapRouter bytecode → every V3 swap reverted with phantom require(false).
+      expect(result.data).toContain('414bf389');
     });
 
     it('should encode with custom sqrtPriceLimitX96', () => {
@@ -302,7 +305,39 @@ describe('UniswapV3Adapter', () => {
       );
 
       expect(result.to).toBe(ROUTER);
-      expect(result.data).toContain('04e45aaf');
+      // FIX-A: canonical V3 selector with deadline (0x414bf389), not 0x04e45aaf.
+      expect(result.data).toContain('414bf389');
+    });
+
+    it('FIX-A: should encode deadline into the struct (canonical V3 8-field)', () => {
+      const params = {
+        chainId: 42161 as any,
+        tokenIn: TOKEN_IN,
+        tokenOut: TOKEN_OUT,
+        fee: 3000,
+        amountIn: '1000000',
+        amountOutExpected: '990000',
+      };
+      // deadline = 0x2540be3ff = 9999999999 (the value passed below)
+      const DEADLINE = 9999999999;
+      const result = adapter.buildSwapTxRequest(
+        ROUTER,
+        params,
+        '985050',
+        RECIPIENT,
+        DEADLINE,
+        FROM,
+      );
+      // Selector must be the 8-field-with-deadline variant (0x414bf389), not the
+      // 7-field no-deadline variant (0x04e45aaf) that is absent from the deployed
+      // Arbitrum SwapRouter bytecode.
+      expect(result.data).toContain('414bf389');
+      // The deadline value must appear in the encoded calldata (padded to 32 bytes).
+      // 9999999999 = 0x2540be3ff → padded: ...00000002540be3ff
+      const deadlineHex = DEADLINE.toString(16).padStart(64, '0');
+      expect(result.data).toContain(deadlineHex);
+      // Sanity: the old (absent) selector must NOT appear.
+      expect(result.data).not.toContain('04e45aaf');
     });
   });
 

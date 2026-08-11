@@ -158,14 +158,23 @@ function resolveQuoterV2Address(chainId: ChainId): Address {
 }
 
 /** Minimal QuoterV2 surface used for `quoteExactInputSingle`. */
+type QuoteExactInputSingleArgs = {
+  readonly tokenIn: string;
+  readonly tokenOut: string;
+  readonly amountIn: bigint;
+  readonly fee: number;
+  readonly sqrtPriceLimitX96: bigint;
+};
+type QuoteExactInputSingleResult = [bigint, bigint, number, bigint];
 interface QuoterV2Contract {
-  quoteExactInputSingle(params: {
-    readonly tokenIn: string;
-    readonly tokenOut: string;
-    readonly amountIn: bigint;
-    readonly fee: number;
-    readonly sqrtPriceLimitX96: bigint;
-  }): Promise<[bigint, bigint, number, bigint]>;
+  // FIX-B (2026-08-11): the contract method is exposed as an object with a
+  // `.staticCall` member (ethers v6 idiom for routing `nonpayable` functions
+  // through `eth_call`). Declaring it as a callable-plus-staticCall shape lets
+  // us call `quoter.quoteExactInputSingle.staticCall(...)` with full typing.
+  quoteExactInputSingle: {
+    (params: QuoteExactInputSingleArgs): Promise<QuoteExactInputSingleResult>;
+    staticCall(params: QuoteExactInputSingleArgs): Promise<QuoteExactInputSingleResult>;
+  };
 }
 
 /**
@@ -701,7 +710,14 @@ export class UniswapV3Adapter implements VenueAdapter {
     ) as unknown as QuoterV2Contract;
 
     const sqrtPriceLimitX96 = params.sqrtPriceLimitX96 ?? '0';
-    const result = await quoter.quoteExactInputSingle({
+    // FIX-B (2026-08-11): QuoterV2.quoteExactInputSingle is `stateMutability: 'nonpayable'`
+    // (the contract intentionally reverts-and-catches to return the quote). Calling it
+    // directly on a provider-backed contract makes ethers v6 attempt a `sendTransaction`,
+    // which a read-only provider cannot do → "contract runner does not support sending
+    // transactions". `.staticCall()` routes through `eth_call` so the quote resolves
+    // without a broadcast. Without this, every V3 leg fell back to a stale detection-time
+    // `amountOutExpected`, defeating the post-quote slippage gate (P9-5).
+    const result = await quoter.quoteExactInputSingle.staticCall({
       tokenIn: params.tokenIn,
       tokenOut: params.tokenOut,
       amountIn: BigInt(params.amountIn),
@@ -718,10 +734,18 @@ export class UniswapV3Adapter implements VenueAdapter {
   /**
    * Build the transaction request object for `exactInputSingle`.
    *
+   * FIX-A (2026-08-11): encodes the canonical V3 8-field struct including `deadline`
+   * (selector 0x414bf389). The deployed Arbitrum SwapRouter does NOT expose the
+   * 7-field SwapRouter02 variant (0x04e45aaf, no deadline) — that selector is
+   * absent from the contract bytecode, so every previous V3 swap reverted with a
+   * phantom `require(false)` on estimateGas. `deadline` is now placed after
+   * `recipient` (per ISwapRouter.sol) and passed into the encoded struct.
+   *
    * Encodes the V3 struct parameter:
    * ```
    * ExactInputSingleParams {
    *   tokenIn, tokenOut, fee, recipient,
+   *   deadline,
    *   amountIn, amountOutMinimum,
    *   sqrtPriceLimitX96
    * }
@@ -748,6 +772,7 @@ export class UniswapV3Adapter implements VenueAdapter {
         tokenOut: params.tokenOut,
         fee: params.fee,
         recipient,
+        deadline,
         amountIn: params.amountIn,
         amountOutMinimum: amountOutMin,
         sqrtPriceLimitX96,

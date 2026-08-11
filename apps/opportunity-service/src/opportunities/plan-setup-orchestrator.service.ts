@@ -48,6 +48,28 @@ export interface PlanSetupInput {
   amountIns: AmountIns;
   buyVenueKey: string;
   sellVenueKey: string;
+  /**
+   * FIX-C (2026-08-11): gross profit (USD) from the scanner's cross-venue spread,
+   * i.e. `notionalUsd × spreadBps / 10000` BEFORE pool fees / gas / slippage.
+   * Forwarded into `playbookConfig.grossProfitUsd` so the EO cost-gate
+   * (`TradeCostEstimatorService`) can compute `netProfitUsd = gross - totalCost`
+   * and enforce `minNetProfitUsd`. Previously this field was never set →
+   * `extractGrossProfitUsd()` returned null → `netProfitUsd` stayed null → the
+   * `minNetProfitUsd` gate was dead code (fail-OPEN), allowing unprofitable
+   * plans to reach broadcast. Required (no default): the caller must supply it.
+   */
+  grossProfitUsd: number;
+  /**
+   * FIX-D (2026-08-11): V3 pool fee tier (hundredths of a bip) for each leg,
+   * resolved from on-chain liquidity (highest-liquidity pool wins) by the
+   * caller. Previously hardcoded to 500 for ALL legs, which is the THIN pool
+   * for 2/4 verified pairs (CRV/WETH, MAGIC/WETH) → ~44× less output than the
+   * liquid fee=3000 pool → reverts at estimateGas. Defaults to 3000 (0.3%,
+   * the most common liquid tier) when the caller cannot resolve — safer than
+   * 500 which selects thin pools for long-tail pairs.
+   */
+  buyFeeTier?: number;
+  sellFeeTier?: number;
 }
 
 export interface PlanSetupResult {
@@ -134,14 +156,23 @@ export class PlanSetupOrchestrator {
     // base amount that the sell leg will then use as its amountIn; the sell leg expects to
     // receive the quote amount the buy leg started with. UniV3 adapters REQUIRE amountOutExpected
     // and fee in the leg payload — without them submitLeg throws "no swap params for plan".
-    // fee=500 = 0.05% pool fee tier (the most liquid tier for the pairs the scanner emits).
+    // FIX-D (2026-08-11): fee tier resolved per-leg from on-chain liquidity by the caller
+    // (LiveAutoDriveWorker via EO /execution/pool/best-fee). Falls back to 3000 (0.3%, the
+    // most common liquid tier) — NEVER 500, which selects thin pools for long-tail pairs
+    // (CRV/WETH fee=500 liquidity is ~3000× lower than fee=3000).
     const buyAmountOutExpected = amountIns.sellAmountIn;
     const sellAmountOutExpected = amountIns.buyAmountIn;
+    const SAFE_DEFAULT_FEE_TIER = 3000;
+    // FIX-C (2026-08-11): forward grossProfitUsd so the EO cost-gate can compute
+    // netProfitUsd and enforce minNetProfitUsd. Without this the gate stays
+    // fail-OPEN (extractGrossProfitUsd returns null → netProfitUsd null → the
+    // `if (netProfitUsd !== null && ...)` branch never blocks).
     const body = {
       correlationId: input.correlationId,
       riskDecisionId: input.riskDecisionId,
       routeKey: input.routeKey,
       notionalUsd: input.notionalUsd,
+      grossProfitUsd: input.grossProfitUsd,
       legs: [
         {
           legType: 'dex' as const,
@@ -151,7 +182,8 @@ export class PlanSetupOrchestrator {
           tokenOut: tokens.token0Address,
           amountIn: amountIns.buyAmountIn,
           amountOutExpected: buyAmountOutExpected,
-          fee: 500,
+          // FIX-D (2026-08-11): resolved at orchestrate() from on-chain liquidity.
+          fee: input.buyFeeTier ?? SAFE_DEFAULT_FEE_TIER,
           slippageBps,
         },
         {
@@ -162,7 +194,7 @@ export class PlanSetupOrchestrator {
           tokenOut: tokens.token1Address,
           amountIn: amountIns.sellAmountIn,
           amountOutExpected: sellAmountOutExpected,
-          fee: 500,
+          fee: input.sellFeeTier ?? SAFE_DEFAULT_FEE_TIER,
           slippageBps,
         },
       ],

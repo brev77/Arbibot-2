@@ -287,6 +287,23 @@ export class LiveAutoDriveWorker implements OnModuleInit, OnModuleDestroy {
           }
         }
         try {
+          // FIX-C (2026-08-11): compute grossProfitUsd from the scanner's cross-venue
+          // spread and forward it so the EO cost-gate can derive netProfitUsd and
+          // enforce minNetProfitUsd. Without this the gate stays fail-OPEN (null
+          // grossProfit → null netProfit → `if (netProfit !== null && ...)` never blocks),
+          // allowing unprofitable plans to reach broadcast on the funded live wallet.
+          // grossProfit = notional × (sellPrice − buyPrice) / buyPrice (the spread edge).
+          const buyPrice = evidence?.buyPrice;
+          const sellPrice = evidence?.sellPrice;
+          let grossProfitUsd: number | null = null;
+          if (
+            typeof buyPrice === 'number' &&
+            typeof sellPrice === 'number' &&
+            buyPrice > 0 &&
+            sellPrice > 0
+          ) {
+            grossProfitUsd = (cfg.notionalUsd * (sellPrice - buyPrice)) / buyPrice;
+          }
           const result = await this.planSetup.orchestrate({
             correlationId,
             riskDecisionId,
@@ -296,6 +313,10 @@ export class LiveAutoDriveWorker implements OnModuleInit, OnModuleDestroy {
             amountIns,
             buyVenueKey: buyVenue,
             sellVenueKey: sellVenue,
+            grossProfitUsd:
+              grossProfitUsd !== null && Number.isFinite(grossProfitUsd)
+                ? grossProfitUsd
+                : 0,
           });
 
           // Optimistic marker stamp: only succeeds if live_execution_plan_id is still NULL.
