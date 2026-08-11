@@ -20,7 +20,7 @@
 |------|----------|
 | Сверка, P0-процедуры | [reconciliation-p0-procedures.md](../reconciliation-p0-procedures.md) |
 | Деградация intake | [intake-degradation-runbook.md](../intake-degradation-runbook.md) |
-| HERMES gateway | [HERMES-gateway-runbook.md](../HERMES-gateway-runbook.md), [HERMES-safe-mode-runbook.md](../HERMES-safe-mode-runbook.md) |
+| HERMES gateway | [HERMES-gateway-runbook.md](../hermes-gateway-runbook.md), [HERMES-safe-mode-runbook.md](../hermes-safe-mode-runbook.md) |
 | Справка по HERMES | [HERMES-reference.md](../HERMES-reference.md), [HERMES-operator-boundaries.md](../HERMES-operator-boundaries.md) |
 | Конфигурации (CFG-3) | [cfg-3-staged-rollout.md](../cfg-3-staged-rollout.md) |
 

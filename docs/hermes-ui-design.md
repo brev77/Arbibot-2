@@ -2,7 +2,7 @@
 
 ## Layout
 
-Implemented in [`apps/web/components/HERMES/HERMES-workspace.tsx`](../apps/web/components/HERMES/HERMES-workspace.tsx) (client component).
+Implemented in [`apps/web/components/hermes/hermes-workspace.tsx`](../apps/web/components/hermes/hermes-workspace.tsx) (client component).
 
 Sections:
 
