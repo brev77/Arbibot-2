@@ -97,7 +97,7 @@ MCP Server и Gateway **не меняются** — это по-прежнему
 - Telegram-бот работает по **whitelist**: отвечает только `OPERATOR_TELEGRAM_ID`.
 - Mutation-tools (`arm_plan`, `execute_plan`, `enable_safe_mode`, `disable_safe_mode`, `resolve_incident`, `close_position`) по-прежнему требуют **explicit approval** оператора — наследуется от gateway/MCP, без изменений.
 - Все mutations логируются через audit-service с `sourceModule: hermes-agent` (см. ADR Plan 3 §3).
-- Архитектурные границы из [`docs/HERMES-operator-boundaries.md`](HERMES-operator-boundaries.md): агент объясняет read-модели и подсказывает runbook, но **не** принимает решений о капитале/риске/arm/execute и **не** пишет напрямую в доменные таблицы.
+- Архитектурные границы из [`docs/hermes-operator-boundaries.md`](hermes-operator-boundaries.md): агент объясняет read-модели и подсказывает runbook, но **не** принимает решений о капитале/риске/arm/execute и **не** пишет напрямую в доменные таблицы.
 
 ## 7. Что НЕ меняется
 

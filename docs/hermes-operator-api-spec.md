@@ -1,7 +1,7 @@
 ﻿# HERMES — Operator API (Phase 5)
 
 **Status:** read + mutation routes implemented on **`HERMES-gateway`** (`P5-5-GW`, `P5-5-OAPI`, `P5-5-BRIEF` → `done`); UI (`P5-5-OCUI`) on `/HERMES`.  
-**Principles:** HERMES is **not** SoT; reads/writes only through operator-approved surfaces ([`docs/HERMES-operator-boundaries.md`](HERMES-operator-boundaries.md)).
+**Principles:** HERMES is **not** SoT; reads/writes only through operator-approved surfaces ([`docs/hermes-operator-boundaries.md`](hermes-operator-boundaries.md)).
 
 ## Transport
 

@@ -58,7 +58,7 @@
 ## Что HERMES не должен делать (§45.3)
 
 - Не писать напрямую в доменные сущности: `risk_decisions`, `capital_reservations`, `execution_plans`, `portfolio_positions` (и аналоги).
-- Не обходить **control plane approvals** и не получать сервисный токен шире роли `admin` на dashboard без отдельного ADR и согласования (см. [HERMES-operator-boundaries.md](HERMES-operator-boundaries.md)).
+- Не обходить **control plane approvals** и не получать сервисный токен шире роли `admin` на dashboard без отдельного ADR и согласования (см. [HERMES-operator-boundaries.md](hermes-operator-boundaries.md)).
 
 ---
 
@@ -135,7 +135,7 @@ FS-convention, но не ключ. CI guard в `tools/ci-hermes-agent-smoke.sh` 
 
 | Документ | Тема |
 |----------|------|
-| [HERMES-operator-boundaries.md](HERMES-operator-boundaries.md) | SoT, чтение/запись, RBAC, связь с UI |
+| [HERMES-operator-boundaries.md](hermes-operator-boundaries.md) | SoT, чтение/запись, RBAC, связь с UI |
 | [operator-approval-flow.md](operator-approval-flow.md) | HERMES не обходит approval |
 | `!Arbibot_2_Architecture_v1_final_docs_settings.md` §42–§48 | Полная модель интеграции и сценарии |
 | `!Arbibot_2_Frontend_Spec_settings.md` §5.8, §18.7 | Экран `/HERMES`, настройки |

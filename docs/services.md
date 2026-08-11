@@ -52,8 +52,8 @@
 ## Phase 0 — см. также
 
 - [Security baseline](security-baseline.md) (P0-0.3-SEC)
-- [HERMES и границы Operator API](HERMES-operator-boundaries.md) (P0-0.3-OC)
-- [HERMES — справка по функциям и границам](HERMES-reference.md)
+- [HERMES и границы Operator API](hermes-operator-boundaries.md) (P0-0.3-OC)
+- [HERMES — справка по функциям и границам](hermes-reference.md)
 
 ## Первичный запуск: paper → live
 

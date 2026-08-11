@@ -380,7 +380,7 @@ curl http://localhost:9093/api/v2/status | jq '.data.versionInfo.version'
 2. Config change через config-service: `dex.live.killSwitch=false`, `dex.live.dryRunMode=false`, `DEX_LIVE_ENABLED=true` — operator-approved, audited.
 3. Установить `dex.limits.maxNotionalPerTradeUsd=500` (минимальный капитал).
 4. Monitor drift/P&L/reconciliation первый час (через Grafana + Alertmanager).
-5. Panic-button доступен: `npm run panic:stop` / `npm run panic:recover` (см. [`docs/HERMES-safe-mode-runbook.md`](HERMES-safe-mode-runbook.md)).
+5. Panic-button доступен: `npm run panic:stop` / `npm run panic:recover` (см. [`docs/hermes-safe-mode-runbook.md`](hermes-safe-mode-runbook.md)).
 
 ---
 
@@ -419,7 +419,7 @@ curl http://localhost:9093/api/v2/status | jq '.data.versionInfo.version'
 **Risk tracker:** [`TODO.md`](TODO.md) → раздел «Pre-deploy risk tracker» (C1–C3, H1–H5, M1–M10, L1–L7).
 **Методология:** [`.cursor/rules/verification-methodology.mdc`](../.cursor/rules/verification-methodology.mdc).
 **Исторический gate:** [`pre-deploy-review.md`](pre-deploy-review.md) (SUPERSEDED, F1–F6 findings).
-**Runbooks:** [`incident-response-playbook.md`](incident-response-playbook.md), [`disaster-recovery-plan.md`](disaster-recovery-plan.md), [`reconciliation-p0-procedures.md`](reconciliation-p0-procedures.md), [`dex-runbook-bridge.md`](dex-runbook-bridge.md), [`dex-rollback-strategy.md`](dex-rollback-strategy.md), [`key-rotation-runbook.md`](key-rotation-runbook.md), [`HERMES-safe-mode-runbook.md`](HERMES-safe-mode-runbook.md), [`HERMES-gateway-runbook.md`](HERMES-gateway-runbook.md).
+**Runbooks:** [`incident-response-playbook.md`](incident-response-playbook.md), [`disaster-recovery-plan.md`](disaster-recovery-plan.md), [`reconciliation-p0-procedures.md`](reconciliation-p0-procedures.md), [`dex-runbook-bridge.md`](dex-runbook-bridge.md), [`dex-rollback-strategy.md`](dex-rollback-strategy.md), [`key-rotation-runbook.md`](key-rotation-runbook.md), [`hermes-safe-mode-runbook.md`](hermes-safe-mode-runbook.md), [`hermes-gateway-runbook.md`](hermes-gateway-runbook.md).
 **Архитектура/домен:** [`../CONTEXT.md`](../CONTEXT.md), [`../AGENTS.md`](../AGENTS.md), [`services.md`](services.md).
 
 ---

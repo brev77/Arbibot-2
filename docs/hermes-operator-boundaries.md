@@ -2,7 +2,7 @@
 
 Черновик границ для Phase 5 и согласования с §49 архитектуры и фронт-спекой (HERMES, Operator API).
 
-Краткая сводка функций и сценариев: [HERMES-reference.md](HERMES-reference.md).
+Краткая сводка функций и сценариев: [HERMES-reference.md](hermes-reference.md).
 
 ## HERMES не источник истины (SoT)
 
