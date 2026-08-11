@@ -321,6 +321,72 @@ describe('PriceOracleService', () => {
     expect(price).toBeLessThan(2600);
   });
 
+  it('FIX-G: prices from the most-liquid pool when several fee tiers are cached', async () => {
+    // Regression for the thin-pool misprice (2026-08-11): a token↔WETH pair had
+    // a thin fee=500 pool (drifted sqrtPriceX96) cached alongside the liquid
+    // fee=3000 pool. First-match pricing read the thin pool → MAGIC $0.23 vs the
+    // liquid $0.267 → the live slippage gate computed a phantom 1357 bps impact
+    // and blocked every trade. The oracle must now pick the deeper pool.
+    const token = '0xc3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3' as Address;
+    const weth = ArbitrumMainnetAddresses.weth;
+    // Thin pool: drifted price (encodes 2 WETH per token — 2x the liquid price).
+    const thinSqrt = BigInt(Math.floor(Math.sqrt(2) * Number(2n ** 96n)));
+    // Liquid pool: correct price (1 WETH per token).
+    const liquidSqrt = BigInt(Math.floor(1 * Number(2n ** 96n)));
+    pools.getCachedPools.mockReturnValue([
+      {
+        address: '0xthin' as Address,
+        token0: token,
+        token1: weth,
+        feeBps: 5, // fee tier 500
+        reserve0: 9_000_000_000_000_000n, // thin liquidity
+        reserve1: 9_000_000_000_000_000n,
+        sqrtPriceX96: thinSqrt,
+        chainId: ChainId.ARBITRUM_ONE_MAINNET,
+        factory: weth,
+        protocol: 'uniswap-v3',
+        blockNumber: 1,
+        discoveredAt: new Date(),
+      },
+      {
+        address: '0xliquid' as Address,
+        token0: token,
+        token1: weth,
+        feeBps: 30, // fee tier 3000
+        reserve0: 28_000_000_000_000_000_000_000n, // ~3000x deeper
+        reserve1: 28_000_000_000_000_000_000_000n,
+        sqrtPriceX96: liquidSqrt,
+        chainId: ChainId.ARBITRUM_ONE_MAINNET,
+        factory: weth,
+        protocol: 'uniswap-v3',
+        blockNumber: 1,
+        discoveredAt: new Date(),
+      },
+    ]);
+
+    let decimalsCallCount = 0;
+    MockedContract.mockImplementation((_addr: string) => ({
+      decimals: jest.fn().mockImplementation(() => {
+        decimalsCallCount += 1;
+        return Promise.resolve(decimalsCallCount === 1 ? 18 : 8);
+      }),
+      latestRoundData: jest.fn().mockResolvedValue({
+        roundId: 1n,
+        answer: 250_000_000_000n, // ETH = 2500 USD
+        startedAt: 1n,
+        updatedAt: 1n,
+        answeredInRound: 1n,
+      }),
+    }));
+
+    const price = await service.getTokenPriceUsd(ChainId.ARBITRUM_ONE_MAINNET, token);
+    expect(price).not.toBeNull();
+    // Liquid pool encodes 1 WETH/token → ~$2500. If the thin pool (2 WETH/token
+    // → ~$5000) were chosen, this assertion would fail.
+    expect(price).toBeGreaterThan(2400);
+    expect(price).toBeLessThan(2600);
+  });
+
   it('returns null for a V3 pool missing sqrtPriceX96 (stale cache entry)', async () => {
     // Defensive: a V3 pool cached before the sqrtPriceX96 field was populated must not be
     // priced from liquidity-as-reserves. Treated as unpriceable (fail-closed).

@@ -362,16 +362,29 @@ export class PriceOracleService {
     wethLower: Address,
   ): DiscoveredPool | null {
     const pools = this.pools.getCachedPools(chainId);
+    // FIX-G (2026-08-11): pick the MOST LIQUID token↔WETH pool, not the first
+    // cached match. A token often has several V3 fee tiers cached (e.g. a thin
+    // fee=500 pool next to the liquid fee=3000 pool), and the thin pool's
+    // `sqrtPriceX96` drifts (low liquidity → stale/manipulated price). Pricing
+    // from the thin pool corrupted the oracle: MAGIC read $0.23 instead of the
+    // liquid $0.267, and the live slippage gate then computed a phantom 1357 bps
+    // impact (notionalIn WETH vs notionalOut under-valued MAGIC) and blocked
+    // every trade. `reserve0` is a comparable liquidity proxy within a pair —
+    // for V3 it carries `liquidity` (same token0 across fee tiers of a pair),
+    // for V2 the real token0 reserve; bigger = deeper = more accurate price.
+    let best: DiscoveredPool | null = null;
     for (const p of pools) {
       const t0 = p.token0.toLowerCase();
       const t1 = p.token1.toLowerCase();
       const hasToken = t0 === tokenLower || t1 === tokenLower;
       const hasWeth = t0 === wethLower || t1 === wethLower;
       if (hasToken && hasWeth && t0 !== t1) {
-        return p;
+        if (best === null || p.reserve0 > best.reserve0) {
+          best = p;
+        }
       }
     }
-    return null;
+    return best;
   }
 
   /**

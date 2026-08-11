@@ -102,6 +102,17 @@ const DEFAULT_SEED_POOLS: SeedPoolEntry[] = [
   { chainId: 42161, address: '0xff96D42dc8E2700ABAb1f1F82Ecf699caA1a2056' }, // UNI/WETH (UniV3 0.05%)
   { chainId: 42161, address: '0x14Cc036360C896c20Bc816A2a7aA514bC843766f' }, // CRV/WETH (UniV3 0.05%)
   { chainId: 42161, address: '0xE4Cd69C5F4bc7803b2Fb745C984446b935b54249' }, // LDO/WETH (UniV3 0.05%)
+  // FIX-G (2026-08-11): liquid (fee=0.30%) counterparts for actively-traded
+  // long-tail pairs. The 0.05% pools above are thin for some pairs (MAGIC liq
+  // ~9e15 vs ~2.9e22 at 0.30%), and PriceOracle priced MAGIC off the thin
+  // pool's drifted sqrtPriceX96 ($0.23 vs liquid $0.267). That misprice flowed
+  // into both the cost gate (notional) and the live slippage gate (phantom
+  // 1357 bps impact → every trade blocked). Seeding the liquid tier lets
+  // findTokenWethPool (now max-liquidity) price from the deep pool, and lets
+  // the cost estimator's V3 path (FIX-E/F) match the fee tier the plan trades.
+  // Addresses verified on-chain 2026-08-11 via factory.getPool + liquidity().
+  { chainId: 42161, address: '0xa95b0F5a65a769d82AB4F3e82842E45B8bbAf101' }, // MAGIC/WETH (UniV3 0.30%, liq 2.9e22)
+  { chainId: 42161, address: '0xC24f7d8E51A64dc1238880BD00bb961D54cbeb29' }, // UNI/WETH (UniV3 0.30%, liq 9.3e21)
   // WBTC/WETH (UniV3 0.05%). Verified on-chain 2026-08-09: contract 22142 bytes,
   // token0=0x2f2a2543...(WBTC), token1=0x82af4944...(WETH), fee=0.05%, live liquidity.
   // Required for the V3 pricing branch — without it the live path fails
