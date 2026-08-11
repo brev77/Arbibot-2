@@ -8,6 +8,7 @@ import { LiveAutoDriveWorker } from './live-auto-drive.worker';
 import { LiveKillSwitchService } from './live-kill-switch.service';
 import { LivePriceClientService } from './live-price-client.service';
 import { PoolFeeClientService } from './pool-fee-client.service';
+import { RoundTripQuoteClientService } from './round-trip-quote-client.service';
 import { PlanSetupOrchestrator } from './plan-setup-orchestrator.service';
 import { RiskClientService } from './risk-client.service';
 import { TokenResolverService } from './token-resolver.service';
@@ -73,7 +74,7 @@ function makeOpp(overrides: Partial<ArbitrageOpportunityEntity> = {}): Arbitrage
 describe('LiveAutoDriveWorker', () => {
   let worker: LiveAutoDriveWorker;
   const configMock: { getConfig: jest.Mock; isEnabled: jest.Mock; ensureEffectiveConfigLoaded: jest.Mock } = {
-    getConfig: jest.fn(() => ({ intervalMs: 10_000, batchSize: 5, maxConcurrentPlans: 3, minNetProfitUsd: 5, notionalUsd: 10, enabled: true })),
+    getConfig: jest.fn(() => ({ intervalMs: 10_000, batchSize: 5, maxConcurrentPlans: 3, minNetProfitUsd: 5, notionalUsd: 10, minRoundTripBps: 0, enabled: true })),
     isEnabled: jest.fn(() => true),
     ensureEffectiveConfigLoaded: jest.fn(),
   };
@@ -94,6 +95,11 @@ describe('LiveAutoDriveWorker', () => {
   // safe default) so existing tests asserting plan creation are unaffected.
   const poolFeeMock: { getBestFeeTier: jest.Mock } = {
     getBestFeeTier: jest.fn().mockResolvedValue(3000),
+  };
+  // P1: mock the round-trip quote client. Default returns a POSITIVE round-trip so the
+  // existing happy-path tests (plan created) are unaffected; negative/null cases override.
+  const roundTripQuoteMock: { evaluateRoundTrip: jest.Mock } = {
+    evaluateRoundTrip: jest.fn().mockResolvedValue({ roundTripBps: 100, buyOut: '5000', sellOut: '5050' }),
   };
   const planSetupMock: { orchestrate: jest.Mock } = { orchestrate: jest.fn() };
   const riskClientMock: { getRiskDecision: jest.Mock } = { getRiskDecision: jest.fn() };
@@ -118,6 +124,7 @@ describe('LiveAutoDriveWorker', () => {
       maxConcurrentPlans: 3,
       minNetProfitUsd: 5,
       notionalUsd: 10,
+      minRoundTripBps: 0,
       enabled: true,
     });
     configMock.ensureEffectiveConfigLoaded.mockResolvedValue(undefined);
@@ -135,6 +142,7 @@ describe('LiveAutoDriveWorker', () => {
       riskClientMock as unknown as RiskClientService,
       livePriceMock as unknown as LivePriceClientService,
       poolFeeMock as unknown as PoolFeeClientService,
+      roundTripQuoteMock as unknown as RoundTripQuoteClientService,
       repoMock as unknown as never,
       { transaction: txMock, query: queryMock } as unknown as DataSource,
     );
@@ -386,6 +394,56 @@ describe('LiveAutoDriveWorker', () => {
       // First opp failed (crash mid-setup), second succeeded.
       expect(r.plansCreated).toBe(1);
       expect(planSetupMock.orchestrate).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  // P1 (2026-08-11) — honest cross-DEX round-trip gate (phantom-spread filter).
+  describe('round-trip profitability gate (P1)', () => {
+    it('positive round-trip → proceeds to orchestrate', async () => {
+      repoMock.find.mockResolvedValue([makeOpp()]);
+      repoMock.count.mockResolvedValue(0);
+      roundTripQuoteMock.evaluateRoundTrip.mockResolvedValue({
+        roundTripBps: 120,
+        buyOut: '5000',
+        sellOut: '5060',
+      });
+      txMock.mockImplementation(async (cb: (em: unknown) => Promise<unknown>) => {
+        const em = { query: () => Promise.resolve([{ rowCount: 1 }]) };
+        return cb(em);
+      });
+
+      const r = await worker.trigger();
+      expect(r.plansCreated).toBe(1);
+      expect(roundTripQuoteMock.evaluateRoundTrip).toHaveBeenCalledTimes(1);
+      expect(planSetupMock.orchestrate).toHaveBeenCalledTimes(1);
+    });
+
+    it('non-positive round-trip → skip_negative_roundtrip, NO plan created', async () => {
+      repoMock.find.mockResolvedValue([makeOpp()]);
+      repoMock.count.mockResolvedValue(0);
+      // P0 reality: every liquid Arbitrum pair has a negative round-trip (phantom spread).
+      roundTripQuoteMock.evaluateRoundTrip.mockResolvedValue({
+        roundTripBps: -68,
+        buyOut: '5000',
+        sellOut: '4966',
+      });
+
+      const r = await worker.trigger();
+      expect(r.plansCreated).toBe(0);
+      expect(roundTripQuoteMock.evaluateRoundTrip).toHaveBeenCalledTimes(1);
+      expect(planSetupMock.orchestrate).not.toHaveBeenCalled();
+    });
+
+    it('null round-trip (RPC down / unquotable) → skip_no_quote, NO plan created (fail-closed)', async () => {
+      repoMock.find.mockResolvedValue([makeOpp()]);
+      repoMock.count.mockResolvedValue(0);
+      roundTripQuoteMock.evaluateRoundTrip.mockResolvedValue(null);
+
+      const r = await worker.trigger();
+      expect(r.plansCreated).toBe(0);
+      expect(roundTripQuoteMock.evaluateRoundTrip).toHaveBeenCalledTimes(1);
+      // Fail-closed: must NOT fall through to the old mid-price path / orchestrate.
+      expect(planSetupMock.orchestrate).not.toHaveBeenCalled();
     });
   });
 });

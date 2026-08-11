@@ -25,6 +25,9 @@ import { PriceOracleService } from './price/price-oracle.service';
 import { PriceController } from './price/price.controller';
 import { PoolFeeResolverService } from './pool/pool-fee-resolver.service';
 import { PoolFeeController } from './pool/pool-fee.controller';
+import { V2QuoterService } from './v2-quoter.service';
+import { VenueQuoteService } from './venue-quote.service';
+import { QuoteController } from './quote.controller';
 import { TokenApproveService } from './token/token-approve.service';
 import { SlippageProtectionService } from './slippage/slippage-protection.service';
 import { V3QuoterService } from './v3-quoter.service';
@@ -55,7 +58,7 @@ import { CrossChainReconWorker } from './workers/cross-chain-recon.worker';
     KeyVaultModule,
     TypeOrmModule.forFeature([WalletState, OnChainTransaction, BridgeTransferEntity, DexDailyVolumeEntity]),
   ],
-  controllers: [RpcHealthController, DexHealthController, BridgeReconController, PriceController, PoolFeeController],
+  controllers: [RpcHealthController, DexHealthController, BridgeReconController, PriceController, PoolFeeController, QuoteController],
   providers: [
     WalletManagerService,
     NonceManagerService,
@@ -65,6 +68,8 @@ import { CrossChainReconWorker } from './workers/cross-chain-recon.worker';
     DexOutboxEventsService,
     RpcProviderManager,
     V3QuoterService,
+    V2QuoterService,
+    VenueQuoteService,
     GasEstimatorService,
     PoolDiscoveryService,
     DexRiskPolicyService,

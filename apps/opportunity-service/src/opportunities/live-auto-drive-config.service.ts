@@ -29,6 +29,14 @@ export interface LiveAutoDriveConfig {
   notionalUsd: number;
   /** Tick batch size (opportunities processed per tick). */
   batchSize: number;
+  /**
+   * P1 (2026-08-11): minimum honest cross-DEX round-trip (bps, net of pool fees)
+   * required to create a live plan. Opportunities whose authoritative round-trip
+   * (two venue quotes, chained) is `<=` this floor are rejected as phantom-spread.
+   * Default 0 = reject any non-positive round-trip. Gas margin is handled by the
+   * downstream EO cost-gate (second layer); this knob only kills phantoms.
+   */
+  minRoundTripBps: number;
 }
 
 /**
@@ -168,6 +176,11 @@ export class LiveAutoDriveConfigService {
         1,
         1,
       ),
+      // P1: env-only operational knob (not remote-overridable) — a wider floor
+      // requires a bigger genuine spread, never an accidental gate-disable.
+      minRoundTripBps: Number(
+        process.env.LIVE_AUTO_DRIVE_MIN_ROUNDTRIP_BPS ?? '0',
+      ) || 0,
     };
   }
 

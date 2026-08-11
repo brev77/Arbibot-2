@@ -11,6 +11,7 @@ import { LiveAutoDriveWorker } from './live-auto-drive.worker';
 import { LiveKillSwitchService } from './live-kill-switch.service';
 import { LivePriceClientService } from './live-price-client.service';
 import { PoolFeeClientService } from './pool-fee-client.service';
+import { RoundTripQuoteClientService } from './round-trip-quote-client.service';
 import { OpportunitiesController } from './opportunities.controller';
 import { OpportunitiesService } from './opportunities.service';
 import { PaperClientService } from './paper-client.service';
@@ -38,6 +39,8 @@ import { TokenResolverService } from './token-resolver.service';
     LivePriceClientService,
     // FIX-D (2026-08-11) — V3 fee-tier resolver client (replaces hardcoded fee=500)
     PoolFeeClientService,
+    // P1 (2026-08-11) — honest cross-DEX round-trip quote client (phantom-spread gate)
+    RoundTripQuoteClientService,
   ],
   exports: [PaperClientService, PaperDiscoveryService],
 })

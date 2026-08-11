@@ -11,6 +11,7 @@ import { LiveAutoDriveConfigService } from './live-auto-drive-config.service';
 import { LiveKillSwitchService } from './live-kill-switch.service';
 import { LivePriceClientService } from './live-price-client.service';
 import { PoolFeeClientService } from './pool-fee-client.service';
+import { RoundTripQuoteClientService } from './round-trip-quote-client.service';
 import { TokenResolverService, type OpportunityEvidence } from './token-resolver.service';
 import { PlanSetupOrchestrator } from './plan-setup-orchestrator.service';
 import { RiskClientService } from './risk-client.service';
@@ -89,6 +90,7 @@ export class LiveAutoDriveWorker implements OnModuleInit, OnModuleDestroy {
     private readonly riskClient: RiskClientService,
     private readonly livePrice: LivePriceClientService,
     private readonly poolFee: PoolFeeClientService,
+    private readonly roundTripQuote: RoundTripQuoteClientService,
     @InjectRepository(ArbitrageOpportunityEntity)
     private readonly repo: Repository<ArbitrageOpportunityEntity>,
     private readonly dataSource: DataSource,
@@ -317,6 +319,38 @@ export class LiveAutoDriveWorker implements OnModuleInit, OnModuleDestroy {
             tokens.token0Address,
             tokens.token1Address,
           );
+          // P1 (2026-08-11): honest cross-DEX round-trip gate. The scanner emits
+          // opportunities from stale mid-prices (reserve/sqrtPrice snapshots),
+          // which show phantom spreads that don't realize when both legs are
+          // quoted simultaneously at trade size (P0: every liquid Arbitrum pair
+          // has a NEGATIVE real round-trip). Before creating a plan or reserving
+          // capital, query both venues authoritatively (QuoterV2 / getAmountsOut
+          // via EO) and reject if the chained round-trip is at/below the floor.
+          // Fail-closed: a missing quote (RPC down) → skip_no_quote, NEVER fall
+          // through to the old mid-price path (that re-opens the phantom hole).
+          const roundTrip = await this.roundTripQuote.evaluateRoundTrip({
+            chainId: tokens.chainId,
+            token0: tokens.token0Address,
+            token1: tokens.token1Address,
+            buyVenue,
+            sellVenue,
+            buyAmountIn: amountIns.buyAmountIn,
+            ...(feeTier !== null ? { feeTier } : {}),
+          });
+          if (roundTrip === null) {
+            this.metrics.plansCreated.inc({ outcome: 'skip_no_quote' });
+            this.logger.debug(
+              `opp ${opp.id}: round-trip quote unavailable (RPC/venue) — skip (fail-closed)`,
+            );
+            continue;
+          }
+          if (roundTrip.roundTripBps <= cfg.minRoundTripBps) {
+            this.metrics.plansCreated.inc({ outcome: 'skip_negative_roundtrip' });
+            this.logger.debug(
+              `opp ${opp.id}: round-trip ${roundTrip.roundTripBps} bps <= floor ${cfg.minRoundTripBps} bps — skip (phantom spread)`,
+            );
+            continue;
+          }
           const result = await this.planSetup.orchestrate({
             correlationId,
             riskDecisionId,
