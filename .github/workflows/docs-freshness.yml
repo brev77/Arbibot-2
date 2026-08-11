@@ -1,0 +1,62 @@
+name: docs-freshness
+
+# Foundational-docs drift guard. Catches structural drift between docs and code:
+# migration ranges, skill/tool counts, dead links, plan status vs git, schema
+# references. See tools/ci-docs-freshness.sh header for the full list.
+#
+# Triggers:
+#   - push/PR path-filtered: docs/, AGENTS.md, CONTEXT.md, plans, migrations, skills,
+#     MCP tools — i.e. runs only when something that could cause drift changes.
+#   - weekly schedule: catches drift from pure-code commits (PLAN9/10 scenario —
+#     code merged, plan table not updated, plan file unchanged so push-trigger missed it).
+#   - workflow_dispatch: manual "Run now" button for pre-release checks.
+#
+# STRICTNESS: `continue-on-error: true` during the 2-week baseline calibration window
+# (added 2026-08-11). Remove `continue-on-error` on/after 2026-08-25 to make the job
+# blocking. The script itself exits non-zero on structural drift; the allowlist
+# (tools/docs-freshness-baseline.txt) covers legit historical snapshots.
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'docs/**'
+      - 'AGENTS.md'
+      - 'CONTEXT.md'
+      - 'README.md'
+      - '.cursor/plans/**'
+      - 'infra/postgres/migrations/**'
+      - 'tools/hermes-agent/**'
+      - 'tools/docs-freshness-baseline.txt'
+      - 'tools/ci-docs-freshness.sh'
+      - 'packages/hermes-mcp-server/src/tools/**'
+      - '.github/workflows/docs-freshness.yml'
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'AGENTS.md'
+      - 'CONTEXT.md'
+      - 'README.md'
+      - '.cursor/plans/**'
+      - 'infra/postgres/migrations/**'
+      - 'tools/hermes-agent/**'
+      - 'tools/docs-freshness-baseline.txt'
+      - 'tools/ci-docs-freshness.sh'
+      - 'packages/hermes-mcp-server/src/tools/**'
+      - '.github/workflows/docs-freshness.yml'
+  schedule:
+    # Weekly, Monday 06:17 UTC (off-peak hour to avoid Actions queue contention).
+    - cron: '17 6 * * 1'
+  workflow_dispatch: {}
+
+jobs:
+  docs-freshness:
+    runs-on: ubuntu-latest
+    continue-on-error: true  # TODO(docs-freshness): remove on/after 2026-08-25 to make blocking
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history for `git log --grep` in Check 6 (plan status vs git).
+          fetch-depth: 0
+      - name: Docs freshness guard
+        run: bash tools/ci-docs-freshness.sh

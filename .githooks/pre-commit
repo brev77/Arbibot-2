@@ -1,0 +1,41 @@
+#!/bin/bash
+# pre-commit hook: run docs-freshness guard before the commit lands.
+#
+# Strictness is OS-aware (per Hermes review):
+#   - Linux/Darwin (server, Cursor CI): fail-hard — blocks the commit on drift.
+#   - Windows (MINGW/MSYS/Git Bash): fail-soft — warn only, do not block.
+#     Bash tooling on Windows is known to be flaky (grep differences, line endings,
+#     path translation); blocking on it would create friction without value.
+#
+# The guard itself is in tools/ci-docs-freshness.sh. To skip temporarily:
+#   git commit --no-verify    (use sparingly — CI will still check)
+#
+# Activated via `git config core.hooksPath .githooks` (set by npm install via the
+# `prepare` script in package.json). Existing post-commit/post-merge hooks untouched.
+
+root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+script="$root/tools/ci-docs-freshness.sh"
+
+if [[ ! -f "$script" ]]; then
+  exit 0  # nothing to check
+fi
+
+os="$(uname -s)"
+case "$os" in
+  Linux|Darwin)
+    # Fail-hard: block the commit on structural drift.
+    if ! bash "$script"; then
+      echo ""
+      echo "pre-commit: docs-freshness FAILED — commit blocked." >&2
+      echo "Fix the drift above, or add a justified line to tools/docs-freshness-baseline.txt." >&2
+      echo "To bypass (CI will still check): git commit --no-verify" >&2
+      exit 1
+    fi
+    ;;
+  *)
+    # Windows / other: warn-only. Bash tooling here is too flaky to block on.
+    bash "$script" || echo "pre-commit: [warn] docs-freshness reported drift (non-blocking on $os)" >&2
+    ;;
+esac
+
+exit 0

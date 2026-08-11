@@ -1,0 +1,67 @@
+# docs-freshness allowlist — legit exceptions where documented drift is expected.
+#
+# Format:  <path>|<pattern>|<reason>|@expiry:<YYYY-MM-DD|never>
+#
+#   path    — file (relative to repo root) or glob (e.g. docs/*-2026-*.md). `*` = any.
+#   pattern — regex matched against the finding (e.g. `001-043`, `proposed`, `21/21`).
+#             `*` = match any finding in this file (whole-file exemption).
+#   reason  — human-readable justification. Must explain WHY this drift is legit.
+#   @expiry — when to review this exemption. `never` for frozen canonical specs.
+#             Expired entries produce a WARNING (not error) prompting review/renewal/removal.
+#
+# Principle: every line here is tech-debt — a place where docs legitimately don't track
+# code. Keep the list short. If a snapshot doc gets refreshed, remove its line.
+#
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Historical snapshots — dated audit/review/progress docs that capture a point-in-time
+# state. Their migration ranges / build metrics are correct AS OF their date and must
+# NOT be "fixed" to current values (that would falsify the historical record).
+docs/documentation-audit-2026-07.md|001-04[0-9]|historical audit snapshot 2026-07-17, migration count correct as-of-date|@expiry:2027-01-01
+docs/deployment-readiness-review-2026-07.md|001-0[0-9][0-9]|historical review snapshot 2026-07-17|@expiry:2027-01-01
+docs/pre-deploy-verification-plan.md|001-04[0-9]|historical pre-deploy audit table; current range noted inline in the same row|@expiry:2027-01-01
+docs/progress.md|001-04[0-9]|dated metrics line marked with commit hash df2177a (2026-07-16); current range is on the next line|@expiry:2027-01-01
+docs/session_summary.md|001-0[0-9][0-9]|session snapshot, not a living doc|@expiry:2027-01-01
+docs/operations/staging-migrations.md|001-0[0-9][0-9]|historical staging snapshot|@expiry:2027-01-01
+docs/review-handoff-2026-04-20.md|*|dated handoff snapshot 2026-04-20|@expiry:2027-01-01
+docs/live-auto-drive-smoke-2026-08-05.md|*|dated smoke plan snapshot 2026-08-05|@expiry:2027-01-01
+docs/live-enablement-checklist-2026-08-06.md|*|dated enablement checklist snapshot 2026-08-06|@expiry:2027-01-01
+docs/live-rpc-diagnosis-2026-08-05.md|*|dated RPC diagnosis snapshot 2026-08-05|@expiry:2027-01-01
+docs/hermes-server-changelog-2026-08-06.md|*|Hermes Agent server changelog snapshot 2026-08-06|@expiry:2027-01-01
+docs/hermes-vs-zcode-review-2026-08-06.md|*|dated review comparison snapshot 2026-08-06|@expiry:2027-01-01
+
+# Frozen canonical specs — the original architecture/frontend/tech-stack documents.
+# These are the source spec the code is measured against; if code drifts from them,
+# the correct response is a gap-analysis doc, not editing the spec.
+!Arbibot_2_Architecture_v1_final_docs_settings.md|*|frozen canonical architecture spec; drift tracked via separate gap-analysis docs|@expiry:never
+!Arbibot_2_Frontend_Spec_settings.md|*|frozen canonical frontend spec|@expiry:never
+!Arbibot_2_Tech_Stack_Proposal_settings.md|*|frozen canonical tech-stack proposal|@expiry:never
+
+# Superseded docs — explicitly marked SUPERSEDED in DOCUMENTS_INDEX.md. Their content
+# is retained for history but no longer authoritative; drift from current state is expected.
+docs/execution-playbooks-draft.md|*|SUPERSEDED by partial-fill-playbooks.md (noted in DOCUMENTS_INDEX.md)|@expiry:2027-01-01
+docs/deployment-checklist.md|001-0[0-9][0-9]|SUPERSEDED by paper-deploy-dod.md; retained for reference|@expiry:2027-01-01
+docs/deployment-guide.md|001-0[0-9][0-9]|SUPERSEDED by paper-deploy-dod.md; retained for reference|@expiry:2027-01-01
+docs/deployment-readiness-assessment.md|Build [0-9]+/[0-9]+|historical build metrics on a dated assessment line; current metrics noted separately|@expiry:2027-01-01
+
+# Plan-status partial delivery — PLAN9/10 have steps that are legitimately `proposed`
+# even though the plan has merged commits (ops-prereq / pending-smoke). These are
+# expected; the plan table correctly marks them `proposed` with a ⏸ / commit-hash note.
+.cursor/plans/DEVELOPMENT_PLAN9.md|P9-12.*proposed|P9-12 is an ops-prereq step (wallet/RPC/capital env), correctly `proposed` — code step not applicable|@expiry:2027-03-01
+.cursor/plans/DEVELOPMENT_PLAN10.md|P10-9.*proposed|P10-9 dedicated live-auto-drive smoke pending; reuses PLAN8 smoke:live-testnet meanwhile|@expiry:2027-03-01
+# P10-9 row in PLAN10 second table (mapping) — same legit partial delivery, different table format
+.cursor/plans/DEVELOPMENT_PLAN10.md|44.*REL-LIVE-AUTO-DRIVE-SMOKE.*proposed|P10-9 mapping row (#44), same legit partial delivery as the step table|@expiry:2027-03-01
+
+# DOCUMENTS_INDEX.md itself is the index — it doesn't list itself by design.
+docs/DOCUMENTS_INDEX.md|DOCUMENTS_INDEX.md|index file does not self-reference by design|@expiry:never
+
+# docs/lessons/ — future-proofed: any new lesson file is OK to be absent from index
+# (the lessons section was added 2026-08-11; new lessons should still be added, but
+# we don't want the check to block on every new lessons/*.md).
+docs/DOCUMENTS_INDEX.md|lessons/|lessons subdir files tracked separately; add new lessons to index manually|@expiry:2027-01-01
+
+# Schema reference: `cross_chain_reconciliation` is intentionally mentioned in
+# docs/aggregates.md as a WARNING that the table does NOT exist (in-memory service
+# mistaken for a table in earlier docs). The mention is correct; the check flags it
+# because there's no CREATE TABLE — which is exactly the point of the doc note.
+docs/aggregates.md|cross_chain_reconciliation|intentional warning that this table does not exist (in-memory service)|@expiry:never
