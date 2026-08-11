@@ -10,6 +10,7 @@ import { LiveAutoDriveConfigService } from './live-auto-drive-config.service';
 import { LiveAutoDriveWorker } from './live-auto-drive.worker';
 import { LiveKillSwitchService } from './live-kill-switch.service';
 import { LivePriceClientService } from './live-price-client.service';
+import { PoolFeeClientService } from './pool-fee-client.service';
 import { OpportunitiesController } from './opportunities.controller';
 import { OpportunitiesService } from './opportunities.service';
 import { PaperClientService } from './paper-client.service';
@@ -35,6 +36,8 @@ import { TokenResolverService } from './token-resolver.service';
     LiveAutoDriveWorker,
     // PLAN12 #48 — USD price oracle client (amountIn correctness)
     LivePriceClientService,
+    // FIX-D (2026-08-11) — V3 fee-tier resolver client (replaces hardcoded fee=500)
+    PoolFeeClientService,
   ],
   exports: [PaperClientService, PaperDiscoveryService],
 })

@@ -7,6 +7,7 @@ import { LiveAutoDriveConfigService } from './live-auto-drive-config.service';
 import { LiveAutoDriveWorker } from './live-auto-drive.worker';
 import { LiveKillSwitchService } from './live-kill-switch.service';
 import { LivePriceClientService } from './live-price-client.service';
+import { PoolFeeClientService } from './pool-fee-client.service';
 import { PlanSetupOrchestrator } from './plan-setup-orchestrator.service';
 import { RiskClientService } from './risk-client.service';
 import { TokenResolverService } from './token-resolver.service';
@@ -89,6 +90,11 @@ describe('LiveAutoDriveWorker', () => {
     computeAmountIns: jest.fn(),
   };
   const livePriceMock: { getTokenPriceUsd: jest.Mock } = { getTokenPriceUsd: jest.fn() };
+  // FIX-D: mock the V3 fee-tier resolver client. Default returns fee=3000 (the plan-setup
+  // safe default) so existing tests asserting plan creation are unaffected.
+  const poolFeeMock: { getBestFeeTier: jest.Mock } = {
+    getBestFeeTier: jest.fn().mockResolvedValue(3000),
+  };
   const planSetupMock: { orchestrate: jest.Mock } = { orchestrate: jest.fn() };
   const riskClientMock: { getRiskDecision: jest.Mock } = { getRiskDecision: jest.fn() };
   const repoMock = { find: jest.fn(), count: jest.fn() };
@@ -128,6 +134,7 @@ describe('LiveAutoDriveWorker', () => {
       planSetupMock as unknown as PlanSetupOrchestrator,
       riskClientMock as unknown as RiskClientService,
       livePriceMock as unknown as LivePriceClientService,
+      poolFeeMock as unknown as PoolFeeClientService,
       repoMock as unknown as never,
       { transaction: txMock, query: queryMock } as unknown as DataSource,
     );
@@ -183,6 +190,44 @@ describe('LiveAutoDriveWorker', () => {
         buyVenueKey: 'uniswap-v2',
         sellVenueKey: 'sushiswap',
       }));
+    });
+
+    it('FIX-D: forwards buyFeeTier/sellFeeTier from the resolver (3000 = most liquid)', async () => {
+      repoMock.find.mockResolvedValue([makeOpp()]);
+      repoMock.count.mockResolvedValue(0);
+      planSetupMock.orchestrate.mockResolvedValue({ planId: 'plan-1', reservationId: 'resv-1' });
+      poolFeeMock.getBestFeeTier.mockResolvedValue(3000); // CRV/WETH-like: fee=3000 liquid
+      txMock.mockImplementation(async (cb: (em: unknown) => Promise<unknown>) => {
+        const em = { query: () => Promise.resolve([{ rowCount: 1 }]) };
+        return cb(em);
+      });
+
+      await worker.trigger();
+
+      expect(poolFeeMock.getBestFeeTier).toHaveBeenCalledWith(42161, '0xWETH', '0xUSDC');
+      expect(planSetupMock.orchestrate).toHaveBeenCalledWith(expect.objectContaining({
+        buyFeeTier: 3000,
+        sellFeeTier: 3000,
+      }));
+    });
+
+    it('FIX-D: omits buyFeeTier/sellFeeTier when resolver returns null (fallback to safe default)', async () => {
+      repoMock.find.mockResolvedValue([makeOpp()]);
+      repoMock.count.mockResolvedValue(0);
+      planSetupMock.orchestrate.mockResolvedValue({ planId: 'plan-1', reservationId: 'resv-1' });
+      poolFeeMock.getBestFeeTier.mockResolvedValue(null); // EO unreachable
+      txMock.mockImplementation(async (cb: (em: unknown) => Promise<unknown>) => {
+        const em = { query: () => Promise.resolve([{ rowCount: 1 }]) };
+        return cb(em);
+      });
+
+      await worker.trigger();
+
+      const call = planSetupMock.orchestrate.mock.calls[0]?.[0] as Record<string, unknown>;
+      expect(call.buyFeeTier).toBeUndefined();
+      expect(call.sellFeeTier).toBeUndefined();
+      // Plan still created — plan-setup falls back to SAFE_DEFAULT_FEE_TIER=3000.
+      expect(planSetupMock.orchestrate).toHaveBeenCalledTimes(1);
     });
 
     it('inherits correlationId from the risk decision (proper rework of workaround #3)', async () => {

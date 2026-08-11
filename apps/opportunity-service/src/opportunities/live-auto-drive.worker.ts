@@ -10,6 +10,7 @@ import { ArbitrageOpportunityEntity } from '@arbibot/persistence';
 import { LiveAutoDriveConfigService } from './live-auto-drive-config.service';
 import { LiveKillSwitchService } from './live-kill-switch.service';
 import { LivePriceClientService } from './live-price-client.service';
+import { PoolFeeClientService } from './pool-fee-client.service';
 import { TokenResolverService, type OpportunityEvidence } from './token-resolver.service';
 import { PlanSetupOrchestrator } from './plan-setup-orchestrator.service';
 import { RiskClientService } from './risk-client.service';
@@ -87,6 +88,7 @@ export class LiveAutoDriveWorker implements OnModuleInit, OnModuleDestroy {
     private readonly planSetup: PlanSetupOrchestrator,
     private readonly riskClient: RiskClientService,
     private readonly livePrice: LivePriceClientService,
+    private readonly poolFee: PoolFeeClientService,
     @InjectRepository(ArbitrageOpportunityEntity)
     private readonly repo: Repository<ArbitrageOpportunityEntity>,
     private readonly dataSource: DataSource,
@@ -304,6 +306,17 @@ export class LiveAutoDriveWorker implements OnModuleInit, OnModuleDestroy {
           ) {
             grossProfitUsd = (cfg.notionalUsd * (sellPrice - buyPrice)) / buyPrice;
           }
+          // FIX-D (2026-08-11): resolve the most-liquid V3 fee tier for this pair from
+          // on-chain liquidity, replacing the hardcoded fee=500 that routed CRV/WETH
+          // (and MAGIC/WETH) through thin pools (~3000× less liquidity than fee=3000).
+          // The EO resolver caches per-pair (5 min TTL). Non-throwing; on failure the
+          // plan-setup falls back to SAFE_DEFAULT_FEE_TIER=3000 (safer than the old 500).
+          // Fee tier is symmetric for a token pair, so one lookup covers both legs.
+          const feeTier = await this.poolFee.getBestFeeTier(
+            tokens.chainId,
+            tokens.token0Address,
+            tokens.token1Address,
+          );
           const result = await this.planSetup.orchestrate({
             correlationId,
             riskDecisionId,
@@ -313,6 +326,7 @@ export class LiveAutoDriveWorker implements OnModuleInit, OnModuleDestroy {
             amountIns,
             buyVenueKey: buyVenue,
             sellVenueKey: sellVenue,
+            ...(feeTier !== null ? { buyFeeTier: feeTier, sellFeeTier: feeTier } : {}),
             grossProfitUsd:
               grossProfitUsd !== null && Number.isFinite(grossProfitUsd)
                 ? grossProfitUsd
