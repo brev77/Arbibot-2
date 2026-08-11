@@ -302,6 +302,7 @@
 - [plan-hermes-live-correctness-2026-08-06.md](plan-hermes-live-correctness-2026-08-06.md) — PLAN11 (V3 pricing, RPC staticNetwork, audit UUID)
 - [plan-amountin-usd-oracle-2026-08-10.md](plan-amountin-usd-oracle-2026-08-10.md) — PLAN12 (amountIn USD oracle, #48)
 - [plan-slippage-same-decimals-2026-08-10.md](plan-slippage-same-decimals-2026-08-10.md) — PLAN13 (slippage same-decimals, gas leak, native wrap, #49-51)
+- [tz-consolidated-live-fixes-2026-08-11.md](tz-consolidated-live-fixes-2026-08-11.md) — consolidated ТЗ live-blockers FIX-A/B/C/D (V3 router selector, QuoterV2 staticCall, cost gate fail-open, fee tier hardcode)
 
 ### 📞 Runbooks (операции/инциденты)
 
