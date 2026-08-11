@@ -9,6 +9,7 @@ import { PoolDiscoveryService } from '../execution/pool/pool-discovery.service';
 import { PriceOracleService } from '../execution/price/price-oracle.service';
 import { DexRiskPolicyService } from '../execution/risk/dex-risk-policy.service';
 import { BridgeAdapterFactoryService } from '../execution/bridge/bridge-adapter-factory.service';
+import { V3QuoterService } from '../execution/v3-quoter.service';
 
 // Clear metrics registry between tests (matches other spec patterns).
 function clearRegistry(): void {
@@ -60,6 +61,7 @@ describe('TradeCostEstimatorService', () => {
   let priceOracle: { getNativeUsdPrice: jest.Mock; getTokenPriceUsd: jest.Mock; getTokenDecimals: jest.Mock };
   let dexRiskPolicy: { getEffectiveConfig: jest.Mock };
   let bridgeAdapterFactory: { hasAdapter: jest.Mock; resolveAdapter: jest.Mock };
+  let v3Quoter: { quoteExactInputSingle: jest.Mock };
 
   beforeEach(async () => {
     clearRegistry();
@@ -121,6 +123,7 @@ describe('TradeCostEstimatorService', () => {
       }),
     };
     bridgeAdapterFactory = { hasAdapter: jest.fn().mockReturnValue(false), resolveAdapter: jest.fn() };
+    v3Quoter = { quoteExactInputSingle: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -131,6 +134,7 @@ describe('TradeCostEstimatorService', () => {
         { provide: PriceOracleService, useValue: priceOracle },
         { provide: DexRiskPolicyService, useValue: dexRiskPolicy },
         { provide: BridgeAdapterFactoryService, useValue: bridgeAdapterFactory },
+        { provide: V3QuoterService, useValue: v3Quoter },
       ],
     }).compile();
 
@@ -250,6 +254,168 @@ describe('TradeCostEstimatorService', () => {
       const decision = await service.evaluatePlanGate(breakdown);
       expect(decision.allowed).toBe(true);
       expect(decision.warnings.some((w) => w.includes('modeled'))).toBe(true);
+    });
+  });
+
+  // ── FIX-F (2026-08-11): V3 pools use QuoterV2, not constant-product. ──
+  describe('estimatePlanCost — V3 slippage (FIX-F)', () => {
+    const Q96 = 1n << 96n; // sqrtPriceX96 = 2^96 → spot price 1:1 (token1/token0)
+    // At 1:1 spot, fairAmountOut for token0→token1 = amountIn exactly.
+
+    function makeV3Plan(overrides: { amountIn?: string; fee?: number; grossProfitUsd?: number } = {}): any {
+      return {
+        id: 'plan-v3-001',
+        playbookConfig: {
+          schemaVersion: 1,
+          grossProfitUsd: overrides.grossProfitUsd ?? 10,
+          legs: [
+            {
+              legIndex: 0,
+              legType: 'dex',
+              chainId: CHAIN,
+              venueKey: 'uniswap-v3',
+              tokenIn: TOKEN_IN,
+              tokenOut: TOKEN_OUT,
+              amountIn: overrides.amountIn ?? '1000000',
+              slippageBps: 50,
+              fee: overrides.fee ?? 3000,
+            },
+          ],
+          isCrossChain: false,
+          chainIds: [CHAIN],
+        },
+      };
+    }
+
+    it('uses the authoritative QuoterV2 quote for V3 slippage (not constant-product)', async () => {
+      const pool = {
+        address: '0xv3pool',
+        token0: TOKEN_IN,
+        token1: TOKEN_OUT,
+        feeBps: 30, // fee tier 3000 → 30 bps
+        reserve0: 9_000_000_000_000_000n, // V3: == liquidity, MUST be ignored
+        reserve1: 9_000_000_000_000_000n,
+        sqrtPriceX96: Q96, // spot price 1:1
+        chainId: CHAIN,
+        factory: '0x',
+        protocol: 'uniswap-v3',
+        blockNumber: 1,
+        discoveredAt: new Date(),
+      };
+      poolDiscovery.getCachedPools.mockReturnValue([pool]);
+      // Real quote returns 990000 for 1000000 in → 1% impact = 100 bps.
+      v3Quoter.quoteExactInputSingle.mockResolvedValue(990_000n);
+
+      const breakdown = await service.estimatePlanCost(makeV3Plan());
+      const leg = breakdown.legs[0]!;
+
+      expect(v3Quoter.quoteExactInputSingle).toHaveBeenCalledTimes(1);
+      expect(v3Quoter.quoteExactInputSingle).toHaveBeenCalledWith(
+        CHAIN, TOKEN_IN, TOKEN_OUT, 1_000_000n, 3000,
+      );
+      // impact 100 bps: notional $1 (1e6 units / 1e6 dec × $1) → slippage $0.01
+      expect(leg.slippageBps).toBe(100);
+      expect(leg.slippageCostUsd).toBeCloseTo(0.01, 5);
+      // pool fee from the V3 pool tier (30 bps × $1 / 10000 = $0.003)
+      expect(leg.poolFeeUsd).toBeCloseTo(0.003, 5);
+      // V2 constant-product must NOT have been consulted for a V3 leg.
+      expect(slippageProtection.estimateSlippage).not.toHaveBeenCalled();
+      expect(leg.estimateConfidence).toBe('exact');
+    });
+
+    it('falls back to modeled slippage when the V3 quote is unavailable', async () => {
+      const pool = {
+        address: '0xv3pool',
+        token0: TOKEN_IN,
+        token1: TOKEN_OUT,
+        feeBps: 30,
+        reserve0: 1n,
+        reserve1: 1n,
+        sqrtPriceX96: Q96,
+        chainId: CHAIN,
+        factory: '0x',
+        protocol: 'uniswap-v3',
+        blockNumber: 1,
+        discoveredAt: new Date(),
+      };
+      poolDiscovery.getCachedPools.mockReturnValue([pool]);
+      v3Quoter.quoteExactInputSingle.mockResolvedValue(null); // RPC fail / unsupported
+
+      const breakdown = await service.estimatePlanCost(makeV3Plan());
+      const leg = breakdown.legs[0]!;
+
+      // Modeled: leg.slippageBps (50) × notional, pool fee still from the tier.
+      expect(leg.slippageCostUsd).toBeCloseTo(0.005, 5); // 50 bps × $1
+      expect(leg.estimateConfidence).toBe('modeled');
+      // Broken constant-product estimate must never run on a V3 leg.
+      expect(slippageProtection.estimateSlippage).not.toHaveBeenCalled();
+    });
+
+    // FIX-E (2026-08-11): findPoolForLeg must pick the pool matching the leg's
+    // fee tier, not the first cached pool.
+    it('FIX-E: selects the fee-matching pool, not a thin pool of another tier', async () => {
+      const thin = {
+        address: '0xthin',
+        token0: TOKEN_IN,
+        token1: TOKEN_OUT,
+        feeBps: 5, // fee tier 500 → thin
+        reserve0: 5_000n,
+        reserve1: 5_000n,
+        sqrtPriceX96: Q96,
+        chainId: CHAIN,
+        factory: '0x',
+        protocol: 'uniswap-v3',
+        blockNumber: 1,
+        discoveredAt: new Date(),
+      };
+      const liquid = {
+        address: '0xliquid',
+        token0: TOKEN_IN,
+        token1: TOKEN_OUT,
+        feeBps: 30, // fee tier 3000 → liquid, the tier the leg uses
+        reserve0: 90_000_000_000_000_000n,
+        reserve1: 90_000_000_000_000_000n,
+        sqrtPriceX96: Q96,
+        chainId: CHAIN,
+        factory: '0x',
+        protocol: 'uniswap-v3',
+        blockNumber: 1,
+        discoveredAt: new Date(),
+      };
+      // Thin first in the cache — legacy first-match would have picked it.
+      poolDiscovery.getCachedPools.mockReturnValue([thin, liquid]);
+      v3Quoter.quoteExactInputSingle.mockResolvedValue(990_000n);
+
+      const breakdown = await service.estimatePlanCost(makeV3Plan({ fee: 3000 }));
+      const leg = breakdown.legs[0]!;
+
+      // poolFeeUsd must reflect fee tier 3000 (feeBps 30), proving the liquid
+      // pool was selected — a thin-fee (5 bps) selection would give $0.0005.
+      expect(leg.poolFeeUsd).toBeCloseTo(0.003, 5); // 30 bps × $1
+    });
+
+    it('FIX-E: returns no pool when the requested fee tier is absent (modeled path)', async () => {
+      const thin = {
+        address: '0xthin',
+        token0: TOKEN_IN,
+        token1: TOKEN_OUT,
+        feeBps: 5, // only fee tier 500 cached
+        reserve0: 5_000n,
+        reserve1: 5_000n,
+        sqrtPriceX96: Q96,
+        chainId: CHAIN,
+        factory: '0x',
+        protocol: 'uniswap-v3',
+        blockNumber: 1,
+        discoveredAt: new Date(),
+      };
+      poolDiscovery.getCachedPools.mockReturnValue([thin]);
+      // leg asks for fee 3000 which is NOT cached → modeled, quoter untouched.
+      const breakdown = await service.estimatePlanCost(makeV3Plan({ fee: 3000 }));
+      const leg = breakdown.legs[0]!;
+
+      expect(v3Quoter.quoteExactInputSingle).not.toHaveBeenCalled();
+      expect(leg.estimateConfidence).toBe('modeled');
     });
   });
 });

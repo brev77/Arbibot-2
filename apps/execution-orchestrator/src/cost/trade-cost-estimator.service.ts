@@ -10,6 +10,7 @@ import { PoolDiscoveryService, type DiscoveredPool } from '../execution/pool/poo
 import { PriceOracleService } from '../execution/price/price-oracle.service';
 import { DexRiskPolicyService } from '../execution/risk/dex-risk-policy.service';
 import { BridgeAdapterFactoryService } from '../execution/bridge/bridge-adapter-factory.service';
+import { V3QuoterService } from '../execution/v3-quoter.service';
 import type { BridgeTransferParams } from '../execution/bridge/bridge-adapter.interface';
 
 import type {
@@ -62,6 +63,11 @@ export class TradeCostEstimatorService {
     // logic itself lives here (cost-aware) so risk-service stays single-writer
     // for risk decisions and execution stays single-writer for cost decisions.
     private readonly dexRiskPolicy: DexRiskPolicyService,
+    // FIX-F (2026-08-11): authoritative V3 quote for price-impact estimation.
+    // The V2 constant-product estimate (SlippageProtectionService) is
+    // meaningless on V3 pools where DiscoveredPool reserves carry `liquidity`,
+    // not a price; this provides the realized amountOut at current pool state.
+    private readonly v3Quoter: V3QuoterService,
   ) {
     this.initializeMetrics();
   }
@@ -238,10 +244,42 @@ export class TradeCostEstimatorService {
     let poolFeeUsd = 0;
     let slippageBps = leg.slippageBps ?? 50;
 
-    const pool = this.findPoolForLeg(chainId, tokenIn, leg.tokenOut as Address | undefined);
+    const pool = this.findPoolForLeg(chainId, tokenIn, leg.tokenOut as Address | undefined, leg.fee);
     const effectiveNotional = notional ?? 0;
 
-    if (pool !== null && amountIn > 0n) {
+    const isV3Pool =
+      pool !== null &&
+      pool.protocol === 'uniswap-v3' &&
+      pool.sqrtPriceX96 !== undefined &&
+      leg.fee !== undefined;
+
+    if (isV3Pool && amountIn > 0n) {
+      // FIX-F (2026-08-11): V3 pools carry `liquidity` in reserve0/1 (not a
+      // price), so the V2 constant-product estimate is meaningless and
+      // previously produced 3000–10000 bps impact → every V3 plan was blocked
+      // by the cost gate. Use the authoritative QuoterV2 amountOut vs the
+      // sqrtPriceX96-derived spot amountOut instead. On quote failure (RPC,
+      // unsupported chain) fall back to modeled leg bps — never to the broken
+      // constant-product estimate, and never silently understating impact.
+      const v3Impact = await this.estimateV3PriceImpact(
+        pool,
+        tokenIn ?? pool.token0,
+        amountIn,
+        chainId,
+        leg.fee,
+      );
+      poolFeeUsd = (effectiveNotional * pool.feeBps) / 10_000;
+      if (v3Impact !== null) {
+        slippageBps = v3Impact.priceImpactBps;
+        slippageCostUsd = (effectiveNotional * v3Impact.priceImpactBps) / 10_000;
+        this.slippageBpsHistogram.observe({ chain_id: String(chainId) }, slippageBps);
+      } else {
+        slippageCostUsd = (effectiveNotional * slippageBps) / 10_000;
+        notes.push('v3 quote unavailable — slippage modeled from leg bps');
+        confidence = confidence === 'exact' ? 'modeled' : confidence;
+      }
+    } else if (pool !== null && amountIn > 0n) {
+      // V2/Sushi: constant-product on real reserves is correct here.
       const slippageEstimate = this.slippageProtection.estimateSlippage({
         pool,
         amountIn,
@@ -463,11 +501,27 @@ export class TradeCostEstimatorService {
     }
   }
 
-  /** Find a cached DiscoveredPool matching the leg's token pair. */
+  /**
+   * Find a cached DiscoveredPool matching the leg's token pair.
+   *
+   * FIX-E (2026-08-11): for V3 legs (`fee !== undefined`) the cache may hold
+   * several fee tiers for the same token pair (e.g. a thin fee=500 pool next to
+   * the liquid fee=3000 pool the plan actually trades). Returning the first
+   * match picked a thin pool, and the V2 constant-product slippage estimate on
+   * its (liquidity-shaped) reserves produced absurd impact → every V3 plan was
+   * blocked by the cost gate. Now: when a fee tier is requested, only pools with
+   * `feeBps === fee / 100` are considered (Uniswap fee tier 3000 → feeBps 30;
+   * see PoolDiscoveryService where `feeBps: Number(fee) / 100`), the most
+   * liquid one is chosen, and if none matches we return `null` so the caller
+   * falls back to modeled slippage rather than borrowing an unrelated tier. For
+   * V2/Sushi legs (`fee === undefined`) each pair has a single pool, so the
+   * first match (legacy behavior) is correct.
+   */
   private findPoolForLeg(
     chainId: ChainId,
     tokenIn: Address | undefined,
     tokenOut: Address | undefined,
+    fee?: number,
   ): DiscoveredPool | null {
     if (tokenIn === undefined || tokenOut === undefined) {
       return null;
@@ -475,14 +529,89 @@ export class TradeCostEstimatorService {
     const pools = this.poolDiscovery.getCachedPools(chainId);
     const inLc = tokenIn.toLowerCase();
     const outLc = tokenOut.toLowerCase();
-    for (const p of pools) {
+    const samePair = (p: DiscoveredPool): boolean => {
       const t0 = p.token0.toLowerCase();
       const t1 = p.token1.toLowerCase();
-      if ((t0 === inLc && t1 === outLc) || (t0 === outLc && t1 === inLc)) {
-        return p;
-      }
+      return (t0 === inLc && t1 === outLc) || (t0 === outLc && t1 === inLc);
+    };
+    const matches = pools.filter(samePair);
+    if (matches.length === 0) {
+      return null;
     }
-    return null;
+    // V3: restrict to the requested fee tier; pick the most liquid match.
+    if (fee !== undefined) {
+      const expectedFeeBps = fee / 100;
+      const feeMatches = matches.filter((p) => p.feeBps === expectedFeeBps);
+      if (feeMatches.length === 0) {
+        // No pool of this fee tier cached → do NOT fall back to another tier
+        // (a thin tier would corrupt the estimate); let the caller use modeled.
+        return null;
+      }
+      return feeMatches.reduce((best, p) => (p.reserve0 > best.reserve0 ? p : best));
+    }
+    // V2/Sushi: a single pool per pair — first match is correct.
+    return matches[0] ?? null;
+  }
+
+  /**
+   * FIX-F (2026-08-11): compute the true V3 price impact from an authoritative
+   * QuoterV2 quote vs the spot output implied by `slot0.sqrtPriceX96`.
+   *
+   * On V3 pools `DiscoveredPool.reserve0/1` carry `liquidity` (not a price), so
+   * the V2 constant-product formula cannot be used. Instead:
+   *   - `realAmountOut` = `QuoterV2.quoteExactInputSingle.staticCall` (realized
+   *     output for this `amountIn` at current pool state — read-only `eth_call`,
+   *     never a broadcast).
+   *   - `fairAmountOut` = `amountIn` valued at the zero-impact spot price
+   *     (`sqrtPriceX96² / 2¹⁹²`), computed entirely in BigInt so the impact
+   *     ratio is exact and decimals cancel (raw-vs-raw comparison).
+   *   - `priceImpactBps` = `(fair − real) / fair × 10000`, clamped `≥ 0`.
+   *
+   * Returns `null` when the quote cannot be obtained (unsupported chain, RPC
+   * error, non-positive output) so the caller fails soft to a modeled estimate.
+   * Capital safety: this path never silently understates impact — `null` is
+   * surfaced, and the caller downgrades to `modeled` rather than guessing low.
+   */
+  private async estimateV3PriceImpact(
+    pool: DiscoveredPool,
+    tokenIn: Address,
+    amountIn: bigint,
+    chainId: ChainId,
+    fee: number,
+  ): Promise<{ priceImpactBps: number; realAmountOut: bigint } | null> {
+    if (pool.sqrtPriceX96 === undefined) {
+      return null;
+    }
+    const isToken0In = tokenIn.toLowerCase() === pool.token0.toLowerCase();
+    const tokenOut = isToken0In ? pool.token1 : pool.token0;
+    const realAmountOut = await this.v3Quoter.quoteExactInputSingle(
+      chainId,
+      tokenIn,
+      tokenOut,
+      amountIn,
+      fee,
+    );
+    if (realAmountOut === null || realAmountOut <= 0n) {
+      return null;
+    }
+    // Spot price in raw smallest units: token1/token0 = (sqrtP/2^96)^2.
+    // All-BigInt so the impact ratio is exact (float would lose precision on
+    // the huge sqrtPriceX96² and could understate impact — capital-unsafe).
+    const sqrtP = pool.sqrtPriceX96;
+    const Q192 = 1n << 192n; // 2^192
+    const priceNum = sqrtP * sqrtP; // token1 raw per token0 raw × 2^192
+    // fairAmountOut in raw tokenOut units at zero price impact.
+    const fairAmountOut = isToken0In
+      ? (amountIn * priceNum) / Q192 // token0 → token1
+      : (amountIn * Q192) / priceNum; // token1 → token0
+    if (fairAmountOut <= 0n) {
+      return null;
+    }
+    let impactBig = ((fairAmountOut - realAmountOut) * 10_000n) / fairAmountOut;
+    if (impactBig < 0n) {
+      impactBig = 0n; // quote better than spot (rare) → zero impact, not negative
+    }
+    return { priceImpactBps: Number(impactBig), realAmountOut };
   }
 
   private initializeMetrics(): void {

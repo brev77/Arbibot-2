@@ -27,6 +27,7 @@ import { PoolFeeResolverService } from './pool/pool-fee-resolver.service';
 import { PoolFeeController } from './pool/pool-fee.controller';
 import { TokenApproveService } from './token/token-approve.service';
 import { SlippageProtectionService } from './slippage/slippage-protection.service';
+import { V3QuoterService } from './v3-quoter.service';
 import { TradeCostEstimatorService } from '../cost/trade-cost-estimator.service';
 import { UniswapV2Adapter } from './adapters/uniswap-v2.adapter';
 import { UniswapV3Adapter } from './adapters/uniswap-v3.adapter';
@@ -63,6 +64,7 @@ import { CrossChainReconWorker } from './workers/cross-chain-recon.worker';
     DexFillTrackerService,
     DexOutboxEventsService,
     RpcProviderManager,
+    V3QuoterService,
     GasEstimatorService,
     PoolDiscoveryService,
     DexRiskPolicyService,
