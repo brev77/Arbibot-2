@@ -29,6 +29,15 @@ export interface MultiLegPlaybookConfig {
   readonly isCrossChain: boolean;
   /** Chain IDs involved (unique). */
   readonly chainIds: ReadonlyArray<number>;
+  /**
+   * FIX-C (2026-08-11): gross profit (USD) from the scanner's cross-venue spread.
+   * Consumed by `TradeCostEstimatorService.extractGrossProfitUsd()` to derive
+   * `netProfitUsd = gross − totalCost` and enforce `minNetProfitUsd`. Without this
+   * field the cost gate stays fail-OPEN (netProfit null → gate never blocks).
+   */
+  readonly grossProfitUsd?: number;
+  /** PLAN10 P10-AMT: plan-level notional (USD) — fallback for legs without amountIn. */
+  readonly notionalUsd?: number;
 }
 
 /** Resolved leg config (after validation and default-filling). */
@@ -126,6 +135,12 @@ export class MultiLegPlanBuilderService {
       legs: resolvedLegs,
       isCrossChain,
       chainIds,
+      // FIX-C (2026-08-11): forward grossProfitUsd into playbookConfig so the EO
+      // cost-gate can compute netProfitUsd and enforce minNetProfitUsd. Omitted
+      // when the caller doesn't supply it (paper path / legacy callers) — the
+      // gate stays fail-OPEN for those, matching pre-FIX-C behavior.
+      ...(dto.grossProfitUsd !== undefined ? { grossProfitUsd: dto.grossProfitUsd } : {}),
+      ...(dto.notionalUsd !== undefined ? { notionalUsd: dto.notionalUsd } : {}),
     };
 
     // 4. Create plan

@@ -207,6 +207,20 @@ export class CreateMultiLegPlanDto {
   @IsNumber()
   notionalUsd?: number;
 
+  /**
+   * FIX-C (2026-08-11): gross profit (USD) from the scanner's cross-venue spread,
+   * i.e. `notionalUsd × spreadBps / 10000` BEFORE pool fees / gas / slippage. Forwarded
+   * into `playbookConfig.grossProfitUsd` so `TradeCostEstimatorService` can derive
+   * `netProfitUsd = gross − totalCost` and enforce `minNetProfitUsd`. Without this field
+   * the EO ValidationPipe (`forbidNonWhitelisted: true`) rejects the request with 422,
+   * and even if it passed, `extractGrossProfitUsd()` would return null → the cost gate
+   * stays fail-OPEN (netProfit null → the `if (netProfit !== null && ...)` branch never
+   * blocks), allowing unprofitable plans to reach broadcast.
+   */
+  @IsOptional()
+  @IsNumber()
+  grossProfitUsd?: number;
+
   /** Ordered list of leg descriptors (minimum 2 for cross-chain). */
   @IsArray()
   @ValidateNested({ each: true })

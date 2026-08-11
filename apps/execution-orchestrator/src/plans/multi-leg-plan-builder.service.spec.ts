@@ -351,6 +351,40 @@ describe('MultiLegPlanBuilderService', () => {
       expect(config.legs[0]!.venueKey).toBe('uniswap-v3');
       expect(config.legs[1]!.venueKey).toBe('sushiswap');
     });
+
+    it('FIX-C: should forward grossProfitUsd + notionalUsd into playbookConfig', async () => {
+      const dto: CreateMultiLegPlanDto = {
+        legs: [
+          makeDexLeg({ chainId: 42161, venueKey: 'uniswap-v3' }),
+          makeDexLeg({ chainId: 42161, venueKey: 'sushiswap' }),
+        ],
+        grossProfitUsd: 1.55,
+        notionalUsd: 10,
+      };
+
+      const { config } = await service.buildMultiLegPlan(dto);
+
+      // FIX-C: grossProfitUsd must land in playbookConfig so the EO cost-gate
+      // (TradeCostEstimatorService.extractGrossProfitUsd) can derive netProfitUsd
+      // and enforce minNetProfitUsd. Previously this field was never carried into
+      // the config → netProfitUsd stayed null → gate was dead code (fail-OPEN).
+      expect(config.grossProfitUsd).toBe(1.55);
+      expect(config.notionalUsd).toBe(10);
+    });
+
+    it('FIX-C: should omit grossProfitUsd when the caller does not supply it (legacy)', async () => {
+      const dto: CreateMultiLegPlanDto = {
+        legs: [
+          makeDexLeg({ chainId: 42161, venueKey: 'uniswap-v3' }),
+          makeDexLeg({ chainId: 42161, venueKey: 'sushiswap' }),
+        ],
+      };
+
+      const { config } = await service.buildMultiLegPlan(dto);
+
+      expect(config.grossProfitUsd).toBeUndefined();
+      expect(config.notionalUsd).toBeUndefined();
+    });
   });
 
   // ── Happy path: 3-leg cross-chain DEX → Bridge → DEX ──────────────
