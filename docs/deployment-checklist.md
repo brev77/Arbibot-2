@@ -16,7 +16,7 @@
 - [ ] `npm run build` — 22/22 пакетов собирается без ошибок
 - [ ] `npm run lint` — 29/29 пакетов проходит без ошибок
 - [ ] `npm run test` — 778/778 тестов проходит (74 suites)
-- [ ] `npm run db:verify-migrations:all` — все миграции 001–043 применены
+- [ ] `npm run db:verify-migrations:all` — все миграции 001–054 применены
 - [ ] Нет незакоммиченных изменений в production ветке
 
 ### 2. Environment

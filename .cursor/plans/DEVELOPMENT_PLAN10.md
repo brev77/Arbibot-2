@@ -19,18 +19,18 @@
 
 | step_id | Вектор | gate | Тип | impact/effort | status |
 |---------|--------|------|-----|---------------|--------|
-| `P10-1-LIVE-AUTO-CONFIG` | FUNC (SEC) | live-blocker | пробел | 4/1 (XS) | `proposed` |
-| `P10-2-LIVE-KILL-SWITCH-READ` | SEC (FUNC) | live-blocker | пробел | 4/2 (S) | `proposed` |
-| `P10-3-TOKEN-RESOLVER` | FUNC (SEC) | live-blocker | пробел | 4/3 (M) | `proposed` |
-| `P10-4-LIVE-PLAN-SETUP` | FUNC (SEC) | live-blocker | пробел | 4/3 (M) | `proposed` |
-| `P10-5-LIVE-AUTO-DRIVE` | FUNC (SEC) | live-blocker | пробел | 5/3 (M) | `proposed` |
-| `P10-EO-LEG-AUTO-DRIVER` | REL (SEC) | live-blocker | пробел | 5/4 (L) | `proposed` |
-| `P10-FB-LIVE-COMPLETION-CALLBACK` | REL (ARCH) | live-blocker | пробел | 3/2 (S) | `proposed` |
-| `P10-AMT-NOTIONAL-TO-AMOUNTIN` | FUNC (SEC) | paper-check | пробел | 3/2 (S) | `proposed` |
-| `P10-6-MIGRATIONS` | DEVOPS (SEC) | live-blocker | ops | 3/1 (XS) | `proposed` |
-| `P10-7-PANIC-SCRIPTS` | DEVOPS (SEC) | live-blocker | ops | 3/1 (XS) | `proposed` |
-| `P10-8-TARGETED-TESTS` | TEST (SEC) | live-blocker | тест | 4/3 (M) | `proposed` |
-| `P10-9-LIVE-SMOKE` | REL (DEVOPS) | live-blocker | тест | 3/2 (S) | `proposed` |
+| `P10-1-LIVE-AUTO-CONFIG` | FUNC (SEC) | live-blocker | пробел | 4/1 (XS) | `done` (787fc38) |
+| `P10-2-LIVE-KILL-SWITCH-READ` | SEC (FUNC) | live-blocker | пробел | 4/2 (S) | `done` (787fc38) |
+| `P10-3-TOKEN-RESOLVER` | FUNC (SEC) | live-blocker | пробел | 4/3 (M) | `done` (787fc38) |
+| `P10-4-LIVE-PLAN-SETUP` | FUNC (SEC) | live-blocker | пробел | 4/3 (M) | `done` (787fc38) |
+| `P10-5-LIVE-AUTO-DRIVE` | FUNC (SEC) | live-blocker | пробел | 5/3 (M) | `done` (787fc38) |
+| `P10-EO-LEG-AUTO-DRIVER` | REL (SEC) | live-blocker | пробел | 5/4 (L) | `done` (787fc38) |
+| `P10-FB-LIVE-COMPLETION-CALLBACK` | REL (ARCH) | live-blocker | пробел | 3/2 (S) | `done` (787fc38) |
+| `P10-AMT-NOTIONAL-TO-AMOUNTIN` | FUNC (SEC) | paper-check | пробел | 3/2 (S) | `in-progress` (787fc38 — DTO поле добавлено; runtime конверсия = Phase 2, pre-quoted path покрывает MVP) |
+| `P10-6-MIGRATIONS` | DEVOPS (SEC) | live-blocker | ops | 3/1 (XS) | `done` (787fc38 — migrations 053/054) |
+| `P10-7-PANIC-SCRIPTS` | DEVOPS (SEC) | live-blocker | ops | 3/1 (XS) | `done` (787fc38 — `tools/panic-button.sh` flips `LIVE_AUTO_DRIVE_ENABLED`+`LEG_AUTO_DRIVE_ENABLED`) |
+| `P10-8-TARGETED-TESTS` | TEST (SEC) | live-blocker | тест | 4/3 (M) | `done` (787fc38 — 4 spec-файла: leg-auto-driver, live-auto-drive-config, live-auto-drive.worker, plan-setup-orchestrator) |
+| `P10-9-LIVE-SMOKE` | REL (DEVOPS) | live-blocker | тест | 3/2 (S) | `proposed` ⏸ — dedicated live-auto-drive smoke не создан; переиспользуется PLAN8 `smoke:live-testnet` (общий DoD Gate 3) |
 
 > P10-6 (migrations) и P10-7 (panic-scripts) — операционные шаги, в реестр
 > инициатив `roadmap-vectors.md` не вносятся (по P5: реестр не дублирует
@@ -554,16 +554,16 @@ settlement-relay callback → opp state updated.
 
 | # | step_id | Вектор(ы) | gate | impact | effort | score | status | plan |
 |---|---------|-----------|------|--------|--------|-------|--------|------|
-| 35 | `FUNC-LIVE-AUTO-CONFIG` | FUNC (SEC) | live-blocker | 4 | 1 | 20 | proposed | PLAN10 (`P10-1`) |
-| 36 | `SEC-LIVE-KILL-SWITCH-READ` | SEC (FUNC) | live-blocker | 4 | 2 | 16 | proposed | PLAN10 (`P10-2`) |
-| 37 | `FUNC-TOKEN-RESOLVER` | FUNC (SEC) | live-blocker | 4 | 3 | 12 | proposed | PLAN10 (`P10-3`) |
-| 38 | `FUNC-LIVE-PLAN-SETUP` | FUNC (SEC) | live-blocker | 4 | 3 | 12 | proposed | PLAN10 (`P10-4`) |
-| 39 | `FUNC-LIVE-AUTO-DRIVE` | FUNC (SEC) | live-blocker | 5 | 3 | 15 | proposed | PLAN10 (`P10-5`) |
-| 40 | `REL-LEG-AUTO-DRIVER` | REL (SEC) | live-blocker | 5 | 4 | 10 | proposed | PLAN10 (`P10-EO`) |
-| 41 | `REL-LIVE-COMPLETION-CALLBACK` | REL (ARCH) | live-blocker | 3 | 2 | 12 | proposed | PLAN10 (`P10-FB`) |
-| 42 | `FUNC-NOTIONAL-TO-AMOUNTIN` | FUNC (SEC) | paper-check | 3 | 2 | 12 | proposed | PLAN10 (`P10-AMT`) |
-| 43 | `TEST-LIVE-AUTO-DRIVE` | TEST (SEC) | live-blocker | 4 | 3 | 12 | proposed | PLAN10 (`P10-8`) |
-| 44 | `REL-LIVE-AUTO-DRIVE-SMOKE` | REL (DEVOPS) | live-blocker | 3 | 2 | 12 | proposed | PLAN10 (`P10-9`) |
+| 35 | `FUNC-LIVE-AUTO-CONFIG` | FUNC (SEC) | live-blocker | 4 | 1 | 20 | done | PLAN10 (`P10-1`) |
+| 36 | `SEC-LIVE-KILL-SWITCH-READ` | SEC (FUNC) | live-blocker | 4 | 2 | 16 | done | PLAN10 (`P10-2`) |
+| 37 | `FUNC-TOKEN-RESOLVER` | FUNC (SEC) | live-blocker | 4 | 3 | 12 | done | PLAN10 (`P10-3`) |
+| 38 | `FUNC-LIVE-PLAN-SETUP` | FUNC (SEC) | live-blocker | 4 | 3 | 12 | done | PLAN10 (`P10-4`) |
+| 39 | `FUNC-LIVE-AUTO-DRIVE` | FUNC (SEC) | live-blocker | 5 | 3 | 15 | done | PLAN10 (`P10-5`) |
+| 40 | `REL-LEG-AUTO-DRIVER` | REL (SEC) | live-blocker | 5 | 4 | 10 | done | PLAN10 (`P10-EO`) |
+| 41 | `REL-LIVE-COMPLETION-CALLBACK` | REL (ARCH) | live-blocker | 3 | 2 | 12 | done | PLAN10 (`P10-FB`) |
+| 42 | `FUNC-NOTIONAL-TO-AMOUNTIN` | FUNC (SEC) | paper-check | 3 | 2 | 12 | in-progress | PLAN10 (`P10-AMT`) — DTO поле добавлено (787fc38); runtime конверсия = Phase 2 |
+| 43 | `TEST-LIVE-AUTO-DRIVE` | TEST (SEC) | live-blocker | 4 | 3 | 12 | done | PLAN10 (`P10-8`) |
+| 44 | `REL-LIVE-AUTO-DRIVE-SMOKE` | REL (DEVOPS) | live-blocker | 3 | 2 | 12 | proposed | PLAN10 (`P10-9`) — dedicated smoke не создан, переиспользуется PLAN8 `smoke:live-testnet` |
 
 > P10-6 (migrations) и P10-7 (panic-scripts) — не кодовые инициативы, в реестр не
 > вносятся (по P5: реестр не дублирует операционный трекер).

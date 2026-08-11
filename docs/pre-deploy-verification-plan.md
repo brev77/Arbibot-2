@@ -39,7 +39,7 @@
 | Build | 21/21 | **22/22** (см. Фазу 1) | ✅ нужно перепроверить |
 | Lint | 28/28 | **29/29** (2 warn web — known TanStack Table) | ✅ |
 | Tests | 392/392 (27 suites) | **✅ 29/29 пакетов green** (turbo, с кэшем; per-package detectOpenHandles — 0 утечек; messaging 3/3 за 6s, canonical-market 11/11, market-intake 8/8, portfolio 13/13 за 13s каждый — без аномальных времён). Полный no-cache прогон рекомендуется на CI для канонической цифры N/N. | ✅ confirmed |
-| Миграции | 001–036 (AGENTS.md устарел) | **001–043** | ✅ больше чем в AGENTS.md |
+| Миграции | 001–036 (AGENTS.md устарел на момент аудита) | **001–054** (актуально на 2026-08-11, PLAN9/10 добавили 044–054) | ✅ больше чем в AGENTS.md на момент аудита; AGENTS.md теперь синхронизирован |
 | Docker prod compose | ❌ (AGENTS.md устарел) | **✅ `infra/docker-compose.prod.yml`** | ✅ |
 | CD pipeline | ❌ (AGENTS.md устарел) | **✅ `.github/workflows/cd.yml`** (GHCR build+push, без deploy step) | ✅ с gap (см. M5) |
 | `npm audit --omit=dev` | — | **0 vulnerabilities** | ✅ |
@@ -250,7 +250,7 @@ VERIFY_MODE=isolated npm run verify:deployment
 dropdb arbibot_staging && createdb arbibot_staging
 DATABASE_URL=postgres://arbibot:***@host:15432/arbibot_staging npm run db:migrate
 
-# 4.2 Верификация всех 43 (ожидание: все 001-043 в schema_migrations)
+# 4.2 Верификация всех 54 (ожидание: все 001-054 в schema_migrations)
 npm run db:verify-migrations:all
 
 # 4.3 Idempotency — повторное применение молчит (IF NOT EXISTS)

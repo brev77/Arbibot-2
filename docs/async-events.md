@@ -2,6 +2,13 @@
 
 JSON Schema для payload лежат в [`packages/contracts/schemas/`](../packages/contracts/schemas/). Имена событий — как в архитектуре: `SnapshotUpdated`, `OpportunityDetected`, `RiskDecisionIssued`, `CapitalReserved`, `PlanArmed`, `LegFilled`, `ReconciliationMismatchDetected`, `PlanCompleted`, `PositionClosed`.
 
+> **Wiring (PLAN9 P9-2, delivery 2026-08-03):** `LegFilled` / `PlanCompleted` теперь
+> реально эмитятся — `DexOutboxEventsService.emitConfirmed` / `emitFailed` вызываются
+> из `LegsService.completeMarkSent()` atomic с persist `on_chain_transactions` и
+> переходом `execution_legs` `submitting → sent`. До PLAN9 эти emit-методы были
+> зарегистрированы в DI, но имели 0 call sites (закрытый блокер аудита PLAN9).
+> См. [`outbox-inbox.md`](outbox-inbox.md) §«on_chain_transactions writer».
+
 ## Envelope (каждое сообщение)
 
 | Поле | Тип | Обязательно | Описание |

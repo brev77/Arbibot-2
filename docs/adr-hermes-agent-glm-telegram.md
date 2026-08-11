@@ -111,7 +111,7 @@ MCP Server и Gateway **не меняются** — это по-прежнему
 |------|-----|
 | ADR (этот файл) | `docs/adr-hermes-agent-glm-telegram.md` |
 | Конфиг агента | `tools/hermes-agent/hermes-config.yaml` (provider→openai, +base_url, Telegram on) |
-| MCP конфиг | `tools/hermes-agent/mcp-config.json` |
+| MCP конфиг | `tools/hermes-agent/mcp-config.json` ⚠️ legacy артефакт Plan 3 — `run-hermes-agent.mjs` читает MCP-параметры из `hermes-config.yaml` (`agent.mcp:` block); `mcp-config.json` оставлен для внешних MCP-клиентов (Cursor/Claude) |
 | Env-документация | `.env.example` (новая секция hermes-agent) |
 | Скилл «объясни работу бота» | `tools/hermes-agent/skills/explain-bot.md` |
 | npm-скрипты запуска/проверки | корневой `package.json` + `tools/run-hermes-agent.mjs`, `tools/doctor-hermes-agent.mjs` |

@@ -21,7 +21,7 @@ Runs the full `reserve → arm → DEX legs → settlement` chain without mainne
 
 ### Database
 
-PostgreSQL must be migrated (migrations 001–043 applied):
+PostgreSQL must be migrated (migrations 001–054 applied):
 
 ```bash
 npm run db:migrate

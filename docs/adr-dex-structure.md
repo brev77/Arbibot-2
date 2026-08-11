@@ -160,5 +160,5 @@ interface DexVenueAdapter extends VenueAdapter {
 
 - [DEVELOPMENT_PLAN-DEX.md](../.cursor/plans/DEVELOPMENT_PLAN-DEX.md) — Full DEX development plan
 - [DEVELOPMENT_PLAN.md](../.cursor/plans/DEVELOPMENT_PLAN.md) — Main development plan (Phase 0-5)
-- [docs/architecture-invariants.md](architecture-invariants.md) — Single-writer and other invariants
+- [docs/architecture-components.md](architecture-components.md) — Single-writer and other invariants
 - [docs/reservation-first.md](reservation-first.md) — Reservation-first protocol

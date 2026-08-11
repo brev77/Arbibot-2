@@ -20,6 +20,8 @@
 
 **Build:** 22/22 ✅ | **Lint:** 29/29 ✅ (0 errors) | **Tests:** 778/778 ✅ (74 suites) | **Migrations:** 001–043 — *на коммите df2177a (2026-07-16)*
 
+**Build:** (см. AGENTS.md Quality Metrics) | **Migrations:** 001–054 — *на коммите 1a7894b (2026-08-10, PLAN9/10/11/12/13 доставлены)*
+
 ---
 
 ## Незавершённые задачи
@@ -570,7 +572,7 @@
 ---
 (архив и справочная информация — в начале файла)
 
-**Total migrations:** 001–043 *(обновлено 2026-07-17)*
+**Total migrations:** 001–054 *(обновлено 2026-08-11; PLAN9 добавил 051/052, PLAN10 добавил 053/054)*
 **CI jobs:** build, lint, test, e2e-phase2, e2e-phase2-watchlist-route-scoring, e2e-phase3-paper-promotion, e2e-phase3-paper-discovery, e2e-phase4-tier-routing, bus-smoke
 
 ---

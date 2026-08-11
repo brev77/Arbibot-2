@@ -17,7 +17,7 @@
 ### Готово
 - **Feature-complete:** Phase 0–5 + DEX-1/2/DOC (46/46 шагов)
 - **Качество:** Build 21/21 ✅ | Lint 28/28 ✅ | Tests 392/392 ✅ (27 suites) — *актуальные метрики на HEAD df2177a: Build 22/22, Lint 29/29, Tests 778/778 (74 suites); см. [`AGENTS.md`](../AGENTS.md)*
-- **Миграции БД:** 43 миграции (001–043) покрывают все домены — *обновлено 2026-07-17; в исходной оценке значилось 37*
+- **Миграции БД:** 54 миграции (001–054) покрывают все домены — *обновлено 2026-08-11; в исходной оценке значилось 37, на 2026-07-17 — 43*
 - **Архитектурные принципы:** single-writer, reservation-first, outbox/inbox, idempotency — реализованы
 - **E2E тесты:** 6 CI job'ов покрывают Phase 1–4 + bus-smoke
 - **Операторский UI:** все 10 маршрутов (`/dashboard`, `/portfolio`, `/opportunities`, `/execution`, `/tokens`, `/paper`, `/incidents`, `/runbooks`, `/hermes`, `/settings`)

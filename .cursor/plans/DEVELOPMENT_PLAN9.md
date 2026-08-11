@@ -34,19 +34,19 @@
 
 | step_id | Вектор | gate | Тип | impact/effort | status |
 |---------|--------|------|-----|---------------|--------|
-| `P9-1-BROADCAST-IDEMPOTENCY` | SEC (REL) | live-blocker | баг | 5/4 (L) | `proposed` |
-| `P9-2-ONCHAIN-TX-PERSIST` | REL (SEC) | live-blocker | пробел | 5/3 (M) | `proposed` |
-| `P9-3-NONCE-LOCK` | SEC (FUNC) | live-blocker | пробел | 5/3 (M) | `proposed` |
-| `P9-4-TXWAIT-TIMEOUT` | REL (SEC) | live-blocker | пробел | 4/2 (S) | `proposed` |
-| `P9-5-LIVE-SLIPPAGE-GATE` | SEC (FUNC) | live-blocker | баг | 5/3 (M) | `proposed` |
-| `P9-6-APPROVE-SWAP-WALLET` | SEC | live-blocker | баг | 4/2 (S) | `proposed` |
-| `P9-7-RECON-CRON-REAPER` | REL | live-blocker | пробел | 5/3 (M) | `proposed` |
-| `P9-8-SETTLEMENT-OUTBOX` | REL (ARCH) | live-blocker | пробел | 4/4 (L) | `proposed` |
-| `P9-9-CAPITAL-IDEMPOTENCY` | SEC | live-blocker | пробел | 3/2 (S) | `proposed` |
-| `P9-10-VAULT-SALT-ASSERT` | SEC | live-blocker | пробел | 3/1 (XS) | `proposed` |
-| `P9-11-GAS-POLICY-CLAMP` | SEC (FUNC) | paper-check | баг | 3/2 (S) | `proposed` |
-| `P9-12-OPS-PREREQ` | DEVOPS (SEC) | live-blocker | ops | 4/1 (S) | `proposed` |
-| `P9-13-SINGLECHAIN-SMOKE` | REL (DEVOPS) | live-blocker | тест | 4/2 (S) | `proposed` |
+| `P9-1-BROADCAST-IDEMPOTENCY` | SEC (REL) | live-blocker | баг | 5/4 (L) | `done` (32259a0, cb69919) |
+| `P9-2-ONCHAIN-TX-PERSIST` | REL (SEC) | live-blocker | пробел | 5/3 (M) | `done` (32259a0) |
+| `P9-3-NONCE-LOCK` | SEC (FUNC) | live-blocker | пробел | 5/3 (M) | `done` (9c6d213) |
+| `P9-4-TXWAIT-TIMEOUT` | REL (SEC) | live-blocker | пробел | 4/2 (S) | `done` (a315e85) |
+| `P9-5-LIVE-SLIPPAGE-GATE` | SEC (FUNC) | live-blocker | баг | 5/3 (M) | `done` (1a29841; уточнён PLAN13 #49) |
+| `P9-6-APPROVE-SWAP-WALLET` | SEC | live-blocker | баг | 4/2 (S) | `done` (ec98215) |
+| `P9-7-RECON-CRON-REAPER` | REL | live-blocker | пробел | 5/3 (M) | `done` (c12405f) |
+| `P9-8-SETTLEMENT-OUTBOX` | REL (ARCH) | live-blocker | пробел | 4/4 (L) | `done` (772fc13) |
+| `P9-9-CAPITAL-IDEMPOTENCY` | SEC | live-blocker | пробел | 3/2 (S) | `done` (9c6d213; migration 051) |
+| `P9-10-VAULT-SALT-ASSERT` | SEC | live-blocker | пробел | 3/1 (XS) | `done` (9c6d213, 7f0e731) |
+| `P9-11-GAS-POLICY-CLAMP` | SEC (FUNC) | paper-check | баг | 3/2 (S) | `done` (ec98215) |
+| `P9-12-OPS-PREREQ` | DEVOPS (SEC) | live-blocker | ops | 4/1 (S) | `proposed` ⏸ — единственный открытый шаг: wallet/RPC/capital env |
+| `P9-13-SINGLECHAIN-SMOKE` | REL (DEVOPS) | live-blocker | тест | 4/2 (S) | `done` (80b90dd) |
 
 **Порядок выполнения (по зависимостям + гейт-логике):**
 
@@ -863,17 +863,17 @@ P9-12 (S, ops prereq) — параллельно, операционная ра�
 
 | # | step_id | Вектор(ы) | gate | impact | effort | score | status | plan |
 |---|---------|-----------|------|--------|--------|-------|--------|------|
-| 24 | `SEC-BROADCAST-IDEMPOTENCY` | SEC (REL) | live-blocker | 5 | 4 | 10 | accepted | PLAN9 (`P9-1`) |
-| 25 | `REL-ONCHAIN-TX-PERSIST` | REL (SEC) | live-blocker | 5 | 3 | 15 | accepted | PLAN9 (`P9-2`) |
-| 26 | `SEC-NONCE-LOCK` | SEC (FUNC) | live-blocker | 5 | 3 | 15 | accepted | PLAN9 (`P9-3`) |
-| 27 | `REL-TXWAIT-TIMEOUT` | REL (SEC) | live-blocker | 4 | 2 | 16 | accepted | PLAN9 (`P9-4`) |
-| 28 | `SEC-LIVE-SLIPPAGE-GATE` | SEC (FUNC) | live-blocker | 5 | 3 | 15 | accepted | PLAN9 (`P9-5`) |
-| 29 | `SEC-APPROVE-SWAP-WALLET` | SEC | live-blocker | 4 | 2 | 16 | accepted | PLAN9 (`P9-6`) |
-| 30 | `REL-RECON-CRON-REAPER` | REL | live-blocker | 5 | 3 | 15 | accepted | PLAN9 (`P9-7`) |
-| 31 | `REL-SETTLEMENT-OUTBOX` | REL (ARCH) | live-blocker | 4 | 4 | 8 | accepted | PLAN9 (`P9-8`) |
-| 32 | `SEC-CAPITAL-IDEMPOTENCY` | SEC | live-blocker | 3 | 2 | 12 | accepted | PLAN9 (`P9-9`) |
-| 33 | `SEC-VAULT-SALT-ASSERT` | SEC | live-blocker | 3 | 1 | 15 | accepted | PLAN9 (`P9-10`) |
-| 34 | `SEC-GAS-POLICY-CLAMP` | SEC (FUNC) | paper-check | 3 | 2 | 12 | accepted | PLAN9 (`P9-11`) |
+| 24 | `SEC-BROADCAST-IDEMPOTENCY` | SEC (REL) | live-blocker | 5 | 4 | 10 | done | PLAN9 (`P9-1`) |
+| 25 | `REL-ONCHAIN-TX-PERSIST` | REL (SEC) | live-blocker | 5 | 3 | 15 | done | PLAN9 (`P9-2`) |
+| 26 | `SEC-NONCE-LOCK` | SEC (FUNC) | live-blocker | 5 | 3 | 15 | done | PLAN9 (`P9-3`) |
+| 27 | `REL-TXWAIT-TIMEOUT` | REL (SEC) | live-blocker | 4 | 2 | 16 | done | PLAN9 (`P9-4`) |
+| 28 | `SEC-LIVE-SLIPPAGE-GATE` | SEC (FUNC) | live-blocker | 5 | 3 | 15 | done | PLAN9 (`P9-5`; уточнён PLAN13 #49) |
+| 29 | `SEC-APPROVE-SWAP-WALLET` | SEC | live-blocker | 4 | 2 | 16 | done | PLAN9 (`P9-6`) |
+| 30 | `REL-RECON-CRON-REAPER` | REL | live-blocker | 5 | 3 | 15 | done | PLAN9 (`P9-7`) |
+| 31 | `REL-SETTLEMENT-OUTBOX` | REL (ARCH) | live-blocker | 4 | 4 | 8 | done | PLAN9 (`P9-8`) |
+| 32 | `SEC-CAPITAL-IDEMPOTENCY` | SEC | live-blocker | 3 | 2 | 12 | done | PLAN9 (`P9-9`) |
+| 33 | `SEC-VAULT-SALT-ASSERT` | SEC | live-blocker | 3 | 1 | 15 | done | PLAN9 (`P9-10`) |
+| 34 | `SEC-GAS-POLICY-CLAMP` | SEC (FUNC) | paper-check | 3 | 2 | 12 | done | PLAN9 (`P9-11`) |
 
 > P9-12 (ops) и P9-13 (smoke) — не кодовые инициативы, в реестр не вносятся
 > (по P5: реестр не дублирует операционный трекер).

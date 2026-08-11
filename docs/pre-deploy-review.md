@@ -127,7 +127,7 @@ Dev-default `'operator'` отключается в prod (`NODE_ENV !== 'producti
 | 1.1 | `npm run lint` | Turbo lint — 0 errors (28/28 packages green по AGENTS.md) | Не деплоить. Пофиксить lint. |
 | 1.2 | `npm run build` | Turbo build — 21/21 packages green | Проверить `tsconfig.build.json`, `dist/main.js` под `apps/*/dist/`. |
 | 1.3 | `npm run test` | Turbo test — 392/392 tests, 27 suites green | Изолировать падающий suite, прогнать локально `-w @arbibot/<pkg>`. |
-| 1.4 | `npm run db:migrate` | Миграции 001–043 применены без ошибок (включая `037_fix_get_effective_config_value.sql`, `038_alertmanager_incidents.sql`, `039_dex_daily_volume.sql`, `040_portfolio_positions_notional_usd.sql`, `041_capital_limits_seed.sql`, `042_wallet_keys.sql`, `043_bridge_finality.sql`) | Проверить `DATABASE_URL`, `infra/postgres/migrations/`. |
+| 1.4 | `npm run db:migrate` | Миграции 001–054 применены без ошибок (включая `037_fix_get_effective_config_value.sql`, `038_alertmanager_incidents.sql`, `039_dex_daily_volume.sql`, `040_portfolio_positions_notional_usd.sql`, `041_capital_limits_seed.sql`, `042_wallet_keys.sql`, `043_bridge_finality.sql`, `044_scanner.sql`, `045_scanner_config_seed.sql`, `050_paper_capital_reservation_unique_fix.sql`, `051_capital_reservation_correlation_unique.sql`, `052_execution_legs_submitting_state.sql`, `053_live_auto_drive_seed.sql`, `054_arbitrage_opportunities_live_plan_id.sql`) | Проверить `DATABASE_URL`, `infra/postgres/migrations/`. |
 | 1.5 | `npm run db:verify-migrations:all` | Все 37 строк в `schema_migrations` | Если номер < 37 — повторить 1.4. |
 
 ### Дополнительные проверки
@@ -611,7 +611,7 @@ ENV_FILE=infra/.env npm run verify:env
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │ STAGE 1 — Schema gate                                           │
-│   npm run db:migrate             → 001–043 applied               │
+│   npm run db:migrate             → 001–054 applied               │
 │   npm run db:verify-migrations:all → all rows in schema_migrations│
 └─────────────────────────────────────────────────────────────────┘
                               │

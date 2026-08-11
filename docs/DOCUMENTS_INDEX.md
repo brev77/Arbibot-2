@@ -1,6 +1,7 @@
 # 📚 DOCUMENTS_INDEX — индекс документов Arbibot 2
 
-> Сгенерировано: **2026-07-17**. Единый указатель по всей документации монорепозитория.
+> Сгенерировано: **2026-07-17**, обновлено **2026-08-11** (PLAN9-13 синхронизация).
+> Единый указатель по всей документации монорепозитория.
 > Поддержка: при добавлении нового документа добавляйте его в соответствующий раздел этого индекса.
 
 **Всего:** ~160 markdown-документов (+ ~38 `*.spec.ts` тестовых файлов — не входят в индекс).
@@ -47,9 +48,15 @@
 
 - [DEVELOPMENT_PLAN.md](../.cursor/plans/DEVELOPMENT_PLAN.md) — главный план (Phases 0–5)
 - [DEVELOPMENT_PLAN-DEX.md](../.cursor/plans/DEVELOPMENT_PLAN-DEX.md) — DEX-план (46 шагов)
-- [DEVELOPMENT_PLAN3.md](../.cursor/plans/DEVELOPMENT_PLAN3.md) — Hermes Agent + MCP Server
-- [DEVELOPMENT_PLAN4.md](../.cursor/plans/DEVELOPMENT_PLAN4.md)
-- [DEVELOPMENT_PLAN5.md](../.cursor/plans/DEVELOPMENT_PLAN5.md) — Hermes Agent GLM + Telegram
+- [DEVELOPMENT_PLAN-SCANNER.md](../.cursor/plans/DEVELOPMENT_PLAN-SCANNER.md) — scanner-service plan
+- [DEVELOPMENT_PLAN3.md](../.cursor/plans/DEVELOPMENT_PLAN3.md) — Hermes Agent + MCP Server (17/17 done)
+- [DEVELOPMENT_PLAN4.md](../.cursor/plans/DEVELOPMENT_PLAN4.md) — D4 deploy-readiness (20/22 delivered)
+- [DEVELOPMENT_PLAN5.md](../.cursor/plans/DEVELOPMENT_PLAN5.md) — Hermes Agent GLM + Telegram (7/7 done)
+- [DEVELOPMENT_PLAN6.md](../.cursor/plans/DEVELOPMENT_PLAN6.md) — Hermes config-management (10/10 done)
+- [DEVELOPMENT_PLAN7.md](../.cursor/plans/DEVELOPMENT_PLAN7.md) — live-blocker infrastructure sweep (8/8 done)
+- [DEVELOPMENT_PLAN8.md](../.cursor/plans/DEVELOPMENT_PLAN8.md) — correctness sweep + live-gate enablement (5/5 done)
+- [DEVELOPMENT_PLAN9.md](../.cursor/plans/DEVELOPMENT_PLAN9.md) — single-chain Arbitrum live-readiness (12/13 done, P9-12 ops pending)
+- [DEVELOPMENT_PLAN10.md](../.cursor/plans/DEVELOPMENT_PLAN10.md) — live auto-execution single-chain (11/12 done, P10-9 smoke pending)
 
 ### Deploy-readiness (`deploy-readiness/`, D4-*)
 
@@ -171,11 +178,16 @@
 - [adr-hermes-agent-glm-telegram.md](adr-hermes-agent-glm-telegram.md)
 - [adr-hermes-mcp-server.md](adr-hermes-mcp-server.md)
 - [adr-hermes-rename.md](adr-hermes-rename.md)
-- [adr-live-gate.md](adr-live-gate.md)
+- [adr-hermes-alert-pipeline.md](adr-hermes-alert-pipeline.md) — P7-7 Prometheus → Telegram
+- [adr-hermes-config-management.md](adr-hermes-config-management.md) — Plan 6
+- [adr-live-gate.md](adr-live-gate.md) — kill-switch + venue env (P8-2)
 - [adr-observability-logging-release.md](adr-observability-logging-release.md)
-- [adr-operator-auth.md](adr-operator-auth.md)
+- [adr-operator-auth.md](adr-operator-auth.md) — D4-A-1
 - [adr-phase4-clickhouse-gate.md](adr-phase4-clickhouse-gate.md)
 - [adr-phase4-intake-throttling.md](adr-phase4-intake-throttling.md)
+- [adr-scanner-service.md](adr-scanner-service.md) — S4-4
+- [adr-vault-salt.md](adr-vault-salt.md) — P7-6/H1 per-deploy salt
+- [adr-wallet-key-import.md](adr-wallet-key-import.md) — P8-3 CLI
 
 ### 🚀 Deploy & readiness
 
@@ -184,8 +196,10 @@
 - [deployment-readiness-assessment.md](deployment-readiness-assessment.md) — ⚠️ SUPERSEDED (2026-07-17) by D4 deploy-readiness
 - [deployment-readiness-review-2026-07.md](deployment-readiness-review-2026-07.md) — ⚠️ SUPERSEDED (2026-07-17) — all findings closed by D4-B/C
 - [pre-deploy-review.md](pre-deploy-review.md) — ⚠️ SUPERSEDED (2026-07-17) by paper/live-deploy-dod.md
+- [pre-deploy-verification-plan.md](pre-deploy-verification-plan.md) — pre-deploy verification plan
 - [live-deploy-dod.md](live-deploy-dod.md) — live deploy Definition of Done
 - [paper-deploy-dod.md](paper-deploy-dod.md) — paper deploy DoD
+- [paper-deploy-aeza.md](paper-deploy-aeza.md) — Aéza Frankfurt paper-deploy runbook (pm2 stack, 13 services)
 - [ci-verification-checklist.md](ci-verification-checklist.md)
 - [release-process.md](release-process.md)
 - [operations/staging-migrations.md](operations/staging-migrations.md)
@@ -194,6 +208,7 @@
 
 - [security-baseline.md](security-baseline.md)
 - [security-hardening-guide.md](security-hardening-guide.md)
+- [security-accepted-risks.md](security-accepted-risks.md) — Dependabot closure log + accepted risks
 - [threat-model.md](threat-model.md)
 - [vault-integration-guide.md](vault-integration-guide.md)
 - [key-rotation-runbook.md](key-rotation-runbook.md)
@@ -208,6 +223,7 @@
 ### 🏛 Архитектурные темы (ядровые)
 
 - [aggregates.md](aggregates.md)
+- [architecture-components.md](architecture-components.md) — компоненты архитектуры
 - [async-events.md](async-events.md)
 - [outbox-inbox.md](outbox-inbox.md)
 - [reservation-first.md](reservation-first.md)
@@ -215,6 +231,7 @@
 - [schema-draft.md](schema-draft.md)
 - [audit-external-storage.md](audit-external-storage.md)
 - [settlement-post-commit.md](settlement-post-commit.md)
+- [roadmap-vectors.md](roadmap-vectors.md) — реестр инициатив #1–#44 (канон статусов proposed/accepted/in-progress/done)
 
 ### 🎛 Operator UI & flows
 
@@ -252,7 +269,19 @@
 - [opportunity-filters-config-keys.md](opportunity-filters-config-keys.md)
 - [intake-policy-config-keys.md](intake-policy-config-keys.md)
 - [paper-discovery-config-keys.md](paper-discovery-config-keys.md)
+- [paper-auto-drive-config-keys.md](paper-auto-drive-config-keys.md) — PAD
+- [cost-estimation-config-keys.md](cost-estimation-config-keys.md) — pre-trade cost estimate
 - [cfg-3-staged-rollout.md](cfg-3-staged-rollout.md)
+
+### 🔍 Reviews & fact-checks (dated snapshots)
+
+- [review-gate-cfg3-paper-discovery.md](review-gate-cfg3-paper-discovery.md)
+- [review-gate-scanner.md](review-gate-scanner.md) — scanner review gate
+- [tz-autodrive-audit.md](tz-autodrive-audit.md) — ТЗ audit (dated)
+- [tz-keyvault-in-memory-2026-08-06.md](tz-keyvault-in-memory-2026-08-06.md) — ТЗ audit (dated)
+- [tz-slippage-gate-amountin-2026-08-06.md](tz-slippage-gate-amountin-2026-08-06.md) — ТЗ audit (dated)
+- [hermes-server-changelog-2026-08-06.md](hermes-server-changelog-2026-08-06.md) — Hermes Agent changelog (dated)
+- [hermes-vs-zcode-review-2026-08-06.md](hermes-vs-zcode-review-2026-08-06.md) — review comparison (dated)
 
 ### 🧪 Phase-специфичные документы
 
@@ -268,6 +297,12 @@
 - [route-scoring-replay.md](route-scoring-replay.md)
 - [watchlist-tiering-logic.md](watchlist-tiering-logic.md)
 
+### 🔬 Plans (PLAN11-13 — post-Hermes correctness)
+
+- [plan-hermes-live-correctness-2026-08-06.md](plan-hermes-live-correctness-2026-08-06.md) — PLAN11 (V3 pricing, RPC staticNetwork, audit UUID)
+- [plan-amountin-usd-oracle-2026-08-10.md](plan-amountin-usd-oracle-2026-08-10.md) — PLAN12 (amountIn USD oracle, #48)
+- [plan-slippage-same-decimals-2026-08-10.md](plan-slippage-same-decimals-2026-08-10.md) — PLAN13 (slippage same-decimals, gas leak, native wrap, #49-51)
+
 ### 📞 Runbooks (операции/инциденты)
 
 - [reconciliation-p0-procedures.md](reconciliation-p0-procedures.md)
@@ -275,16 +310,41 @@
 - [incident-response-playbook.md](incident-response-playbook.md)
 - [disaster-recovery-plan.md](disaster-recovery-plan.md)
 - [drill-1-paper-incident.md](drill-1-paper-incident.md)
+- [drill-2-reconciliation.md](drill-2-reconciliation.md) — P7-4 reconciliation drill
+- [drill-3-disaster-recovery.md](drill-3-disaster-recovery.md) — P7-5 DR drill
+
+### 🔭 Live ops runbooks
+
+- [live-deploy-dod.md](live-deploy-dod.md) — live deploy Definition of Done
+- [live-smoke-runbook.md](live-smoke-runbook.md) — P8-4 live-testnet smoke
+- [live-auto-drive-smoke-2026-08-05.md](live-auto-drive-smoke-2026-08-05.md) — PLAN10 smoke (dated snapshot)
+- [live-enablement-checklist-2026-08-06.md](live-enablement-checklist-2026-08-06.md) — live-enablement checklist (dated)
+- [live-rpc-diagnosis-2026-08-05.md](live-rpc-diagnosis-2026-08-05.md) — RPC diagnosis (dated)
+- [scanner-runbook.md](scanner-runbook.md) — scanner-service runbook
+- [scanner-harness-runbook.md](scanner-harness-runbook.md) — scanner harness runbook
+
+### 🔐 Hardening & security (2026-08)
+
+- [security-hardening-2026-08-05.md](security-hardening-2026-08-05.md) — hardening sweep (dated)
 
 ### 🧾 E2E & review gates
 
 - [e2e-scenarios.md](e2e-scenarios.md)
 - [local-ci-e2e-phase3-paper-promotion.md](local-ci-e2e-phase3-paper-promotion.md)
+- [test-coverage-plan.md](test-coverage-plan.md) — plan по покрытию тестами
 - [review-gate-cfg3-paper-discovery.md](review-gate-cfg3-paper-discovery.md)
 - [review-handoff-2026-04-20.md](review-handoff-2026-04-20.md)
 - [graphify-guide.md](graphify-guide.md)
 - [documentation-audit-2026-07.md](documentation-audit-2026-07.md) — 🆕 отчёт аудита документации (2026-07-17)
 - [task-d4-b-2d.md](task-d4-b-2d.md)
+
+### 📚 Lessons learned
+
+- [lessons/hermes-agent-dod-failure.md](lessons/hermes-agent-dod-failure.md) — почему Plan 5 уехал «7/7 done» без запуска бинарника; класс ошибок DoD-without-runtime
+
+### 🔬 Service plans
+
+- [scanner-service-plan.md](scanner-service-plan.md) — scanner-service plan (S4-4)
 
 ---
 
@@ -328,14 +388,31 @@
 ## 🎓 Hermes Agent skills
 
 > Arbibot-специфичные скиллы для Hermes Agent (NousResearch + GLM 5.2).
+> **15 файлов** (обновлено 2026-08-11 — P8-1 добавил 8 skill-файлов для cron jobs + commands).
+> Канон mapping cron↔skill и commands↔skill — в [`docs/hermes-reference.md`](hermes-reference.md).
 
-- [tools/hermes-agent/skills/daily-report.md](../tools/hermes-agent/skills/daily-report.md) — ежедневный отчёт (cron)
-- [tools/hermes-agent/skills/explain-bot.md](../tools/hermes-agent/skills/explain-bot.md) — объяснение работы бота по-русски
-- [tools/hermes-agent/skills/force-hedge-preview.md](../tools/hermes-agent/skills/force-hedge-preview.md) — NL impact preview перед force hedge
-- [tools/hermes-agent/skills/investigate-incident.md](../tools/hermes-agent/skills/investigate-incident.md) — автоанализ инцидента → рекомендация
-- [tools/hermes-agent/skills/reconciliation-check.md](../tools/hermes-agent/skills/reconciliation-check.md) — mismatches → отчёт → рекомендации
-- [tools/hermes-agent/skills/risk-summary.md](../tools/hermes-agent/skills/risk-summary.md) — сводка risk decisions за период
-- [tools/hermes-agent/skills/safe-mode-check.md](../tools/hermes-agent/skills/safe-mode-check.md) — проверка + рекомендация safe-mode
+**Cron-bound (5):** [status-check](../tools/hermes-agent/skills/status-check.md) (`status_heartbeat`),
+[incident-management](../tools/hermes-agent/skills/incident-management.md) (`reconciliation_report`),
+[position-overview](../tools/hermes-agent/skills/position-overview.md) (`daily_risk_summary`),
+[approval-queue-check](../tools/hermes-agent/skills/approval-queue-check.md) (`approval_queue_check`),
+[investigate-alert](../tools/hermes-agent/skills/investigate-alert.md) (P7-7 `alert_watch`)
+
+**Command-bound (8):** [status-check](../tools/hermes-agent/skills/status-check.md) (`/status`),
+[plan-review](../tools/hermes-agent/skills/plan-review.md) (`/plans`),
+[position-overview](../tools/hermes-agent/skills/position-overview.md) (`/positions`),
+[incident-management](../tools/hermes-agent/skills/incident-management.md) (`/incidents`),
+[safe-mode-check](../tools/hermes-agent/skills/safe-mode-check.md) (`/safe`),
+[approval-queue-check](../tools/hermes-agent/skills/approval-queue-check.md) (`/approve`),
+[explain-bot](../tools/hermes-agent/skills/explain-bot.md) (`/explain`),
+[config-management](../tools/hermes-agent/skills/config-management.md) (`/config`, Plan 6)
+
+**Auxiliary (7):** [daily-report](../tools/hermes-agent/skills/daily-report.md),
+[force-hedge-preview](../tools/hermes-agent/skills/force-hedge-preview.md),
+[investigate-incident](../tools/hermes-agent/skills/investigate-incident.md),
+[reconciliation-check](../tools/hermes-agent/skills/reconciliation-check.md),
+[risk-summary](../tools/hermes-agent/skills/risk-summary.md),
+[scanner-status](../tools/hermes-agent/skills/scanner-status.md) (S4-4),
+[safe-mode-check](../tools/hermes-agent/skills/safe-mode-check.md)
 
 ---
 

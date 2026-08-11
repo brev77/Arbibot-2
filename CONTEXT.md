@@ -30,6 +30,12 @@
 - **Arm (Arming)** — переход, блокирующий план для execution после валидации reservation и risk decision; эмитит PlanArmed.
 - **Execute (Execution)** — фаза/state, где legs фактически сабмитятся в venues.
 - **Partial fill** — состояние leg (partiallyFilled), где исполнена только часть intended quantity; сигнал для playbook.
+- **`submitting` (leg state)** — двухфазный mark-sent (PLAN9 P9-1): `created → submitting` atomic с persist on-chain tx + outbox emit, затем `submitting → sent` после подтверждения broadcast. Crash между ними оставляет leg в `submitting`; recovery через stuck-plan-reaper.
+- **`live_failed` (opportunity state)** — терминальное состояние opportunity при провале live-execution (PLAN10); НЕ re-queued. Канон значений opportunity: `detected, enriched, risk_checked, live_failed`.
+- **`live_execution_plan_id`** — dedup-маркер на `arbitrage_opportunities` (migration 054, PLAN10 P10-6): записывается `LiveAutoDriveWorker` после создания execution plan; partial index `WHERE state='risk_checked' AND live_execution_plan_id IS NULL` отбирает не-диспатченные opportunities.
+- **LiveAutoDriveWorker** — worker в opportunity-service (PLAN10 P10-5), создающий execution plans для `risk_checked` opportunities (setup-only saga: config → kill-switch read → token-resolver → plan-setup → POST /execution/plans/multi-leg). Safe-by-default: `LIVE_AUTO_DRIVE_ENABLED=false`.
+- **LegAutoDriverWorker** — worker в execution-orchestrator (PLAN10 P10-EO), драйвит `execution_legs` `created → submitting → sent → ... → filled` (sequential, live-only filter, state-check после markSent). Safe-by-default: `LEG_AUTO_DRIVE_ENABLED=false`.
+- **OnChainTransaction** — агрегат (owned by execution-orchestrator, single-writer `OnChainTransactionService.persistWithOutcome` с PLAN9 P9-2): persist on-chain tx outcome (`tx_hash`, `status`, `input_data` BYTEA, `gas_used`, `block_number`, `revert_reason`) atomic с `submitting → sent` transition.
 - **Unwinding** — восстановление/нейтрализация неполной или провалившейся arbitrage-позиции.
 - **Hedging** — открытие offsetting позиции для снижения exposure.
 - **Playbook / Runbook** — предопределённая последовательность шагов для оператора/агента при инциденте или сценарии.
@@ -38,7 +44,7 @@
 
 ## Capital
 
-- **CapitalReservation** — агрегат (owned by capital-service), представляющий капитал, зарезервированный под конкретный план до execution.
+- **CapitalReservation** — агрегат (owned by capital-service), представляющий капитал, зарезервированный под конкретный план до execution. С PLAN9 P9-9 (migration 051) имеет `UNIQUE(correlation_id)` для идемпотентности — повторный reserve с тем же correlation_id не создаёт дубль.
 - **Reservation token** — handle, выдаваемый capital-service, доказывающий валидность reservation; требуется для arm плана.
 - **Reserve / Release (capital)** — операции: claim капитала под план и освобождение, когда больше не нужно.
 - **Virtual capital** — симулированные средства, используемые во время paper trading.
@@ -71,7 +77,9 @@
 - **key rotation** — операционная процедура замены wallet signing key (audit-trailed, operator-gated).
 - **key fingerprint** — short hash публичного ключа, используемый в логах для идентификации ключа без его раскрытия.
 - **signer** — signing handle (ethers.Wallet), возвращаемый KeyVault; signs transactions без exposure raw key material.
-- **nonce** — per-account sequential transaction counter; mishandling в parallel leg signing → replay/replacement транзакций.
+- **nonce** — per-account sequential transaction counter; mishandling в parallel leg signing → replay/replacement транзакций. С PLAN9 P9-3 управляется `NonceManagerService.withBroadcastLock()` — per-address serialization, явный nonce в `sendTransaction`.
+- **kill-switch (DEX live-gate)** — канонический live-gate (D4-B-1): `DexKillSwitchService.isLiveHalted()` / `assertLiveNotHalted()`. Источник: env `DEX_LIVE_KILL_SWITCH` (override) → config `dex.limits.killSwitch` → fail-closed in prod. Per-process venue gate: `DEX_VENUE_ENABLED=true`. `requireApproval` и `dex.live` backend-consumer удалены (P8-2) — live-gate = kill-switch + venue env.
+- **WETH wrap** — `ensureWrappedNativeBalance` (PLAN13 #51, `native-wrap.ts`): перед approve в DEX-адаптерах оборачивает naked ETH → WETH (`WETH9.deposit()`), если баланс ниже amountIn. Idempotent, fail-soft на RPC error. Вызывается во всех 5 адаптерах.
 - **gas** — on-chain execution fee; estimated per EIP-1559 до broadcast.
 - **maxFeePerGas** — EIP-1559 price cap (base fee + priority fee), который транзакция готова заплатить.
 - **priority fee (maxPriorityFeePerGas)** — tip-часть EIP-1559 gas, платимая validators для incentivize inclusion.
