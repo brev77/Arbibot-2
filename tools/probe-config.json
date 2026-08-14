@@ -1,60 +1,64 @@
 {
-  "_comment": "Universe for the multi-chain dry-run probe (tools/probe-dry-run.mjs --continuous). The token/pair universe is now DISCOVERED on-chain via factory events + Algebra probing (see tools/probe-discovery.mjs), then filtered by TVL. The seed tokens below are only used to bootstrap price lookups (USD valuation of unknown tokens) and Algebra pool probing — they are NOT the observation universe themselves.",
-
+  "_comment": "Universe for the multi-chain dry-run probe (tools/probe-dry-run.mjs --continuous). The token/pair universe is now DISCOVERED on-chain via factory events + Algebra probing (see tools/probe-discovery.mjs), then filtered by TVL. The seed tokens below are only used to bootstrap price lookups (USD valuation of unknown tokens) and Algebra pool probing \u2014 they are NOT the observation universe themselves.",
   "chains": {
     "42161": {
       "name": "arbitrum",
       "rpcEnv": "PROBE_RPC_ARBITRUM_URL",
       "_seed_tokens_comment": "Bootstrap tokens for USD pricing + Algebra probing (Camelot factory.pool lookups). Discovery adds the rest.",
       "seedTokens": {
-        "WETH":  { "addr": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1", "decimals": 18 },
-        "USDC":  { "addr": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", "decimals": 6 },
-        "USDT":  { "addr": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9", "decimals": 6 },
-        "USDCe": { "addr": "0xFF970A61A04b1cA14834A43f5dE4533eBDd5CCB8", "decimals": 6 },
-        "ARB":   { "addr": "0x912CE59144191C1204E64559FE8253a0E49E6548", "decimals": 18 },
-        "WMATIC": { "addr": "0x0c8C5D5bA4C5fBE0c1a1c1b2c3d4e5f6a7b8c9d0", "decimals": 18 }
-      }
-    },
-
-    "8453": {
-      "name": "base",
-      "rpcEnv": "PROBE_RPC_BASE_URL",
-      "seedTokens": {
-        "WETH":  { "addr": "0x4200000000000000000000000000000000000006", "decimals": 18 },
-        "USDC":  { "addr": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", "decimals": 6 },
-        "DAI":   { "addr": "0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb", "decimals": 18 }
-      }
-    },
-
-    "10": {
-      "name": "optimism",
-      "rpcEnv": "PROBE_RPC_OPTIMISM_URL",
-      "seedTokens": {
-        "WETH":  { "addr": "0x4200000000000000000000000000000000000006", "decimals": 18 },
-        "USDC":  { "addr": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85", "decimals": 6 },
-        "USDT":  { "addr": "0x94b008aA00579c1307B0EF2c499aD98a8ceB58nE", "decimals": 6 },
-        "DAI":   { "addr": "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1", "decimals": 18 },
-        "OP":    { "addr": "0x4200000000000000000000000000000000000042", "decimals": 18 }
+        "WETH": {
+          "addr": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+          "decimals": 18
+        },
+        "USDC": {
+          "addr": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+          "decimals": 6
+        },
+        "USDT": {
+          "addr": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+          "decimals": 6
+        },
+        "USDCe": {
+          "addr": "0xFF970A61A04b1cA14834A43f5dE4533eBDd5CCB8",
+          "decimals": 6
+        },
+        "ARB": {
+          "addr": "0x912CE59144191C1204E64559FE8253a0E49E6548",
+          "decimals": 18
+        },
+        "WMATIC": {
+          "addr": "0x0c8C5D5bA4C5fBE0c1a1c1b2c3d4e5f6a7b8c9d0",
+          "decimals": 18
+        }
       }
     }
   },
-
   "_filter_comment": "Liquidity filter: only observe pools with TVL in this range. Low end avoids dust/scam pools; high end avoids high-liquidity pools where edge is arb-compressed. User-selected target: $10K-$500K (true low/medium liquidity).",
   "filter": {
     "tvlMinUsd": 10000,
     "tvlMaxUsd": 500000,
     "volume24hMinUsd": 1000
   },
-
-  "_discovery_comment": "Factory event sync window. Backfill depth = how many blocks of history to scan at startup (one-time). 100000 blocks ≈ last ~2 months on Arbitrum, ~6 months on Base/Op. Incremental sync after that catches new PoolCreated events.",
+  "_discovery_comment": "Factory event sync window. Backfill depth = how many blocks of history to scan at startup (one-time). 100000 blocks \u2248 last ~2 months on Arbitrum, ~6 months on Base/Op. Incremental sync after that catches new PoolCreated events.",
   "discovery": {
     "backfillBlocks": 100000,
     "refreshIntervalCycles": 10,
     "algebraProbingEnabled": true
   },
-
-  "notionalsUsd": [10, 100, 1000, 10000],
-
-  "_crossChain_comment": "Tokens to observe cross-chain (Phase 2). Auto-derived from discovered pools: any token that appears on ≥2 chains AND passes the per-chain liquidity filter. This list is a hint for which symbols to map across chains by symbol match (since same token may have different addresses on different chains).",
-  "crossChainSymbolUniverse": ["WETH", "USDC", "USDT", "DAI", "WBTC", "LDO"]
+  "notionalsUsd": [
+    10,
+    100,
+    1000,
+    10000
+  ],
+  "_crossChain_comment": "Tokens to observe cross-chain (Phase 2). Auto-derived from discovered pools: any token that appears on \u22652 chains AND passes the per-chain liquidity filter. This list is a hint for which symbols to map across chains by symbol match (since same token may have different addresses on different chains).",
+  "crossChainSymbolUniverse": [
+    "WETH",
+    "USDC",
+    "USDT",
+    "DAI",
+    "WBTC",
+    "LDO"
+  ],
+  "_temp_note": "Base/Op temporarily disabled 2026-08-14: BlockPi does not index factory events (useless backfill); DefiLlama seeder needs slug fixes (aerodrome-slipstream, camelot-v3) before Base re-enable."
 }

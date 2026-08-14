@@ -45,7 +45,7 @@ import path from 'node:path';
 import {
   FACTORIES, ALGEBRA_DEXES,
   backfillPools, incrementalSync, probeAlgebraPools,
-  readPoolTvlV2, readPoolTvlV3, readPoolVolume24h,
+  readPoolTvlV2, readPoolTvlV3, readPoolTvlAlgebra, readPoolVolume24h,
   insertPool, insertLiquiditySnapshot, setTokenSymbol, getEligibleCrossDexPairs,
 } from './probe-discovery.mjs';
 
@@ -286,13 +286,14 @@ async function refreshLiquidityForChain(chainId, runId) {
   for (const row of r.rows) {
     nScanned += 1;
     try {
-      const tvlResult = row.pool_type === 'v3'
-        ? await readPoolTvlV3(providers[chainId], row.pool_addr,
-            async (a) => (await getErc20Meta(chainId, a)).decimals,
-            async (a) => getPriceUsd(chainId, a))
-        : await readPoolTvlV2(providers[chainId], row.pool_addr,
-            async (a) => (await getErc20Meta(chainId, a)).decimals,
-            async (a) => getPriceUsd(chainId, a));
+      // v2 → getReserves; v3 → slot0; algebra → globalState (different tuple shape)
+      const metaDec = async (a) => (await getErc20Meta(chainId, a)).decimals;
+      const priceUsd = async (a) => getPriceUsd(chainId, a);
+      const tvlResult = row.pool_type === 'v2'
+        ? await readPoolTvlV2(providers[chainId], row.pool_addr, metaDec, priceUsd)
+        : row.pool_type === 'algebra'
+        ? await readPoolTvlAlgebra(providers[chainId], row.pool_addr, metaDec, priceUsd)
+        : await readPoolTvlV3(providers[chainId], row.pool_addr, metaDec, priceUsd);
       if (!tvlResult) continue;
       // Volume read (expensive — only every 10th pool to keep RPC budget in check)
       let volume = null, lastSwapAt = null;

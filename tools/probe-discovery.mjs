@@ -328,24 +328,53 @@ export async function readPoolTvlV3(provider, poolAddr, decimalsOf, priceOf) {
     c.liquidity.staticCall(),
     c.slot0.staticCall(),
   ]);
+  return tvlFromVirtualReserves(token0, token1, liq, slot0.sqrtPriceX96, decimalsOf, priceOf);
+}
+
+// Algebra Integral pools (Camelot / Aerodrome / Velodrome Slipstream) expose the
+// sqrt price via globalState() — their slot0() tuple has a different shape and
+// would fail ethers decoding.
+const ALGEBRA_POOL_ABI = [
+  'function token0() view returns (address)',
+  'function token1() view returns (address)',
+  'function liquidity() view returns (uint128)',
+  'function globalState() view returns (uint160 price, int24 tick, uint16 feeZto, uint16 feeOtz, uint16 timepointIndex, uint8 communityFeeToken0, uint8 communityFeeToken1, bool unlocked)',
+];
+
+export async function readPoolTvlAlgebra(provider, poolAddr, decimalsOf, priceOf) {
+  const c = new ethers.Contract(poolAddr, ALGEBRA_POOL_ABI, provider);
+  const [token0, token1, liq, gs] = await Promise.all([
+    c.token0.staticCall(),
+    c.token1.staticCall(),
+    c.liquidity.staticCall(),
+    c.globalState.staticCall(),
+  ]);
+  return tvlFromVirtualReserves(token0, token1, liq, gs.price, decimalsOf, priceOf);
+}
+
+function tvlFromVirtualReserves(token0, token1, liq, sqrtPriceX96, decimalsOf, priceOf) {
   if (liq === 0n) return { token0, token1, reserve0: 0n, reserve1: 0n, tvlUsd: 0 };
-  const d0 = await decimalsOf(token0);
-  const d1 = await decimalsOf(token1);
-  const p0 = await priceOf(token0);
-  const p1 = await priceOf(token1);
-  if (p0 == null || p1 == null) return null;
+  if (sqrtPriceX96 === 0n) return null;
   // Virtual reserves (marginal liquidity approximation)
-  const vReserve1 = (liq * slot0.sqrtPriceX96) >> 96n;
-  const vReserve0 = (liq << 96n) / slot0.sqrtPriceX96;
-  const tvlUsd = (Number(vReserve0) / 10 ** d0) * p0 + (Number(vReserve1) / 10 ** d1) * p1;
-  return { token0, token1, reserve0: vReserve0, reserve1: vReserve1, tvlUsd };
+  const vReserve1 = (liq * sqrtPriceX96) >> 96n;
+  const vReserve0 = (liq << 96n) / sqrtPriceX96;
+  return (async () => {
+    const d0 = await decimalsOf(token0);
+    const d1 = await decimalsOf(token1);
+    const p0 = await priceOf(token0);
+    const p1 = await priceOf(token1);
+    if (p0 == null || p1 == null) return null;
+    const tvlUsd = (Number(vReserve0) / 10 ** d0) * p0 + (Number(vReserve1) / 10 ** d1) * p1;
+    return { token0, token1, reserve0: vReserve0, reserve1: vReserve1, tvlUsd };
+  })();
 }
 
 // ============================================================================
 // 24h volume via Swap events
 // ============================================================================
 export async function readPoolVolume24h(provider, chainId, poolAddr, poolType, decimalsOf, priceOf, rateLimitFn) {
-  const topic = poolType === 'v3' ? SWAP_V3_TOPIC : SWAP_V2_TOPIC;
+  // Algebra pools emit the same Swap event shape as UniV3
+  const topic = poolType === 'v2' ? SWAP_V2_TOPIC : SWAP_V3_TOPIC;
   // Approximate 24h block count. Arbitrum ~0.25s/block → ~345600; Base/Op ~2s → ~43200.
   const BLOCKS_PER_24H = chainId === 42161 ? 345600 : 43200;
   const latest = await provider.getBlockNumber();
