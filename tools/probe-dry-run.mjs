@@ -68,6 +68,14 @@ if (!DB_URL) {
 }
 
 const config = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
+// Normalize all seed-token addresses (config may carry broken EIP-55 checksums)
+for (const chain of Object.values(config.chains)) {
+  if (chain.seedTokens) {
+    for (const t of Object.values(chain.seedTokens)) {
+      t.addr = ethers.getAddress(t.addr.toLowerCase());
+    }
+  }
+}
 const CHAIN_IDS = Object.keys(config.chains).map(Number);
 const FILTER = config.filter;
 const DISCOVERY = config.discovery;
@@ -82,12 +90,18 @@ const VENUE_INFRA = {
     { key: 'camelot',      type: 'algebra',  addr: '0x0fc73040b26e9bc8514fa028d998e73a254fa76e', label: 'Camelot' },
   ],
   8453: [
-    { key: 'uniswap-v3',   type: 'v3',       addr: '0x3d4Ba44E389a089B36D2c2596e99161E3a58a0Ec', label: 'UniV3' },
+    // official Base deployment (developers.uniswap.org); contracts-eth has
+    // a different tail (0x3d4Ba44E... = EOA)
+    { key: 'uniswap-v3',   type: 'v3',       addr: '0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a', label: 'UniV3' },
     { key: 'aerodrome',    type: 'algebra',  addr: '0x254cf9e1e6e233aa1ac962cb9b05b2cfeaae15b0', label: 'Aerodrome' },
   ],
   10: [
-    { key: 'uniswap-v3',   type: 'v3',       addr: '0x2779a0CC1c122e95490a2D8BcE5b2414F57F3aB9', label: 'UniV3' },
-    { key: 'velodrome',    type: 'algebra',  addr: '0x89D8218ed5fF1e46d8dcd33fb0bbeE3be1621466', label: 'Velodrome' },
+    // deterministic CREATE2 deployment — same address on Ethereum/Arbitrum/Optimism
+    // (0x2779a0CC... from contracts-eth is an EOA — bytecode 0)
+    { key: 'uniswap-v3',   type: 'v3',       addr: '0x61fFE014bA17989E743c5F6cB21bF9697530B21e', label: 'UniV3' },
+    // Velodrome V2 (Solidly AMM): V2-compatible router with getAmountsOut
+    { key: 'velodrome-v2', type: 'v2',       addr: '0xa062AE8AdF9C7717ba7a2364A8F8a25202F1fCb1', label: 'VelodromeV2' },
+    // Velodrome Slipstream (CL) quoter: ABI style unconfirmed — TODO
   ],
 };
 
@@ -117,7 +131,7 @@ function tryAcquire(chainId) {
   if (b.tokens >= 1) { b.tokens -= 1; return true; }
   return false;
 }
-async function acquire(chainId, maxWaitMs = 5000) {
+async function acquire(chainId, maxWaitMs = 600) {
   const deadline = Date.now() + maxWaitMs;
   while (!tryAcquire(chainId)) {
     if (Date.now() > deadline) return false;
@@ -242,7 +256,7 @@ async function quoteAlgebra(chainId, tokenIn, tokenOut, amountIn) {
 
 async function quoteVenue(chainId, venueKey, tokenIn, tokenOut, amountIn, fee) {
   if (venueKey === 'uniswap-v3') return quoteV3(chainId, tokenIn, tokenOut, amountIn, fee);
-  if (venueKey === 'sushiswap-v2') return quoteV2(chainId, tokenIn, tokenOut, amountIn);
+  if (venueKey === 'sushiswap-v2' || venueKey === 'velodrome-v2') return quoteV2(chainId, tokenIn, tokenOut, amountIn);
   // Algebra (camelot / aerodrome / velodrome)
   return quoteAlgebra(chainId, tokenIn, tokenOut, amountIn);
 }
@@ -283,21 +297,27 @@ async function refreshLiquidityForChain(chainId, runId) {
   );
   let nEligible = 0;
   let nScanned = 0;
+  const t0 = Date.now();
   for (const row of r.rows) {
     nScanned += 1;
+    const poolT0 = Date.now();
+    if (nScanned % 50 === 0) {
+      console.log(`[liquidity ${chainId}] progress ${nScanned}/${r.rows.length} eligible=${nEligible} (${((Date.now() - t0) / 1000).toFixed(0)}s)`);
+    }
     try {
       // v2 → getReserves; v3 → slot0; algebra → globalState (different tuple shape)
       const metaDec = async (a) => (await getErc20Meta(chainId, a)).decimals;
       const priceUsd = async (a) => getPriceUsd(chainId, a);
-      const tvlResult = row.pool_type === 'v2'
+      const tvlResult = row.pool_type === 'v2' || row.pool_type === 'solidly-v2'
         ? await readPoolTvlV2(providers[chainId], row.pool_addr, metaDec, priceUsd)
         : row.pool_type === 'algebra'
         ? await readPoolTvlAlgebra(providers[chainId], row.pool_addr, metaDec, priceUsd)
         : await readPoolTvlV3(providers[chainId], row.pool_addr, metaDec, priceUsd);
       if (!tvlResult) continue;
-      // Volume read (expensive — only every 10th pool to keep RPC budget in check)
+      // Volume read (expensive; PROBE_VOLUME_SAMPLE=N samples every Nth pool, 0=off)
       let volume = null, lastSwapAt = null;
-      if (nScanned % 10 === 0) {
+      const volSample = Number(process.env.PROBE_VOLUME_SAMPLE ?? 10);
+      if (volSample > 0 && nScanned % volSample === 0) {
         const v = await readPoolVolume24h(providers[chainId], chainId, row.pool_addr, row.pool_type,
           async (a) => (await getErc20Meta(chainId, a)).decimals,
           async (a) => getPriceUsd(chainId, a), rateLimitFn);
@@ -308,6 +328,8 @@ async function refreshLiquidityForChain(chainId, runId) {
         && tvlResult.tvlUsd <= FILTER.tvlMaxUsd
         && (volume == null || volume >= FILTER.volume24hMinUsd);
       if (eligible) nEligible += 1;
+      const poolMs = Date.now() - poolT0;
+      if (poolMs > 3000) console.log(`[liquidity ${chainId}] SLOW pool ${row.pool_addr.slice(0, 12)} ${poolMs}ms (dex=${row.dex})`);
       await insertLiquiditySnapshot(db, {
         runId, chainId, poolAddr: row.pool_addr, dex: row.dex,
         token0: row.token0_addr, token1: row.token1_addr,

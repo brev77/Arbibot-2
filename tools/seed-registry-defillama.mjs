@@ -29,22 +29,26 @@ const TVL_MIN = Number(process.env.SEED_TVL_MIN ?? 10_000);
 const TVL_MAX = Number(process.env.SEED_TVL_MAX ?? 500_000);
 
 // target DEX projects per chain (DefiLlama project slugs)
+// NOTE: DefiLlama names Optimism "OP Mainnet" — chainMap below reflects that.
 const PROJECTS = {
   42161: {
-    'camelot-dex': { type: 'algebra', dex: 'camelot' },
+    'camelot-v3': { type: 'algebra', dex: 'camelot' },
     'uniswap-v3': { type: 'v3', dex: 'uniswap-v3' },
     'sushiswap-v3': { type: 'v3', dex: 'uniswap-v3' },
     sushiswap: { type: 'v2', dex: 'sushiswap-v2' },
-    'camelot-v3': { type: 'algebra', dex: 'camelot' },
   },
   8453: {
     'uniswap-v3': { type: 'v3', dex: 'uniswap-v3' },
+    'sushiswap-v3': { type: 'v3', dex: 'uniswap-v3' },
     sushiswap: { type: 'v2', dex: 'sushiswap-v2' },
-    'aerodrome-slipstream': { type: 'algebra', dex: 'aerodrome' },
+    // aerodrome-slipstream: factory interface not yet confirmed (both getPool(a,b,ts)
+    // and poolByPair revert) — TODO after Basescan V2 API check
   },
   10: {
     'uniswap-v3': { type: 'v3', dex: 'uniswap-v3' },
-    velodrome: { type: 'algebra', dex: 'velodrome' },
+    'velodrome-v2': { type: 'solidly-v2', dex: 'velodrome-v2' },
+    // velodrome-v3 (Slipstream): factory getPool(a,b,ts) works but quoter ABI
+    // style unconfirmed (flat+tuple both fail) — TODO
   },
 };
 
@@ -56,18 +60,20 @@ const FACTORIES = {
     v2: '0xc35DADB65012eC5796536bD9864eD8773aBc74C4',      // Sushi V2
   },
   8453: {
-    v3: '0x1F98431c8aD98523631AE4a59f267346ea31F984',      // UniV3 canonical on Base
+    // official Base deployment (developers.uniswap.org); NB: contracts-eth
+    // has a typo in the tail (...d594dd274d2f3 = EOA)
+    v3: '0x33128a8fC17869897dcE68Ed026d694621f6FDfD',
     v2: '0x7Dae51aE332A0E1F979b1B1d01ED6D68468e41ec',      // Sushi Base
-    algebra: '0xeC8E5342B19977B4eF8892e02D8DAEcfa1315831', // Aerodrome Slipstream CL factory
   },
   10: {
-    v3: '0x1F98431c8aD98523631AE4a59f267346ea31F984',      // UniV3 canonical
-    algebra: '0xe13Dd1fbA721Aa81a1826D9523AC9BC7d260c879', // Velodrome Slipstream (Gauges V2 PoolFactory)
+    v3: '0x1F98431c8aD98523631AE4a59f267346ea31F984',      // UniV3 canonical (verified)
+    'solidly-v2': '0xF1046053aa5682b4F9a81b5481394DA16BE5FF5a', // Velodrome V2 (getPair w/ stable flag)
   },
 };
 
 const V3_FACTORY_ABI = ['function getPool(address a, address b, uint24 fee) view returns (address pool)'];
 const V2_FACTORY_ABI = ['function getPair(address a, address b) view returns (address pair)'];
+const SOLIDLY_FACTORY_ABI = ['function getPair(address a, address b, bool stable) view returns (address pair)'];
 const ALGEBRA_FACTORY_ABI = ['function poolByPair(address a, address b) view returns (address pool)'];
 
 // fee tier string → millionths
@@ -94,6 +100,15 @@ async function main() {
     if (!url) { console.error(`Missing ${envName}`); process.exit(1); }
     providers[cid] = new ethers.JsonRpcProvider(url, Number(cid), { staticNetwork: true });
   }
+  // snapshot latest block per chain — seeded pools get created_at_block = latest
+  // so that the probe's incremental event sync starts from NOW instead of
+  // backfilling from genesis (which would hang for hours)
+  const latestBlocks = {};
+  for (const cid of Object.keys(providers)) {
+    try { latestBlocks[cid] = await providers[cid].getBlockNumber(); }
+    catch { latestBlocks[cid] = null; }
+  }
+  console.log('latest blocks:', JSON.stringify(latestBlocks));
 
   // ---- load DefiLlama ----
   let pools;
@@ -108,7 +123,7 @@ async function main() {
   // ---- filter ----
   const wanted = [];
   for (const p of pools) {
-    const chainMap = { Arbitrum: 42161, Base: 8453, Optimism: 10 };
+    const chainMap = { Arbitrum: 42161, Base: 8453, 'OP Mainnet': 10 };
     const chainId = chainMap[p.chain];
     if (!chainId) continue;
     const projCfg = PROJECTS[chainId]?.[p.project];
@@ -160,6 +175,13 @@ async function main() {
         const c = new ethers.Contract(factoryAddr, ALGEBRA_FACTORY_ABI, provider);
         const r = await c.poolByPair.staticCall(w.tokenA, w.tokenB);
         if (r && r !== ethers.ZeroAddress) poolAddr = r;
+      } else if (w.type === 'solidly-v2') {
+        // Solidly-style factory (Velodrome V2): getPair(a, b, stable) — probe both variants
+        const c = new ethers.Contract(factoryAddr, SOLIDLY_FACTORY_ABI, provider);
+        for (const stable of [true, false]) {
+          const r = await c.getPair.staticCall(w.tokenA, w.tokenB, stable);
+          if (r && r !== ethers.ZeroAddress) { poolAddr = r; break; }
+        }
       }
     } catch { /* factory call failed — skip */ }
     if (!poolAddr) { noPool++; continue; }
@@ -168,12 +190,14 @@ async function main() {
     try {
       await db.query(
         `INSERT INTO dry_run_pool_registry
-           (chain_id, pool_addr, dex, pool_type, token0_addr, token1_addr, fee_millionths, token0_symbol, token1_symbol)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+           (chain_id, pool_addr, dex, pool_type, token0_addr, token1_addr, fee_millionths,
+            token0_symbol, token1_symbol, created_at_block)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
          ON CONFLICT (chain_id, pool_addr) DO NOTHING`,
         [w.chainId, poolAddr.toLowerCase(), w.dex, w.type,
          w.tokenA.toLowerCase(), w.tokenB.toLowerCase(),
-         w.fee, s0 ?? null, s1 ?? null],
+         w.fee, s0 ?? null, s1 ?? null,
+         latestBlocks[w.chainId] ?? null],
       );
       inserted++;
     } catch (e) {

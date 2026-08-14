@@ -47,7 +47,8 @@ export const FACTORIES = {
     { addr: '0xc35DADB65012eC5796536bD9864eD8773aBc74C4', type: 'v2', dex: 'sushiswap-v2' },
   ],
   8453: [
-    { addr: '0x33128a8fC17869897dcE68Ed026d594dd274D2f3', type: 'v3', dex: 'uniswap-v3' },
+    // official Base deployment (contracts-eth tail was a typo → EOA)
+    { addr: '0x33128a8fC17869897dcE68Ed026d694621f6FDfD', type: 'v3', dex: 'uniswap-v3' },
     { addr: '0x7Dae51aE332A0E1F979b1B1d01ED6D68468e41ec', type: 'v2', dex: 'sushiswap-v2' },
   ],
   10: [
@@ -55,12 +56,12 @@ export const FACTORIES = {
   ],
 };
 
-// Algebra DEXes — probed (factory.getPool-like) rather than event-synced.
-// For Camelot/Aerodrome/Velodrome Slipstream we use the Algebra factory directly.
+// Algebra DEXes — probed via factory pool lookups (poolByPair). Only addresses
+// VERIFIED on-chain belong here; bad checksums / EOAs make the probe hang silently.
 export const ALGEBRA_DEXES = {
-  42161: [{ dex: 'camelot', factory: '0xAA3E8aBAa790E0D571d428c5a3D0234Bb8d1E652', type: 'algebra' }],
-  8453:  [{ dex: 'aerodrome', factory: '0x330EeF8bB6F2E998E50a96c5aEd25eD3eb3e1EFF', type: 'algebra' }],
-  10:    [{ dex: 'velodrome', factory: '0xF1046053aa5682b4F9a81b5481394DA16BE5FF5a', type: 'algebra' }],
+  42161: [{ dex: 'camelot', factory: '0x1a3c9B1d2F0529D97f2afC5136Cc23e58f1FD35B', type: 'algebra' }],
+  8453: [],  // aerodrome slipstream factory interface unconfirmed — TODO
+  10: [],    // velodrome slipstream quoter ABI unconfirmed — TODO
 };
 
 // V3 fee tiers to probe (Algebra has dynamic fees, single pool per pair)
@@ -373,8 +374,8 @@ function tvlFromVirtualReserves(token0, token1, liq, sqrtPriceX96, decimalsOf, p
 // 24h volume via Swap events
 // ============================================================================
 export async function readPoolVolume24h(provider, chainId, poolAddr, poolType, decimalsOf, priceOf, rateLimitFn) {
-  // Algebra pools emit the same Swap event shape as UniV3
-  const topic = poolType === 'v2' ? SWAP_V2_TOPIC : SWAP_V3_TOPIC;
+  // Algebra pools emit the same Swap event shape as UniV3; solidly-v2 as UniV2
+  const topic = (poolType === 'v2' || poolType === 'solidly-v2') ? SWAP_V2_TOPIC : SWAP_V3_TOPIC;
   // Approximate 24h block count. Arbitrum ~0.25s/block → ~345600; Base/Op ~2s → ~43200.
   const BLOCKS_PER_24H = chainId === 42161 ? 345600 : 43200;
   const latest = await provider.getBlockNumber();
