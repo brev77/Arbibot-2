@@ -359,6 +359,29 @@ export async function readPoolTvlAlgebra(provider, poolAddr, decimalsOf, priceOf
   return tvlFromVirtualReserves(token0, token1, liq, gs.price, decimalsOf, priceOf);
 }
 
+// Velodrome Slipstream CLPool — UniV3-style, but slot0() has SIX fields
+// (no feeProtocol). Verified on-chain 2026-08-15 against the live gaugesV2
+// factory pool 0x1870d93F… (WETH/USDC ts=100). Swap event = UniV3 shape,
+// so readPoolVolume24h's SWAP_V3_TOPIC branch applies unchanged.
+const SLIPSTREAM_POOL_ABI = [
+  'function token0() view returns (address)',
+  'function token1() view returns (address)',
+  'function liquidity() view returns (uint128)',
+  'function slot0() view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, bool unlocked)',
+  'function tickSpacing() view returns (int24)',
+];
+
+export async function readPoolTvlSlipstream(provider, poolAddr, decimalsOf, priceOf) {
+  const c = new ethers.Contract(poolAddr, SLIPSTREAM_POOL_ABI, provider);
+  const [token0, token1, liq, slot0] = await Promise.all([
+    c.token0.staticCall(),
+    c.token1.staticCall(),
+    c.liquidity.staticCall(),
+    c.slot0.staticCall(),
+  ]);
+  return tvlFromVirtualReserves(token0, token1, liq, slot0.sqrtPriceX96, decimalsOf, priceOf);
+}
+
 function tvlFromVirtualReserves(token0, token1, liq, sqrtPriceX96, decimalsOf, priceOf) {
   if (liq === 0n) return { token0, token1, reserve0: 0n, reserve1: 0n, tvlUsd: 0 };
   if (sqrtPriceX96 === 0n) return null;

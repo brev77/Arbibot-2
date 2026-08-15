@@ -9,7 +9,8 @@ into isolated `dry_run_*` tables.
 **Why discovery-driven:** the user correctly pointed out that pre-picking
 high-liquidity tokens (WETH/USDC/ARB) targets the segment where edge is
 already arb-compressed by well-capitalized bots. The real edge — if any —
-lives in low/medium liquidity pools ($10K–$500K TVL) below their radar. This
+lives in low/medium liquidity pools ($10K–$5M TVL, `filter.tvlMinUsd` /
+`filter.tvlMaxUsd` in `probe-config.json`) below their radar. This
 tool discovers those pools programmatically rather than relying on a curated
 list.
 
@@ -29,7 +30,7 @@ Every cycle:
     b. Algebra probing: Camelot/Aerodrome/Velodrome pool lookup for
        token pairs discovered in (a)
     c. Liquidity refresh: read TVL + (sampled) 24h volume for registry pools,
-       mark eligible = (tvl in [$10K,$500K] AND volume ≥ $1K)
+       mark eligible = (tvl in filter band, default [$10K,$5M] AND volume ≥ $1K)
 
   Stage 1 (every cycle): cross-DEX round-trips
     For every (tokenA, tokenB) with ≥2 DEXes having eligible pools,
@@ -40,7 +41,13 @@ Every cycle:
       → INSERT dry_run_dex_observations
 
   Stage 2 (every cycle): cross-chain price gaps
-    For every symbol liquid on ≥2 chains (matched by ERC20.symbol):
+    For every token liquid (eligible snapshot) on ≥2 chains, in ANY pool
+    position (token0 or token1), grouped by identity:
+      - canonical: address matches canonicalTokens map in probe-config.json
+        (verified addresses) → metadata.trust = 'canonical'
+      - fallback: symbol match with heuristic gates (same decimals, gap ≤
+        crossChain.maxHeuristicGapBps, no intra-chain symbol collision)
+        → metadata.trust = 'heuristic', else 'suspicious'
       price_diff_bps = (sell_price - buy_price) / buy_price * 10000
       [optional] bridge_fee_bps via Across API
       → INSERT dry_run_cross_chain_observations
@@ -71,10 +78,17 @@ PROBE_DATABASE_URL=postgres://...   # defaults to DATABASE_URL
 # Optional: ACROSS_API_KEY=... ACROSS_INTEGRATOR_ID=...
 
 # 3. Tune filter (tools/probe-config.json)
-#    filter.tvlMinUsd = 10000       # lower bound per pool
-#    filter.tvlMaxUsd = 500000      # upper bound (above this = high-liq, arb-compressed)
-#    filter.volume24hMinUsd = 1000  # dust filter
+#    filter.tvlMinUsd = 10000        # lower bound per pool
+#    filter.tvlMaxUsd = 5000000      # upper bound (above this = high-liq, arb-compressed)
+#    filter.volume24hMinUsd = 1000   # dust filter
 #    discovery.backfillBlocks = 100000  # ~2mo Arbitrum, ~6mo Base/Op
+
+# 4. Seed the pool registry (BlockPi does not index factory events):
+#    refresh the DefiLlama cache, then run the seeder. Match the seeder band
+#    to the probe filter — SEED_TVL_MAX defaults to 500K and will silently
+#    miss every $500K-$5M pool otherwise (OP/Base liquidity sits higher):
+curl -sS https://yields.llama.fi/pools -o /tmp/llama_pools.json
+SEED_TVL_MIN=10000 SEED_TVL_MAX=5000000 node tools/seed-registry-defillama.mjs
 ```
 
 **QuickNode Build plan ($49/mo)** works. Free public RPC will 429 during
@@ -104,16 +118,27 @@ errors). Each discovered pool is upserted into `dry_run_pool_registry` with
 its `token0`, `token1`, `fee` (V3 only), `dex`, `pool_type`, and
 `created_at_block`.
 
-### Algebra probing (Camelot, Aerodrome, Velodrome Slipstream)
+### Algebra probing (Camelot, Aerodrome)
 These DEXes use Algebra Integral (dynamic fees, non-standard factory events).
 Instead of event sync, we **probe** the factory's `pool(tokenA, tokenB)`
 view for every unique token pair discovered via V3/V2 events. This adds
 their pools to the registry.
 
+### Velodrome Slipstream (Optimism, verified 2026-08-15)
+CL AMM adapted from UniV3, but pools are keyed by `(pair, tickSpacing)`
+instead of fee. Seeded via DefiLlama project `velodrome-v3`: the seeder
+probes the live factory `0xe13Dd1fb…` across tick spacings `[1,5,10,50,100,200]`
+and stores the found spacing in `fee_millionths`. Quoting uses the quoter at
+`0xAd432b2c…` with a UniV3-QuoterV2-style tuple where `tickSpacing` replaces
+`fee`; TVL reading uses the UniV3 virtual-reserves math (pool `slot0()` has
+six fields — no `feeProtocol`).
+
 ### Liquidity refresh (Stage 0c)
 For each pool in registry (newest 500 per refresh):
 - **TVL (V2):** `getReserves()` → `reserve0 × price0 + reserve1 × price1`
-- **TVL (V3):** virtual reserves from `liquidity + slot0.sqrtPriceX96`
+- **TVL (V3 / Slipstream / Algebra):** virtual reserves from
+  `liquidity + slot0.sqrtPriceX96` (Algebra: `globalState().price`;
+  Slipstream `slot0()` has six fields — no `feeProtocol`)
   (marginal-liquidity approximation — true in-range TVL needs tick bitmap
   walk; good enough for a band filter)
 - **24h volume:** `eth_getLogs` for Swap events over last 24h of blocks,
@@ -166,9 +191,11 @@ ORDER BY s.volume_24h_usd DESC NULLS LAST LIMIT 25;
 3. **V3 TVL is approximate (virtual reserves).** Pools far out of their
    tick range will have overstated virtual TVL. For the band filter
    ($10K-$500K) this is acceptable; for precise TVL use Dune.
-4. **Algebra factory addresses** for Camelot (`0xAA3E…`) and Aerodrome
-   (`0x330E…`) are best-effort — verify on first run. Velodrome factory
-   (`0xF104…`) is from contracts-eth.
+4. **Cross-chain token identity.** Groups outside `canonicalTokens` are
+   symbol-matched with heuristic gates (decimals, gap window, intra-chain
+   collision) and flagged `metadata.trust = 'suspicious'` when a gate fails —
+   same-symbol different-asset collisions do happen in the long tail. Filter
+   on `metadata->>'trust'` in analysis.
 5. **Edge ≠ profit.** Same caveat as before: positive `round_trip_bps` is
    the optimistic bound (no race conditions / mempool / gas spikes / MEV).
 6. **Discovery finds what exists, not what's profitable.** Universe

@@ -47,8 +47,11 @@ const PROJECTS = {
   10: {
     'uniswap-v3': { type: 'v3', dex: 'uniswap-v3' },
     'velodrome-v2': { type: 'solidly-v2', dex: 'velodrome-v2' },
-    // velodrome-v3 (Slipstream): factory getPool(a,b,ts) works but quoter ABI
-    // style unconfirmed (flat+tuple both fail) — TODO
+    // Velodrome Slipstream (CL) — quoter verified on-chain 2026-08-15:
+    // quoteExactInputSingle((tokenIn, tokenOut, amountIn, int24 tickSpacing,
+    // sqrtPriceLimitX96)). tickSpacing is resolved by probing the factory
+    // across common spacings and stored in fee_millionths.
+    'velodrome-v3': { type: 'slipstream', dex: 'velodrome-slipstream' },
   },
 };
 
@@ -68,6 +71,9 @@ const FACTORIES = {
   10: {
     v3: '0x1F98431c8aD98523631AE4a59f267346ea31F984',      // UniV3 canonical (verified)
     'solidly-v2': '0xF1046053aa5682b4F9a81b5481394DA16BE5FF5a', // Velodrome V2 (getPair w/ stable flag)
+    // Slipstream gaugesV2 deployment — the LIVE one (orig 0xCc0bDDB7… has no
+    // WETH pools; verified 2026-08-15 via getPool across tick spacings)
+    slipstream: '0xe13Dd1fbA721Aa81a1826D9523AC9BC7d260c879',
   },
 };
 
@@ -75,6 +81,9 @@ const V3_FACTORY_ABI = ['function getPool(address a, address b, uint24 fee) view
 const V2_FACTORY_ABI = ['function getPair(address a, address b) view returns (address pair)'];
 const SOLIDLY_FACTORY_ABI = ['function getPair(address a, address b, bool stable) view returns (address pair)'];
 const ALGEBRA_FACTORY_ABI = ['function poolByPair(address a, address b) view returns (address pool)'];
+const SLIPSTREAM_FACTORY_ABI = ['function getPool(address tokenA, address tokenB, uint24 tickSpacing) view returns (address pool)'];
+// Common Velodrome Slipstream tick spacings (probed in order, first hit wins)
+const SLIPSTREAM_TICK_SPACINGS = [1, 5, 10, 50, 100, 200];
 
 // fee tier string → millionths
 function parseFeeTier(poolMeta) {
@@ -181,6 +190,15 @@ async function main() {
         for (const stable of [true, false]) {
           const r = await c.getPair.staticCall(w.tokenA, w.tokenB, stable);
           if (r && r !== ethers.ZeroAddress) { poolAddr = r; break; }
+        }
+      } else if (w.type === 'slipstream') {
+        // Slipstream pools are keyed by (pair, tickSpacing) — probe common
+        // spacings; the found ts is stored in fee_millionths (the probe reads
+        // it back as the quoter's tickSpacing).
+        const c = new ethers.Contract(factoryAddr, SLIPSTREAM_FACTORY_ABI, provider);
+        for (const ts of SLIPSTREAM_TICK_SPACINGS) {
+          const r = await c.getPool.staticCall(w.tokenA, w.tokenB, ts);
+          if (r && r !== ethers.ZeroAddress) { poolAddr = r; w.fee = ts; break; }
         }
       }
     } catch { /* factory call failed — skip */ }

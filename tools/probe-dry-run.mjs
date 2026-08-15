@@ -12,11 +12,12 @@
  *      cross-DEX pair (tokenA, tokenB where ≥2 DEXes have eligible pools).
  *   4. Cross-chain cycle (Phase 2): price gaps for tokens liquid on ≥2 chains.
  *
- * Targeting LOW/MEDIUM liquidity ($10K-$500K TVL) — high-liquidity pools
- * (WETH/USDC etc.) are arbed to zero by well-capitalized bots; the edge, if
- * any, lives in pools below their radar. The filter is the user's explicit
- * ask — it makes "maximally wide observation" tractable without flooding
- * the dataset with dust/scam pools.
+ * Targeting LOW/MEDIUM liquidity ($10K–$5M TVL, see probe-config.json
+ * filter.tvlMinUsd/tvlMaxUsd) — high-liquidity pools (WETH/USDC etc.) are
+ * arbed to zero by well-capitalized bots; the edge, if any, lives in pools
+ * below their radar. The filter is the user's explicit ask — it makes
+ * "maximally wide observation" tractable without flooding the dataset with
+ * dust/scam pools.
  *
  * This tool NEVER broadcasts transactions and is INDEPENDENT of all live
  * services (no capital / execution-orchestrator / opportunity-service).
@@ -45,7 +46,7 @@ import path from 'node:path';
 import {
   FACTORIES, ALGEBRA_DEXES,
   backfillPools, incrementalSync, probeAlgebraPools,
-  readPoolTvlV2, readPoolTvlV3, readPoolTvlAlgebra, readPoolVolume24h,
+  readPoolTvlV2, readPoolTvlV3, readPoolTvlAlgebra, readPoolTvlSlipstream, readPoolVolume24h,
   insertPool, insertLiquiditySnapshot, setTokenSymbol, getEligibleCrossDexPairs,
 } from './probe-discovery.mjs';
 
@@ -98,10 +99,14 @@ const VENUE_INFRA = {
   10: [
     // deterministic CREATE2 deployment — same address on Ethereum/Arbitrum/Optimism
     // (0x2779a0CC... from contracts-eth is an EOA — bytecode 0)
-    { key: 'uniswap-v3',   type: 'v3',       addr: '0x61fFE014bA17989E743c5F6cB21bF9697530B21e', label: 'UniV3' },
+    { key: 'uniswap-v3',   type: 'v3',         addr: '0x61fFE014bA17989E743c5F6cB21bF9697530B21e', label: 'UniV3' },
     // Velodrome V2 (Solidly AMM): V2-compatible router with getAmountsOut
-    { key: 'velodrome-v2', type: 'v2',       addr: '0xa062AE8AdF9C7717ba7a2364A8F8a25202F1fCb1', label: 'VelodromeV2' },
-    // Velodrome Slipstream (CL) quoter: ABI style unconfirmed — TODO
+    { key: 'velodrome-v2', type: 'v2',         addr: '0xa062AE8AdF9C7717ba7a2364A8F8a25202F1fCb1', label: 'VelodromeV2' },
+    // Velodrome Slipstream (CL), gaugesV2 deployment — quoter ABI verified
+    // on-chain 2026-08-15: tuple (tokenIn, tokenOut, amountIn, int24
+    // tickSpacing, sqrtPriceLimitX96). Pools carry their tickSpacing in
+    // registry fee_millionths (seeder quirk).
+    { key: 'velodrome-slipstream', type: 'slipstream', addr: '0xAd432b2ca49965266133F2bd4c17dc1Ec12f5DEB', label: 'Slipstream' },
   ],
 };
 
@@ -149,6 +154,10 @@ const ERC20_ABI = ['function decimals() view returns (uint8)', 'function symbol(
 const V2_ABI = ['function getAmountsOut(uint256 amountIn, address[] path) view returns (uint256[] amounts)'];
 const V3_QUOTER_ABI = ['function quoteExactInputSingle((address tokenIn,address tokenOut,uint256 amountIn,uint24 fee,uint160 sqrtPriceLimitX96)) external returns (uint256 amountOut,uint160 sqrtPriceX96After,uint32 initializedTicksCrossed,uint256 gasCost)'];
 const ALGEBRA_QUOTER_ABI = ['function quoteExactInputSingle(address tokenIn, address tokenOut, uint256 amountIn, uint160 limitSqrtPrice) external returns (uint256 amountOut)'];
+// Velodrome Slipstream quoter — UniV3-QuoterV2-style tuple, but tickSpacing
+// instead of fee. Verified on-chain 2026-08-15 (0.001 WETH → 1.879 USDC on
+// both live quoters; flat and fee-tuple variants revert).
+const SLIPSTREAM_QUOTER_ABI = ['function quoteExactInputSingle((address tokenIn, address tokenOut, uint256 amountIn, int24 tickSpacing, uint160 sqrtPriceLimitX96)) external returns (uint256 amountOut, uint160 sqrtPriceX96After, uint32 initializedTicksCrossed, uint256 gasEstimate)'];
 
 const erc20Cache = {}; // erc20Cache[chainId][addrLower] = { decimals, symbol }
 async function getErc20Meta(chainId, addr) {
@@ -201,7 +210,8 @@ async function getPriceUsd(chainId, addr) {
   }
   // Token → WETH → USDC fallback for less-liquid long-tail
   const wethOut = await quoteV3(chainId, addr, wethAddr, one, 500).catch(() => null)
-    ?? await quoteAlgebra(chainId, addr, wethAddr, one);
+    ?? await quoteAlgebra(chainId, addr, wethAddr, one)
+    ?? await quoteSlipstreamAnyTs(chainId, addr, wethAddr, one);
   if (wethOut && wethOut > 0n) {
     const usdcOut = await quoteV3(chainId, wethAddr, usdcAddr, wethOut, 500);
     if (usdcOut && usdcOut > 0n) {
@@ -254,9 +264,34 @@ async function quoteAlgebra(chainId, tokenIn, tokenOut, amountIn) {
   return null;
 }
 
+async function quoteSlipstream(chainId, tokenIn, tokenOut, amountIn, tickSpacing) {
+  const v = VENUE_INFRA[chainId]?.find((x) => x.key === 'velodrome-slipstream');
+  if (!v || tickSpacing == null) return null;
+  if (!(await acquire(chainId))) return null;
+  try {
+    const q = new ethers.Contract(v.addr, SLIPSTREAM_QUOTER_ABI, providers[chainId]);
+    const res = await q.quoteExactInputSingle.staticCall({
+      tokenIn, tokenOut, amountIn, tickSpacing: Number(tickSpacing), sqrtPriceLimitX96: 0n,
+    });
+    return res[0];
+  } catch { return null; }
+}
+
+// Fallback for long-tail tokens whose only OP pool is a Slipstream pool:
+// try common tick spacings (a wrong ts simply reverts → null).
+async function quoteSlipstreamAnyTs(chainId, tokenIn, tokenOut, amountIn) {
+  for (const ts of [100, 50, 200, 10]) {
+    const out = await quoteSlipstream(chainId, tokenIn, tokenOut, amountIn, ts);
+    if (out && out > 0n) return out;
+  }
+  return null;
+}
+
 async function quoteVenue(chainId, venueKey, tokenIn, tokenOut, amountIn, fee) {
   if (venueKey === 'uniswap-v3') return quoteV3(chainId, tokenIn, tokenOut, amountIn, fee);
   if (venueKey === 'sushiswap-v2' || venueKey === 'velodrome-v2') return quoteV2(chainId, tokenIn, tokenOut, amountIn);
+  // fee = tickSpacing for slipstream rows (registry fee_millionths quirk)
+  if (venueKey === 'velodrome-slipstream') return quoteSlipstream(chainId, tokenIn, tokenOut, amountIn, fee);
   // Algebra (camelot / aerodrome / velodrome)
   return quoteAlgebra(chainId, tokenIn, tokenOut, amountIn);
 }
@@ -312,6 +347,8 @@ async function refreshLiquidityForChain(chainId, runId) {
         ? await readPoolTvlV2(providers[chainId], row.pool_addr, metaDec, priceUsd)
         : row.pool_type === 'algebra'
         ? await readPoolTvlAlgebra(providers[chainId], row.pool_addr, metaDec, priceUsd)
+        : row.pool_type === 'slipstream'
+        ? await readPoolTvlSlipstream(providers[chainId], row.pool_addr, metaDec, priceUsd)
         : await readPoolTvlV3(providers[chainId], row.pool_addr, metaDec, priceUsd);
       if (!tvlResult) continue;
       // Volume read (expensive; PROBE_VOLUME_SAMPLE=N samples every Nth pool, 0=off)
@@ -427,38 +464,94 @@ async function runCycleDex(runId) {
 // ============================================================================
 // Phase 2: cross-chain price gaps
 // ============================================================================
-async function runCycleCrossChain(runId) {
-  let nObs = 0;
-  // Build per-token-per-chain USD price map for tokens that appear on multiple chains.
-  // Match by symbol (from registry) — same token often has different addresses per chain.
-  const pricesBySymbol = {}; // pricesBySymbol[symbol][chainId] = { addr, priceUsd }
-  for (const chainId of CHAIN_IDS) {
-    const r = await db.query(
-      `SELECT DISTINCT ON (token0_addr) token0_addr, token0_symbol
-         FROM dry_run_pool_registry
-         WHERE chain_id = $1 AND token0_symbol IS NOT NULL
-         ORDER BY token0_addr, discovered_at DESC`,
-      [chainId],
-    );
-    for (const row of r.rows) {
-      const p = await getPriceUsd(chainId, row.token0_addr);
-      if (p == null) continue;
-      pricesBySymbol[row.token0_symbol] ??= {};
-      pricesBySymbol[row.token0_symbol][chainId] = { addr: row.token0_addr, priceUsd: p };
+// Token identity across chains: canonical map first (config.canonicalTokens —
+// verified addresses per chain), symbol fallback with heuristic gates. Rows
+// carry metadata.trust = 'canonical' | 'heuristic' | 'suspicious' so SQL
+// analysis can weigh false-match risk (same-symbol different-asset collisions
+// are common in the low/mid-liquidity long tail).
+function buildCanonicalIndex() {
+  const idx = {}; // `${chainId}:${addrLower}` -> canonical asset key
+  for (const [sym, perChain] of Object.entries(config.canonicalTokens ?? {})) {
+    if (sym.startsWith('_')) continue;
+    for (const [cid, addr] of Object.entries(perChain)) {
+      idx[`${cid}:${String(addr).toLowerCase()}`] = sym;
     }
   }
-  for (const symbol of Object.keys(pricesBySymbol)) {
-    const onChains = Object.keys(pricesBySymbol[symbol]).map(Number);
+  return idx;
+}
+
+async function runCycleCrossChain(runId) {
+  let nObs = 0;
+  const canonIndex = buildCanonicalIndex();
+  // Universe: tokens in ANY pool position (token0 OR token1 — a token that is
+  // always token1 was previously invisible) whose LATEST liquidity snapshot is
+  // eligible — the same live TVL band as Phase 1, instead of whatever the
+  // seeder happened to insert.
+  const r = await db.query(
+    `WITH latest_snap AS (
+         SELECT DISTINCT ON (chain_id, pool_addr) chain_id, pool_addr, eligible
+           FROM dry_run_liquidity_snapshots
+          ORDER BY chain_id, pool_addr, observed_at DESC
+       ),
+       elig_pools AS (
+         SELECT p.chain_id, p.token0_addr, p.token0_symbol, p.token1_addr, p.token1_symbol
+           FROM dry_run_pool_registry p
+           JOIN latest_snap s ON s.chain_id = p.chain_id AND s.pool_addr = p.pool_addr
+          WHERE s.eligible = TRUE
+       ),
+       tokens AS (
+         SELECT chain_id, token0_addr AS addr, token0_symbol AS symbol
+           FROM elig_pools WHERE token0_symbol IS NOT NULL
+         UNION
+         SELECT chain_id, token1_addr AS addr, token1_symbol AS symbol
+           FROM elig_pools WHERE token1_symbol IS NOT NULL
+       )
+       SELECT DISTINCT ON (chain_id, addr) chain_id, addr, symbol FROM tokens`,
+  );
+  // groupKey -> { canonical, collision, chains: { [chainId]: {addr, priceUsd, symbol} } }
+  const groups = {};
+  for (const row of r.rows) {
+    const chainId = Number(row.chain_id);
+    const p = await getPriceUsd(chainId, row.addr);
+    if (p == null) continue;
+    const canonSym = canonIndex[`${chainId}:${row.addr.toLowerCase()}`] ?? null;
+    const gk = canonSym ?? `sym:${row.symbol}`;
+    groups[gk] ??= { canonical: canonSym != null, collision: false, chains: {} };
+    const g = groups[gk];
+    // Two different addresses on one chain mapped to the same group = symbol
+    // collision — the group cannot be trusted as a single asset.
+    if (g.chains[chainId] && g.chains[chainId].addr.toLowerCase() !== row.addr.toLowerCase()) {
+      g.collision = true;
+    }
+    g.chains[chainId] = { addr: row.addr, priceUsd: p, symbol: row.symbol };
+  }
+  for (const [gk, g] of Object.entries(groups)) {
+    const onChains = Object.keys(g.chains).map(Number);
     if (onChains.length < 2) continue;
     for (let i = 0; i < onChains.length; i++) {
       for (let j = 0; j < onChains.length; j++) {
         if (i === j) continue;
         const buyChain = onChains[i];
         const sellChain = onChains[j];
-        const buy = pricesBySymbol[symbol][buyChain];
-        const sell = pricesBySymbol[symbol][sellChain];
+        const buy = g.chains[buyChain];
+        const sell = g.chains[sellChain];
         const priceDiffBps = ((sell.priceUsd - buy.priceUsd) / buy.priceUsd) * 10000;
         const meta = await getErc20Meta(buyChain, buy.addr);
+        // Trust level for this group's observations
+        let trust = g.canonical && !g.collision ? 'canonical' : 'heuristic';
+        let trustMeta = { group: g.canonical ? gk : buy.symbol };
+        if (!g.canonical || g.collision) {
+          const [metaBuy, metaSell] = await Promise.all([
+            getErc20Meta(buyChain, buy.addr), getErc20Meta(sellChain, sell.addr),
+          ]);
+          const decimalsOk = metaBuy.decimals === metaSell.decimals;
+          const gapOk = Math.abs(priceDiffBps) <= (config.crossChain?.maxHeuristicGapBps ?? 2500);
+          trust = decimalsOk && gapOk && !g.collision ? 'heuristic' : 'suspicious';
+          trustMeta = {
+            group: buy.symbol, decimalsOk, gapOk, collision: g.collision,
+            decimalsBuy: metaBuy.decimals, decimalsSell: metaSell.decimals,
+          };
+        }
         for (const usd of config.notionalsUsd) {
           const amountInRaw = ethers.parseUnits((usd / buy.priceUsd).toFixed(Math.min(meta.decimals, 8)), meta.decimals);
           let bridgeFeeUsd = null, bridgeFeeBps = null, finalitySeconds = null, bridgeMeta = null;
@@ -482,13 +575,13 @@ async function runCycleCrossChain(runId) {
                   bridge_finality_seconds, net_edge_bps, metadata)
                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
               [
-                runId, symbol, buy.addr, sell.addr, buyChain, sellChain, usd,
+                runId, buy.symbol, buy.addr, sell.addr, buyChain, sellChain, usd,
                 buy.priceUsd, sell.priceUsd, Number(priceDiffBps.toFixed(4)),
                 ACROSS_API_KEY ? 'across' : 'none',
                 bridgeFeeUsd != null ? Number(bridgeFeeUsd.toFixed(6)) : null,
                 bridgeFeeBps != null ? Number(bridgeFeeBps.toFixed(4)) : null,
                 finalitySeconds, Number(netEdgeBps.toFixed(4)),
-                JSON.stringify(bridgeMeta ?? { note: 'ACROSS_API_KEY not set' }),
+                JSON.stringify({ trust, ...trustMeta, ...(bridgeMeta ?? { note: 'ACROSS_API_KEY not set' }) }),
               ],
             );
             nObs += 1;

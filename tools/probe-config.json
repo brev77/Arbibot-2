@@ -49,5 +49,18 @@
 
   "notionalsUsd": [10, 100, 1000, 10000],
 
-  "crossChainSymbolUniverse": ["WETH", "USDC", "USDT", "DAI", "WBTC", "LDO"]
+  "_canonical_comment": "Канонические адреса проверенных активов по сетям (источник: seedTokens выше + on-chain symbol()/decimals() верификация 2026-08-15). Phase 2 группирует токены по ключу актива из этой карты (metadata.trust='canonical'); токены вне карты матчятся по symbol с эвристическими гейтами (metadata.trust='heuristic' | 'suspicious').",
+  "canonicalTokens": {
+    "WETH":  { "42161": "0x82af49447d8a07e3bd95bd0d56f35241523fbab1", "8453": "0x4200000000000000000000000000000000000006", "10": "0x4200000000000000000000000000000000000006" },
+    "USDC":  { "42161": "0xaf88d065e77c8cc2239327c5edb3a432268e5831", "8453": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", "10": "0x0b2c639c533813f4aa9d7837caf62653d097ff85" },
+    "DAI":   { "8453": "0x50c5725949a6f0c72e6c4a641f24049a917db0cb", "10": "0xda10009cbd5d07dd0cecc66161fc93d7c9000da1" },
+    "WBTC":  { "42161": "0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f", "10": "0x68f180fcCe6836688e9084f035309E29Bf0A2095" },
+    "USDT":  { "42161": "0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9" },
+    "USDCe": { "42161": "0xff970a61a04b1ca14834a43f5de4533ebdd5ccb8" }
+  },
+
+  "_crosschain_comment": "Гейты эвристического матчинга (для токенов вне canonicalTokens): |price_diff| выше maxHeuristicGapBps, разные decimals или коллизия symbol внутри одной сети → metadata.trust='suspicious'.",
+  "crossChain": {
+    "maxHeuristicGapBps": 2500
+  }
 }
