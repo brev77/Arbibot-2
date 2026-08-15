@@ -33,11 +33,11 @@
     }
   },
 
-  "_filter_comment": "Liquidity filter: $10K floor avoids dust/scam pools; $5M ceiling (widened from $500K on 2026-08-14 — OP/Base liquidity concentrates higher than Arbitrum).",
+  "_filter_comment": "Liquidity filter, lowered to LOW liquidity 2026-08-15 per operator request — mid-liquidity ($10K-$5M) measured dead cross-DEX (0 positive round-trips on Base/OP, max +4bps on Arb). $1K floor admits thin pools where transient dislocations live; expect more scam/dust noise — trust gates + volume sampling are the counterweight. Seeder must be re-run with SEED_TVL_MIN matching.",
   "filter": {
-    "tvlMinUsd": 10000,
+    "tvlMinUsd": 1000,
     "tvlMaxUsd": 5000000,
-    "volume24hMinUsd": 1000
+    "volume24hMinUsd": 100
   },
 
   "_discovery_comment": "Event-based discovery is DEAD on BlockPi (factory events not indexed). Registry is populated by tools/seed-registry-defillama.mjs instead. Incremental event sync still runs but finds ~0; keep refresh cadence modest. Re-run the seeder periodically to pick up new DefiLlama pools.",

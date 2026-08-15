@@ -49,7 +49,11 @@ Every cycle:
         crossChain.maxHeuristicGapBps, no intra-chain symbol collision)
         → metadata.trust = 'heuristic', else 'suspicious'
       price_diff_bps = (sell_price - buy_price) / buy_price * 10000
-      [optional] bridge_fee_bps via Across API
+      bridge_fee_bps via the PUBLIC Across suggested-fees API (no key;
+      ~1.8 bps WETH L2-L2, isAmountTooLow flag recorded)
+      metadata.exec = honest USDC -> token -> bridge -> token -> USDC
+      round-trip quoted at real notional (skipped for 'suspicious');
+      the marginal price columns stay for continuity
       → INSERT dry_run_cross_chain_observations
 ```
 
@@ -75,7 +79,7 @@ PROBE_RPC_ARBITRUM_URL=https://your-quicknode.arbitrum.quiknode.pro/.../
 PROBE_RPC_BASE_URL=...
 PROBE_RPC_OPTIMISM_URL=...
 PROBE_DATABASE_URL=postgres://...   # defaults to DATABASE_URL
-# Optional: ACROSS_API_KEY=... ACROSS_INTEGRATOR_ID=...
+# (bridge fees: public Across API, no key needed)
 
 # 3. Tune filter (tools/probe-config.json)
 #    filter.tvlMinUsd = 10000        # lower bound per pool
@@ -85,10 +89,11 @@ PROBE_DATABASE_URL=postgres://...   # defaults to DATABASE_URL
 
 # 4. Seed the pool registry (BlockPi does not index factory events):
 #    refresh the DefiLlama cache, then run the seeder. Match the seeder band
-#    to the probe filter — SEED_TVL_MAX defaults to 500K and will silently
-#    miss every $500K-$5M pool otherwise (OP/Base liquidity sits higher):
+#    to the probe filter — defaults are 10K/500K and will silently miss pools
+#    outside them (band lowered to $1K floor on 2026-08-15 for low-liquidity
+#    hunting; OP/Base upper liquidity sits near $5M):
 curl -sS https://yields.llama.fi/pools -o /tmp/llama_pools.json
-SEED_TVL_MIN=10000 SEED_TVL_MAX=5000000 node tools/seed-registry-defillama.mjs
+SEED_TVL_MIN=1000 SEED_TVL_MAX=5000000 node tools/seed-registry-defillama.mjs
 ```
 
 **QuickNode Build plan ($49/mo)** works. Free public RPC will 429 during

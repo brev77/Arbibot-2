@@ -33,8 +33,10 @@
  *   # force one-time historical backfill of N blocks at startup:
  *   node tools/probe-dry-run.mjs --backfill
  *
- * Optional (Phase 2 bridge-fee enrichment):
- *   ACROSS_API_KEY=... ACROSS_INTEGRATOR_ID=... node tools/probe-dry-run.mjs --continuous
+ * Phase 2 bridge fees come from the PUBLIC Across suggested-fees API (no
+ * key required) and every non-suspicious cross-chain row carries metadata.exec
+ * — the honest USDC -> token -> bridge -> token -> USDC round-trip quoted at
+ * real notional (marginal 1-unit pricing produced phantom gaps).
  */
 
 import { ethers } from 'ethers';
@@ -59,8 +61,6 @@ const PERIOD_SEC = Math.max(10, Number(process.env.PROBE_PERIOD_SECONDS ?? 60));
 const DB_URL = process.env.PROBE_DATABASE_URL ?? process.env.DATABASE_URL;
 const RATE_LIMIT_RPS = Number(process.env.PROBE_RATE_LIMIT_RPS ?? 12);
 
-const ACROSS_API_KEY = process.env.ACROSS_API_KEY ?? '';
-const ACROSS_INTEGRATOR_ID = process.env.ACROSS_INTEGRATOR_ID ?? '';
 const ACROSS_API_BASE = 'https://app.across.to/api';
 
 if (!DB_URL) {
@@ -597,17 +597,39 @@ async function runCycleCrossChain(runId) {
         }
         for (const usd of config.notionalsUsd) {
           const amountInRaw = ethers.parseUnits((usd / buy.priceUsd).toFixed(Math.min(meta.decimals, 8)), meta.decimals);
+          // Real bridge fee via the PUBLIC Across suggested-fees API (no key)
+          const across = await acrossFeeCached(buyChain, sellChain, buy.addr, sell.addr, usd, amountInRaw);
           let bridgeFeeUsd = null, bridgeFeeBps = null, finalitySeconds = null, bridgeMeta = null;
-          if (ACROSS_API_KEY && ACROSS_INTEGRATOR_ID) {
-            const across = await fetchAcrossFee(buyChain, sellChain, buy.addr, sell.addr, amountInRaw);
-            if (across && across.feePct != null) {
-              bridgeFeeBps = across.feePct * 100;
-              bridgeFeeUsd = (usd * across.feePct) / 100;
-              finalitySeconds = across.finalitySeconds;
-              bridgeMeta = { acrossRaw: across.raw };
-            }
+          if (across && across.feeBps != null && Number.isFinite(across.feeBps)) {
+            bridgeFeeBps = across.feeBps;
+            bridgeFeeUsd = (usd * across.feeBps) / 10000;
+            finalitySeconds = across.finalitySeconds;
+            bridgeMeta = { across: { feeBps: across.feeBps, isAmountTooLow: across.isAmountTooLow } };
           }
           const netEdgeBps = bridgeFeeBps != null ? priceDiffBps - bridgeFeeBps : priceDiffBps;
+          // Executable depth: USDC -> token (buy chain) -> bridge -> token ->
+          // USDC (sell chain), quoted at REAL notional. This is the honest
+          // cross-chain round-trip; the marginal price_diff_bps above stays
+          // for continuity. Skipped for 'suspicious' groups (known garbage).
+          let exec = null;
+          if (trust !== 'suspicious') {
+            const units = await quoteUsdToUnits(buyChain, buy.addr, usd);
+            if (units && units > 0n) {
+              const feeScale = bridgeFeeBps != null ? 100000n - BigInt(Math.round(bridgeFeeBps * 10)) : 100000n;
+              const unitsAfterBridge = (units * feeScale) / 100000n;
+              const sellUsdOut = await quoteUnitsToUsd(sellChain, sell.addr, unitsAfterBridge);
+              if (sellUsdOut != null && Number.isFinite(sellUsdOut)) {
+                exec = {
+                  usd_in: usd,
+                  units_bought: units.toString(),
+                  units_after_bridge: unitsAfterBridge.toString(),
+                  sell_usd_out: Number(sellUsdOut.toFixed(6)),
+                  bridge_fee_bps: bridgeFeeBps,
+                  net_bps: Number((((sellUsdOut - usd) / usd) * 10000).toFixed(4)),
+                };
+              }
+            }
+          }
           try {
             await db.query(
               `INSERT INTO dry_run_cross_chain_observations
@@ -620,11 +642,11 @@ async function runCycleCrossChain(runId) {
               [
                 runId, buy.symbol, buy.addr, sell.addr, buyChain, sellChain, usd,
                 buy.priceUsd, sell.priceUsd, Number(priceDiffBps.toFixed(4)),
-                ACROSS_API_KEY ? 'across' : 'none',
+                across ? 'across' : 'none',
                 bridgeFeeUsd != null ? Number(bridgeFeeUsd.toFixed(6)) : null,
                 bridgeFeeBps != null ? Number(bridgeFeeBps.toFixed(4)) : null,
                 finalitySeconds, Number(netEdgeBps.toFixed(4)),
-                JSON.stringify({ trust, ...trustMeta, ...(bridgeMeta ?? { note: 'ACROSS_API_KEY not set' }) }),
+                JSON.stringify({ trust, ...trustMeta, exec, ...(bridgeMeta ?? { note: 'across fee unavailable' }) }),
               ],
             );
             nObs += 1;
@@ -639,25 +661,78 @@ async function runCycleCrossChain(runId) {
 }
 
 async function fetchAcrossFee(buyChainId, sellChainId, tokenAddrBuy, tokenAddrSell, amountInRaw) {
+  // Public suggested-fees endpoint — NO API key required (verified 2026-08-15
+  // from the probe host). Fee percentages come back 1e18-scaled (1e18 = 100%).
   const url = new URL(`${ACROSS_API_BASE}/suggested-fees`);
   url.searchParams.set('inputToken', tokenAddrBuy);
   url.searchParams.set('outputToken', tokenAddrSell);
-  url.searchParams.set('inputChainId', String(buyChainId));
-  url.searchParams.set('outputChainId', String(sellChainId));
-  url.searchParams.set('inputAmount', amountInRaw.toString());
+  url.searchParams.set('originChainId', String(buyChainId));
+  url.searchParams.set('destinationChainId', String(sellChainId));
+  url.searchParams.set('amount', amountInRaw.toString());
   url.searchParams.set('recipient', '0x0000000000000000000000000000000000000001');
-  url.searchParams.set('integratorId', ACROSS_INTEGRATOR_ID);
   try {
-    const r = await fetch(url, { headers: { Authorization: `Bearer ${ACROSS_API_KEY}` } });
+    const r = await fetch(url);
     if (!r.ok) return null;
     const j = await r.json();
-    const feePct = j.relayFeePct ?? j.totalFeePct ?? j.lpFeePct ?? null;
+    const pctSum = (BigInt(j.relayFeePct ?? 0) + BigInt(j.capitalFeePct ?? 0) + BigInt(j.lpFeePct ?? 0));
+    // x10 fixed-point before the integer division so sub-bps precision survives
+    const feeBps = Number((pctSum * 1_000_000n) / 10n ** 18n) / 100;
     return {
-      feePct: feePct != null ? Number(feePct) : null,
-      finalitySeconds: j.fillDeadlineSeconds ? Number(j.fillDeadlineSeconds) : null,
+      feeBps,
+      finalitySeconds: j.estimatedFillTimeSec != null ? Number(j.estimatedFillTimeSec) : null,
+      isAmountTooLow: j.isAmountTooLow === true,
       raw: j,
     };
   } catch { return null; }
+}
+
+// Across fee cache: (token, route, notional-usd) → fee, TTL 10 min. Amounts
+// drift with prices between cycles, but the fee curve is smooth — per-USD
+// caching keeps API volume low without losing precision that matters.
+const acrossFeeCache = new Map();
+const ACROSS_CACHE_TTL_MS = 10 * 60_000;
+async function acrossFeeCached(buyChainId, sellChainId, tokenBuy, tokenSell, usd, amountInRaw) {
+  const key = `${tokenBuy.toLowerCase()}|${buyChainId}>${sellChainId}|${usd}`;
+  const hit = acrossFeeCache.get(key);
+  if (hit && Date.now() - hit.ts < ACROSS_CACHE_TTL_MS) return hit.fee;
+  const fee = await fetchAcrossFee(buyChainId, sellChainId, tokenBuy, tokenSell, amountInRaw);
+  acrossFeeCache.set(key, { ts: Date.now(), fee });
+  return fee;
+}
+
+// ============================================================================
+// Executable-depth helpers: quote at REAL notional instead of the marginal
+// 1-unit price. Cross-chain "gaps" measured at 1 unit produced phantom
+// opportunities from thin pools (WBTC +24000 bps artifact 2026-08-15).
+// ============================================================================
+async function quoteUsdToUnits(chainId, tokenAddr, usd) {
+  // USDC -> token on the buy chain; returns raw token units (or null)
+  const usdc = config.chains[chainId].seedTokens.USDC.addr;
+  const usdRaw = BigInt(Math.round(usd * 1e6));
+  for (const fee of [500, 3000]) {
+    const out = await quoteV3(chainId, usdc, tokenAddr, usdRaw, fee);
+    if (out && out > 0n) return out;
+  }
+  return null;
+}
+
+async function quoteUnitsToUsd(chainId, tokenAddr, amountRaw) {
+  // token -> USDC on the sell chain; returns USD (or null)
+  const usdc = config.chains[chainId].seedTokens.USDC.addr;
+  for (const fee of [500, 3000]) {
+    const out = await quoteV3(chainId, tokenAddr, usdc, amountRaw, fee);
+    if (out && out > 0n) return Number(ethers.formatUnits(out, 6));
+  }
+  const weth = config.chains[chainId].seedTokens.WETH.addr;
+  const w = await quoteV3(chainId, tokenAddr, weth, amountRaw, 500).catch(() => null)
+    ?? await quoteAlgebra(chainId, tokenAddr, weth, amountRaw)
+    ?? await quoteSlipstreamAnyTs(chainId, tokenAddr, weth, amountRaw)
+    ?? await quoteSolidly(chainId, tokenAddr, weth, amountRaw);
+  if (w && w > 0n) {
+    const u = await quoteV3(chainId, weth, usdc, w, 500);
+    if (u && u > 0n) return Number(ethers.formatUnits(u, 6));
+  }
+  return null;
 }
 
 // ============================================================================
@@ -702,7 +777,7 @@ async function main() {
   console.log(`# Filter: $${FILTER.tvlMinUsd}-$${FILTER.tvlMaxUsd} TVL, $${FILTER.volume24hMinUsd} 24h vol min`);
   console.log(`# Period: ${PERIOD_SEC}s  Rate limit: ${RATE_LIMIT_RPS} rps/chain`);
   console.log(`# Backfill blocks: ${DISCOVERY.backfillBlocks}  Refresh every: ${DISCOVERY.refreshIntervalCycles} cycles`);
-  console.log(`# Across API: ${ACROSS_API_KEY ? 'enabled' : 'disabled'}  Mode: ${CONTINUOUS ? 'continuous' : 'single cycle'}`);
+  console.log(`# Across API: public (no key)  Mode: ${CONTINUOUS ? 'continuous' : 'single cycle'}`);
   console.log();
 
   try { await db.query('SELECT 1'); } catch (e) {
