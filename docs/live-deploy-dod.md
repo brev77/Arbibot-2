@@ -37,7 +37,7 @@ All capital-critical controls must be enforced **in backend code**, not only in 
 - [ ] **Operator on-call runbook review:** on-call operator confirms readiness per [`docs/incident-response-playbook.md`](incident-response-playbook.md).
 - [ ] **Observability:** Loki queries verified (`{service="execution-orchestrator",level="error"}`); Grafana dashboards load; Alertmanager paging receiver tested (D4-A-2-PAGING).
 - [ ] **TLS** (D4-A-6-TLS): valid certificates; HSTS enforced (`applyArbibotHttpSecurity`).
-- [ ] **Migrations applied:** `npm run db:verify-migrations:all` confirms 001–054 (current as of PLAN10).
+- [ ] **Migrations applied:** `npm run db:verify-migrations:all` confirms 001–057 (055–057 — probe-миграции, добавлены после PLAN10).
 
 ## Gate 3 — testnet soak (≥ 24h, no capital loss)
 

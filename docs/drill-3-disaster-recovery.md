@@ -111,6 +111,6 @@ Drill измеряет **фактическое** время backup + restore. �
 - **`permission denied for database postgres`** (на CREATE/DROP) — пользователь в
   `DATABASE_URL` должен иметь `CREATEDB` привилегию на кластере.
 - **`verify-migrations exited non-zero`** — dump мог быть сделан из БД с меньшим
-  числом миграций, чем ожидает `--all`. Проверь, что source применены все 001–049.
+  числом миграций, чем ожидает `--all`. Проверь, что source применены все 001–057.
 - **Restore упал на FK / duplicate** — `pg_dump --clean --if-exists` должен это
   предотвращать; если нет, проверь версию `pg_dump` (должна быть ≥ source Postgres).

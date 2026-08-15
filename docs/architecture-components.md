@@ -596,7 +596,7 @@ cycles_total, spreads_detected_total, findings_written/filtered_total, spread_bp
 - Применяется в `LegsService.markSent` только для live legs (`isLiveVenueKey(venueKey)` || bridge leg).
 
 ### Миграции
-001–045. Ключевые таблицы: см. раздел 1 (single-writer mapping). **044_scanner.sql** + **045_scanner_config_seed.sql** — scanner-service tables + config seed (S0-4/S0-5).
+001–057. Ключевые таблицы: см. раздел 1 (single-writer mapping). **044_scanner.sql** + **045_scanner_config_seed.sql** — scanner-service tables + config seed (S0-4/S0-5); **055–057** — probe (dry-run observations/discovery).
 
 ### Dependency security (overrides, 2026-07-23)
 - `package.json` **`overrides`** пиннят transitive-зависимости для закрытия Dependabot advisories: `fast-uri ^3.1.4`, `find-my-way ^9.7.0`, `sharp ^0.35.0`, плюс nested `next.postcss`, `@istanbuljs/load-nyc-config.js-yaml`.

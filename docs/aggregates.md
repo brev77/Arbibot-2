@@ -1,7 +1,7 @@
 # Агрегаты: владелец, хранилище, concurrency (P0-0.1-AGG)
 
 > **Верифицировано 2026-08-11** против production БД (Aéza, commit `1a7894b`) и
-> миграций `001–054`. Single-writer границы — канон для `architecture-guard-agent`.
+> миграций `001–057` (055–057 — probe-миграции, добавлены после верификации). Single-writer границы — канон для `architecture-guard-agent`.
 
 | Агрегат | Single-writer сервис | Хранилище (OLTP) | Optimistic concurrency |
 |---------|----------------------|------------------|-------------------------|
