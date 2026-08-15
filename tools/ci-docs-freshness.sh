@@ -16,11 +16,11 @@
 #    stale qualitative claim ("safe-by-default false" while server has it `true`). For
 #    semantic drift, use a future Hermes `docs-audit` skill or human review.
 #
-# WHAT THIS CHECKS (10 checks):
+# WHAT THIS CHECKS (11 checks):
 #   1.  Migration range consistency (001-0NN in docs vs actual migration file count)
 #   2.  Hermes skills count (N skills claims vs files in tools/hermes-agent/skills/)
 #   3.  MCP tools count (registerTool() calls vs "N tools" claim)
-#   4.  Dead relative markdown links (](path.md) → fs.existsSync)
+#   4.  Dead relative markdown links (](path.md) → fs.existsSync
 #   4b. Dead code-block paths (`apps/**/*.ts`, `packages/**/*.ts`) → fs.existsSync
 #   5.  DOCUMENTS_INDEX coverage (git ls-files docs/*.md vs index links)
 #   6.  Plan status vs git (table `proposed` + git log has commits → FAIL, allowlist)
@@ -28,6 +28,7 @@
 #   8.  State enum completeness [experimental, non-fatal] (explicit lists vs CHECK constraints)
 #   9.  Cron↔skill mapping (delegates to ci-hermes-agent-smoke.sh check #9)
 #   10. ENV var references (`ENV_VAR` in docs vs .env.example)
+#   11. AGENTS.md verification-stamp age (3-day rule; stale only with git activity)
 #
 # ALLOWLIST: tools/docs-freshness-baseline.txt — legit exceptions (historical snapshots,
 #   frozen canonical specs, partially-delivered plans). Format documented in the file.
@@ -121,6 +122,9 @@ echo ""
 migration_count=$(find infra/postgres/migrations -maxdepth 1 -name '*.sql' | wc -l | tr -d ' ')
 doc_max_migration=0
 docs_to_scan_1="AGENTS.md CONTEXT.md README.md $(find docs -maxdepth 2 -name '*.md' -type f)"
+# NOTE: printf word-splits the list so each path lands on its own line. A herestring
+# (`done <<< "$docs_to_scan_1"`) would glue "AGENTS.md CONTEXT.md README.md <first find
+# result>" into ONE line → -f fails → AGENTS.md/CONTEXT.md/README.md never scanned.
 while IFS= read -r f; do
   [[ -f "$f" ]] || continue
   while read -r m; do
@@ -132,7 +136,7 @@ while IFS= read -r f; do
     fi
   done < <(grep -oE "001[–-]0([0-9])([0-9])" "$f" 2>/dev/null \
            | sed -E 's/^001[–-]0//' | sed -E 's/^0//' | sort -n)
-done <<< "$docs_to_scan_1"
+done < <(printf '%s\n' $docs_to_scan_1)
 if (( doc_max_migration == migration_count )); then
   ok "Check 1: migration range matches actual count (${migration_count} migrations, docs max ${doc_max_migration})"
 elif (( doc_max_migration < migration_count )); then
@@ -442,6 +446,29 @@ if [[ -f "$env_example" ]]; then
   fi
 else
   echo "[skip] Check 10: $env_example not found"
+fi
+
+# ── Check 11: AGENTS.md verification-stamp age vs git activity ──────────────────
+# AGENTS.md (§ Maintenance) must be re-verified against CODE every 3 days; the
+# stamp line records the last verification (covers AGENTS.md + key docs list).
+# Stale only if BOTH: stamp older than 3 days AND commits landed after the stamp
+# date (a quiet repo cannot make the doc drift). Enforces the behavioral rule
+# structurally: a skipped or rubber-stamped maintenance run turns CI red.
+if [[ -f "AGENTS.md" ]]; then
+  stamp_date="$(grep -oE 'Last verified against code: [0-9]{4}-[0-9]{2}-[0-9]{2}' AGENTS.md 2>/dev/null | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | tail -1)"
+  if [[ -z "$stamp_date" ]]; then
+    fail "Check 11: AGENTS.md lacks 'Last verified against code: YYYY-MM-DD' stamp (see AGENTS.md ## Maintenance)"
+  else
+    age_days=$(( ( $(date +%s) - $(date -d "$stamp_date" +%s) ) / 86400 ))
+    commits_since=$(git log --since="${stamp_date} 23:59:59" --oneline 2>/dev/null | wc -l | tr -d ' ')
+    if (( age_days > 3 && commits_since > 0 )) && ! is_allowed "AGENTS.md" "stamp ${stamp_date} age ${age_days}d"; then
+      fail "Check 11: AGENTS.md verification stamp stale — ${age_days}d old, ${commits_since} commits since ${stamp_date}. Run the maintenance check (AGENTS.md ## Maintenance), then bump the stamp."
+    else
+      ok "Check 11: AGENTS.md verification stamp OK (${stamp_date}, ${age_days}d old, ${commits_since} commits since)"
+    fi
+  fi
+else
+  echo "[skip] Check 11: AGENTS.md not found"
 fi
 
 # ── Allowlist expiry warnings ──────────────────────────────────────────────────
