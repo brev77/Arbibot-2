@@ -123,6 +123,10 @@ for (const id of CHAIN_IDS) {
 }
 
 const db = new pg.Pool({ connectionString: DB_URL, max: 4 });
+// Idle client errors (Docker postgres resets, network blips) emit 'error' on
+// the pool — without a listener Node treats them as uncaught exceptions and
+// the process dies (observed as a pm2 restart loop on the Aéza host).
+db.on('error', (e) => console.error(`[pg pool] ${e.message}`));
 
 // ============================================================================
 // Rate limiter
@@ -513,7 +517,10 @@ async function runCycleCrossChain(runId) {
   for (const row of r.rows) {
     const chainId = Number(row.chain_id);
     const p = await getPriceUsd(chainId, row.addr);
-    if (p == null) continue;
+    // Broken/garbage quotes (scam-token 1-unit pricing) produce absurd or
+    // non-finite USD prices — they would overflow the NUMERIC(20,8) columns
+    // ("numeric field overflow") and are meaningless as price-gap signal.
+    if (p == null || !Number.isFinite(p) || p <= 0 || p > 1e12) continue;
     const canonSym = canonIndex[`${chainId}:${row.addr.toLowerCase()}`] ?? null;
     const gk = canonSym ?? `sym:${row.symbol}`;
     groups[gk] ??= { canonical: canonSym != null, collision: false, chains: {} };
@@ -536,6 +543,9 @@ async function runCycleCrossChain(runId) {
         const buy = g.chains[buyChain];
         const sell = g.chains[sellChain];
         const priceDiffBps = ((sell.priceUsd - buy.priceUsd) / buy.priceUsd) * 10000;
+        // price_diff_bps / net_edge_bps are NUMERIC(10,4) — gaps ≥ 999999 bps
+        // (9999%) mean one of the two quotes is broken; skip the pair.
+        if (!Number.isFinite(priceDiffBps) || Math.abs(priceDiffBps) >= 999999) continue;
         const meta = await getErc20Meta(buyChain, buy.addr);
         // Trust level for this group's observations
         let trust = g.canonical && !g.collision ? 'canonical' : 'heuristic';
@@ -684,7 +694,18 @@ async function main() {
   }
 
   console.log(`\n# Looping every ${PERIOD_SEC}s. SIGINT/SIGTERM to stop.\n`);
-  const handle = setInterval(() => { runOnce().catch((e) => console.error(`[runOnce] ${e.message}`)); }, PERIOD_SEC * 1000);
+  // A full cycle (liquidity refresh + quotes) can take far longer than
+  // PERIOD_SEC — a naive setInterval would stack up to N overlapping cycles,
+  // exhausting the RPC budget and the pg pool (restart-loop root cause on
+  // the Aéza host). Skip ticks while a cycle is still running.
+  let busy = false;
+  const handle = setInterval(() => {
+    if (busy) return;
+    busy = true;
+    runOnce()
+      .catch((e) => console.error(`[runOnce] ${e.message}`))
+      .finally(() => { busy = false; });
+  }, PERIOD_SEC * 1000);
   handle.unref?.();
 
   const shutdown = async (sig) => {
