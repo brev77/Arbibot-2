@@ -25,18 +25,24 @@ import { ethers } from 'ethers';
 
 // ============================================================================
 // Event signatures (keccak256 topic hashes)
+// ----------------------------------------------------------------------------
+// BUG FIX (2026-08-15): these were previously hardcoded as hex literals and 3
+// of 4 had drifted tails (correct prefixes, wrong remainder — the values did
+// not exist in any signature database). Event sync was filtering on hashes
+// that never occur on-chain. Computed here via ethers.id() so the class of
+// error is impossible; verified against openchain.xyz signature DB.
 // ============================================================================
-const POOL_CREATED_V3_TOPIC = '0x783cca1c0412dd0d695e294139682e5419462856bdfc5f3bb5f3f24b7e9deb7e';
-// Uniswap V3: PoolCreated(address indexed token0, address indexed token1, uint24 indexed fee, int24 tickSpacing, address pool)
+const POOL_CREATED_V3_TOPIC = ethers.id('PoolCreated(address,address,uint24,int24,address)');
+// Uniswap V3: PoolCreated(token0, token1, fee, tickSpacing, pool)
 
-const PAIR_CREATED_V2_TOPIC = '0x0d3648bd0f9ba286a679301e019dfee077688e5eaa0f08375187b93f2e8dc7fb';
-// Uniswap V2: PairCreated(address indexed token0, address indexed token1, address pair, uint256)
+const PAIR_CREATED_V2_TOPIC = ethers.id('PairCreated(address,address,address,uint256)');
+// Uniswap V2: PairCreated(token0, token1, pair,)
 
-const SWAP_V3_TOPIC = '0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64d8004d293d18c7f9fe';
-// V3 Swap(sender,recipient,int256 amount0,int256 amount1,uint160 sqrtPriceX96,uint128 liquidity,int24 tick)
+const SWAP_V3_TOPIC = ethers.id('Swap(address,address,int256,int256,uint160,uint128,int24)');
+// V3 Swap(sender, recipient, amount0, amount1, sqrtPriceX96, liquidity, tick)
 
-const SWAP_V2_TOPIC = '0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822';
-// V2 Swap(address sender,uint amount0In,uint amount1In,uint amount0Out,uint amount1Out,address to)
+const SWAP_V2_TOPIC = ethers.id('Swap(address,uint256,uint256,uint256,uint256,address)');
+// V2 Swap(sender, amount0In, amount1In, amount0Out, amount1Out, to)
 
 // ============================================================================
 // Factory configs (V3 + V2 only; Algebra DEXes are probed separately)
