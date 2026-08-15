@@ -86,6 +86,18 @@ regexes = [
   # is a placeholder credential in a runbook, not a real secret.
   '''admin:YOUR_.*''',
   '''YOUR_GRAFANA_PASSWORD''',
+  # Public deterministic on-chain constants used by the dry-run probe tools.
+  # These are keccak256 event-signature topic hashes (computable by anyone via
+  # ethers.id("PoolCreated(address,address,uint24,int24,address)") etc.) and a
+  # Balancer V2 pool ID — 32-byte hex values that the `ethereum-private-key`
+  # rule (0x + 64 hex) false-positives on. NOT secrets: they index public
+  # chain data. Listed by exact value so a REAL private key dropped into the
+  # same files would still be caught.
+  '''0x783cca1c0412dd0d695e294139682e5419462856bdfc5f3bb5f3f24b7e9deb7e''',  # UniV3 PoolCreated topic
+  '''0x0d3648bd0f9ba286a679301e019dfee077688e5eaa0f08375187b93f2e8dc7fb''',  # UniV2 PairCreated topic
+  '''0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64d8004d293d18c7f9fe''',  # V3 Swap topic
+  '''0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822''',  # V2 Swap topic
+  '''0x36bf227d6bac96e2ab1ebb5492ecec69c691943f000200000000000000000316''',  # Balancer wstETH/WETH poolId
 ]
 commits = []
 
