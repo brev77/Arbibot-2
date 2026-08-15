@@ -40,10 +40,10 @@
     "volume24hMinUsd": 100
   },
 
-  "_discovery_comment": "Event-based discovery is DEAD on BlockPi (factory events not indexed). Registry is populated by tools/seed-registry-defillama.mjs instead. Incremental event sync still runs but finds ~0; keep refresh cadence modest. Re-run the seeder periodically to pick up new DefiLlama pools.",
+  "_discovery_comment": "Event discovery: BlockPi DOES serve RECENT getLogs (verified 2026-08-15: fresh PoolCreated returned on all 3 chains; only deep history is archive-locked) — incremental sync catches NEWBORN pools, which is exactly the low-liquidity habitat (DefiLlama dump floors at ~$10K and cannot seed thin pools). refreshIntervalCycles=5 picks up fresh pools faster; deep backfill stays dead — registry is seeded via tools/seed-registry-defillama.mjs, re-run it periodically for existing pools.",
   "discovery": {
     "backfillBlocks": 100000,
-    "refreshIntervalCycles": 10,
+    "refreshIntervalCycles": 5,
     "algebraProbingEnabled": true
   },
 
