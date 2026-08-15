@@ -45,7 +45,9 @@ const PROJECTS = {
     // both verified on-chain 2026-08-15: factory getPool(a,b,stable) (NOT
     // getPair — that selector reverts), router Route-struct quoting, CL
     // factory getPool(a,b,int24) (NOT uint24), Slipstream quoter tuple5.
-    aerodrome: { type: 'solidly-v2', dex: 'aerodrome-v2' },
+    // NB: DefiLlama slug for the classic AMM is 'aerodrome-v1' (not
+    // 'aerodrome' — that slug yields ZERO pools; verified against the dump).
+    'aerodrome-v1': { type: 'solidly-v2', dex: 'aerodrome-v2' },
     'aerodrome-slipstream': { type: 'slipstream', dex: 'aerodrome-slipstream' },
   },
   10: {
