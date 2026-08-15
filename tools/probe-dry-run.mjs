@@ -520,7 +520,9 @@ async function runCycleCrossChain(runId) {
     // Broken/garbage quotes (scam-token 1-unit pricing) produce absurd or
     // non-finite USD prices — they would overflow the NUMERIC(20,8) columns
     // ("numeric field overflow") and are meaningless as price-gap signal.
-    if (p == null || !Number.isFinite(p) || p <= 0 || p > 1e12) continue;
+    // 1e9 is far above any legit token price and safely below the column
+    // limit (NUMERIC(20,8) tops out at ~1e12).
+    if (p == null || !Number.isFinite(p) || p <= 0 || p > 1e9) continue;
     const canonSym = canonIndex[`${chainId}:${row.addr.toLowerCase()}`] ?? null;
     const gk = canonSym ?? `sym:${row.symbol}`;
     groups[gk] ??= { canonical: canonSym != null, collision: false, chains: {} };
@@ -696,8 +698,11 @@ async function main() {
   console.log(`\n# Looping every ${PERIOD_SEC}s. SIGINT/SIGTERM to stop.\n`);
   // A full cycle (liquidity refresh + quotes) can take far longer than
   // PERIOD_SEC — a naive setInterval would stack up to N overlapping cycles,
-  // exhausting the RPC budget and the pg pool (restart-loop root cause on
-  // the Aéza host). Skip ticks while a cycle is still running.
+  // exhausting the RPC budget and the pg pool. Skip ticks while a cycle is
+  // still running.
+  // NB: the interval must NOT be unref'd — with no other active handles the
+  // process exits cleanly right after each cycle and pm2 restarts it (the
+  // 148-restart loop observed on the Aéza host; error log stays empty).
   let busy = false;
   const handle = setInterval(() => {
     if (busy) return;
@@ -706,7 +711,6 @@ async function main() {
       .catch((e) => console.error(`[runOnce] ${e.message}`))
       .finally(() => { busy = false; });
   }, PERIOD_SEC * 1000);
-  handle.unref?.();
 
   const shutdown = async (sig) => {
     console.log(`\n[${sig}] shutting down gracefully...`);
