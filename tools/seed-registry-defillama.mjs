@@ -41,8 +41,12 @@ const PROJECTS = {
     'uniswap-v3': { type: 'v3', dex: 'uniswap-v3' },
     'sushiswap-v3': { type: 'v3', dex: 'uniswap-v3' },
     sushiswap: { type: 'v2', dex: 'sushiswap-v2' },
-    // aerodrome-slipstream: factory interface not yet confirmed (both getPool(a,b,ts)
-    // and poolByPair revert) — TODO after Basescan V2 API check
+    // Aerodrome V2 (Solidly AMM — the dominant Base DEX) + Slipstream (CL),
+    // both verified on-chain 2026-08-15: factory getPool(a,b,stable) (NOT
+    // getPair — that selector reverts), router Route-struct quoting, CL
+    // factory getPool(a,b,int24) (NOT uint24), Slipstream quoter tuple5.
+    aerodrome: { type: 'solidly-v2', dex: 'aerodrome-v2' },
+    'aerodrome-slipstream': { type: 'slipstream', dex: 'aerodrome-slipstream' },
   },
   10: {
     'uniswap-v3': { type: 'v3', dex: 'uniswap-v3' },
@@ -67,6 +71,11 @@ const FACTORIES = {
     // has a typo in the tail (...d594dd274d2f3 = EOA)
     v3: '0x33128a8fC17869897dcE68Ed026d694621f6FDfD',
     v2: '0x7Dae51aE332A0E1F979b1B1d01ED6D68468e41ec',      // Sushi Base
+    // Aerodrome V2 PoolFactory (aerodrome.finance/security; uses getPool(a,b,stable))
+    'solidly-v2': '0x420DD381b31aEf6683db6B902084cB0FFECe40Da',
+    // Aerodrome Slipstream original deployment (github aerodrome-finance/
+    // slipstream README; pairs with QuoterV2 0x254cF9E1…) — getPool(a,b,int24)
+    slipstream: '0x5e7BB104d84c7CB9B682AaC2F3d509f5F406809A',
   },
   10: {
     v3: '0x1F98431c8aD98523631AE4a59f267346ea31F984',      // UniV3 canonical (verified)
@@ -82,8 +91,12 @@ const V2_FACTORY_ABI = ['function getPair(address a, address b) view returns (ad
 const SOLIDLY_FACTORY_ABI = ['function getPair(address a, address b, bool stable) view returns (address pair)'];
 const ALGEBRA_FACTORY_ABI = ['function poolByPair(address a, address b) view returns (address pool)'];
 const SLIPSTREAM_FACTORY_ABI = ['function getPool(address tokenA, address tokenB, uint24 tickSpacing) view returns (address pool)'];
-// Common Velodrome Slipstream tick spacings (probed in order, first hit wins)
-const SLIPSTREAM_TICK_SPACINGS = [1, 5, 10, 50, 100, 200];
+// Aerodrome Slipstream factory types tickSpacing as int24 — different selector
+const SLIPSTREAM_FACTORY_ABI_INT = ['function getPool(address tokenA, address tokenB, int24 tickSpacing) view returns (address pool)'];
+// Aerodrome V2 PoolFactory names it getPool(a,b,stable); Velodrome V2 uses getPair
+const AERO_V2_FACTORY_ABI = ['function getPool(address tokenA, address tokenB, bool stable) view returns (address)'];
+// Common Slipstream tick spacings (orig deployment enumerates 1,50,100,200,2000,10; g2 adds 500)
+const SLIPSTREAM_TICK_SPACINGS = [1, 5, 10, 50, 100, 200, 500, 2000];
 
 // fee tier string → millionths
 function parseFeeTier(poolMeta) {
@@ -185,20 +198,42 @@ async function main() {
         const r = await c.poolByPair.staticCall(w.tokenA, w.tokenB);
         if (r && r !== ethers.ZeroAddress) poolAddr = r;
       } else if (w.type === 'solidly-v2') {
-        // Solidly-style factory (Velodrome V2): getPair(a, b, stable) — probe both variants
-        const c = new ethers.Contract(factoryAddr, SOLIDLY_FACTORY_ABI, provider);
-        for (const stable of [true, false]) {
-          const r = await c.getPair.staticCall(w.tokenA, w.tokenB, stable);
-          if (r && r !== ethers.ZeroAddress) { poolAddr = r; break; }
+        // Solidly-style factory: Velodrome V2 exposes getPair(a,b,stable),
+        // Aerodrome V2 exposes getPool(a,b,stable) — probe both selectors.
+        // Volatile first: the quote path uses volatile routing, so seeding
+        // the volatile pool keeps registry metadata consistent with quotes.
+        const fns = [
+          new ethers.Interface(SOLIDLY_FACTORY_ABI).getFunction('getPair').selector,
+          new ethers.Interface(AERO_V2_FACTORY_ABI).getFunction('getPool').selector,
+        ];
+        for (const stable of [false, true]) {
+          for (const sel of fns) {
+            try {
+              const r = await provider.call({ to: factoryAddr, data: sel +
+                ethers.AbiCoder.defaultAbiCoder().encode(['address', 'address', 'bool'], [w.tokenA, w.tokenB, stable]).slice(2) });
+              const pair = ethers.getAddress('0x' + r.slice(26));
+              if (pair !== ethers.ZeroAddress) { poolAddr = pair; break; }
+            } catch { /* selector not on this factory */ }
+          }
+          if (poolAddr) break;
         }
       } else if (w.type === 'slipstream') {
         // Slipstream pools are keyed by (pair, tickSpacing) — probe common
         // spacings; the found ts is stored in fee_millionths (the probe reads
-        // it back as the quoter's tickSpacing).
-        const c = new ethers.Contract(factoryAddr, SLIPSTREAM_FACTORY_ABI, provider);
+        // it back as the quoter's tickSpacing). Velodrome factory types ts as
+        // uint24, Aerodrome as int24 — try both selectors.
+        const selU24 = new ethers.Interface(SLIPSTREAM_FACTORY_ABI).getFunction('getPool').selector;
+        const selI24 = new ethers.Interface(SLIPSTREAM_FACTORY_ABI_INT).getFunction('getPool').selector;
         for (const ts of SLIPSTREAM_TICK_SPACINGS) {
-          const r = await c.getPool.staticCall(w.tokenA, w.tokenB, ts);
-          if (r && r !== ethers.ZeroAddress) { poolAddr = r; w.fee = ts; break; }
+          const enc = ethers.AbiCoder.defaultAbiCoder().encode(['address', 'address', 'uint24'], [w.tokenA, w.tokenB, ts]).slice(2);
+          for (const sel of [selU24, selI24]) {
+            try {
+              const r = await provider.call({ to: factoryAddr, data: sel + enc });
+              const pool = ethers.getAddress('0x' + r.slice(26));
+              if (pool !== ethers.ZeroAddress) { poolAddr = pool; w.fee = ts; break; }
+            } catch { /* wrong selector for this factory */ }
+          }
+          if (poolAddr) break;
         }
       }
     } catch { /* factory call failed — skip */ }

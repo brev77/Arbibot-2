@@ -133,6 +133,21 @@ and stores the found spacing in `fee_millionths`. Quoting uses the quoter at
 `fee`; TVL reading uses the UniV3 virtual-reserves math (pool `slot0()` has
 six fields — no `feeProtocol`).
 
+### Aerodrome (Base, verified 2026-08-15)
+The dominant Base DEX, two AMMs, several interface traps (all verified
+on-chain before wiring):
+- **Aerodrome V2** (Solidly): factory `0x420DD381…` exposes
+  `getPool(a, b, stable)` — **not** `getPair` like Velodrome. Router
+  `0xcF77a3Ba…` quotes only via the **Route-struct**
+  `getAmountsOut(uint256, (from, to, stable, factory)[])` — the legacy
+  `address[]` form does not exist. Quotes use volatile routing; stable-only
+  pairs are seeded but not quoted.
+- **Aerodrome Slipstream** (CL): factory `0x5e7BB104…` (original deployment)
+  types tickSpacing as **int24** (Velodrome uses uint24 — different selector);
+  quoter `0x254cF9E1…` uses the same tuple5 ABI as Velodrome Slipstream.
+  The seeder probes both factory selectors across spacings
+  `[1,5,10,50,100,200,500,2000]`.
+
 ### Liquidity refresh (Stage 0c)
 For each pool in registry (newest 500 per refresh):
 - **TVL (V2):** `getReserves()` → `reserve0 × price0 + reserve1 × price1`

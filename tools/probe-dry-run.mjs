@@ -94,7 +94,16 @@ const VENUE_INFRA = {
     // official Base deployment (developers.uniswap.org); contracts-eth has
     // a different tail (0x3d4Ba44E... = EOA)
     { key: 'uniswap-v3',   type: 'v3',       addr: '0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a', label: 'UniV3' },
-    { key: 'aerodrome',    type: 'algebra',  addr: '0x254cf9e1e6e233aa1ac962cb9b05b2cfeaae15b0', label: 'Aerodrome' },
+    // Aerodrome V2 (Solidly AMM) — router quotes via Route-struct
+    // getAmountsOut(uint256,(from,to,stable,factory)[]); legacy address[]
+    // form does NOT exist (verified on-chain 2026-08-15). `factory` is
+    // required by the route struct.
+    { key: 'aerodrome-v2', type: 'solidly',  addr: '0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43',
+      factory: '0x420DD381b31aEf6683db6B902084cB0FFECe40Da', label: 'AerodromeV2' },
+    // Aerodrome Slipstream (CL), original deployment — same tuple5 quoter ABI
+    // as Velodrome Slipstream (verified on-chain 2026-08-15: 1.8808 USDC).
+    // NOTE: the Aerodrome CL factory uses getPool(a,b,int24) — see seeder.
+    { key: 'aerodrome-slipstream', type: 'slipstream', addr: '0x254cF9E1E6e233aa1AC962CB9B05b2cfeAaE15b0', label: 'AeroSlipstream' },
   ],
   10: [
     // deterministic CREATE2 deployment — same address on Ethereum/Arbitrum/Optimism
@@ -160,8 +169,13 @@ const V3_QUOTER_ABI = ['function quoteExactInputSingle((address tokenIn,address 
 const ALGEBRA_QUOTER_ABI = ['function quoteExactInputSingle(address tokenIn, address tokenOut, uint256 amountIn, uint160 limitSqrtPrice) external returns (uint256 amountOut)'];
 // Velodrome Slipstream quoter — UniV3-QuoterV2-style tuple, but tickSpacing
 // instead of fee. Verified on-chain 2026-08-15 (0.001 WETH → 1.879 USDC on
-// both live quoters; flat and fee-tuple variants revert).
+// both live quoters; flat and fee-tuple variants revert). The SAME ABI works
+// for Aerodrome Slipstream on Base (1.8808 USDC).
 const SLIPSTREAM_QUOTER_ABI = ['function quoteExactInputSingle((address tokenIn, address tokenOut, uint256 amountIn, int24 tickSpacing, uint160 sqrtPriceLimitX96)) external returns (uint256 amountOut, uint160 sqrtPriceX96After, uint32 initializedTicksCrossed, uint256 gasEstimate)'];
+// Solidly AMM routers (Aerodrome) — Route-struct quoting; the legacy
+// getAmountsOut(uint256, address[]) form does not exist on Aerodrome
+// (verified on-chain 2026-08-15).
+const SOLIDLY_ROUTER_ABI = ['function getAmountsOut(uint256 amountIn, (address from, address to, bool stable, address factory)[] routes) view returns (uint256[] amounts)'];
 
 const erc20Cache = {}; // erc20Cache[chainId][addrLower] = { decimals, symbol }
 async function getErc20Meta(chainId, addr) {
@@ -215,7 +229,8 @@ async function getPriceUsd(chainId, addr) {
   // Token → WETH → USDC fallback for less-liquid long-tail
   const wethOut = await quoteV3(chainId, addr, wethAddr, one, 500).catch(() => null)
     ?? await quoteAlgebra(chainId, addr, wethAddr, one)
-    ?? await quoteSlipstreamAnyTs(chainId, addr, wethAddr, one);
+    ?? await quoteSlipstreamAnyTs(chainId, addr, wethAddr, one)
+    ?? await quoteSolidly(chainId, addr, wethAddr, one);
   if (wethOut && wethOut > 0n) {
     const usdcOut = await quoteV3(chainId, wethAddr, usdcAddr, wethOut, 500);
     if (usdcOut && usdcOut > 0n) {
@@ -269,7 +284,7 @@ async function quoteAlgebra(chainId, tokenIn, tokenOut, amountIn) {
 }
 
 async function quoteSlipstream(chainId, tokenIn, tokenOut, amountIn, tickSpacing) {
-  const v = VENUE_INFRA[chainId]?.find((x) => x.key === 'velodrome-slipstream');
+  const v = VENUE_INFRA[chainId]?.find((x) => x.type === 'slipstream');
   if (!v || tickSpacing == null) return null;
   if (!(await acquire(chainId))) return null;
   try {
@@ -281,7 +296,7 @@ async function quoteSlipstream(chainId, tokenIn, tokenOut, amountIn, tickSpacing
   } catch { return null; }
 }
 
-// Fallback for long-tail tokens whose only OP pool is a Slipstream pool:
+// Fallback for long-tail tokens whose only OP/Base pool is a Slipstream pool:
 // try common tick spacings (a wrong ts simply reverts → null).
 async function quoteSlipstreamAnyTs(chainId, tokenIn, tokenOut, amountIn) {
   for (const ts of [100, 50, 200, 10]) {
@@ -291,11 +306,27 @@ async function quoteSlipstreamAnyTs(chainId, tokenIn, tokenOut, amountIn) {
   return null;
 }
 
+// Solidly AMM (Aerodrome V2): Route-struct quoting, volatile variant
+// (stable=false — stable pools would need the flag from registry metadata).
+async function quoteSolidly(chainId, tokenIn, tokenOut, amountIn) {
+  const v = VENUE_INFRA[chainId]?.find((x) => x.type === 'solidly');
+  if (!v || !v.factory) return null;
+  if (!(await acquire(chainId))) return null;
+  try {
+    const r = new ethers.Contract(v.addr, SOLIDLY_ROUTER_ABI, providers[chainId]);
+    const out = await r.getAmountsOut.staticCall(amountIn, [
+      { from: tokenIn, to: tokenOut, stable: false, factory: v.factory },
+    ]);
+    return out[1];
+  } catch { return null; }
+}
+
 async function quoteVenue(chainId, venueKey, tokenIn, tokenOut, amountIn, fee) {
   if (venueKey === 'uniswap-v3') return quoteV3(chainId, tokenIn, tokenOut, amountIn, fee);
   if (venueKey === 'sushiswap-v2' || venueKey === 'velodrome-v2') return quoteV2(chainId, tokenIn, tokenOut, amountIn);
   // fee = tickSpacing for slipstream rows (registry fee_millionths quirk)
-  if (venueKey === 'velodrome-slipstream') return quoteSlipstream(chainId, tokenIn, tokenOut, amountIn, fee);
+  if (venueKey === 'velodrome-slipstream' || venueKey === 'aerodrome-slipstream') return quoteSlipstream(chainId, tokenIn, tokenOut, amountIn, fee);
+  if (venueKey === 'aerodrome-v2') return quoteSolidly(chainId, tokenIn, tokenOut, amountIn);
   // Algebra (camelot / aerodrome / velodrome)
   return quoteAlgebra(chainId, tokenIn, tokenOut, amountIn);
 }
