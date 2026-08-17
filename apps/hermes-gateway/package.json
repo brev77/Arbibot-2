@@ -12,9 +12,9 @@
   },
   "dependencies": {
     "@arbibot/nest-platform": "*",
-    "@nestjs/common": "^11.1.28",
-    "@nestjs/core": "^11.1.28",
-    "@nestjs/platform-fastify": "^11.1.28",
+    "@nestjs/common": "^11.1.29",
+    "@nestjs/core": "^11.1.29",
+    "@nestjs/platform-fastify": "^11.1.29",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
     "ioredis": "^5.11.1",
@@ -23,7 +23,7 @@
   },
   "devDependencies": {
     "@arbibot/tsconfig": "*",
-    "@nestjs/testing": "^11.1.28",
+    "@nestjs/testing": "^11.1.29",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.19.0",
     "jest": "^30.3.0",
