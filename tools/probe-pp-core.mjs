@@ -99,6 +99,87 @@ export function matchOpportunity(existing, obs, windowMs) {
  * aggregation MUST share the threshold (the −1000 smoke caught them diverging:
  * SELECT passed negative rows, the hardcoded `net > 0` here dropped them).
  */
+// ── Event triggers (#58) ──────────────────────────────────────────────────────
+
+/** Decode a Swap event's data into per-token ABSOLUTE movement amounts (raw
+ *  units). V3 (and algebra/slipstream — same event shape): amount0/amount1 are
+ *  SIGNED int256, one negative (index side) one positive (output side) — take
+ *  absolute values. V2 (and solidly-v2): amount{0,1}{In,Out} unsigned, exactly
+ *  one of In/Out non-zero per side → movement = in + out. Topics are passed in
+ *  (computed in probe-discovery) so this module stays ethers-free. */
+export function decodeSwapAmounts({ topic0, data }, { swapV3Topic, swapV2Topic }) {
+  if (typeof data !== 'string' || !data.startsWith('0x')) return null;
+  const word = (i) => {
+    const hex = data.slice(2 + i * 64, 2 + (i + 1) * 64);
+    return hex.length === 64 ? BigInt(`0x${hex}`) : null;
+  };
+  if (topic0 === swapV3Topic) {
+    const w0 = word(0), w1 = word(1);
+    if (w0 == null || w1 == null) return null;
+    // int256 two's complement → signed → absolute movement
+    const abs = (x) => {
+      const s = x >= 1n << 255n ? x - (1n << 256n) : x;
+      return s < 0n ? -s : s;
+    };
+    return { amount0: abs(w0), amount1: abs(w1) };
+  }
+  if (topic0 === swapV2Topic) {
+    const a0i = word(0), a1i = word(1), a0o = word(2), a1o = word(3);
+    if (a0i == null || a1i == null || a0o == null || a1o == null) return null;
+    return { amount0: a0i + a0o, amount1: a1i + a1o };
+  }
+  return null;
+}
+
+/** USD size of a swap event (#58): max over priced legs of |token movement| ×
+ *  raw marginal price. Both legs are the same trade, so the priced leg sizes
+ *  it; max() covers pools where one side has a raw price and the other doesn't.
+ *  No price on either side → null (the plan's "нет цены → пропуск"). */
+export function swapUsdFromEvent({ amount0, amount1, price0, price1, decimals0, decimals1 }) {
+  const legs = [];
+  if (amount0 != null && price0 != null && price0 > 0 && Number.isFinite(decimals0)) {
+    legs.push((Math.abs(Number(amount0)) / 10 ** decimals0) * price0);
+  }
+  if (amount1 != null && price1 != null && price1 > 0 && Number.isFinite(decimals1)) {
+    legs.push((Math.abs(Number(amount1)) / 10 ** decimals1) * price1);
+  }
+  if (legs.length === 0) return null;
+  const usd = Math.max(...legs);
+  return Number.isFinite(usd) && usd > 0 ? usd : null;
+}
+
+/** "Large" swap gate (#58): swapUsd ≥ max(minSwapUsd, depthFraction × depthUsd).
+ *  A $500 floor alone would fire on every mid-size trade in a deep pool — the
+ *  depth fraction keeps "large" relative to what the pool can absorb. */
+export function isLargeSwap({ swapUsd, minSwapUsd, depthFraction, depthUsd = null }) {
+  if (!(swapUsd > 0) || !(minSwapUsd > 0) || !(depthFraction > 0)) return false;
+  const floor = Math.max(minSwapUsd, depthFraction * (depthUsd ?? 0));
+  return swapUsd >= floor;
+}
+
+/** Sliding 1-hour event-quote cap (#58): a quote at nowMs is allowed while
+ *  fewer than maxPerHour quotes sit strictly inside the trailing hour. */
+export function hourlyCapAllows(priorQuoteMs, nowMs, maxPerHour) {
+  if (!(maxPerHour > 0)) return false;
+  const hourAgo = nowMs - 3_600_000;
+  return priorQuoteMs.filter((t) => t > hourAgo).length < maxPerHour;
+}
+
+/** Per-token cooldown (#58): one token not more often than once per cooldownSec. */
+export function cooldownAllows(lastQuotedMs, nowMs, cooldownSec) {
+  if (lastQuotedMs == null) return true;
+  return nowMs - lastQuotedMs >= cooldownSec * 1000;
+}
+
+/** Priority of an event-queue candidate (#58): open-window tokens quote first
+ *  (defend live windows), then newborn pools (the dislocation habitat), then
+ *  the rest; within a tier the bigger disturbance wins. Pure sort — mutates
+ *  nothing, returns a new array. */
+export function rankEventCandidates(list) {
+  const tier = (c) => (c.hasOpenWindow ? 0 : c.newborn ? 1 : 2);
+  return [...list].sort((a, b) => (tier(a) - tier(b)) || ((b.swapUsd ?? 0) - (a.swapUsd ?? 0)));
+}
+
 export function aggregateObservations(rows, { openNotionals = [50, 100], minNetBps = 0 } = {}) {
   const routes = new Map();
   for (const row of rows) {

@@ -8,6 +8,8 @@ import {
   computeGasEth, median3, gasBpsUsd, computeNetPpBps,
   matchOpportunity, aggregateObservations,
   poolFeeBps, rawMarginalPriceUsd, feeAdjustedSpreadBps,
+  decodeSwapAmounts, swapUsdFromEvent, isLargeSwap,
+  hourlyCapAllows, cooldownAllows, rankEventCandidates,
 } from './probe-pp-core.mjs';
 
 test('computeGasEth: calibrated receipt values (Arb 0.020 gwei, OP + L1)', () => {
@@ -137,4 +139,103 @@ test('feeAdjustedSpreadBps: 1% vs 0.05% tier phantom killed (review №8)', () =
   const real = feeAdjustedSpreadBps({ buyPriceUsd: 1.0, sellPriceUsd: 1.006, feeBpsBuy: 5, feeBpsSell: 5 });
   assert.equal(real, 50);
   assert.equal(feeAdjustedSpreadBps({ buyPriceUsd: 0, sellPriceUsd: 1 }), null);
+});
+
+// ── #58 event triggers ─────────────────────────────────────────────────────────
+const V3_TOPIC = '0x' + 'a'.repeat(64);
+const V2_TOPIC = '0x' + 'b'.repeat(64);
+const word = (n) => BigInt(n).toString(16).padStart(64, '0');
+// int256 two's complement for negatives (V3 amounts are signed)
+const wordSigned = (n) => (n >= 0n ? word(n) : word((1n << 256n) + n));
+
+test('decodeSwapAmounts: V3 signed legs → absolute movements, V2 In/Out summed', () => {
+  // V3: 1500 USDC (6 dec) in as amount0=-1500e6, 0.4 WETH out as amount1=+0.4e18
+  const v3 = decodeSwapAmounts(
+    { topic0: V3_TOPIC, data: '0x' + wordSigned(-1500n * 10n ** 6n) + wordSigned(4n * 10n ** 17n) },
+    { swapV3Topic: V3_TOPIC, swapV2Topic: V2_TOPIC },
+  );
+  assert.equal(v3.amount0, 1500n * 10n ** 6n);
+  assert.equal(v3.amount1, 4n * 10n ** 17n);
+  // V2: amount0In=0, amount1In=0.4e18, amount0Out=1500e6, amount1Out=0
+  const v2 = decodeSwapAmounts(
+    { topic0: V2_TOPIC, data: '0x' + word(0n) + word(4n * 10n ** 17n) + word(1500n * 10n ** 6n) + word(0n) },
+    { swapV3Topic: V3_TOPIC, swapV2Topic: V2_TOPIC },
+  );
+  assert.equal(v2.amount0, 1500n * 10n ** 6n);
+  assert.equal(v2.amount1, 4n * 10n ** 17n);
+  // garbage: unknown topic, short data, non-hex
+  assert.equal(decodeSwapAmounts({ topic0: '0xdead', data: '0x' + word(1n) }, { swapV3Topic: V3_TOPIC, swapV2Topic: V2_TOPIC }), null);
+  assert.equal(decodeSwapAmounts({ topic0: V3_TOPIC, data: '0x1234' }, { swapV3Topic: V3_TOPIC, swapV2Topic: V2_TOPIC }), null);
+});
+
+test('swapUsdFromEvent: max over priced legs; no raw price → null (план: «нет цены → пропуск»)', () => {
+  // both legs priced: 1500 USDC-side vs 0.4 WETH × $3300 = $1320 → max $1500
+  const usd = swapUsdFromEvent({
+    amount0: 1500n * 10n ** 6n, amount1: 4n * 10n ** 17n,
+    price0: 1, price1: 3300, decimals0: 6, decimals1: 18,
+  });
+  assert.equal(usd, 1500);
+  // only token1 priced (token0 = unlisted long-tail without raw price)
+  const one = swapUsdFromEvent({
+    amount0: 999n * 10n ** 18n, amount1: 4n * 10n ** 17n,
+    price0: null, price1: 3300, decimals0: 18, decimals1: 18,
+  });
+  assert.equal(one, 1320);
+  // neither priced → skip
+  assert.equal(swapUsdFromEvent({ amount0: 1n, amount1: 1n, price0: null, price1: null, decimals0: 18, decimals1: 18 }), null);
+});
+
+test('isLargeSwap: threshold = max(minSwapUsd, depthFraction × depth) (DoD-5)', () => {
+  // depth $10K → threshold max(500, 0.10×10000)=1000
+  assert.equal(isLargeSwap({ swapUsd: 999, minSwapUsd: 500, depthFraction: 0.10, depthUsd: 10000 }), false);
+  assert.equal(isLargeSwap({ swapUsd: 1000, minSwapUsd: 500, depthFraction: 0.10, depthUsd: 10000 }), true); // ≥ boundary
+  assert.equal(isLargeSwap({ swapUsd: 1200, minSwapUsd: 500, depthFraction: 0.10, depthUsd: 10000 }), true);
+  // thin pool $2K: threshold max(500, 200)=500 — the $500 floor dominates
+  assert.equal(isLargeSwap({ swapUsd: 499, minSwapUsd: 500, depthFraction: 0.10, depthUsd: 2000 }), false);
+  assert.equal(isLargeSwap({ swapUsd: 600, minSwapUsd: 500, depthFraction: 0.10, depthUsd: 2000 }), true);
+  // no depth known → floor only
+  assert.equal(isLargeSwap({ swapUsd: 500, minSwapUsd: 500, depthFraction: 0.10, depthUsd: null }), true);
+  assert.equal(isLargeSwap({ swapUsd: null, minSwapUsd: 500, depthFraction: 0.10, depthUsd: 10000 }), false);
+});
+
+test('hourlyCapAllows: sliding window, burst of scam swaps cannot burn the budget (DoD-4)', () => {
+  const now = Date.parse('2026-08-18T12:00:00Z');
+  const cap = 3;
+  // burst: 3 quotes in the trailing hour → 4th blocked
+  let prior = [now - 60_000, now - 120_000, now - 600_000];
+  assert.equal(hourlyCapAllows(prior, now, cap), false);
+  // one slides OUT of the window (61 min old) → allowed again
+  prior = [now - 3_660_000, now - 60_000, now - 120_000];
+  assert.equal(hourlyCapAllows(prior, now, cap), true);
+  // boundary: exactly 1h old does not count (strictly inside required)
+  assert.equal(hourlyCapAllows([now - 3_600_000], now, cap), true);
+  assert.equal(hourlyCapAllows([], now, cap), true);
+  assert.equal(hourlyCapAllows([now], now, 0), false); // cap disabled
+});
+
+test('cooldownAllows: one token not more often than once per cooldownSec (DoD-4)', () => {
+  const now = Date.parse('2026-08-18T12:00:00Z');
+  assert.equal(cooldownAllows(null, now, 120), true); // never quoted
+  assert.equal(cooldownAllows(now - 119_999, now, 120), false); // 119.999s — too soon
+  assert.equal(cooldownAllows(now - 120_000, now, 120), true); // exactly 120s — allowed
+});
+
+test('rankEventCandidates: open windows → newborn → rest; bigger disturbance first (DoD priority)', () => {
+  const ranked = rankEventCandidates([
+    { token: 'AAA', swapUsd: 900, hasOpenWindow: false, newborn: false },
+    { token: 'BBB', swapUsd: 700, hasOpenWindow: true, newborn: true },   // open wins over newborn
+    { token: 'CCC', swapUsd: 800, hasOpenWindow: false, newborn: true },
+    { token: 'DDD', swapUsd: 2000, hasOpenWindow: false, newborn: false },
+  ]);
+  assert.deepEqual(ranked.map((c) => c.token), ['BBB', 'CCC', 'DDD', 'AAA']);
+  // within a tier: swapUsd desc
+  const same = rankEventCandidates([
+    { token: 'X', swapUsd: 100, hasOpenWindow: false, newborn: false },
+    { token: 'Y', swapUsd: 300, hasOpenWindow: false, newborn: false },
+  ]);
+  assert.deepEqual(same.map((c) => c.token), ['Y', 'X']);
+  // input not mutated
+  const input = [{ token: 'X', swapUsd: 100, hasOpenWindow: false, newborn: false }, { token: 'Y', swapUsd: 300, hasOpenWindow: false, newborn: false }];
+  rankEventCandidates(input);
+  assert.equal(input[0].token, 'X');
 });

@@ -51,10 +51,10 @@ import { ethers } from 'ethers';
 import pg from 'pg';
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 import {
-  FACTORIES, ALGEBRA_DEXES,
+  FACTORIES, ALGEBRA_DEXES, SWAP_V3_TOPIC, SWAP_V2_TOPIC,
   backfillPools, incrementalSync, probeAlgebraPools, probeNewbornPools,
   readPoolTvlV2, readPoolTvlV3, readPoolTvlAlgebra, readPoolTvlSlipstream, readPoolVolume24h,
   insertPool, insertLiquiditySnapshot, setTokenSymbol, getEligibleCrossDexPairs,
@@ -62,6 +62,8 @@ import {
 import {
   computeGasEth, median3, gasBpsUsd, computeNetPpBps, aggregateObservations,
   poolFeeBps, rawMarginalPriceUsd, feeAdjustedSpreadBps,
+  decodeSwapAmounts, swapUsdFromEvent, isLargeSwap,
+  hourlyCapAllows, cooldownAllows, rankEventCandidates,
 } from './probe-pp-core.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -103,6 +105,12 @@ const OPPORTUNITY_CFG = config.opportunity ?? { minNetPpbps: 0, windowMinutes: 3
 const RAW_CFG = config.raw ?? { enabled: false, intervalCycles: 3, triggerBps: 10, newbornHours: 72, retentionHours: 48 };
 const rawTierState = { ok: false, quoteKeys: null, stats: null };
 const BLOCK_TIME_SEC = { 42161: 0.25, 8453: 2, 10: 2 };
+// Event triggers (#58): Swap-event poller → immediate out-of-cycle quote.
+// enabled:false on deploy; armed only after the full alive-smoke (DoD-1).
+const EVENT_CFG = config.event ?? { enabled: false, pollSeconds: 30, chunkAddrs: 150, minSwapUsd: 500, depthFraction: 0.10, maxQuotesPerHour: 60, tokenCooldownSec: 120 };
+// Event notionals are pinned to the window-opening grid (50/100); $1000 stays a
+// cycle-only depth probe — an event pass must stay inside its latency budget.
+const EVENT_NOTIONALS = [50, 100];
 
 // ============================================================================
 // Per-chain quoter / router addresses (config constants, not from discovery)
@@ -688,6 +696,27 @@ async function runRawTier(runId) {
     const ow = await db.query(`SELECT DISTINCT token_addr_buy AS a, token_addr_sell AS b FROM dry_run_arb_opportunities WHERE status = 'open'`);
     for (const row of ow.rows) { quoteKeys.add(row.a.toLowerCase()); quoteKeys.add(row.b.toLowerCase()); }
   } catch { /* table missing on fresh DBs */ }
+  // Cross-chain group index for the event tier (#58): every ≥2-chain group with
+  // per-chain entries (addr/symbol/depth/newborn). Canonical flag lets the event
+  // gates exclude majors (their big swaps are the normal market, not
+  // dislocations). Refreshed by each raw pass — the poller reads it live.
+  const crossGroups = {};
+  const tokenIndex = new Map(); // `${chainId}:${addrLower}` → group key
+  for (const [gk, g] of Object.entries(groups)) {
+    const chains = Object.keys(g.chains).map(Number);
+    if (chains.length < 2) continue;
+    crossGroups[gk] = {
+      canonical: g.canonical === true,
+      collision: g.collision === true,
+      chains: Object.fromEntries(chains.map((c) => {
+        const e = g.chains[c];
+        tokenIndex.set(`${c}:${e.addr.toLowerCase()}`, gk);
+        return [String(c), { addr: e.addr, symbol: e.symbol, depthUsd: e.depthUsd, newborn: e.newborn === true }];
+      })),
+    };
+  }
+  rawTierState.crossGroups = crossGroups;
+  rawTierState.tokenIndex = tokenIndex;
   rawTierState.ok = true;
   rawTierState.quoteKeys = quoteKeys;
   rawTierState.stats = { tokens: rawRows, groups: Object.keys(groups).length, triggered };
@@ -1457,6 +1486,452 @@ async function quoteUnitsToUsd(chainId, tokenAddr, amountRaw) {
 }
 
 // ============================================================================
+// Event triggers (#58): Swap-event poller → immediate out-of-cycle quote.
+// A separate timer in THIS process (never unref'd — same discipline as the
+// main cycle timer): every event.pollSeconds, getLogs over the ALIVE pools
+// (topic0 OR-form [[V3, V2]], pages ≤5K blocks, chunks of event.chunkAddrs,
+// bisection on chunk failure — pattern #57). A swap is "large" when
+// swapUsd ≥ max(minSwapUsd, depthFraction × pool depthUsd), sized from the
+// event itself × the raw tier's marginal price. Large swap on a cross-chain
+// NON-canonical token → immediate honest quote (both directions, 50/100) with
+// run_id 'event-<uuid>' + metadata.trigger='event' → Stage 3 runs right away
+// (windows open/extend without waiting for the cycle). Guards: sliding
+// maxQuotesPerHour cap, per-token cooldown, open-window/newborn priority,
+// RPC-guard #56 budget — event calls share the cycle's rpcCalls counters.
+// ============================================================================
+const EVENT_PAGE_BLOCKS = 5000;  // BlockPi verified page ceiling (#58 pre-work)
+const EVENT_MAX_PAGES = 40;      // >200K-block gap = probe slept: skip backlog
+const eventState = {
+  busy: false,
+  lastBlock: {},          // chainId → last fully-scanned block
+  quoteTimes: [],         // ms timestamps of event quotes (sliding-hour cap)
+  tokenLastQuoted: new Map(), // groupKey → ms of its last event quote
+  guardSkipped: 0,
+};
+const eventTimers = [];
+
+class RateLimitedError extends Error {}
+
+async function eventGetLogs(chainId, addrs, fromBlock, toBlock) {
+  if (!(await acquire(chainId, 3000))) throw new RateLimitedError('rate-limited');
+  try {
+    return await providers[chainId].getLogs({
+      address: addrs,
+      topics: [[SWAP_V3_TOPIC, SWAP_V2_TOPIC]], // OR-form: [A,B] here is AND — [[A,B]] is OR (verified 2026-08-18)
+      fromBlock, toBlock,
+    });
+  } catch {
+    swallow('event-getlogs'); // counted, then bisected by the caller
+    return null;
+  }
+}
+
+// Chunk bisection (#57 pattern): one bad address in a chunk reverts the whole
+// getLogs — split in half until singles; a lone failure is counted and dropped.
+async function eventScanChunk(chainId, addrs, fromBlock, toBlock) {
+  const logs = await eventGetLogs(chainId, addrs, fromBlock, toBlock);
+  if (logs != null) return logs;
+  if (addrs.length === 1) return [];
+  const mid = Math.ceil(addrs.length / 2);
+  return [
+    ...await eventScanChunk(chainId, addrs.slice(0, mid), fromBlock, toBlock),
+    ...await eventScanChunk(chainId, addrs.slice(mid), fromBlock, toBlock),
+  ];
+}
+
+// Alive pools for the event scan — the same alive-join the raw tier uses
+// (latest snapshot tvl_usd > 0), queried once per poll cycle per chain.
+async function alivePoolsForEvent(chainId) {
+  const r = await db.query(
+    `WITH s AS (
+       SELECT DISTINCT ON (pool_addr) pool_addr, tvl_usd
+         FROM dry_run_liquidity_snapshots WHERE chain_id = $1
+        ORDER BY pool_addr, observed_at DESC
+     )
+     SELECT p.pool_addr, p.token0_addr, p.token1_addr, s.tvl_usd
+       FROM dry_run_pool_registry p JOIN s ON s.pool_addr = p.pool_addr
+      WHERE p.chain_id = $1 AND s.tvl_usd > 0`,
+    [chainId],
+  );
+  return new Map(r.rows.map((row) => [row.pool_addr.toLowerCase(), {
+    token0: row.token0_addr, token1: row.token1_addr, tvlUsd: Number(row.tvl_usd),
+  }]));
+}
+
+// Latest raw marginal price per token (≤2h fresh — a dead raw tier must not
+// keep sizing swaps off stale prices).
+async function rawPricesForEvent(chainId, addrsLower) {
+  if (addrsLower.length === 0) return new Map();
+  const r = await db.query(
+    `SELECT DISTINCT ON (token_addr) token_addr, price_marginal_usd
+       FROM dry_run_raw_token_prices
+      WHERE chain_id = $1 AND token_addr = ANY($2)
+        AND observed_at > now() - interval '2 hours'
+      ORDER BY token_addr, observed_at DESC`,
+    [chainId, addrsLower],
+  );
+  return new Map(r.rows.map((row) => [row.token_addr, Number(row.price_marginal_usd)]));
+}
+
+// Token → cross-chain NON-canonical group (the event gates: crosschain only,
+// majors excluded — their big swaps are the normal market, not dislocations).
+function eventGroupOf(chainId, addrLower) {
+  const gk = rawTierState.tokenIndex?.get(`${chainId}:${addrLower}`);
+  if (!gk) return null;
+  const group = rawTierState.crossGroups?.[gk];
+  if (!group || group.canonical) return null;
+  return { gk, group };
+}
+
+async function scanChainEvents(chainId, rawLogs) {
+  if (!(await acquire(chainId, 3000))) throw new RateLimitedError('rate-limited');
+  const latest = await providers[chainId].getBlockNumber();
+  if (eventState.lastBlock[chainId] == null) {
+    eventState.lastBlock[chainId] = latest; // baseline only — never scan a cold gap
+    return;
+  }
+  const from = eventState.lastBlock[chainId] + 1;
+  if (from > latest) return;
+  let start = from;
+  if (Math.ceil((latest - from + 1) / EVENT_PAGE_BLOCKS) > EVENT_MAX_PAGES) {
+    console.log(`[event ${chainId}] gap of ${latest - from + 1} blocks exceeds ${EVENT_MAX_PAGES * EVENT_PAGE_BLOCKS} — skipping backlog, resuming at latest`);
+    start = latest - EVENT_PAGE_BLOCKS + 1;
+  }
+  const pools = await alivePoolsForEvent(chainId);
+  if (pools.size === 0) { eventState.lastBlock[chainId] = latest; return; }
+  const chunkSize = Math.min(500, Math.max(50, Number(EVENT_CFG.chunkAddrs ?? 150)));
+  const addrs = [...pools.keys()];
+  let lastDone = start - 1;
+  for (let pageFrom = start; pageFrom <= latest; pageFrom += EVENT_PAGE_BLOCKS) {
+    const pageTo = Math.min(pageFrom + EVENT_PAGE_BLOCKS - 1, latest);
+    for (let b = 0; b < addrs.length; b += chunkSize) {
+      const logs = await eventScanChunk(chainId, addrs.slice(b, b + chunkSize), pageFrom, pageTo);
+      for (const log of logs) rawLogs.push({ chainId, log });
+    }
+    lastDone = pageTo;
+  }
+  eventState.lastBlock[chainId] = lastDone;
+}
+
+// Decode → size → large-filter → cross-chain gates. Returns ranked candidates.
+async function buildEventCandidates(rawLogs, { minSwapUsd, depthFraction }) {
+  const chainPools = new Map(); // chainId → pools Map (alive join)
+  const ensurePools = async (chainId) => {
+    if (!chainPools.has(chainId)) chainPools.set(chainId, await alivePoolsForEvent(chainId));
+    return chainPools.get(chainId);
+  };
+  const decoded = [];
+  for (const { chainId, log } of rawLogs) {
+    const pools = await ensurePools(Number(chainId));
+    const pool = pools.get(String(log.address).toLowerCase());
+    if (!pool) continue; // not an alive registry pool
+    const amounts = decodeSwapAmounts(
+      { topic0: log.topics?.[0], data: log.data },
+      { swapV3Topic: SWAP_V3_TOPIC, swapV2Topic: SWAP_V2_TOPIC },
+    );
+    if (amounts) decoded.push({ chainId: Number(chainId), pool, amounts });
+  }
+  if (decoded.length === 0) return [];
+
+  // raw prices FIRST (one DB query per chain): most swap tokens have no raw
+  // price and are skipped for free — decimals (RPC) are only fetched for the
+  // priced ones, which the raw tier has already cached via pacedErc20.
+  const metaCache = new Map(); // `${chainId}:${addrLower}` → { decimals }
+  const pricesByChain = new Map(); // chainId → Map(addrLower → usd)
+  for (const chainId of [...new Set(decoded.map((d) => d.chainId))]) {
+    const tokens = new Set();
+    for (const d of decoded.filter((x) => x.chainId === chainId)) {
+      tokens.add(d.pool.token0.toLowerCase());
+      tokens.add(d.pool.token1.toLowerCase());
+    }
+    const prices = await rawPricesForEvent(chainId, [...tokens]);
+    pricesByChain.set(chainId, prices);
+    for (const a of prices.keys()) {
+      metaCache.set(`${chainId}:${a}`, await getErc20Meta(chainId, a));
+    }
+  }
+
+  const candidates = new Map(); // gk → candidate
+  for (const d of decoded) {
+    const t0 = d.pool.token0.toLowerCase(), t1 = d.pool.token1.toLowerCase();
+    const m0 = metaCache.get(`${d.chainId}:${t0}`), m1 = metaCache.get(`${d.chainId}:${t1}`);
+    const prices = pricesByChain.get(d.chainId);
+    const swapUsd = swapUsdFromEvent({
+      amount0: d.amounts.amount0, amount1: d.amounts.amount1,
+      price0: prices.get(t0) ?? null, price1: prices.get(t1) ?? null,
+      decimals0: m0?.decimals, decimals1: m1?.decimals,
+    });
+    if (swapUsd == null) continue; // no fresh raw price → cannot size → skip (plan)
+    if (!isLargeSwap({ swapUsd, minSwapUsd, depthFraction, depthUsd: d.pool.tvlUsd })) continue;
+    const hit = eventGroupOf(d.chainId, t0) ?? eventGroupOf(d.chainId, t1);
+    if (!hit) continue; // not cross-chain (or canonical) → not event material
+    const cand = candidates.get(hit.gk) ?? { ...hit, swapUsd: 0, events: 0 };
+    cand.swapUsd = Math.max(cand.swapUsd, swapUsd);
+    cand.events += 1;
+    candidates.set(hit.gk, cand);
+  }
+  return [...candidates.values()];
+}
+
+// Immediate out-of-cycle quote of one group (#58): both directions, notionals
+// 50/100, legs through the #52 best-venue ladders, smoothed gas, Across fee for
+// row parity with cycle rows. Writes cc-obs rows with metadata.trigger='event'.
+async function runEventQuotePass(runId, group, trig) {
+  const chains = Object.keys(group.chains).map(Number);
+  for (const c of chains) {
+    if (!chainGas[c]?.smoothed) {
+      try { await sampleChainGas(c); } catch (e) { console.error(`[event gas ${c}] ${e.message}`); }
+    }
+  }
+  let n = 0;
+  for (let i = 0; i < chains.length; i++) {
+    for (let j = 0; j < chains.length; j++) {
+      if (i === j) continue;
+      const buyChain = chains[i], sellChain = chains[j];
+      const buy = group.chains[String(buyChain)];
+      const sell = group.chains[String(sellChain)];
+      const priceBuy = await getPriceUsd(buyChain, buy.addr);
+      const priceSell = await getPriceUsd(sellChain, sell.addr);
+      if (priceBuy == null || priceSell == null || !(priceBuy > 0) || !(priceSell > 0)
+        || priceBuy > 1e9 || priceSell > 1e9) continue;
+      const priceDiffBps = ((priceSell - priceBuy) / priceBuy) * 10000;
+      if (!Number.isFinite(priceDiffBps) || Math.abs(priceDiffBps) >= 99999) continue;
+      const [metaBuy, metaSell] = await Promise.all([
+        getErc20Meta(buyChain, buy.addr), getErc20Meta(sellChain, sell.addr),
+      ]);
+      const decimalsOk = metaBuy.decimals === metaSell.decimals;
+      const gapOk = Math.abs(priceDiffBps) <= (config.crossChain?.maxHeuristicGapBps ?? 2500);
+      const trust = decimalsOk && gapOk && !group.collision ? 'heuristic' : 'suspicious';
+      const trustMeta = {
+        group: buy.symbol, decimalsOk, gapOk, collision: group.collision,
+        decimalsBuy: metaBuy.decimals, decimalsSell: metaSell.decimals,
+      };
+      for (const usd of EVENT_NOTIONALS) {
+        const amountInRaw = ethers.parseUnits((usd / priceBuy).toFixed(Math.min(metaBuy.decimals, 8)), metaBuy.decimals);
+        const across = await acrossFeeCached(buyChain, sellChain, buy.addr, sell.addr, usd, amountInRaw);
+        let bridgeFeeUsd = null, bridgeFeeBps = null, finalitySeconds = null, bridgeMeta = null;
+        if (across && across.feeBps != null && Number.isFinite(across.feeBps)) {
+          bridgeFeeBps = across.feeBps;
+          bridgeFeeUsd = (usd * across.feeBps) / 10000;
+          finalitySeconds = across.finalitySeconds;
+          bridgeMeta = { across: { feeBps: across.feeBps, isAmountTooLow: across.isAmountTooLow } };
+        }
+        const netEdgeBps = bridgeFeeBps != null ? priceDiffBps - bridgeFeeBps : priceDiffBps;
+        // exec_pp — same best-ladder legs + smoothed gas as the cycle path (#52)
+        let netPpBps = null;
+        let execPp = null;
+        if (trust !== 'suspicious') {
+          const buyLeg = await quoteUsdToUnitsBest(buyChain, buy.addr, usd);
+          if (buyLeg) {
+            const sellLeg = await quoteUnitsToUsdBest(sellChain, sell.addr, buyLeg.amount);
+            if (sellLeg) {
+              const gasBpsBuy = await legGasBps(buyChain, usd);
+              const gasBpsSell = await legGasBps(sellChain, usd);
+              if (gasBpsBuy != null && gasBpsSell != null) {
+                const pp = computeNetPpBps({ usdIn: usd, usdOut: sellLeg.usdOut, gasBpsBuy, gasBpsSell });
+                netPpBps = pp.netPpBps;
+                execPp = {
+                  usd_in: usd,
+                  units: buyLeg.amount.toString(),
+                  sell_usd_out: Number(sellLeg.usdOut.toFixed(6)),
+                  venue_buy: buyLeg.venue,
+                  venue_sell: sellLeg.venue,
+                  gas_bps_buy: Number(gasBpsBuy.toFixed(2)),
+                  gas_bps_sell: Number(gasBpsSell.toFixed(2)),
+                  ...(pp.clamped ? { net_pp_raw: pp.raw } : {}),
+                };
+              }
+            }
+          }
+        }
+        const tvlBuy = buy.depthUsd ?? null;
+        const tvlSell = sell.depthUsd ?? null;
+        const tvlKnown = [tvlBuy, tvlSell].filter((x) => x != null);
+        const tvlMin = tvlKnown.length ? Math.min(...tvlKnown) : null;
+        const tvlBand = tvlMin == null ? null
+          : tvlMin < 1e3 ? '<1K' : tvlMin < 1e4 ? '1K-10K' : tvlMin < 1e5 ? '10K-100K'
+          : tvlMin < 1e6 ? '100K-1M' : tvlMin < 5e6 ? '1M-5M' : tvlMin < 2e7 ? '5M-20M' : '>20M';
+        try {
+          await db.query(
+            `INSERT INTO dry_run_cross_chain_observations
+               (run_id, token, token_addr_buy_chain, token_addr_sell_chain,
+                buy_chain_id, sell_chain_id, notional_usd,
+                price_buy_usd, price_sell_usd, price_diff_bps,
+                bridge_protocol, bridge_fee_usd, bridge_fee_bps,
+                bridge_finality_seconds, net_edge_bps, metadata, net_pp_bps)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+            [
+              runId, buy.symbol, buy.addr, sell.addr, buyChain, sellChain, usd,
+              priceBuy, priceSell, Number(priceDiffBps.toFixed(4)),
+              across ? 'across' : 'none',
+              bridgeFeeUsd != null ? Number(bridgeFeeUsd.toFixed(6)) : null,
+              bridgeFeeBps != null ? Number(bridgeFeeBps.toFixed(4)) : null,
+              finalitySeconds, Number(netEdgeBps.toFixed(4)),
+              JSON.stringify({
+                trigger: 'event',
+                ...(trig.smoke ? { smoke: true } : {}),
+                trigger_swap_usd: Math.round(trig.triggerSwapUsd ?? 0),
+                trigger_events: trig.triggerEvents ?? 1,
+                trust, ...trustMeta, exec_pp: execPp,
+                ...(execPp ? {
+                  venue_buy: execPp.venue_buy,
+                  venue_sell: execPp.venue_sell,
+                  venue_pair: `${execPp.venue_buy}>${execPp.venue_sell}`,
+                  gas_bps_buy: execPp.gas_bps_buy,
+                  gas_bps_sell: execPp.gas_bps_sell,
+                  block_buy: chainGas[buyChain]?.blockNumber ?? null,
+                  block_sell: chainGas[sellChain]?.blockNumber ?? null,
+                } : {}),
+                token_tvl_buy_usd: tvlBuy,
+                token_tvl_sell_usd: tvlSell,
+                tvl_band: tvlBand,
+                ...(bridgeMeta ?? { note: 'across fee unavailable' }),
+              }),
+              netPpBps,
+            ],
+          );
+          n += 1;
+        } catch (e) {
+          swallow('event-cc-insert');
+          console.error(`[event cc insert] ${e.message.slice(0, 100)}`);
+        }
+      }
+    }
+  }
+  return n;
+}
+
+// run_stats for an event pass: rpc_calls = the pass's own delta (event calls
+// also count toward the cycle's live guard — shared counters), cycle_ms = the
+// whole batch's processing time.
+async function persistEventRunStats(runId, batchMs, rpcBefore) {
+  for (const chainId of CHAIN_IDS) {
+    const delta = Math.max(0, rpcCalls[chainId] - (rpcBefore[chainId] ?? 0));
+    if (delta <= 0) continue;
+    const g = chainGas[chainId];
+    if (!g || g.smoothed == null) continue;
+    const weth = config.chains[chainId].seedTokens.WETH.addr;
+    const ethUsd = await getPriceUsd(chainId, weth).catch(() => null);
+    if (ethUsd == null) continue;
+    try {
+      await db.query(
+        `INSERT INTO dry_run_run_stats
+           (run_id, chain_id, block_number, gas_price_gwei, l1_fee_eth, gas_eth_smoothed,
+            eth_usd, rpc_calls, cycle_ms, cold_tier_skipped, source)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'event')
+         ON CONFLICT (run_id, chain_id) DO NOTHING`,
+        [runId, chainId, g.blockNumber,
+         Number(ethers.formatUnits(g.gasPriceWei, 'gwei')), g.l1FeeEth, g.smoothed,
+         ethUsd, delta, Math.round(batchMs), false],
+      );
+    } catch (e) { console.error(`[run_stats event ${chainId}] ${e.message.slice(0, 80)}`); }
+  }
+}
+
+/**
+ * One event poll (#58). With `fixture` ({ chainId, logs, smoke }) the live
+ * getLogs stage is replaced by injected logs — the smoke path (DoD-2) drives
+ * decode → size → gates → quote → Stage 3 → run_stats exactly as production.
+ */
+async function pollSwapEvents({ fixture = null } = {}) {
+  const t0 = Date.now();
+  const rpcBefore = { ...rpcCalls };
+  if (!rawTierState.ok || !rawTierState.tokenIndex) {
+    if (!fixture) {
+      eventState.notArmedLogged = (eventState.notArmedLogged ?? 0) + 1;
+      if (eventState.notArmedLogged % 20 === 1) console.log('[event] raw tier not armed yet — triggers idle');
+      return { quoted: 0, candidates: 0 };
+    }
+  }
+  const budgets = {};
+  if (!fixture) {
+    for (const c of CHAIN_IDS) budgets[c] = await rpcBudgetP95(c);
+  }
+
+  const rawLogs = [];
+  if (fixture) {
+    for (const log of fixture.logs) rawLogs.push({ chainId: fixture.chainId, log });
+  } else {
+    for (const chainId of CHAIN_IDS) {
+      try { await scanChainEvents(chainId, rawLogs); }
+      catch (e) { console.error(`[event ${chainId}] scan: ${e.message.slice(0, 100)}`); }
+    }
+  }
+
+  const cands = await buildEventCandidates(rawLogs, {
+    minSwapUsd: Number(EVENT_CFG.minSwapUsd ?? 500),
+    depthFraction: Number(EVENT_CFG.depthFraction ?? 0.10),
+  });
+  if (cands.length === 0) return { quoted: 0, candidates: 0 };
+
+  // Priority (#58): open windows → newborn → rest; biggest disturbance first.
+  let openAddrs = new Set();
+  try {
+    const ow = await db.query(`SELECT DISTINCT token_addr_buy AS a, token_addr_sell AS b FROM dry_run_arb_opportunities WHERE status = 'open'`);
+    for (const row of ow.rows) { openAddrs.add(row.a.toLowerCase()); openAddrs.add(row.b.toLowerCase()); }
+  } catch { /* table may not exist yet */ }
+  const ranked = rankEventCandidates(cands.map((c) => ({
+    ...c,
+    hasOpenWindow: Object.values(c.group.chains).some((e) => openAddrs.has(e.addr.toLowerCase())),
+    newborn: Object.values(c.group.chains).some((e) => e.newborn),
+  })));
+
+  const now = Date.now();
+  const runId = `event-${randomUUID()}`;
+  let quoted = 0;
+  for (const cand of ranked) {
+    if (!hourlyCapAllows(eventState.quoteTimes, now, Number(EVENT_CFG.maxQuotesPerHour ?? 60))) {
+      console.log(`[event] hourly cap of ${EVENT_CFG.maxQuotesPerHour} reached — ${ranked.length - quoted} candidate(s) deferred to next poll`);
+      break;
+    }
+    if (!cooldownAllows(eventState.tokenLastQuoted.get(cand.gk), now, Number(EVENT_CFG.tokenCooldownSec ?? 120))) continue;
+    // RPC-guard #56 extends to events: a chain already over P95×1.5 keeps its
+    // remaining budget for the cycle — the event waits for the next poll.
+    const over = Object.keys(cand.group.chains)
+      .map(Number)
+      .find((c) => budgets[c] && rpcCalls[c] > budgets[c] * 1.5);
+    if (over) {
+      eventState.guardSkipped += 1;
+      if (eventState.guardSkipped % 10 === 1) {
+        console.log(`[event] RPC-guard: chain ${over} over P95×1.5 (rpc=${rpcCalls[over]}) — deferring event quotes`);
+      }
+      continue;
+    }
+    const q0 = Date.now();
+    const rows = await runEventQuotePass(runId, cand.group, {
+      triggerSwapUsd: cand.swapUsd, triggerEvents: cand.events,
+      smoke: fixture?.smoke === true,
+    });
+    eventState.quoteTimes.push(now);
+    eventState.quoteTimes = eventState.quoteTimes.filter((t) => t > now - 3_600_000);
+    eventState.tokenLastQuoted.set(cand.gk, now);
+    quoted += 1;
+    const symbol = Object.values(cand.group.chains).find((e) => e.symbol)?.symbol ?? cand.gk;
+    console.log(`[event] ${symbol} — $${Math.round(cand.swapUsd)} swap (${cand.events} ev) → ${rows} cc-obs rows in ${Date.now() - q0}ms (run ${runId})`);
+  }
+  if (quoted > 0) {
+    try { await runStage3Opportunities(runId); } catch (e) { console.error(`[event stage3] ${e.message}`); }
+    await persistEventRunStats(runId, Date.now() - t0, rpcBefore);
+    console.log(`[event] batch done: ${quoted}/${ranked.length} tokens in ${Date.now() - t0}ms`);
+  }
+  return { quoted, candidates: ranked.length };
+}
+
+function startEventPoller() {
+  const sec = Math.max(10, Number(EVENT_CFG.pollSeconds ?? 30));
+  console.log(`[event] poller armed: every ${sec}s, chunks of ${EVENT_CFG.chunkAddrs}, large = max($${EVENT_CFG.minSwapUsd}, ${(Number(EVENT_CFG.depthFraction ?? 0.10) * 100).toFixed(0)}% of pool depth), cap ${EVENT_CFG.maxQuotesPerHour}/h, cooldown ${EVENT_CFG.tokenCooldownSec}s/token`);
+  const h = setInterval(() => {
+    if (eventState.busy) return; // never stack polls — pattern of the main loop
+    eventState.busy = true;
+    pollSwapEvents()
+      .catch((e) => console.error(`[event poll] ${e.message}`))
+      .finally(() => { eventState.busy = false; });
+  }, sec * 1000);
+  eventTimers.push(h); // NB: NOT unref'd — same exit discipline as the cycle timer
+  return h;
+}
+
+// ============================================================================
 // Main loop
 // ============================================================================
 async function runOnce() {
@@ -1522,6 +1997,7 @@ async function main() {
   console.log(`# Opportunity (#53): net_pp_bps > ${OPPORTUNITY_CFG.minNetPpbps ?? 0} on $50/$100, window ${OPPORTUNITY_CFG.windowMinutes ?? 30} min`);
   console.log(`# Period: ${PERIOD_SEC}s  Rate limit: ${RATE_LIMIT_RPS} rps/chain`);
   console.log(`# Backfill blocks: ${DISCOVERY.backfillBlocks}  Refresh every: ${DISCOVERY.refreshIntervalCycles} cycles`);
+  console.log(`# Event triggers (#58): ${EVENT_CFG.enabled ? `ENABLED — poll every ${EVENT_CFG.pollSeconds}s` : 'disabled (event.enabled=false)'}`);
   console.log(`# Across API: public (no key)  Mode: ${CONTINUOUS ? 'continuous' : 'single cycle'}`);
   console.log();
 
@@ -1563,9 +2039,15 @@ async function main() {
       .finally(() => { busy = false; });
   }, PERIOD_SEC * 1000);
 
+  // Event poller (#58): same process, own timer; shares the rate limiter, the
+  // RPC-guard counters and the pg pool with the cycle. Quotes run concurrently
+  // with a cycle — that is the point (no waiting for the cycle boundary).
+  if (EVENT_CFG.enabled) startEventPoller();
+
   const shutdown = async (sig) => {
     console.log(`\n[${sig}] shutting down gracefully...`);
     clearInterval(handle);
+    for (const h of eventTimers) clearInterval(h);
     try { await db.end(); } catch {}
     process.exit(0);
   };
@@ -1573,7 +2055,18 @@ async function main() {
   process.on('SIGTERM', () => shutdown('SIGTERM'));
 }
 
-main().catch((e) => {
-  console.error('Probe failed:', e);
-  process.exit(1);
-});
+// Import-safe entry: tools/probe-event-smoke.mjs drives the internal functions
+// (raw pass, event pipeline) — only auto-run when executed directly.
+const __isDirectRun = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (__isDirectRun) {
+  main().catch((e) => {
+    console.error('Probe failed:', e);
+    process.exit(1);
+  });
+}
+
+export {
+  pollSwapEvents, runRawTier, runStage3Opportunities, runEventQuotePass,
+  alivePoolsForEvent, startEventPoller,
+  db, providers, config, CHAIN_IDS, EVENT_CFG, rawTierState,
+};

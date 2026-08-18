@@ -38,11 +38,13 @@ const POOL_CREATED_V3_TOPIC = ethers.id('PoolCreated(address,address,uint24,int2
 const PAIR_CREATED_V2_TOPIC = ethers.id('PairCreated(address,address,address,uint256)');
 // Uniswap V2: PairCreated(token0, token1, pair,)
 
-const SWAP_V3_TOPIC = ethers.id('Swap(address,address,int256,int256,uint160,uint128,int24)');
+export const SWAP_V3_TOPIC = ethers.id('Swap(address,address,int256,int256,uint160,uint128,int24)');
 // V3 Swap(sender, recipient, amount0, amount1, sqrtPriceX96, liquidity, tick)
+// — same event shape on algebra + slipstream pools
 
-const SWAP_V2_TOPIC = ethers.id('Swap(address,uint256,uint256,uint256,uint256,address)');
+export const SWAP_V2_TOPIC = ethers.id('Swap(address,uint256,uint256,uint256,uint256,address)');
 // V2 Swap(sender, amount0In, amount1In, amount0Out, amount1Out, to)
+// — same event shape on solidly-v2 pools
 
 // ============================================================================
 // Factory configs (V3 + V2 only; Algebra DEXes are probed separately)
