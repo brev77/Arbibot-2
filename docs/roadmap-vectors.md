@@ -475,6 +475,13 @@ C1/H2/M6 и т.д. ссылочны через `tracker_ref`, операцион
 | 49 | `SEC-SLIPPAGE-SAME-DECIMALS` | SEC (FUNC) | live-blocker | new | 5 | 1 | 25 | done | PLAN13 |
 | 50 | `SEC-APPROVE-AFTER-GATE` | SEC (FUNC) | live-blocker | new | 4 | 1 | 20 | done | PLAN13 |
 | 51 | `FUNC-WRAP-NATIVE-BEFORE-SWAP` | FUNC (SEC) | live-blocker | new | 5 | 2 | 20 | done | PLAN13 |
+| 52 | `FUNC-PROBE-EXEC-PP` | FUNC | paper-check | new | 5 | 2 | 20 | accepted | PLAN14 — pre-positioned метрика exec_pp + газ + контекст при записи (probe-only workstream) |
+| 53 | `FUNC-PROBE-OPPORTUNITY-WINDOWS` | FUNC | paper-check | new | 4 | 2 | 16 | accepted | PLAN14 — детектор окон `dry_run_arb_opportunities` + дайджест |
+| 54 | `FUNC-PROBE-FILTER-LAB` | FUNC | paper-check | new | 5 | 2 | 20 | accepted | PLAN14 — офлайн grid-search фильтров (автопоиск по директиве оператора) |
+| 55 | `FUNC-PROBE-SWEEP` | FUNC | paper-check | new | 3 | 1 | 15 | accepted | PLAN14 — query-time sweep вариантов полосы |
+| 56 | `REL-PROBE-RPC-EFFICIENCY` | REL (PERF) | paper-check | new | 4 | 2 | 16 | accepted | PLAN14 — Multicall3-батчинг, hot/cold кадence, RPC-guard |
+| 57 | `FUNC-PROBE-COVERAGE` | FUNC (REL) | paper-check | new | 5 | 3 | 15 | accepted | PLAN14 — полная вселенная без полосы + сырьевой тир raw→триггер→exec + Sushi-фикс + coverage-аудит (решение оператора «полная вселенная») |
+| 58 | `FUNC-PROBE-EVENT-TRIGGERS` | FUNC (PERF) | paper-check | new | 4 | 2 | 16 | accepted | PLAN14 — событийные триггеры Swap→немедленная квота (снятие 5.5-мин алиасинга) |
 
 ### Легенда
 
@@ -501,8 +508,10 @@ C1/H2/M6 и т.д. ссылочны через `tracker_ref`, операцион
 
 ---
 
-*Актуализировано: 2026-08-10 (PLAN13 done — initiative #49: slippage gate same-decimals
-баг; PLAN12 done — initiative #48: `amountIn` USD oracle, capital-safety фикс для WETH-quoted
-пар; PLAN11 done — initiatives #45–#47: V3 pricing, staticNetwork pin, audit UUID;
-post-Hermes correctness sweep). Все факты о состоянии кода проверены чтением файлов на
-эту дату. При изменении кода — обновить этот файл по принципу P2.*
+*Актуализировано: 2026-08-18 (PLAN14 accepted — инициативы #52–#58: probe workstream —
+pre-positioned метрика exec_pp, окна возможностей, FilterLab автопоиск фильтров, sweep,
+RPC-эффективность; расширение «полная вселенная» оператором: #57 сырьевой тир без полосы
+ликвидности + #58 событийные триггеры; мерж ТЗ Hermes v3/v4 + ревью ZCode, факты
+верифицированы SQL/on-chain. PLAN13 done — #49–#51; PLAN12 done — #48; PLAN11 done — #45–#47).
+Все факты о состоянии кода проверены чтением файлов на эту дату. При изменении кода —
+обновить этот файл по принципу P2.*

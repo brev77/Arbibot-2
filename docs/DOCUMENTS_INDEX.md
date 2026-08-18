@@ -1,6 +1,6 @@
 # 📚 DOCUMENTS_INDEX — индекс документов Arbibot 2
 
-> Сгенерировано: **2026-07-17**, обновлено **2026-08-11** (PLAN9-13 синхронизация).
+> Сгенерировано: **2026-07-17**, обновлено **2026-08-18** (PLAN14 accepted).
 > Единый указатель по всей документации монорепозитория.
 > Поддержка: при добавлении нового документа добавляйте его в соответствующий раздел этого индекса.
 
@@ -166,6 +166,7 @@
   - [handbook/06-observability-security.md](handbook/06-observability-security.md)
   - [handbook/07-secrets-config-and-monitoring.md](handbook/07-secrets-config-and-monitoring.md)
 - [TODO.md](TODO.md) — операционный backlog
+- [system-map.md](system-map.md) — детальная карта системы (сервисы, связи, БД, фильтры, настройки, источники, зависимости; Mermaid)
 - [progress.md](progress.md)
 - [services.md](services.md)
 - [session_summary.md](session_summary.md)
@@ -231,7 +232,7 @@
 - [schema-draft.md](schema-draft.md)
 - [audit-external-storage.md](audit-external-storage.md)
 - [settlement-post-commit.md](settlement-post-commit.md)
-- [roadmap-vectors.md](roadmap-vectors.md) — реестр инициатив #1–#44 (канон статусов proposed/accepted/in-progress/done)
+- [roadmap-vectors.md](roadmap-vectors.md) — реестр инициатив #1–#57 (канон статусов proposed/accepted/in-progress/done)
 
 ### 🎛 Operator UI & flows
 
@@ -297,12 +298,15 @@
 - [route-scoring-replay.md](route-scoring-replay.md)
 - [watchlist-tiering-logic.md](watchlist-tiering-logic.md)
 
-### 🔬 Plans (PLAN11-13 — post-Hermes correctness)
+### 🔬 Plans (PLAN11-14 — post-Hermes correctness + probe)
 
 - [plan-hermes-live-correctness-2026-08-06.md](plan-hermes-live-correctness-2026-08-06.md) — PLAN11 (V3 pricing, RPC staticNetwork, audit UUID)
 - [plan-amountin-usd-oracle-2026-08-10.md](plan-amountin-usd-oracle-2026-08-10.md) — PLAN12 (amountIn USD oracle, #48)
 - [plan-slippage-same-decimals-2026-08-10.md](plan-slippage-same-decimals-2026-08-10.md) — PLAN13 (slippage same-decimals, gas leak, native wrap, #49-51)
+- [plan-probe-crosschain-autotune-2026-08-17.md](plan-probe-crosschain-autotune-2026-08-17.md) — PLAN14 (probe: exec_pp, окна возможностей, автопоиск фильтров, сырьевой тир, #52-58; accepted 2026-08-18)
 - [tz-consolidated-live-fixes-2026-08-11.md](tz-consolidated-live-fixes-2026-08-11.md) — consolidated ТЗ live-blockers FIX-A/B/C/D (V3 router selector, QuoterV2 staticCall, cost gate fail-open, fee tier hardcode)
+- [tz-cross-chain-filter-search-2026-08-17.md](tz-cross-chain-filter-search-2026-08-17.md) — ТЗ Hermes v3: FilterLab + окна + sweep (dated, вход PLAN14)
+- [tz-cross-chain-probe-autotune-v4-2026-08-18.md](tz-cross-chain-probe-autotune-v4-2026-08-18.md) — ТЗ Hermes v4: решения оператора 2026-08-18 (dated, вход PLAN14)
 
 ### 📞 Runbooks (операции/инциденты)
 

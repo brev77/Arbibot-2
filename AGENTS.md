@@ -36,7 +36,7 @@ Arbibot 2 — **Turborepo monorepo** (npm workspaces: `apps/*`, `packages/*`):
 
 ## Status (2026-08-15)
 
-**Проект feature-complete** (планы 1–13 + DEX — код доставлен). **Live bot HALTED с 2026-08-11** (`panic:stop` на Aéza: `DEX_LIVE_KILL_SWITCH=true`, auto-drive воркеры выключены; recover сознательно не поднимает auto-drive флаги). Первый реальный round-trip дал −$0.11, и **single-chain retail arb на Arbitrum измеренно нежизнеспособен** — 4 независимых зонда: $10 → 0/7 прибыльных; $1000 → 0/7 (slippage доминирует); best-cross-pool-routing → −12 bps = fee-floor; Camelot V3 → 0/72. **Активный workstream** — discovery-driven multi-chain dry-run probe (Arbitrum+Base+Optimism, live с 2026-08-14; TVL-фильтр $10K–$5M; коммиты `65c0fb0`→`b39833a`). Открытое продуктовое решение: закрыть / pivot к cross-chain-MEV / расширить probe.
+**Проект feature-complete** (планы 1–13 + DEX — код доставлен). **Live bot HALTED с 2026-08-11** (`panic:stop` на Aéza: `DEX_LIVE_KILL_SWITCH=true`, auto-drive воркеры выключены; recover сознательно не поднимает auto-drive флаги). Первый реальный round-trip дал −$0.11, и **single-chain retail arb на Arbitrum измеренно нежизнеспособен** — 4 независимых зонда: $10 → 0/7 прибыльных; $1000 → 0/7 (slippage доминирует); best-cross-pool-routing → −12 bps = fee-floor; Camelot V3 → 0/72. **Активный workstream** — discovery-driven multi-chain dry-run probe (Arbitrum+Base+Optimism, live с 2026-08-14; сбор без полосы ликвидности): **PLAN14** (#52–#58, accepted 2026-08-18) — pre-positioned метрика exec_pp, окна возможностей, автопоиск фильтров, сырьевой тир raw→триггер→exec ([`docs/plan-probe-crosschain-autotune-2026-08-17.md`](docs/plan-probe-crosschain-autotune-2026-08-17.md)); paper-стек остановлен (2026-08-17). Открытое продуктовое решение: закрыть / pivot к cross-chain-MEV / расширить probe.
 
 | План | Что | Статус |
 |---|---|---|
@@ -115,7 +115,7 @@ Env: копируй [`.env.example`](.env.example) → `.env`. Типичный 
 - **Wallet:** `wallet:import` — безопасный импорт приватного ключа в `wallet_keys` (stdin/env, НЕ args — не светит в `ps`; AES-256-GCM; fail-closed address validation; ключ не логируется). Usage: `echo "0xKEY" | npm run wallet:import -- --key-id prod-arb-1 --chain-id 42161 --expected-address 0x...`
 - **Hermes:** `build:hermes-mcp`, `doctor:hermes`, `run:hermes`
 - **Probe:** `probe:dry-run` (continuous) / `probe:dry-run:once` — multi-chain dry-run (`PROBE_RPC_{ARBITRUM,BASE,OPTIMISM}_URL`, `PROBE_DATABASE_URL`)
-- **Прочее:** `venue:load-test`, `dex:load-test`, `export:route-scoring-history`, `replay:route-scoring-export`, `dev:stack` (+ `dev:stack:hermes-agent`), `dev:scanner` (build — `npm run build -w @arbibot/scanner-service`)
+- **Прочее:** `venue:load-test`, `dex:load-test`, `export:route-scoring-history`, `replay:route-scoring-export`, `map:excalidraw` (регенерация `docs/system-map.excalidraw`), `dev:stack` (+ `dev:stack:hermes-agent`), `dev:scanner` (build — `npm run build -w @arbibot/scanner-service`)
 
 ### Backend services (`apps/*`)
 
