@@ -19,6 +19,15 @@ Every cycle (timer 60s; effective ~150s normal / ~20min discovery):
       is armed, ONLY triggered + canonical + open-window tokens are quoted
   Stage 3 (#53): opportunity windows — dry_run_arb_opportunities
       (open→expired, 30-min gap, threshold opportunity.minNetPpbps)
+
+Own timer, every event.pollSeconds (#58): EVENT TRIGGERS — getLogs of Swap
+  events over alive pools (topic0 OR [[V3,V2]], chunks of chunkAddrs, pages
+  ≤5K blocks, bisection on chunk failure); a large swap (≥ max(minSwapUsd,
+  depthFraction×pool depth), sized from the event × raw marginal price) on a
+  cross-chain non-canonical token → immediate out-of-cycle quote (both
+  directions, $50/$100, run_id 'event-<uuid>', metadata.trigger='event') +
+  Stage 3 right away. Guards: sliding maxQuotesPerHour cap, per-token
+  cooldown, open-window/newborn priority, RPC-guard #56 (shared counters).
 ```
 
 **Multicall3** (`aggregate`, NEVER `aggregate3` — reverts on BlockPi) batches
@@ -33,6 +42,7 @@ P95(24h)×1.5 → liquidity refresh stops, `cold_tier_skipped=TRUE`.
 | `phase1.notionalsUsd` / `phase2.notionalsUsd` | grids: [10,100,1000,10000] / [50,100,1000] (50/100 open windows, 1000 = depth-only) |
 | `opportunity` | `{minNetPpbps: 0, windowMinutes: 30}` — window detector threshold after gas |
 | `raw` | `{enabled, intervalCycles: 3, triggerBps: 10 (STARTER — calibrate after 48h of raw data), newbornHours: 72, retentionHours: 48}` |
+| `event` | `#58 triggers: {enabled: false, pollSeconds: 30, chunkAddrs: 150, minSwapUsd: 500, depthFraction: 0.10, maxQuotesPerHour: 60, tokenCooldownSec: 120}` — enabled flips to true only after the alive smoke (`tools/probe-event-smoke.mjs`) |
 | `canonicalTokens` | verified cross-chain identity (trust='canonical'); symbol heuristic with gates otherwise |
 
 ## Tables (migrations 055–059)
@@ -49,6 +59,7 @@ P95(24h)×1.5 → liquidity refresh stops, `cold_tier_skipped=TRUE`.
 | `tools/arb-digest.mjs [--hours 24]` | windows digest: lifecycle, notional ladder, skew-suspect, unverified-sell-side, sanity lines |
 | `tools/probe-coverage-audit.mjs` | DefiLlama vs registry per venue (exit 2 below 95%) |
 | `tools/probe-pp-core.test.mjs` | pure-logic tests (`node --test tools/`) |
+| `tools/probe-event-smoke.mjs [--fixture]` | `#58` DoD smoke: alive getLogs over ALL alive addrs (chunk timing, V2-topic confirmation) + synthetic large-swap fixture through the real event pipeline (+ canonical negative) |
 | `tools/seed-registry-defillama.mjs` | re-seed from the llama dump (SEED_TVL_MIN=0 for the full universe) |
 | `tools/probe-analysis.sql` | legacy Phase-1/2 SQL analytics |
 
