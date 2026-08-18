@@ -574,7 +574,7 @@ async function refreshLiquidityForChain(chainId, runId) {
         let tvlResult = null;
         if (out) {
           // decode from the batch
-          const data = p.kinds.map(() => out[idx]); idx += p.kinds.length;
+          const data = p.kinds.map((_, i) => out[idx + i]); idx += p.kinds.length;
           if (p.kinds[0] === 'reserves') {
             const dec = iRes.decodeFunctionResult('getReserves', data[0]);
             const tvlUsd = await computeTvlFromBalances(chainId, row.token0_addr, row.token1_addr, dec.reserve0, dec.reserve1);
