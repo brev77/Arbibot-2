@@ -58,8 +58,11 @@ async function aliveSmoke() {
     const blocks = Math.max(1, Math.round((windowMin * 60) / (BLOCK_TIME_SEC[chainId] ?? 2)));
     const fromBlock = Math.max(0, latest - blocks);
     const chunkSize = Math.min(500, Math.max(50, Number(EVENT_CFG.chunkAddrs ?? 150)));
+    const PAGE_BLOCKS = 5000; // BlockPi hard limit per getLogs (Arb 0.25s/block: 120min = 28.8K blocks)
     let logs = 0, v3 = 0, v2 = 0, maxChunkMs = 0, totalMs = 0, chunkNo = 0, chunkFails = 0;
-    for (let b = 0; b < addrs.length; b += chunkSize) {
+    for (let pageFrom = fromBlock; pageFrom <= latest; pageFrom += PAGE_BLOCKS) {
+      const pageTo = Math.min(pageFrom + PAGE_BLOCKS - 1, latest);
+      for (let b = 0; b < addrs.length; b += chunkSize) {
       const chunk = addrs.slice(b, b + chunkSize);
       const t0 = Date.now();
       let batch = null;
@@ -68,7 +71,7 @@ async function aliveSmoke() {
         batch = await providers[chainId].getLogs({
           address: chunk,
           topics: [[SWAP_V3_TOPIC, SWAP_V2_TOPIC]],
-          fromBlock, toBlock: latest,
+          fromBlock: pageFrom, toBlock: pageTo,
         });
       } catch (e) {
         chunkFails += 1;
@@ -85,7 +88,8 @@ async function aliveSmoke() {
           else if (l.topics[0] === SWAP_V2_TOPIC) v2 += 1;
         }
       }
-      if (VERBOSE || failWhy) console.log(`  [chain ${chainId}] chunk ${chunkNo} (${chunk.length} addrs): ${batch ? batch.length : `FAIL ${failWhy}`} in ${ms}ms`);
+      if (VERBOSE || failWhy) console.log(`  [chain ${chainId}] chunk ${chunkNo} (${chunk.length} addrs, blocks ${pageFrom}-${pageTo}): ${batch ? batch.length : `FAIL ${failWhy}`} in ${ms}ms`);
+      }
     }
     totalV2 += v2;
     const chunkOk = maxChunkMs <= CHUNK_LIMIT_MS && chunkFails === 0;
