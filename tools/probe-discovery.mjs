@@ -492,10 +492,13 @@ export async function probeNewbornPools(provider, db, chainId, rateLimitFn) {
   let n = 0;
   for (const dex of dexes) {
     // random sample accumulates coverage across refreshes (newest-first would
-    // re-probe the same head forever)
+    // re-probe the same head forever); subquery because Postgres forbids
+    // ORDER BY random() directly on SELECT DISTINCT
     const r = await db.query(
-      `SELECT DISTINCT token0_addr, token1_addr FROM dry_run_pool_registry
-        WHERE chain_id = $1 ORDER BY random() LIMIT $2`,
+      `SELECT token0_addr, token1_addr FROM (
+         SELECT DISTINCT token0_addr, token1_addr FROM dry_run_pool_registry
+          WHERE chain_id = $1
+       ) t ORDER BY random() LIMIT $2`,
       [chainId, dex.sample ?? 300],
     );
     for (const { token0_addr, token1_addr } of r.rows) {
