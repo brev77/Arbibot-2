@@ -30,17 +30,22 @@ const TVL_MAX = Number(process.env.SEED_TVL_MAX ?? 500_000);
 
 // target DEX projects per chain (DefiLlama project slugs)
 // NOTE: DefiLlama names Optimism "OP Mainnet" — chainMap below reflects that.
+// Sushi (verified 2026-08-18): 'sushiswap-v3' slugs REMOVED everywhere — Sushi
+// V3 pools live on Sushi's own V3 factory (address unverified), and resolving
+// them through the UniV3 factory would either fail or MISLABEL UniV3 pools as
+// sushi. 8453 'sushiswap' removed: the seeded factory 0x7Dae51… is an EOA
+// (verified empty), the canonical 0xc35D… hosts foreign code on Base. Arb
+// 'sushiswap' stays (factory verified: 32,805 pairs). OP: no sushi pools in
+// the dump at all. Existing Arb sushi pools arrive via the probe's newborn
+// probeNewbornPools() sampling instead.
 const PROJECTS = {
   42161: {
     'camelot-v3': { type: 'algebra', dex: 'camelot' },
     'uniswap-v3': { type: 'v3', dex: 'uniswap-v3' },
-    'sushiswap-v3': { type: 'v3', dex: 'uniswap-v3' },
     sushiswap: { type: 'v2', dex: 'sushiswap-v2' },
   },
   8453: {
     'uniswap-v3': { type: 'v3', dex: 'uniswap-v3' },
-    'sushiswap-v3': { type: 'v3', dex: 'uniswap-v3' },
-    sushiswap: { type: 'v2', dex: 'sushiswap-v2' },
     // Aerodrome V2 (Solidly AMM — the dominant Base DEX) + Slipstream (CL),
     // both verified on-chain 2026-08-15: factory getPool(a,b,stable) (NOT
     // getPair — that selector reverts), router Route-struct quoting, CL
@@ -72,7 +77,9 @@ const FACTORIES = {
     // official Base deployment (developers.uniswap.org); NB: contracts-eth
     // has a typo in the tail (...d594dd274d2f3 = EOA)
     v3: '0x33128a8fC17869897dcE68Ed026d694621f6FDfD',
-    v2: '0x7Dae51aE332A0E1F979b1B1d01ED6D68468e41ec',      // Sushi Base
+    // NO v2 factory on Base: 0x7Dae51… (previously seeded) is an EOA and the
+    // canonical Sushi address 0xc35D… hosts foreign code on Base — both
+    // verified on-chain 2026-08-18. Real Base Sushi factory address unverified.
     // Aerodrome V2 PoolFactory (aerodrome.finance/security; uses getPool(a,b,stable))
     'solidly-v2': '0x420DD381b31aEf6683db6B902084cB0FFECe40Da',
     // Aerodrome Slipstream original deployment (github aerodrome-finance/

@@ -55,12 +55,13 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import {
   FACTORIES, ALGEBRA_DEXES,
-  backfillPools, incrementalSync, probeAlgebraPools,
+  backfillPools, incrementalSync, probeAlgebraPools, probeNewbornPools,
   readPoolTvlV2, readPoolTvlV3, readPoolTvlAlgebra, readPoolTvlSlipstream, readPoolVolume24h,
   insertPool, insertLiquiditySnapshot, setTokenSymbol, getEligibleCrossDexPairs,
 } from './probe-discovery.mjs';
 import {
   computeGasEth, median3, gasBpsUsd, computeNetPpBps, aggregateObservations,
+  poolFeeBps, rawMarginalPriceUsd, feeAdjustedSpreadBps,
 } from './probe-pp-core.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -96,6 +97,11 @@ const DISCOVERY = config.discovery;
 const PHASE1_NOTIONALS = config.phase1?.notionalsUsd ?? config.notionalsUsd ?? [10, 100, 1000, 10000];
 const PHASE2_NOTIONALS = config.phase2?.notionalsUsd ?? config.notionalsUsd ?? [50, 100, 1000];
 const OPPORTUNITY_CFG = config.opportunity ?? { minNetPpbps: 0, windowMinutes: 30 };
+// Raw tier (#57): triggerBps is a STARTER value — calibrated from the trigger
+// rate distribution after ≥48h of raw data (operator decision №6); deliberately
+// low (10) so iteration 1 over-collects instead of cutting thin-raw exec positives.
+const RAW_CFG = config.raw ?? { enabled: false, intervalCycles: 3, triggerBps: 10, newbornHours: 72, retentionHours: 48 };
+const rawTierState = { ok: false, quoteKeys: null, stats: null };
 const BLOCK_TIME_SEC = { 42161: 0.25, 8453: 2, 10: 2 };
 
 // ============================================================================
@@ -445,7 +451,7 @@ async function refreshDiscoveryAndLiquidity(runId) {
     } catch (e) {
       console.error(`[discovery ${chainId}] sync error: ${e.message}`);
     }
-    // 0b. Algebra probing (Camelot / Aerodrome / Velodrome)
+    // 0b. Algebra probing (Camelot) + newborn/existing solidly+slipstream+sushi probing (#57)
     if (DISCOVERY.algebraProbingEnabled) {
       try {
         const nAlg = await probeAlgebraPools(providers[chainId], db, chainId, rateLimitFn);
@@ -454,9 +460,251 @@ async function refreshDiscoveryAndLiquidity(runId) {
         console.error(`[discovery ${chainId}] algebra probe error: ${e.message}`);
       }
     }
+    try {
+      const nNew = await probeNewbornPools(providers[chainId], db, chainId, rateLimitFn);
+      if (nNew > 0) console.log(`[discovery ${chainId}] +${nNew} solidly/slipstream/sushi pools (probe)`);
+    } catch (e) {
+      console.error(`[discovery ${chainId}] newborn probe error: ${e.message}`);
+    }
     // 0c. Refresh liquidity snapshots for all registry pools (sampled if too many)
     await refreshLiquidityForChain(chainId, runId);
   }
+}
+
+// ============================================================================
+// Raw tier (#57): reserves-based marginal USD prices for ALL alive pools via
+// MC3 (zero quoter calls), fee-adjusted cross-chain spreads, and the
+// trigger-driven Phase-2 quote list. Separate code path from Stage-0c on
+// purpose (the refresh path is battle-tested; do not couple them).
+// ============================================================================
+function buildRawCallPlan(batch) {
+  const iRes = new ethers.Interface(RESERVES_ABI);
+  const iLiq = new ethers.Interface(LIQ_ABI);
+  const iV3 = new ethers.Interface(V3_SLOT0_ABI);
+  const iAlg = new ethers.Interface(ALG_STATE_ABI);
+  const iSlip = new ethers.Interface(SLIP_SLOT0_ABI);
+  const calls = [];
+  const plan = [];
+  for (const row of batch) {
+    if (row.pool_type === 'v2' || row.pool_type === 'solidly-v2') {
+      calls.push({ target: row.pool_addr, callData: iRes.encodeFunctionData('getReserves') });
+      plan.push({ row, kinds: ['reserves'] });
+    } else if (row.pool_type === 'algebra') {
+      calls.push({ target: row.pool_addr, callData: iLiq.encodeFunctionData('liquidity') });
+      calls.push({ target: row.pool_addr, callData: iAlg.encodeFunctionData('globalState') });
+      plan.push({ row, kinds: ['liquidity', 'globalState'] });
+    } else {
+      calls.push({ target: row.pool_addr, callData: iLiq.encodeFunctionData('liquidity') });
+      calls.push({ target: row.pool_addr, callData: (row.pool_type === 'slipstream' ? iSlip : iV3).encodeFunctionData('slot0') });
+      plan.push({ row, kinds: ['liquidity', 'slot0'] });
+    }
+  }
+  return { calls, plan, ifaces: { iRes, iLiq, iV3, iAlg, iSlip } };
+}
+
+function decodeRawPoolState(entry, data, ifaces) {
+  try {
+    if (entry.kinds[0] === 'reserves') {
+      const d = ifaces.iRes.decodeFunctionResult('getReserves', data[0]);
+      return { reserve0: d.reserve0, reserve1: d.reserve1 };
+    }
+    const liq = ifaces.iLiq.decodeFunctionResult('liquidity', data[0])[0];
+    const state = entry.kinds[1] === 'globalState'
+      ? ifaces.iAlg.decodeFunctionResult('globalState', data[1])
+      : (entry.row.pool_type === 'slipstream' ? ifaces.iSlip : ifaces.iV3).decodeFunctionResult('slot0', data[1]);
+    const sqrt = entry.kinds[1] === 'globalState' ? state.price : state.sqrtPriceX96;
+    return virtualReserves(liq, sqrt);
+  } catch {
+    swallow('raw-decode');
+    return null;
+  }
+}
+
+// paced erc20 meta for the raw tier (first-seen tokens only; cache absorbs the rest)
+async function pacedErc20(chainId, addr) {
+  const lower = addr.toLowerCase();
+  erc20Cache[chainId] ??= {};
+  if (!erc20Cache[chainId][lower]) await acquire(chainId);
+  return getErc20Meta(chainId, addr);
+}
+
+async function runRawTier(runId) {
+  const triggerBps = Number(RAW_CFG.triggerBps ?? 10);
+  const canonIndex = buildCanonicalIndex();
+  const perChain = {}; // chainId → Map(tokenAddrLower → entry)
+  let rawRows = 0;
+
+  for (const chainId of CHAIN_IDS) {
+    const r = await db.query(
+      `WITH s AS (
+         SELECT DISTINCT ON (pool_addr) pool_addr, tvl_usd
+           FROM dry_run_liquidity_snapshots WHERE chain_id = $1
+          ORDER BY pool_addr, observed_at DESC
+       )
+       SELECT p.pool_addr, p.dex, p.pool_type, p.token0_addr, p.token1_addr, p.fee_millionths, p.created_at_block
+         FROM dry_run_pool_registry p JOIN s ON s.pool_addr = p.pool_addr
+        WHERE p.chain_id = $1 AND s.tvl_usd > 0
+        ORDER BY p.discovered_at DESC`,
+      [chainId],
+    );
+    const tokens = perChain[chainId] = new Map();
+    const seed = config.chains[chainId].seedTokens;
+    const quoteByAddr = new Map(Object.entries(seed).map(([sym, t]) => [t.addr.toLowerCase(), { sym, decimals: t.decimals }]));
+    const wethAddrL = seed.WETH.addr.toLowerCase();
+
+    // 1) batch-read pool states
+    const poolStates = [];
+    for (let base = 0; base < r.rows.length; base += 25) {
+      const { calls, plan, ifaces } = buildRawCallPlan(r.rows.slice(base, base + 25));
+      const out = await mc3Aggregate(chainId, calls);
+      let idx = 0;
+      for (const entry of plan) {
+        const data = out ? entry.kinds.map((_, i) => out[idx + i]) : null;
+        idx += entry.kinds.length;
+        if (!data) continue; // failed batch — raw tier skips (refresh path owns the serial fallback)
+        const st = decodeRawPoolState(entry, data, ifaces);
+        if (st) poolStates.push({ row: entry.row, st });
+      }
+    }
+
+    // 2) raw WETH/USD from the deepest WETH↔stable pool
+    let wethUsd = null, wethDepth = 0;
+    const isStable = (sym) => ['USDC', 'USDCe', 'USDT', 'DAI'].includes(sym);
+    for (const { row, st } of poolStates) {
+      const t0 = row.token0_addr.toLowerCase(), t1 = row.token1_addr.toLowerCase();
+      const q0 = quoteByAddr.get(t0), q1 = quoteByAddr.get(t1);
+      if (t0 === wethAddrL && q1 && isStable(q1.sym)) {
+        const p = rawMarginalPriceUsd({ quoteReserveRaw: st.reserve1, quoteDecimals: q1.decimals, tokenReserveRaw: st.reserve0, tokenDecimals: 18, quoteUsd: 1 });
+        const depth = Number(st.reserve1) / 10 ** q1.decimals;
+        if (p && depth > wethDepth) { wethUsd = p; wethDepth = depth; }
+      } else if (t1 === wethAddrL && q0 && isStable(q0.sym)) {
+        const p = rawMarginalPriceUsd({ quoteReserveRaw: st.reserve0, quoteDecimals: q0.decimals, tokenReserveRaw: st.reserve1, tokenDecimals: 18, quoteUsd: 1 });
+        const depth = Number(st.reserve0) / 10 ** q0.decimals;
+        if (p && depth > wethDepth) { wethUsd = p; wethDepth = depth; }
+      }
+    }
+
+    // 3) per-token best marginal price (deepest direct-quote pool wins);
+    //    newborn = pool younger than RAW_CFG.newbornHours → half trigger threshold
+    const newbornHours = Number(RAW_CFG.newbornHours ?? 72);
+    const blockNow = chainGas[chainId]?.blockNumber;
+    const ageHoursOfRow = (row) => {
+      if (!row.created_at_block || !blockNow) return null;
+      return Math.max(0, (blockNow - Number(row.created_at_block)) * (BLOCK_TIME_SEC[chainId] ?? 2) / 3600);
+    };
+    for (const { row, st } of poolStates) {
+      const t0 = row.token0_addr.toLowerCase(), t1 = row.token1_addr.toLowerCase();
+      const q0 = quoteByAddr.get(t0), q1 = quoteByAddr.get(t1);
+      if (!q0 && !q1) continue; // no direct-quote side — no raw price in this tier
+      let ent;
+      if (q1) {
+        const price = rawMarginalPriceUsd({ quoteReserveRaw: st.reserve1, quoteDecimals: q1.decimals, tokenReserveRaw: st.reserve0, tokenDecimals: t0 === wethAddrL ? 18 : (await pacedErc20(chainId, row.token0_addr)).decimals, quoteUsd: q1.sym === 'WETH' ? wethUsd : 1 });
+        if (price == null) continue;
+        const depth = (Number(st.reserve1) / 10 ** q1.decimals) * (q1.sym === 'WETH' ? wethUsd ?? 0 : 1);
+        ent = { addr: t0, priceUsd: price, pool: row.pool_addr, dex: row.dex, depthUsd: depth, feeBps: poolFeeBps(row.pool_type, row.fee_millionths), symbol: row.token0_symbol };
+      } else {
+        const price = rawMarginalPriceUsd({ quoteReserveRaw: st.reserve0, quoteDecimals: q0.decimals, tokenReserveRaw: st.reserve1, tokenDecimals: t1 === wethAddrL ? 18 : (await pacedErc20(chainId, row.token1_addr)).decimals, quoteUsd: q0.sym === 'WETH' ? wethUsd : 1 });
+        if (price == null) continue;
+        const depth = (Number(st.reserve0) / 10 ** q0.decimals) * (q0.sym === 'WETH' ? wethUsd ?? 0 : 1);
+        ent = { addr: t1, priceUsd: price, pool: row.pool_addr, dex: row.dex, depthUsd: depth, feeBps: poolFeeBps(row.pool_type, row.fee_millionths), symbol: row.token1_symbol };
+      }
+      if (!Number.isFinite(ent.depthUsd) || ent.depthUsd <= 0) continue;
+      const ageH = ageHoursOfRow(row);
+      ent.newborn = ageH != null && ageH < newbornHours;
+      const prev = tokens.get(ent.addr);
+      if (!prev || ent.depthUsd > prev.depthUsd) tokens.set(ent.addr, ent);
+    }
+  }
+
+  // 4) cross-chain grouping (canonical first, symbol heuristic) + fee-adjusted spreads + triggers
+  const quoteKeys = new Set();
+  let triggered = 0;
+  const groups = {};
+  for (const chainId of CHAIN_IDS) {
+    for (const [addr, ent] of perChain[chainId]) {
+      if (!ent.symbol) continue;
+      const canon = canonIndex[`${chainId}:${addr}`] ?? null;
+      const gk = canon ?? `sym:${ent.symbol}`;
+      groups[gk] ??= { canonical: canon != null, collision: false, chains: {} };
+      const g = groups[gk];
+      if (g.chains[chainId] && g.chains[chainId].addr !== addr) g.collision = true;
+      g.chains[chainId] = ent;
+    }
+  }
+  for (const [gk, g] of Object.entries(groups)) {
+    const chains = Object.keys(g.chains).map(Number);
+    if (chains.length < 2) continue;
+    let groupTriggered = false;
+    const trust = g.canonical && !g.collision ? 'canonical' : 'heuristic';
+    for (const chainId of chains) {
+      let best = null; // best "this-chain-is-cheap" fee-adjusted spread vs any other chain
+      for (const other of chains) {
+        if (other === chainId) continue;
+        const s = feeAdjustedSpreadBps({
+          buyPriceUsd: g.chains[chainId].priceUsd,
+          sellPriceUsd: g.chains[other].priceUsd,
+          feeBpsBuy: g.chains[chainId].feeBps,
+          feeBpsSell: g.chains[other].feeBps,
+        });
+        if (s != null && (best == null || s > best)) best = s;
+      }
+      const ent = g.chains[chainId];
+      // Trigger: heuristic groups only (canonical spread = fee noise, decision №3);
+      // newborn tokens get half the threshold.
+      const threshold = triggerBps * (ent.newborn ? 0.5 : 1);
+      if (trust === 'heuristic' && best != null && best > threshold) groupTriggered = true;
+      try {
+        await db.query(
+          `INSERT INTO dry_run_raw_token_prices
+             (run_id, chain_id, token_addr, symbol, price_marginal_usd, best_venue, pool_addr,
+              depth_usd, spread_cross_bps, trust, newborn, metadata)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+          [runId, chainId, ent.addr, ent.symbol, ent.priceUsd, ent.dex, ent.pool,
+           ent.depthUsd, best, trust, ent.newborn === true,
+           JSON.stringify({ fee_bps: ent.feeBps, group: g.canonical ? gk : ent.symbol })],
+        );
+        rawRows += 1;
+      } catch { swallow('raw-insert'); }
+    }
+    if (groupTriggered || g.canonical) {
+      for (const chainId of chains) quoteKeys.add(`${chainId}:${g.chains[chainId].addr}`);
+      if (groupTriggered) triggered += 1;
+    }
+  }
+  // open-window tokens always stay quotable (window continuity) — keyed by bare addr
+  try {
+    const ow = await db.query(`SELECT DISTINCT token_addr_buy AS a, token_addr_sell AS b FROM dry_run_arb_opportunities WHERE status = 'open'`);
+    for (const row of ow.rows) { quoteKeys.add(row.a.toLowerCase()); quoteKeys.add(row.b.toLowerCase()); }
+  } catch { /* table missing on fresh DBs */ }
+  rawTierState.ok = true;
+  rawTierState.quoteKeys = quoteKeys;
+  rawTierState.stats = { tokens: rawRows, groups: Object.keys(groups).length, triggered };
+  console.log(`[raw] rows=${rawRows} groups=${rawTierState.stats.groups} triggered=${triggered} (threshold ${triggerBps} bps fee-adjusted)`);
+}
+
+// Retention tiering (#57, review №7): full resolution for retentionHours, then
+// hourly aggregates (median price / p95 spread), raw rows deleted.
+async function rawRetention() {
+  const hours = Number(RAW_CFG.retentionHours ?? 48);
+  const r = await db.query(
+    `WITH agg AS (
+       INSERT INTO dry_run_raw_token_hourly (chain_id, token_addr, hour, median_price_usd, p95_spread_bps, samples, best_venue)
+       SELECT chain_id, token_addr, date_trunc('hour', observed_at),
+              PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price_marginal_usd),
+              PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY spread_cross_bps),
+              COUNT(*),
+              (array_agg(best_venue ORDER BY observed_at DESC))[1]
+         FROM dry_run_raw_token_prices
+        WHERE observed_at < now() - make_interval(hours => $1)
+        GROUP BY 1, 2, 3
+       ON CONFLICT (chain_id, token_addr, hour) DO NOTHING
+       RETURNING 1
+     )
+     DELETE FROM dry_run_raw_token_prices
+      WHERE observed_at < now() - make_interval(hours => $1)`,
+    [hours],
+  );
+  if (r.rowCount > 0) console.log(`[raw-retention] collapsed ${r.rowCount} rows older than ${hours}h into hourly aggregates`);
 }
 
 // ============================================================================
@@ -771,6 +1019,15 @@ async function runCycleCrossChain(runId) {
        )
        SELECT DISTINCT ON (chain_id, addr) chain_id, addr, symbol, token_tvl, newest_block FROM tokens`,
   );
+  // Trigger-driven universe (#57): when the raw tier is enabled and its last
+  // pass succeeded, Phase 2 quotes only triggered + canonical + open-window
+  // tokens; a failed raw pass falls back to the legacy eligible-based universe.
+  if (RAW_CFG.enabled && rawTierState.ok && rawTierState.quoteKeys) {
+    const before = r.rows.length;
+    r.rows = r.rows.filter((row) => rawTierState.quoteKeys.has(`${row.chain_id}:${row.addr.toLowerCase()}`)
+      || rawTierState.quoteKeys.has(row.addr.toLowerCase()));
+    console.log(`[phase2] trigger-driven: ${r.rows.length}/${before} tokens quoted (raw: ${JSON.stringify(rawTierState.stats)})`);
+  }
   // groupKey -> { canonical, collision, chains: { [chainId]: {addr, priceUsd, symbol} } }
   const groups = {};
   for (const row of r.rows) {
@@ -1204,6 +1461,16 @@ async function runOnce() {
   // Stage 0: discovery refresh every Nth cycle (or always on cycle 1)
   if (cycleCounter === 1 || cycleCounter % DISCOVERY.refreshIntervalCycles === 0) {
     try { await refreshDiscoveryAndLiquidity(runId); } catch (e) { console.error(`[stage0] ${e.message}`); }
+  }
+  // Stage 0.5 (#57): raw tier every Nth cycle — feeds the trigger-driven Phase 2
+  if (RAW_CFG.enabled && cycleCounter % Number(RAW_CFG.intervalCycles ?? 3) === 0) {
+    try { await runRawTier(runId); } catch (e) {
+      console.error(`[raw] tier failed, Phase 2 falls back to eligible universe: ${e.message}`);
+      rawTierState.ok = false;
+    }
+    if (cycleCounter % 10 === 0) {
+      try { await rawRetention(); } catch (e) { console.error(`[raw-retention] ${e.message}`); }
+    }
   }
   // Stage 1: cross-DEX round-trips
   let dexN = 0;

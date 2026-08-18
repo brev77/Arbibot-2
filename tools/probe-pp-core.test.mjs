@@ -7,6 +7,7 @@ import {
   GAS_UNITS_PER_SWAP, NET_PP_CLAMP_BPS,
   computeGasEth, median3, gasBpsUsd, computeNetPpBps,
   matchOpportunity, aggregateObservations,
+  poolFeeBps, rawMarginalPriceUsd, feeAdjustedSpreadBps,
 } from './probe-pp-core.mjs';
 
 test('computeGasEth: calibrated receipt values (Arb 0.020 gwei, OP + L1)', () => {
@@ -108,4 +109,32 @@ test('aggregateObservations: negative threshold from config is honoured (−1000
   assert.equal(routes[0].samples, 2);
   assert.equal(routes[0].bestNetBps, -5); // least-negative is best
   assert.equal(routes[0].at[1000], -3);
+});
+
+test('poolFeeBps: v3 from registry, others conservative 30', () => {
+  assert.equal(poolFeeBps('v3', 500), 5);
+  assert.equal(poolFeeBps('v3', 3000), 30);
+  assert.equal(poolFeeBps('v3', null), 30);
+  assert.equal(poolFeeBps('v2'), 30);
+  assert.equal(poolFeeBps('solidly-v2'), 30);
+  assert.equal(poolFeeBps('algebra'), 30);
+  assert.equal(poolFeeBps('slipstream', 100), 30); // registry carries tickSpacing, not fee
+});
+
+test('rawMarginalPriceUsd: reserves ratio + validity gates', () => {
+  // 10 WETH-side units vs 30000 USDC-side units, 18/6 decimals → $3000
+  const p = rawMarginalPriceUsd({ quoteReserveRaw: 30000n * 10n ** 6n, quoteDecimals: 6, tokenReserveRaw: 10n * 10n ** 18n, tokenDecimals: 18, quoteUsd: 1 });
+  assert.ok(Math.abs(p - 3000) < 1e-9);
+  assert.equal(rawMarginalPriceUsd({ quoteReserveRaw: 0n, quoteDecimals: 6, tokenReserveRaw: 1n, tokenDecimals: 18, quoteUsd: 1 }), null);
+  assert.equal(rawMarginalPriceUsd({ quoteReserveRaw: 1n, quoteDecimals: 18, tokenReserveRaw: 1n, tokenDecimals: 18, quoteUsd: 1e15 }), null); // out of sane range
+});
+
+test('feeAdjustedSpreadBps: 1% vs 0.05% tier phantom killed (review №8)', () => {
+  // raw prices identical (no dislocation), pools 1% vs 0.05% → phantom 95 bps
+  const s = feeAdjustedSpreadBps({ buyPriceUsd: 1.0, sellPriceUsd: 1.0, feeBpsBuy: 100, feeBpsSell: 5 });
+  assert.equal(s, -105); // no phantom trigger — deeply negative
+  // real dislocation 60 bps on cheap pools survives fee adjustment
+  const real = feeAdjustedSpreadBps({ buyPriceUsd: 1.0, sellPriceUsd: 1.006, feeBpsBuy: 5, feeBpsSell: 5 });
+  assert.equal(real, 50);
+  assert.equal(feeAdjustedSpreadBps({ buyPriceUsd: 0, sellPriceUsd: 1 }), null);
 });

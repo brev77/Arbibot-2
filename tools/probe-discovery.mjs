@@ -457,6 +457,78 @@ export async function readPoolVolume24h(provider, chainId, poolAddr, poolType, d
 }
 
 // ============================================================================
+// Newborn / existing-pool probing for solidly, slipstream and sushi (#57).
+// Existing pools arrive via the DefiLlama seeder; pairs discovered through
+// other DEXes' factory events are probed here. On Arbitrum this doubles as the
+// EXISTING sushi backfill: the yields dump lists no sushiswap v2 pools for Arb
+// (root-cause of registry=0), but the canonical factory is verified on-chain
+// (2026-08-18: 32,805 pairs, getPair live) — random pair sampling accumulates
+// coverage across refreshes. Base sushi: seeder address 0x7Dae51… is an EOA
+// and the canonical 0xc35D… hosts foreign code on Base (both verified) — no
+// probing until a real factory address is sourced. OP sushi: absent from the
+// dump entirely; no verified factory.
+// ============================================================================
+export const NEWBORN_PROBE_DEXES = {
+  42161: [{ dex: 'sushiswap-v2', poolType: 'v2', factory: '0xc35DADB65012eC5796536bD9864eD8773aBc74C4', kind: 'getPair', sample: 600 }],
+  8453: [
+    { dex: 'aerodrome-v2', poolType: 'solidly-v2', factory: '0x420DD381b31aEf6683db6B902084cB0FFECe40Da', kind: 'getPoolStable', sample: 300 },
+    { dex: 'aerodrome-slipstream', poolType: 'slipstream', factory: '0x5e7BB104d84c7CB9B682AaC2F3d509f5F406809A', kind: 'slipInt', sample: 300 },
+  ],
+  10: [
+    { dex: 'velodrome-v2', poolType: 'solidly-v2', factory: '0xF1046053aa5682b4F9a81b5481394DA16BE5FF5a', kind: 'getPairStable', sample: 300 },
+    { dex: 'velodrome-slipstream', poolType: 'slipstream', factory: '0xe13Dd1fbA721Aa81a1826D9523AC9BC7d260c879', kind: 'slipU24', sample: 300 },
+  ],
+};
+
+export async function probeNewbornPools(provider, db, chainId, rateLimitFn) {
+  const dexes = NEWBORN_PROBE_DEXES[chainId] ?? [];
+  if (dexes.length === 0) return 0;
+  const getPair = new ethers.Interface(['function getPair(address,address) view returns (address)']);
+  const getPairStable = new ethers.Interface(['function getPair(address,address,bool) view returns (address)']);
+  const getPoolStable = new ethers.Interface(['function getPool(address,address,bool) view returns (address)']);
+  const slipU = new ethers.Interface(['function getPool(address,address,uint24) view returns (address)']);
+  const slipI = new ethers.Interface(['function getPool(address,address,int24) view returns (address)']);
+  const TS = [10, 100]; // most common spacings first — keeps the call budget bounded
+  let n = 0;
+  for (const dex of dexes) {
+    // random sample accumulates coverage across refreshes (newest-first would
+    // re-probe the same head forever)
+    const r = await db.query(
+      `SELECT DISTINCT token0_addr, token1_addr FROM dry_run_pool_registry
+        WHERE chain_id = $1 ORDER BY random() LIMIT $2`,
+      [chainId, dex.sample ?? 300],
+    );
+    for (const { token0_addr, token1_addr } of r.rows) {
+      await rateLimitFn(chainId);
+      try {
+        let poolAddr = null;
+        let fee = null;
+        if (dex.kind === 'getPair') {
+          const c = new ethers.Contract(dex.factory, getPair, provider);
+          poolAddr = await c.getPair.staticCall(token0_addr, token1_addr);
+        } else if (dex.kind === 'getPairStable' || dex.kind === 'getPoolStable') {
+          const iface = dex.kind === 'getPairStable' ? getPairStable : getPoolStable;
+          const c = new ethers.Contract(dex.factory, iface, provider);
+          const fn = dex.kind === 'getPairStable' ? 'getPair' : 'getPool';
+          poolAddr = await c[fn].staticCall(token0_addr, token1_addr, false); // volatile first (matches quote routing)
+        } else {
+          for (const ts of TS) {
+            const c = new ethers.Contract(dex.factory, dex.kind === 'slipInt' ? slipI : slipU, provider);
+            const p = await c.getPool.staticCall(token0_addr, token1_addr, ts).catch(() => null);
+            if (p && p !== ethers.ZeroAddress) { poolAddr = p; fee = ts; break; }
+          }
+        }
+        if (poolAddr && poolAddr !== ethers.ZeroAddress) {
+          await insertPool(db, chainId, poolAddr, dex.dex, dex.poolType, token0_addr, token1_addr, fee, null);
+          n += 1;
+        }
+      } catch { /* skip pair */ }
+    }
+  }
+  return n;
+}
+
+// ============================================================================
 // Eligibility: tokens with ≥2 eligible pools across different DEXes
 // ============================================================================
 export async function getEligibleCrossDexPairs(db, chainId, tvlMin, tvlMax) {

@@ -46,6 +46,39 @@ export function computeNetPpBps({ usdIn, usdOut, gasBpsBuy = 0, gasBpsSell = 0 }
   return { netPpBps: Number(clamped.toFixed(4)), raw: Number(raw.toFixed(4)), clamped: raw !== clamped };
 }
 
+// ── Raw tier (#57) ─────────────────────────────────────────────────────────────
+
+/** Conservative pool fee in bps for the trigger math (review №8: fee-adjusted).
+ *  v3 fee comes from the registry (fee millionths → bps); everything else
+ *  (v2/solidly/algebra dynamic/slipstream — registry carries tickSpacing there,
+ *  not fee) defaults to 30 bps until a per-pool source exists. */
+export function poolFeeBps(poolType, feeMillionths = null) {
+  if (poolType === 'v3' && feeMillionths != null && feeMillionths > 0) return feeMillionths / 100;
+  return 30;
+}
+
+/** Marginal fee-free USD price from reserves. Validity gates (#57): both
+ *  reserves > 0, finite price inside (1e-12, 1e9) — scam/dust fanтомы отсекаются. */
+export function rawMarginalPriceUsd({ quoteReserveRaw, quoteDecimals, tokenReserveRaw, tokenDecimals, quoteUsd }) {
+  if (!(quoteReserveRaw > 0n) || !(tokenReserveRaw > 0n) || !(quoteUsd > 0)) return null;
+  const q = Number(quoteReserveRaw) / 10 ** quoteDecimals;
+  const t = Number(tokenReserveRaw) / 10 ** tokenDecimals;
+  if (!(q > 0) || !(t > 0)) return null;
+  const p = (q / t) * quoteUsd;
+  if (!Number.isFinite(p) || p <= 1e-12 || p >= 1e9) return null;
+  return p;
+}
+
+/** Fee-adjusted cross-chain spread in bps (raw marginal, buy=cheap side).
+ *  A 1% pool vs a 0.05% pool produces ~95 bps of PHANTOM spread — subtracting
+ *  both pools' fees kills it before it can burn quote budget. */
+export function feeAdjustedSpreadBps({ buyPriceUsd, sellPriceUsd, feeBpsBuy = 0, feeBpsSell = 0 }) {
+  if (!(buyPriceUsd > 0) || !(sellPriceUsd > 0)) return null;
+  const spread = ((sellPriceUsd / buyPriceUsd) - 1) * 10000 - (feeBpsBuy ?? 0) - (feeBpsSell ?? 0);
+  if (!Number.isFinite(spread) || Math.abs(spread) >= 99999) return null;
+  return Number(spread.toFixed(4));
+}
+
 /**
  * Window matcher (#53): does `obs` extend the OPEN window `existing`?
  * Mirrors the SQL UPSERT predicate (partial UNIQUE WHERE status='open' + 30-min gap).

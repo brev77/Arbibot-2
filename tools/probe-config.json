@@ -54,6 +54,9 @@
   "_opportunity_comment": "PLAN14 #53: детектор окон. Порог net_pp_bps > 0 после газа (решение оператора №2 — итерация 1 не теряет окон); окно закрывается, если маршрут не виделся windowMinutes (калибровано по OVER-очередям, перекалибровать через неделю).",
   "opportunity": { "minNetPpbps": 0, "windowMinutes": 30 },
 
+  "_raw_comment": "PLAN14 #57: сырьевой тир. MC3-чтения всех живых пулов каждые intervalCycles → dry_run_raw_token_prices (мигр 060); fee-adjusted межсетевой спред из сырья; спред > triggerBps → токен в quote-лист Phase 2 (trigger-driven вселенная; при провале сырья — фолбэк на eligible). triggerBps=10 — стартовый (заниженный), калибровка по распределению триггер-рейта после ≥48ч сырья (решение оператора №6); newborn (<72ч) — пол-порога. retentionHours: полное разрешение, старше — часовые агрегаты.",
+  "raw": { "enabled": true, "intervalCycles": 3, "triggerBps": 10, "newbornHours": 72, "retentionHours": 48 },
+
   "_canonical_comment": "Канонические адреса проверенных активов по сетям (источник: seedTokens выше + on-chain symbol()/decimals() верификация 2026-08-15). Phase 2 группирует токены по ключу актива из этой карты (metadata.trust='canonical'); токены вне карты матчятся по symbol с эвристическими гейтами (metadata.trust='heuristic' | 'suspicious').",
   "canonicalTokens": {
     "WETH":  { "42161": "0x82af49447d8a07e3bd95bd0d56f35241523fbab1", "8453": "0x4200000000000000000000000000000000000006", "10": "0x4200000000000000000000000000000000000006" },
