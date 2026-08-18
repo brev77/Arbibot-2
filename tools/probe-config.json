@@ -57,9 +57,9 @@
   "_raw_comment": "PLAN14 #57: сырьевой тир. MC3-чтения всех живых пулов каждые intervalCycles → dry_run_raw_token_prices (мигр 060); fee-adjusted межсетевой спред из сырья; спред > triggerBps → токен в quote-лист Phase 2 (trigger-driven вселенная; при провале сырья — фолбэк на eligible). triggerBps=10 — стартовый (заниженный), калибровка по распределению триггер-рейта после ≥48ч сырья (решение оператора №6); newborn (<72ч) — пол-порога. retentionHours: полное разрешение, старше — часовые агрегаты.",
   "raw": { "enabled": true, "intervalCycles": 3, "triggerBps": 10, "newbornHours": 72, "retentionHours": 48 },
 
-  "_event_comment": "PLAN14 #58: событийные триггеры. Опрос Swap-логов живых пулов каждые pollSeconds (getLogs чанками по chunkAddrs адресов, topic0 OR [[V3,V2]]); крупный своп = max(minSwapUsd, depthFraction×глубина пула), размер из события × сырьевая цена. Кроссчейн-токен (НЕ canonical) → немедленная квота вне цикла (run_id 'event-<uuid>', metadata.trigger='event'), Stage 3 сразу. Ограничители: maxQuotesPerHour скользящий кап, tokenCooldownSec на токен, приоритет: открытые окна → newborn. enabled:false на деплое — включается после полного alive-смоука (DoD-1).",
+  "_event_comment": "PLAN14 #58: событийные триггеры. Опрос Swap-логов живых пулов каждые pollSeconds (getLogs чанками по chunkAddrs адресов, topic0 OR [[V3,V2]]); крупный своп = max(minSwapUsd, depthFraction×глубина пула), размер из события × сырьевая цена. Кроссчейн-токен (НЕ canonical) → немедленная квота вне цикла (run_id 'event-<uuid>', metadata.trigger='event'), Stage 3 сразу. Ограничители: maxQuotesPerHour скользящий кап, tokenCooldownSec на токен, приоритет: открытые окна → newborn. Включён 2026-08-18 после alive-смоука (24ч: Arb 71604/OP 37159/Base 382919 логов, все чанки per-call ≤5.1 c, V2-топик жив — 342 лога Arb-sushi; фикстура: квота 1.9 c, canonical-негатив PASS).",
   "event": {
-    "enabled": false,
+    "enabled": true,
     "pollSeconds": 30,
     "chunkAddrs": 150,
     "minSwapUsd": 500,
