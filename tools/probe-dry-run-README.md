@@ -1,230 +1,64 @@
-# Discovery-driven multi-chain dry-run arbitrage probe
+# Discovery-driven multi-chain dry-run arbitrage probe (PLAN14)
 
-`tools/probe-dry-run.mjs` — standalone read-only observation tool that
-**autonomously discovers** pools on Arbitrum / Base / Optimism via factory
-events, **filters them by on-chain liquidity** (TVL + 24h Swap-event volume),
-and records REALIZED cross-DEX round-trip quotes + cross-chain price gaps
-into isolated `dry_run_*` tables.
-
-**Why discovery-driven:** the user correctly pointed out that pre-picking
-high-liquidity tokens (WETH/USDC/ARB) targets the segment where edge is
-already arb-compressed by well-capitalized bots. The real edge — if any —
-lives in low/medium liquidity pools ($10K–$5M TVL, `filter.tvlMinUsd` /
-`filter.tvlMaxUsd` in `probe-config.json`) below their radar. This
-tool discovers those pools programmatically rather than relying on a curated
-list.
-
-**Independent of live services.** Never broadcasts transactions, never writes
-to `arbitrage_opportunities` / `execution_plans` / `capital_*`.
-
-# Architecture
+`tools/probe-dry-run.mjs` — standalone read-only observation tool. **Never
+broadcasts transactions, never writes to live tables** (`arbitrage_opportunities`,
+`execution_plans`, `capital_*` — untouched). Pipeline per PLAN14 (#52/#53/#56/#57):
 
 ```
-At startup:
-  bootstrap() — if dry_run_pool_registry empty, backfill last N blocks
-                of PoolCreated/PairCreated events + Algebra probing.
-
-Every cycle:
-  Stage 0 (every Nth cycle, default 10):
-    a. Incremental sync: new PoolCreated events since last block
-    b. Algebra probing: Camelot/Aerodrome/Velodrome pool lookup for
-       token pairs discovered in (a)
-    c. Liquidity refresh: read TVL + (sampled) 24h volume for registry pools,
-       mark eligible = (tvl in filter band, default [$10K,$5M] AND volume ≥ $1K)
-
-  Stage 1 (every cycle): cross-DEX round-trips
-    For every (tokenA, tokenB) with ≥2 DEXes having eligible pools,
-    for every ordered (buy_venue, sell_venue):
-      quote(buy_venue, A→B, amountIn) → amountOutBuy
-      quote(sell_venue, B→A, amountOutBuy) → amountFinal
-      round_trip_bps = (amountFinal - amountIn) / amountIn * 10000
-      → INSERT dry_run_dex_observations
-
-  Stage 2 (every cycle): cross-chain price gaps
-    For every token liquid (eligible snapshot) on ≥2 chains, in ANY pool
-    position (token0 or token1), grouped by identity:
-      - canonical: address matches canonicalTokens map in probe-config.json
-        (verified addresses) → metadata.trust = 'canonical'
-      - fallback: symbol match with heuristic gates (same decimals, gap ≤
-        crossChain.maxHeuristicGapBps, no intra-chain symbol collision)
-        → metadata.trust = 'heuristic', else 'suspicious'
-      price_diff_bps = (sell_price - buy_price) / buy_price * 10000
-      bridge_fee_bps via the PUBLIC Across suggested-fees API (no key;
-      ~1.8 bps WETH L2-L2, isAmountTooLow flag recorded)
-      metadata.exec = honest USDC -> token -> bridge -> token -> USDC
-      round-trip quoted at real notional (skipped for 'suspicious');
-      the marginal price columns stay for continuity
-      → INSERT dry_run_cross_chain_observations
+Every cycle (timer 60s; effective ~150s normal / ~20min discovery):
+  Gas sample (#52): eth_gasPrice + getL1Fee + block per chain → dry_run_run_stats
+  Stage 0 (every 5th): factory event sync + algebra probing + solidly/slipstream/
+      sushi pair probing (#57) + MC3-batched liquidity refresh of the FULL registry
+  Stage 0.5 (#57, cycle 1 + every 3rd): RAW TIER — MC3 reads of ALL alive pools →
+      marginal USD prices from reserves (no quoter calls) → fee-adjusted
+      cross-chain spreads → dry_run_raw_token_prices + trigger-driven quote list
+  Stage 1: cross-DEX round-trips (phase1 notionals 10/100/1000/10000)
+  Stage 2: cross-chain exec (#52): net_pp_bps = pre-positioned dual-leg
+      (USDC→token buy chain + token→USDC sell chain, NO bridge) − gas of both
+      legs (median-3 smoothed); phase2 notionals 50/100/1000; when the raw tier
+      is armed, ONLY triggered + canonical + open-window tokens are quoted
+  Stage 3 (#53): opportunity windows — dry_run_arb_opportunities
+      (open→expired, 30-min gap, threshold opportunity.minNetPpbps)
 ```
 
-## Files
+**Multicall3** (`aggregate`, NEVER `aggregate3` — reverts on BlockPi) batches
+view reads; failed batches bisect down to singles. RPC guard: cycle calls over
+P95(24h)×1.5 → liquidity refresh stops, `cold_tier_skipped=TRUE`.
 
-| File | Purpose |
+## Config (`tools/probe-config.json`)
+
+| Block | Meaning |
 |---|---|
-| `tools/probe-dry-run.mjs` | Main loop, quote primitives, persistence, cross-chain |
-| `tools/probe-discovery.mjs` | Factory event sync, Algebra probing, TVL/volume reads |
-| `tools/probe-config.json` | Filter params, seed tokens, discovery settings |
-| `tools/probe-analysis.sql` | Analysis queries |
-| `infra/postgres/migrations/055_dry_run_observations.sql` | Phase 1+2 observation tables |
-| `infra/postgres/migrations/056_dry_run_discovery.sql` | Pool registry + liquidity snapshots |
+| `filter` | legacy eligible band (Phase 1; Phase 2 is trigger-driven since #57) |
+| `phase1.notionalsUsd` / `phase2.notionalsUsd` | grids: [10,100,1000,10000] / [50,100,1000] (50/100 open windows, 1000 = depth-only) |
+| `opportunity` | `{minNetPpbps: 0, windowMinutes: 30}` — window detector threshold after gas |
+| `raw` | `{enabled, intervalCycles: 3, triggerBps: 10 (STARTER — calibrate after 48h of raw data), newbornHours: 72, retentionHours: 48}` |
+| `canonicalTokens` | verified cross-chain identity (trust='canonical'); symbol heuristic with gates otherwise |
 
-## Setup
+## Tables (migrations 055–059)
 
-```bash
-# 1. Apply migrations 055 + 056
-DATABASE_URL=postgres://... npm run db:migrate
+`dry_run_pool_registry`, `dry_run_liquidity_snapshots`, `dry_run_dex_observations`,
+`dry_run_cross_chain_observations` (+`net_pp_bps`), `dry_run_run_stats`,
+`dry_run_arb_opportunities`, `dry_run_raw_token_prices` + hourly aggregates
+(retention: 48h full resolution → hourly median/p95 → delete).
 
-# 2. Configure RPC + DB in .env
-PROBE_RPC_ARBITRUM_URL=https://your-quicknode.arbitrum.quiknode.pro/.../
-PROBE_RPC_BASE_URL=...
-PROBE_RPC_OPTIMISM_URL=...
-PROBE_DATABASE_URL=postgres://...   # defaults to DATABASE_URL
-# (bridge fees: public Across API, no key needed)
+## Tools
 
-# 3. Tune filter (tools/probe-config.json)
-#    filter.tvlMinUsd = 10000        # lower bound per pool
-#    filter.tvlMaxUsd = 5000000      # upper bound (above this = high-liq, arb-compressed)
-#    filter.volume24hMinUsd = 1000   # dust filter
-#    discovery.backfillBlocks = 100000  # ~2mo Arbitrum, ~6mo Base/Op
+| Tool | Purpose |
+|---|---|
+| `tools/arb-digest.mjs [--hours 24]` | windows digest: lifecycle, notional ladder, skew-suspect, unverified-sell-side, sanity lines |
+| `tools/probe-coverage-audit.mjs` | DefiLlama vs registry per venue (exit 2 below 95%) |
+| `tools/probe-pp-core.test.mjs` | pure-logic tests (`node --test tools/`) |
+| `tools/seed-registry-defillama.mjs` | re-seed from the llama dump (SEED_TVL_MIN=0 for the full universe) |
+| `tools/probe-analysis.sql` | legacy Phase-1/2 SQL analytics |
 
-# 4. Seed the pool registry (BlockPi does not index factory events):
-#    refresh the DefiLlama cache, then run the seeder. Match the seeder band
-#    to the probe filter — defaults are 10K/500K and will silently miss pools
-#    outside them (band lowered to $1K floor on 2026-08-15 for low-liquidity
-#    hunting; OP/Base upper liquidity sits near $5M):
-curl -sS https://yields.llama.fi/pools -o /tmp/llama_pools.json
-SEED_TVL_MIN=1000 SEED_TVL_MAX=5000000 node tools/seed-registry-defillama.mjs
-```
-
-**QuickNode Build plan ($49/mo)** works. Free public RPC will 429 during
-backfill (which makes O(10K-50K) eth_getLogs calls per chain).
+Sushi (verified 2026-08-18): Arb factory live (pools arrive via pair probing);
+Base/OP absent — root cause documented in the seeder.
 
 ## Run
 
 ```bash
-# Single-cycle smoke (backfill happens first if registry empty — can take 5-15 min):
-npm run probe:dry-run:once
-
-# Force one-time deeper backfill:
-node tools/probe-dry-run.mjs --backfill
-
-# Continuous loop:
-npm run probe:dry-run
-
-# Stop: SIGINT (Ctrl-C) or SIGTERM
-```
-
-## How discovery works
-
-### V3 + V2 factory events (Uniswap V3, SushiSwap V2)
-Listens to `PoolCreated` (V3) / `PairCreated` (V2) events via `eth_getLogs`,
-pages through block ranges (5000 blocks/page, auto-shrinks on RPC range
-errors). Each discovered pool is upserted into `dry_run_pool_registry` with
-its `token0`, `token1`, `fee` (V3 only), `dex`, `pool_type`, and
-`created_at_block`.
-
-### Algebra probing (Camelot, Aerodrome)
-These DEXes use Algebra Integral (dynamic fees, non-standard factory events).
-Instead of event sync, we **probe** the factory's `pool(tokenA, tokenB)`
-view for every unique token pair discovered via V3/V2 events. This adds
-their pools to the registry.
-
-### Velodrome Slipstream (Optimism, verified 2026-08-15)
-CL AMM adapted from UniV3, but pools are keyed by `(pair, tickSpacing)`
-instead of fee. Seeded via DefiLlama project `velodrome-v3`: the seeder
-probes the live factory `0xe13Dd1fb…` across tick spacings `[1,5,10,50,100,200]`
-and stores the found spacing in `fee_millionths`. Quoting uses the quoter at
-`0xAd432b2c…` with a UniV3-QuoterV2-style tuple where `tickSpacing` replaces
-`fee`; TVL reading uses the UniV3 virtual-reserves math (pool `slot0()` has
-six fields — no `feeProtocol`).
-
-### Aerodrome (Base, verified 2026-08-15)
-The dominant Base DEX, two AMMs, several interface traps (all verified
-on-chain before wiring):
-- **Aerodrome V2** (Solidly): factory `0x420DD381…` exposes
-  `getPool(a, b, stable)` — **not** `getPair` like Velodrome. Router
-  `0xcF77a3Ba…` quotes only via the **Route-struct**
-  `getAmountsOut(uint256, (from, to, stable, factory)[])` — the legacy
-  `address[]` form does not exist. Quotes use volatile routing; stable-only
-  pairs are seeded but not quoted.
-- **Aerodrome Slipstream** (CL): factory `0x5e7BB104…` (original deployment)
-  types tickSpacing as **int24** (Velodrome uses uint24 — different selector);
-  quoter `0x254cF9E1…` uses the same tuple5 ABI as Velodrome Slipstream.
-  The seeder probes both factory selectors across spacings
-  `[1,5,10,50,100,200,500,2000]`.
-
-### Liquidity refresh (Stage 0c)
-For each pool in registry (newest 500 per refresh):
-- **TVL (V2):** `getReserves()` → `reserve0 × price0 + reserve1 × price1`
-- **TVL (V3 / Slipstream / Algebra):** virtual reserves from
-  `liquidity + slot0.sqrtPriceX96` (Algebra: `globalState().price`;
-  Slipstream `slot0()` has six fields — no `feeProtocol`)
-  (marginal-liquidity approximation — true in-range TVL needs tick bitmap
-  walk; good enough for a band filter)
-- **24h volume:** `eth_getLogs` for Swap events over last 24h of blocks,
-  summed in USD. Expensive — sampled at 10% of pools per cycle to respect
-  RPC budget. (Tune via `nScanned % 10` in `probe-dry-run.mjs`.)
-
-Pools are marked `eligible = TRUE` in `dry_run_liquidity_snapshots` if
-`$10K ≤ TVL ≤ $500K` AND (volume ≥ $1K OR volume not sampled this cycle).
-
-## Analyze
-
-```bash
-psql "$PROBE_DATABASE_URL" -f tools/probe-analysis.sql
-psql "$PROBE_DATABASE_URL" -f tools/probe-analysis.sql -v hours=48
-```
-
-Additional discovery-specific queries:
-
-```sql
--- Universe coverage: how many pools are we observing?
-SELECT chain_id, dex, pool_type, COUNT(*) AS n_pools
-FROM dry_run_pool_registry GROUP BY 1,2,3 ORDER BY 1,2;
-
--- Eligible pool distribution (TVL histogram)
-SELECT chain_id,
-  width_bucket(tvl_usd, 10000, 500000, 10) AS bucket,
-  COUNT(*) AS n_pools,
-  AVG(tvl_usd)::numeric(12,0) AS avg_tvl
-FROM dry_run_liquidity_snapshots
-WHERE eligible = TRUE AND observed_at > NOW() - INTERVAL '1 hour'
-GROUP BY 1,2 ORDER BY 1,2;
-
--- Top eligible pools by 24h volume (most likely to have real edge)
-SELECT p.dex, p.token0_symbol, p.token1_symbol,
-  s.tvl_usd::numeric(12,0) AS tvl, s.volume_24h_usd::numeric(12,0) AS vol_24h
-FROM dry_run_liquidity_snapshots s
-JOIN dry_run_pool_registry p ON p.chain_id = s.chain_id AND p.pool_addr = s.pool_addr
-WHERE s.eligible = TRUE AND s.observed_at > NOW() - INTERVAL '1 hour'
-ORDER BY s.volume_24h_usd DESC NULLS LAST LIMIT 25;
-```
-
-## Honest caveats
-
-1. **Backfill is slow.** First run with empty registry will take 5-15 min
-   per chain (50K-150K `eth_getLogs` calls at 12 rps). Be patient or use
-   `--backfill` flag with a coffee break.
-2. **24h volume is sampled (10%).** Reading Swap events for every pool
-   every cycle would burn the RPC budget. Full-scan volume is available
-   on request — bump `nScanned % 10` to `% 1` in `refreshLiquidityForChain`.
-3. **V3 TVL is approximate (virtual reserves).** Pools far out of their
-   tick range will have overstated virtual TVL. For the band filter
-   ($10K-$500K) this is acceptable; for precise TVL use Dune.
-4. **Cross-chain token identity.** Groups outside `canonicalTokens` are
-   symbol-matched with heuristic gates (decimals, gap window, intra-chain
-   collision) and flagged `metadata.trust = 'suspicious'` when a gate fails —
-   same-symbol different-asset collisions do happen in the long tail. Filter
-   on `metadata->>'trust'` in analysis.
-5. **Edge ≠ profit.** Same caveat as before: positive `round_trip_bps` is
-   the optimistic bound (no race conditions / mempool / gas spikes / MEV).
-6. **Discovery finds what exists, not what's profitable.** Universe
-   expansion increases coverage but doesn't guarantee signal.
-
-## Cleanup
-
-```sql
-TRUNCATE dry_run_dex_observations, dry_run_cross_chain_observations,
-         dry_run_liquidity_snapshots, dry_run_pool_registry;
--- or DROP all four tables; migrations 055+056 have IF NOT EXISTS guards.
+PROBE_RPC_{ARBITRUM,BASE,OPTIMISM}_URL=... PROBE_DATABASE_URL=... \
+  npm run probe:dry-run            # continuous; :once for a single cycle
+node --test tools/                 # unit tests
 ```
