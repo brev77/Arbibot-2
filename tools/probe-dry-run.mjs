@@ -244,12 +244,12 @@ async function persistRunStats(runId, cycleMs) {
       await db.query(
         `INSERT INTO dry_run_run_stats
            (run_id, chain_id, block_number, gas_price_gwei, l1_fee_eth, gas_eth_smoothed,
-            eth_usd, rpc_calls, cycle_ms, source)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'cycle')
+            eth_usd, rpc_calls, cycle_ms, cold_tier_skipped, source)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'cycle')
          ON CONFLICT (run_id, chain_id) DO NOTHING`,
         [runId, chainId, g.blockNumber,
          Number(ethers.formatUnits(g.gasPriceWei, 'gwei')), g.l1FeeEth, g.smoothed,
-         ethUsd, rpcCalls[chainId], Math.round(cycleMs)],
+         ethUsd, rpcCalls[chainId], Math.round(cycleMs), coldTierSkipped[chainId] === true],
       );
     } catch (e) { console.error(`[run_stats ${chainId}] ${e.message.slice(0, 80)}`); }
   }
@@ -453,62 +453,183 @@ async function refreshDiscoveryAndLiquidity(runId) {
   }
 }
 
+// ============================================================================
+// Multicall3 batching for Stage-0 view reads (#56). VERIFIED on the paid
+// BlockPi endpoints (2026-08-18): `aggregate` works on all 3 chains,
+// `aggregate3` REVERTS — never use it here. `aggregate` reverts on the first
+// failing sub-call, so a failed batch falls back to the serial per-pool path.
+// ============================================================================
+const MULTICALL3 = '0xcA11bde05977b3631167028862bE2a173976CA11';
+const MC3_ABI = ['function aggregate((address target, bytes callData)[] calls) payable returns (uint256 blockNumber, bytes[] returnData)'];
+const RESERVES_ABI = ['function getReserves() view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast)'];
+const LIQ_ABI = ['function liquidity() view returns (uint128)'];
+const V3_SLOT0_ABI = ['function slot0() view returns (uint160 sqrtPriceX96, int24 tick, uint16 obsIdx, uint16 obsCard, uint16 obsCardNext, uint8 feeProtocol, bool unlocked)'];
+const ALG_STATE_ABI = ['function globalState() view returns (uint160 price, int24 tick, uint16 feeZto, uint16 feeOtz, uint16 timepointIndex, uint8 communityFeeToken0, uint8 communityFeeToken1, bool unlocked)'];
+const SLIP_SLOT0_ABI = ['function slot0() view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, bool unlocked)'];
+
+async function mc3Aggregate(chainId, calls) {
+  if (calls.length === 0) return [];
+  if (!(await acquire(chainId))) return null;
+  try {
+    const mc3 = new ethers.Contract(MULTICALL3, MC3_ABI, providers[chainId]);
+    const res = await mc3.aggregate.staticCall(calls);
+    return res.returnData;
+  } catch {
+    return null; // whole-batch revert → caller falls back to serial reads
+  }
+}
+
+// ============================================================================
+// Liquidity refresh (Stage 0c) — MC3-batched, full registry (LIMIT 500 removed
+// by #56), token0/token1/fee from the registry (no on-chain reads), serial
+// fallback per batch. RPC-guard: stop mid-refresh when the cycle's call count
+// exceeds P95(24h)×1.5 (#56, review №5 — prioritization, not scheduling).
+// ============================================================================
+const coldTierSkipped = {}; // chainId → true when the guard tripped this cycle
+
+async function rpcBudgetP95(chainId) {
+  try {
+    const r = await db.query(
+      `SELECT PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY rpc_calls) AS p95
+         FROM dry_run_run_stats
+        WHERE chain_id = $1 AND source = 'cycle' AND observed_at > now() - interval '24 hours'`,
+      [chainId],
+    );
+    const p95 = Number(r.rows[0]?.p95);
+    return Number.isFinite(p95) && p95 > 0 ? p95 : null;
+  } catch { return null; }
+}
+
+async function computeTvlFromBalances(chainId, token0, token1, reserve0Raw, reserve1Raw) {
+  const d0 = (await getErc20Meta(chainId, token0)).decimals;
+  const d1 = (await getErc20Meta(chainId, token1)).decimals;
+  const p0 = await getPriceUsd(chainId, token0);
+  const p1 = await getPriceUsd(chainId, token1);
+  if (p0 == null || p1 == null) return null;
+  const tvlUsd = (Number(reserve0Raw) / 10 ** d0) * p0 + (Number(reserve1Raw) / 10 ** d1) * p1;
+  return tvlUsd;
+}
+
+function virtualReserves(liq, sqrtPriceX96) {
+  if (liq === 0n) return { reserve0: 0n, reserve1: 0n };
+  if (sqrtPriceX96 === 0n) return null;
+  return {
+    reserve1: (liq * sqrtPriceX96) >> 96n,
+    reserve0: (liq << 96n) / sqrtPriceX96,
+  };
+}
+
 async function refreshLiquidityForChain(chainId, runId) {
   const r = await db.query(
     `SELECT pool_addr, dex, pool_type, token0_addr, token1_addr, fee_millionths
        FROM dry_run_pool_registry WHERE chain_id = $1
-       ORDER BY discovered_at DESC LIMIT 500`,
+       ORDER BY discovered_at DESC`, // #56: LIMIT 500 removed — full registry
     [chainId],
   );
+  const budgetP95 = await rpcBudgetP95(chainId);
+  const BATCH = 25; // pools per MC3 aggregate (slot0 return ~224B → safe)
   let nEligible = 0;
   let nScanned = 0;
   const t0 = Date.now();
-  for (const row of r.rows) {
-    nScanned += 1;
-    const poolT0 = Date.now();
-    if (nScanned % 50 === 0) {
-      console.log(`[liquidity ${chainId}] progress ${nScanned}/${r.rows.length} eligible=${nEligible} (${((Date.now() - t0) / 1000).toFixed(0)}s)`);
+  const metaDec = async (a) => (await getErc20Meta(chainId, a)).decimals;
+  const priceUsd = async (a) => getPriceUsd(chainId, a);
+
+  for (let base = 0; base < r.rows.length; base += BATCH) {
+    if (budgetP95 && rpcCalls[chainId] > budgetP95 * 1.5) {
+      coldTierSkipped[chainId] = true;
+      console.log(`[liquidity ${chainId}] RPC-guard: stop at ${nScanned}/${r.rows.length} (rpc=${rpcCalls[chainId]} > P95 ${budgetP95.toFixed(0)}×1.5)`);
+      break;
     }
-    try {
-      // v2 → getReserves; v3 → slot0; algebra → globalState (different tuple shape)
-      const metaDec = async (a) => (await getErc20Meta(chainId, a)).decimals;
-      const priceUsd = async (a) => getPriceUsd(chainId, a);
-      const tvlResult = row.pool_type === 'v2' || row.pool_type === 'solidly-v2'
-        ? await readPoolTvlV2(providers[chainId], row.pool_addr, metaDec, priceUsd)
-        : row.pool_type === 'algebra'
-        ? await readPoolTvlAlgebra(providers[chainId], row.pool_addr, metaDec, priceUsd)
-        : row.pool_type === 'slipstream'
-        ? await readPoolTvlSlipstream(providers[chainId], row.pool_addr, metaDec, priceUsd)
-        : await readPoolTvlV3(providers[chainId], row.pool_addr, metaDec, priceUsd);
-      if (!tvlResult) continue;
-      // Volume read (expensive; PROBE_VOLUME_SAMPLE=N samples every Nth pool, 0=off)
-      let volume = null, lastSwapAt = null;
-      const volSample = Number(process.env.PROBE_VOLUME_SAMPLE ?? 10);
-      if (volSample > 0 && nScanned % volSample === 0) {
-        const v = await readPoolVolume24h(providers[chainId], chainId, row.pool_addr, row.pool_type,
-          async (a) => (await getErc20Meta(chainId, a)).decimals,
-          async (a) => getPriceUsd(chainId, a), rateLimitFn);
-        volume = v.volumeUsd; lastSwapAt = v.lastSwapAt;
+    const batch = r.rows.slice(base, base + BATCH);
+    // build the per-pool call plan: v2 → getReserves; v3/slipstream →
+    // liquidity+slot0; algebra → liquidity+globalState
+    const calls = [];
+    const plan = []; // {row, kinds: [...]} aligned with calls
+    const iRes = new ethers.Interface(RESERVES_ABI);
+    const iLiq = new ethers.Interface(LIQ_ABI);
+    const iV3 = new ethers.Interface(V3_SLOT0_ABI);
+    const iAlg = new ethers.Interface(ALG_STATE_ABI);
+    const iSlip = new ethers.Interface(SLIP_SLOT0_ABI);
+    for (const row of batch) {
+      if (row.pool_type === 'v2' || row.pool_type === 'solidly-v2') {
+        calls.push({ target: row.pool_addr, callData: iRes.encodeFunctionData('getReserves') });
+        plan.push({ row, kinds: ['reserves'] });
+      } else if (row.pool_type === 'algebra') {
+        calls.push({ target: row.pool_addr, callData: iLiq.encodeFunctionData('liquidity') });
+        calls.push({ target: row.pool_addr, callData: iAlg.encodeFunctionData('globalState') });
+        plan.push({ row, kinds: ['liquidity', 'globalState'] });
+      } else { // v3 + slipstream
+        calls.push({ target: row.pool_addr, callData: iLiq.encodeFunctionData('liquidity') });
+        calls.push({ target: row.pool_addr, callData: (row.pool_type === 'slipstream' ? iSlip : iV3).encodeFunctionData('slot0') });
+        plan.push({ row, kinds: ['liquidity', 'slot0'] });
       }
-      const eligible = tvlResult.tvlUsd != null
-        && tvlResult.tvlUsd >= FILTER.tvlMinUsd
-        && tvlResult.tvlUsd <= FILTER.tvlMaxUsd
-        && (volume == null || volume >= FILTER.volume24hMinUsd);
-      if (eligible) nEligible += 1;
-      const poolMs = Date.now() - poolT0;
-      if (poolMs > 3000) console.log(`[liquidity ${chainId}] SLOW pool ${row.pool_addr.slice(0, 12)} ${poolMs}ms (dex=${row.dex})`);
-      await insertLiquiditySnapshot(db, {
-        runId, chainId, poolAddr: row.pool_addr, dex: row.dex,
-        token0: row.token0_addr, token1: row.token1_addr,
-        tvlUsd: tvlResult.tvlUsd, volume24hUsd: volume,
-        reserve0: tvlResult.reserve0, reserve1: tvlResult.reserve1,
-        lastSwapAt, eligible,
-      });
-    } catch (e) {
-      // skip individual pool failure
+    }
+    const out = await mc3Aggregate(chainId, calls);
+    let idx = 0;
+    for (const p of plan) {
+      const row = p.row;
+      nScanned += 1;
+      if (nScanned % 200 === 0) console.log(`[liquidity ${chainId}] progress ${nScanned}/${r.rows.length} eligible=${nEligible} (${((Date.now() - t0) / 1000).toFixed(0)}s)`);
+      try {
+        let tvlResult = null;
+        if (out) {
+          // decode from the batch
+          const data = p.kinds.map(() => out[idx]); idx += p.kinds.length;
+          if (p.kinds[0] === 'reserves') {
+            const dec = iRes.decodeFunctionResult('getReserves', data[0]);
+            const tvlUsd = await computeTvlFromBalances(chainId, row.token0_addr, row.token1_addr, dec.reserve0, dec.reserve1);
+            if (tvlUsd != null) tvlResult = { tvlUsd, reserve0: dec.reserve0, reserve1: dec.reserve1 };
+          } else {
+            const liq = iLiq.decodeFunctionResult('liquidity', data[0])[0];
+            const state = p.kinds[1] === 'globalState'
+              ? iAlg.decodeFunctionResult('globalState', data[1])
+              : (row.pool_type === 'slipstream' ? iSlip : iV3).decodeFunctionResult('slot0', data[1]);
+            const sqrtPrice = p.kinds[1] === 'globalState' ? state.price : state.sqrtPriceX96;
+            const vr = virtualReserves(liq, sqrtPrice);
+            if (vr) {
+              const tvlUsd = await computeTvlFromBalances(chainId, row.token0_addr, row.token1_addr, vr.reserve0, vr.reserve1);
+              if (tvlUsd != null) tvlResult = { tvlUsd, reserve0: vr.reserve0, reserve1: vr.reserve1 };
+            }
+          }
+        } else {
+          // batch failed (one bad pool reverts the whole aggregate) → serial path
+          idx += p.kinds.length;
+          tvlResult = row.pool_type === 'v2' || row.pool_type === 'solidly-v2'
+            ? await readPoolTvlV2(providers[chainId], row.pool_addr, metaDec, priceUsd)
+            : row.pool_type === 'algebra'
+              ? await readPoolTvlAlgebra(providers[chainId], row.pool_addr, metaDec, priceUsd)
+              : row.pool_type === 'slipstream'
+                ? await readPoolTvlSlipstream(providers[chainId], row.pool_addr, metaDec, priceUsd)
+                : await readPoolTvlV3(providers[chainId], row.pool_addr, metaDec, priceUsd);
+        }
+        if (!tvlResult) continue;
+        // Volume read (expensive; PROBE_VOLUME_SAMPLE=N samples every Nth pool, 0=off)
+        let volume = null, lastSwapAt = null;
+        const volSample = Number(process.env.PROBE_VOLUME_SAMPLE ?? 10);
+        if (volSample > 0 && nScanned % volSample === 0) {
+          const v = await readPoolVolume24h(providers[chainId], chainId, row.pool_addr, row.pool_type,
+            async (a) => (await getErc20Meta(chainId, a)).decimals,
+            async (a) => getPriceUsd(chainId, a), rateLimitFn);
+          volume = v.volumeUsd; lastSwapAt = v.lastSwapAt;
+        }
+        const eligible = tvlResult.tvlUsd != null
+          && tvlResult.tvlUsd >= FILTER.tvlMinUsd
+          && tvlResult.tvlUsd <= FILTER.tvlMaxUsd
+          && (volume == null || volume >= FILTER.volume24hMinUsd);
+        if (eligible) nEligible += 1;
+        await insertLiquiditySnapshot(db, {
+          runId, chainId, poolAddr: row.pool_addr, dex: row.dex,
+          token0: row.token0_addr, token1: row.token1_addr,
+          tvlUsd: tvlResult.tvlUsd, volume24hUsd: volume,
+          reserve0: tvlResult.reserve0, reserve1: tvlResult.reserve1,
+          lastSwapAt, eligible,
+        });
+      } catch (e) {
+        // skip individual pool failure
+      }
     }
   }
-  console.log(`[liquidity ${chainId}] scanned=${nScanned} eligible=${nEligible} (range $${FILTER.tvlMinUsd}-$${FILTER.tvlMaxUsd})`);
+  console.log(`[liquidity ${chainId}] scanned=${nScanned}/${r.rows.length} eligible=${nEligible} in ${((Date.now() - t0) / 1000).toFixed(0)}s (range $${FILTER.tvlMinUsd}-$${FILTER.tvlMaxUsd}, MC3 batches of ${BATCH})`);
 }
 
 // ============================================================================
@@ -669,7 +790,18 @@ async function runCycleCrossChain(runId) {
       newestBlock: row.newest_block == null ? null : Number(row.newest_block),
     };
   }
-  for (const [gk, g] of Object.entries(groups)) {
+  // Hot prioritization (#56, review №5): tokens with open windows quote first —
+  // ordering inside the cycle, not a separate schedule.
+  let openAddrSet = new Set();
+  try {
+    const ow = await db.query(`SELECT DISTINCT token_addr_buy AS a, token_addr_sell AS b FROM dry_run_arb_opportunities WHERE status = 'open'`);
+    for (const row of ow.rows) { openAddrSet.add(row.a.toLowerCase()); openAddrSet.add(row.b.toLowerCase()); }
+  } catch { /* table may not exist yet */ }
+  const groupEntries = Object.entries(groups).sort(([_, ga], [__, gb]) => {
+    const hot = (g) => Object.values(g.chains).some((c) => openAddrSet.has(c.addr.toLowerCase())) ? 0 : 1;
+    return hot(ga) - hot(gb);
+  });
+  for (const [gk, g] of groupEntries) {
     const onChains = Object.keys(g.chains).map(Number);
     if (onChains.length < 2) continue;
     for (let i = 0; i < onChains.length; i++) {
@@ -1054,7 +1186,7 @@ async function runOnce() {
   const runId = randomUUID();
   const t0 = Date.now();
   cycleCounter += 1;
-  for (const id of CHAIN_IDS) rpcCalls[id] = 0;
+  for (const id of CHAIN_IDS) { rpcCalls[id] = 0; delete coldTierSkipped[id]; }
   console.log(`[${new Date().toISOString()}] run ${runId} starting (cycle ${cycleCounter})`);
   // Gas sample first (#52): exec_pp legs need gas + cycle block before quoting.
   for (const chainId of CHAIN_IDS) {
