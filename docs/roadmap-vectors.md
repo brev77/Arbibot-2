@@ -481,7 +481,7 @@ C1/H2/M6 и т.д. ссылочны через `tracker_ref`, операцион
 | 55 | `FUNC-PROBE-SWEEP` | FUNC | paper-check | new | 3 | 1 | 15 | accepted | PLAN14 — query-time sweep вариантов полосы |
 | 56 | `REL-PROBE-RPC-EFFICIENCY` | REL (PERF) | paper-check | new | 4 | 2 | 16 | review | PLAN14 — MC3+полный registry+guard live (OP 64c/Arb 53c/Base 1115 пулов); хвост: прайс-лукапы Base → #57 |
 | 57 | `FUNC-PROBE-COVERAGE` | FUNC (REL) | paper-check | new | 5 | 3 | 15 | review | PLAN14 — live 2026-08-18: raw-тир (53 токена/проход, 335 групп, fee-adjusted триггер), Phase 2 trigger-driven (12–14/343), Sushi 55 пулов, ре-сит без пола; хвосты: калибровка 48ч, retention-проверка, slipstream-покрытие 38–66% |
-| 58 | `FUNC-PROBE-EVENT-TRIGGERS` | FUNC (PERF) | paper-check | new | 4 | 2 | 16 | in-progress | PLAN14 — событийные триггеры Swap→немедленная квота (снятие 5.5-мин алиасинга); спек `plan-probe-event-triggers-2026-08-18.md`; код+смоук готовы, деплой `enabled:false` → alive-смоук → включение |
+| 58 | `FUNC-PROBE-EVENT-TRIGGERS` | FUNC (PERF) | paper-check | new | 4 | 2 | 16 | in-progress | PLAN14 — событийные триггеры Swap→немедленная квота; live на Aéza с 2026-08-18 (enabled:true, DoD-1/2/4/5/6/8 зелёные; хвосты: латентность ≤60 c и RPC-guard фон — по живым триггерам); спек `plan-probe-event-triggers-2026-08-18.md` |
 
 ### Легенда
 
