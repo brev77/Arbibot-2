@@ -43,6 +43,32 @@ const windowMin = flagArg('window-min', 5);
 const BLOCK_TIME_SEC = { 42161: 0.25, 8453: 2, 10: 2 };
 const CHUNK_LIMIT_MS = 5000; // DoD-1: each chunk ≤ 5s
 
+// Block-range bisection: BlockPi caps a single getLogs response at 20K results
+// (production 30s polls see ≤120 blocks — never hit it; wide smoke windows do).
+// On the cap error, halve the block range and retry; count the sub-fetches.
+async function fetchRange(provider, addrs, from, to, acc, stats) {
+  const t0 = Date.now();
+  try {
+    const logs = await provider.getLogs({
+      address: addrs,
+      topics: [[SWAP_V3_TOPIC, SWAP_V2_TOPIC]],
+      fromBlock: from, toBlock: to,
+    });
+    stats.chunkMs.push(Date.now() - t0);
+    acc.push(...logs);
+    return;
+  } catch (e) {
+    if (String(e.message).includes('max results') && to > from) {
+      const mid = from + Math.floor((to - from) / 2);
+      await fetchRange(provider, addrs, from, mid, acc, stats);
+      await fetchRange(provider, addrs, mid + 1, to, acc, stats);
+      return;
+    }
+    stats.fails += 1;
+    stats.failWhy = e.message.slice(0, 120); // a swallowed reason is a hidden bug — print it
+  }
+}
+
 const word = (n) => BigInt(n).toString(16).padStart(64, '0');
 const wordSigned = (n) => (n >= 0n ? word(n) : word((1n << 256n) + n));
 
@@ -63,32 +89,22 @@ async function aliveSmoke() {
     for (let pageFrom = fromBlock; pageFrom <= latest; pageFrom += PAGE_BLOCKS) {
       const pageTo = Math.min(pageFrom + PAGE_BLOCKS - 1, latest);
       for (let b = 0; b < addrs.length; b += chunkSize) {
-      const chunk = addrs.slice(b, b + chunkSize);
-      const t0 = Date.now();
-      let batch = null;
-      let failWhy = '';
-      try {
-        batch = await providers[chainId].getLogs({
-          address: chunk,
-          topics: [[SWAP_V3_TOPIC, SWAP_V2_TOPIC]],
-          fromBlock: pageFrom, toBlock: pageTo,
-        });
-      } catch (e) {
-        chunkFails += 1;
-        failWhy = e.message.slice(0, 120); // a swallowed reason is a hidden bug — print it
-      }
-      const ms = Date.now() - t0;
-      chunkNo += 1;
-      totalMs += ms;
-      maxChunkMs = Math.max(maxChunkMs, ms);
-      if (batch) {
+        const chunk = addrs.slice(b, b + chunkSize);
+        const batch = [];
+        const stats = { chunkMs: [], fails: 0, failWhy: '' };
+        const t0 = Date.now();
+        await fetchRange(providers[chainId], chunk, pageFrom, pageTo, batch, stats);
+        const ms = Date.now() - t0;
+        chunkNo += 1;
+        totalMs += ms;
+        maxChunkMs = Math.max(maxChunkMs, ...stats.chunkMs, ms);
+        chunkFails += stats.fails;
         logs += batch.length;
         for (const l of batch) {
           if (l.topics[0] === SWAP_V3_TOPIC) v3 += 1;
           else if (l.topics[0] === SWAP_V2_TOPIC) v2 += 1;
         }
-      }
-      if (VERBOSE || failWhy) console.log(`  [chain ${chainId}] chunk ${chunkNo} (${chunk.length} addrs, blocks ${pageFrom}-${pageTo}): ${batch ? batch.length : `FAIL ${failWhy}`} in ${ms}ms`);
+        if (VERBOSE || stats.fails) console.log(`  [chain ${chainId}] chunk ${chunkNo} (${chunk.length} addrs, blocks ${pageFrom}-${pageTo}): ${stats.fails ? `FAIL ${stats.failWhy}` : `${batch.length} in ${ms}ms`}`);
       }
     }
     totalV2 += v2;
