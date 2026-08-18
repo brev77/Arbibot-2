@@ -63,9 +63,9 @@ Arbibot 2 — **Turborepo monorepo** (npm workspaces: `apps/*`, `packages/*`):
 
 **Safe-by-default флаги** (после panic все в безопасное состояние): `LIVE_AUTO_DRIVE_ENABLED=false`, `LEG_AUTO_DRIVE_ENABLED=false`, `PAPER_AUTO_DRIVE_ENABLED=false`, `DEX_LIVE_KILL_SWITCH`.
 
-**Качество:** миграции **001–057**; свежий build/lint/test snapshot — CI (последний локальный полный прогон: EO 876/876, opp-service 201/201 на коммите `1a7894b`, 2026-08-10).
+**Качество:** миграции **001–058**; свежий build/lint/test snapshot — CI (последний локальный полный прогон: EO 876/876, opp-service 201/201 на коммите `1a7894b`, 2026-08-10).
 
-### Migrations (001–057)
+### Migrations (001–058)
 
 Применяются лексикографически через `npm run db:migrate` (`tools/db-migrate.mjs`); полный список — `infra/postgres/migrations/`. Ключевые и неочевидные:
 
@@ -85,7 +85,7 @@ Arbibot 2 — **Turborepo monorepo** (npm workspaces: `apps/*`, `packages/*`):
 - **050** hotfix: partial unique `WHERE state='active'` на `paper_capital_reservations` (over-broad UNIQUE валил AutoDrive каскадно; self-healing)
 - **051/052** P9: UNIQUE(correlation_id)+sweeper; `submitting` state на `execution_legs`
 - **053/054** P10: `live.auto_drive` seed (`enabled:false`); `arbitrage_opportunities.live_execution_plan_id` + partial index (дедуп)
-- **055–057** probe: `dry_run_observations`, `dry_run_discovery`, bridge-fee колонки nullable
+- **055–058** probe: `dry_run_observations`, `dry_run_discovery`, bridge-fee колонки nullable; 058 (PLAN14 #52/#53) — `net_pp_bps`, `dry_run_run_stats` (gas/RPC-телеметрия, source cycle|event), `dry_run_arb_opportunities` (окна open→expired, partial-UNIQUE на open)
 
 Migration **020** rollback починен через **024**; применять по порядку на чистых БД. Canonical registry (`venue_refs`, `canonical_instruments`, `canonical_routes`) не auto-seeded — `npm run db:seed-canonical`.
 
@@ -114,7 +114,7 @@ Env: копируй [`.env.example`](.env.example) → `.env`. Типичный 
 - **Bus:** `bus:publish` / `bus:consume`; seeds: `seed:outbox-smoke-events[:all]`, `seed:intake-policy-config`, `seed:scanner-config`, `db:seed-canonical`
 - **Wallet:** `wallet:import` — безопасный импорт приватного ключа в `wallet_keys` (stdin/env, НЕ args — не светит в `ps`; AES-256-GCM; fail-closed address validation; ключ не логируется). Usage: `echo "0xKEY" | npm run wallet:import -- --key-id prod-arb-1 --chain-id 42161 --expected-address 0x...`
 - **Hermes:** `build:hermes-mcp`, `doctor:hermes`, `run:hermes`
-- **Probe:** `probe:dry-run` (continuous) / `probe:dry-run:once` — multi-chain dry-run (`PROBE_RPC_{ARBITRUM,BASE,OPTIMISM}_URL`, `PROBE_DATABASE_URL`)
+- **Probe:** `probe:dry-run` (continuous) / `probe:dry-run:once` — multi-chain dry-run (`PROBE_RPC_{ARBITRUM,BASE,OPTIMISM}_URL`, `PROBE_DATABASE_URL`); digest окон — `node tools/arb-digest.mjs [--hours 24]`
 - **Прочее:** `venue:load-test`, `dex:load-test`, `export:route-scoring-history`, `replay:route-scoring-export`, `map:excalidraw` (регенерация `docs/system-map.excalidraw`), `dev:stack` (+ `dev:stack:hermes-agent`), `dev:scanner` (build — `npm run build -w @arbibot/scanner-service`)
 
 ### Backend services (`apps/*`)
@@ -197,4 +197,4 @@ Shared-пакеты ([`packages/`](packages/)): `@arbibot/contracts`, `@arbibot/
 
 - **AGENTS.md + ключевые доки (список в секции «Ключевые доки», 16 файлов) верифицируются каждые 3 дня, источник — КОД репозитория** (`package.json`, `apps/*/src/main.ts`, `infra/postgres/migrations/`, роуты `apps/web/app/api`, plan-доки + `git log`), **не другие доки**; для каждого дока — его специфичные утверждения (services.md — порты/эндпоинты; hermes-reference — skills/cron-таблица; outbox-inbox — allowlists; adr-live-gate — kill-switch/флаги; live-deploy-dod — gates); датируемые снапшоты (`docs/*-2026-*.md`, audit/review) не правятся — их диапазоны легитимно исторические. Факты вне репо (ops-события, результаты зондов) помечаются memory-sourced и не выдумываются.
 - **Лимит 200 строк**: при превышении деталь переносится в `docs/` (см. DOCUMENTS_INDEX), не удаляется молча. После правок — `npm run verify:docs` (EXIT=0). Повторяющаяся проверка — cron-задача агента каждые 3 дня; правки cron-прогона не коммитятся, остаются на ревью. **Enforcement:** штамп старше 3 дней при наличии коммитов с даты штампа → FAIL check 11 в `verify:docs`/CI.
-- Last verified against code: 2026-08-15.
+- Last verified against code: 2026-08-18.

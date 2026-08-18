@@ -6,18 +6,26 @@
  *   1. Factory event sync (Uniswap V3 PoolCreated + Sushi V2 PairCreated) +
  *      Algebra probing (Camelot / Aerodrome / Velodrome Slipstream).
  *   2. Liquidity filter: read TVL (virtual reserves) + 24h Swap-event volume
- *      for every discovered pool, persist into dry_run_liquidity_snapshots,
- *      mark pools with $10K ≤ TVL ≤ $500K as `eligible`.
+ *      (sampled 1-in-10 pools, PROBE_VOLUME_SAMPLE) for discovered pools,
+ *      persist into dry_run_liquidity_snapshots, mark pools with
+ *      $1K ≤ TVL ≤ $5M and 24h volume ≥ $100 as `eligible`.
  *   3. Quote cycle (Phase 1): round-trip quotes for every eligible
  *      cross-DEX pair (tokenA, tokenB where ≥2 DEXes have eligible pools).
  *   4. Cross-chain cycle (Phase 2): price gaps for tokens liquid on ≥2 chains.
+ *   5. exec_pp (PLAN14 #52): pre-positioned dual-leg net on phase2 notionals
+ *      {50,100,1000} — USDC→token (buy chain) + token→USDC (sell chain), NO
+ *      bridge, gas of both legs included (median-3 smoothed sample per cycle,
+ *      dry_run_run_stats telemetry).
+ *   6. Stage 3 (PLAN14 #53): opportunity windows — dry_run_arb_opportunities,
+ *      open→expired lifecycle, 30-min gap, threshold opportunity.minNetPpbps.
  *
- * Targeting LOW/MEDIUM liquidity ($10K–$5M TVL, see probe-config.json
- * filter.tvlMinUsd/tvlMaxUsd) — high-liquidity pools (WETH/USDC etc.) are
- * arbed to zero by well-capitalized bots; the edge, if any, lives in pools
- * below their radar. The filter is the user's explicit ask — it makes
- * "maximally wide observation" tractable without flooding the dataset with
- * dust/scam pools.
+ * Targeting LOW liquidity ($1K–$5M TVL, see probe-config.json
+ * filter.tvlMinUsd/tvlMaxUsd; floor lowered from $10K on 2026-08-15 after the
+ * mid band measured dead cross-DEX) — high-liquidity pools (WETH/USDC etc.)
+ * are arbed to zero by well-capitalized bots; the edge, if any, lives in pools
+ * below their radar. The filter is the user's explicit ask — the $1K floor
+ * admits thin pools where transient dislocations live, at the cost of
+ * scam/dust noise (trust gates + volume sampling are the counterweight).
  *
  * This tool NEVER broadcasts transactions and is INDEPENDENT of all live
  * services (no capital / execution-orchestrator / opportunity-service).
@@ -51,6 +59,9 @@ import {
   readPoolTvlV2, readPoolTvlV3, readPoolTvlAlgebra, readPoolTvlSlipstream, readPoolVolume24h,
   insertPool, insertLiquiditySnapshot, setTokenSymbol, getEligibleCrossDexPairs,
 } from './probe-discovery.mjs';
+import {
+  computeGasEth, median3, gasBpsUsd, computeNetPpBps, aggregateObservations,
+} from './probe-pp-core.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CONFIG_PATH = path.join(__dirname, 'probe-config.json');
@@ -80,6 +91,12 @@ for (const chain of Object.values(config.chains)) {
 const CHAIN_IDS = Object.keys(config.chains).map(Number);
 const FILTER = config.filter;
 const DISCOVERY = config.discovery;
+// PLAN14: grids are split — Phase 1 keeps the historical grid (dex-obs
+// comparability), Phase 2 moves to the operator-decided {50,100,1000}.
+const PHASE1_NOTIONALS = config.phase1?.notionalsUsd ?? config.notionalsUsd ?? [10, 100, 1000, 10000];
+const PHASE2_NOTIONALS = config.phase2?.notionalsUsd ?? config.notionalsUsd ?? [50, 100, 1000];
+const OPPORTUNITY_CFG = config.opportunity ?? { minNetPpbps: 0, windowMinutes: 30 };
+const BLOCK_TIME_SEC = { 42161: 0.25, 8453: 2, 10: 2 };
 
 // ============================================================================
 // Per-chain quoter / router addresses (config constants, not from discovery)
@@ -141,12 +158,13 @@ db.on('error', (e) => console.error(`[pg pool] ${e.message}`));
 // Rate limiter
 // ============================================================================
 const buckets = Object.fromEntries(CHAIN_IDS.map((id) => [id, { tokens: RATE_LIMIT_RPS, last: Date.now() }]));
+const rpcCalls = Object.fromEntries(CHAIN_IDS.map((id) => [id, 0]));
 function tryAcquire(chainId) {
   const b = buckets[chainId];
   const now = Date.now();
   b.tokens = Math.min(RATE_LIMIT_RPS, b.tokens + ((now - b.last) / 1000) * RATE_LIMIT_RPS);
   b.last = now;
-  if (b.tokens >= 1) { b.tokens -= 1; return true; }
+  if (b.tokens >= 1) { b.tokens -= 1; rpcCalls[chainId] += 1; return true; }
   return false;
 }
 async function acquire(chainId, maxWaitMs = 600) {
@@ -159,6 +177,83 @@ async function acquire(chainId, maxWaitMs = 600) {
 }
 const rateLimitFn = async (chainId) => { await acquire(chainId); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// ============================================================================
+// Gas sampling + run_stats telemetry (#52): 3 RPC per chain per cycle
+// (eth_blockNumber, eth_gasPrice, GasPriceOracle.getL1Fee on Base/OP).
+// The metric uses the median-3 smoothed sample — Arb gasPrice spikes
+// (0.02 → 0.5 gwei) must not falsely close windows; the instant sample
+// stays in dry_run_run_stats for diagnostics.
+// ============================================================================
+const GAS_PRICE_ORACLE = '0x420000000000000000000000000000000000000F';
+const GPO_ABI = ['function getL1Fee(bytes data) view returns (uint256)'];
+// ~260B canonical swap calldata (exactInputSingle) — encoding only, never sent
+const CANON_SWAP_IFACE = new ethers.Interface([
+  'function exactInputSingle((address tokenIn,address tokenOut,uint24 fee,address recipient,bool zeroForOne,int256 amountSpecified,uint160 sqrtPriceLimitX96,uint256 deadline)) payable returns (int256 amount0,int256 amount1)',
+]);
+const CANONICAL_SWAP_CALLDATA = CANON_SWAP_IFACE.encodeFunctionData('exactInputSingle', [{
+  tokenIn: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+  tokenOut: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
+  fee: 500, recipient: '0x0000000000000000000000000000000000000001', zeroForOne: true,
+  amountSpecified: 1000000n, sqrtPriceLimitX96: 0n, deadline: 9999999999n,
+}]);
+const chainGas = {}; // chainId → { blockNumber, gasPriceWei, l1FeeEth, gasEth, smoothed, history[] }
+
+async function sampleChainGas(chainId) {
+  if (!(await acquire(chainId))) return;
+  const blockNumber = await providers[chainId].getBlockNumber();
+  let gasPrice = null;
+  try { gasPrice = BigInt(await providers[chainId].send('eth_gasPrice')); } catch { return; }
+  let l1FeeEth = null;
+  if (chainId !== 42161) {
+    if (await acquire(chainId)) {
+      try {
+        const c = new ethers.Contract(GAS_PRICE_ORACLE, GPO_ABI, providers[chainId]);
+        l1FeeEth = Number(ethers.formatEther(await c.getL1Fee.staticCall(CANONICAL_SWAP_CALLDATA)));
+      } catch { /* L1 component optional */ }
+    }
+  }
+  const gasEth = computeGasEth({ gasPriceWei: gasPrice, l1FeeEth });
+  if (gasEth == null) return;
+  chainGas[chainId] ??= { history: [] };
+  chainGas[chainId].history.push(gasEth);
+  if (chainGas[chainId].history.length > 3) chainGas[chainId].history = chainGas[chainId].history.slice(-3);
+  Object.assign(chainGas[chainId], {
+    blockNumber, gasPriceWei: gasPrice, l1FeeEth, gasEth,
+    smoothed: median3(chainGas[chainId].history),
+  });
+}
+
+async function legGasBps(chainId, notionalUsd) {
+  const g = chainGas[chainId];
+  if (!g || g.smoothed == null) return null;
+  const weth = config.chains[chainId].seedTokens.WETH.addr;
+  const ethUsd = await getPriceUsd(chainId, weth);
+  if (ethUsd == null) return null;
+  return gasBpsUsd({ gasEth: g.smoothed, ethUsd, notionalUsd });
+}
+
+async function persistRunStats(runId, cycleMs) {
+  for (const chainId of CHAIN_IDS) {
+    const g = chainGas[chainId];
+    if (!g || g.smoothed == null) continue;
+    const weth = config.chains[chainId].seedTokens.WETH.addr;
+    const ethUsd = await getPriceUsd(chainId, weth).catch(() => null);
+    if (ethUsd == null) continue;
+    try {
+      await db.query(
+        `INSERT INTO dry_run_run_stats
+           (run_id, chain_id, block_number, gas_price_gwei, l1_fee_eth, gas_eth_smoothed,
+            eth_usd, rpc_calls, cycle_ms, source)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'cycle')
+         ON CONFLICT (run_id, chain_id) DO NOTHING`,
+        [runId, chainId, g.blockNumber,
+         Number(ethers.formatUnits(g.gasPriceWei, 'gwei')), g.l1FeeEth, g.smoothed,
+         ethUsd, rpcCalls[chainId], Math.round(cycleMs)],
+      );
+    } catch (e) { console.error(`[run_stats ${chainId}] ${e.message.slice(0, 80)}`); }
+  }
+}
 
 // ============================================================================
 // ABIs + ERC20 metadata cache (per chain: addr → { decimals, symbol })
@@ -444,7 +539,7 @@ async function runCycleDex(runId) {
       for (let i = 0; i < dexes.length; i++) {
         poolByDex[dexes[i]] = { addr: poolAddrs[i], fee: fees[i] };
       }
-      for (const usd of config.notionalsUsd) {
+      for (const usd of PHASE1_NOTIONALS) {
         const amountInA = ethers.parseUnits((usd / priceA).toFixed(Math.min(metaA.decimals, 8)), metaA.decimals);
         // Buy leg: tokenA → tokenB on each dex (in parallel)
         const fwd = {};
@@ -517,11 +612,13 @@ function buildCanonicalIndex() {
 
 async function runCycleCrossChain(runId) {
   let nObs = 0;
+  const sanityBreaches = [];
   const canonIndex = buildCanonicalIndex();
   // Universe: tokens in ANY pool position (token0 OR token1 — a token that is
   // always token1 was previously invisible) whose LATEST liquidity snapshot is
-  // eligible — the same live TVL band as Phase 1, instead of whatever the
-  // seeder happened to insert.
+  // eligible. Since #52 the query also carries per-token context recorded at
+  // insert time: max latest TVL among the token's eligible pools (v1 proxy for
+  // the quoting venue's depth) and the newest pool's created_at_block (age).
   const r = await db.query(
     `WITH latest_snap AS (
          SELECT DISTINCT ON (chain_id, pool_addr) chain_id, pool_addr, eligible
@@ -529,19 +626,22 @@ async function runCycleCrossChain(runId) {
           ORDER BY chain_id, pool_addr, observed_at DESC
        ),
        elig_pools AS (
-         SELECT p.chain_id, p.token0_addr, p.token0_symbol, p.token1_addr, p.token1_symbol
+         SELECT p.chain_id, p.token0_addr, p.token0_symbol, p.token1_addr, p.token1_symbol,
+                s.tvl_usd, p.created_at_block
            FROM dry_run_pool_registry p
            JOIN latest_snap s ON s.chain_id = p.chain_id AND s.pool_addr = p.pool_addr
           WHERE s.eligible = TRUE
        ),
        tokens AS (
-         SELECT chain_id, token0_addr AS addr, token0_symbol AS symbol
-           FROM elig_pools WHERE token0_symbol IS NOT NULL
-         UNION
-         SELECT chain_id, token1_addr AS addr, token1_symbol AS symbol
-           FROM elig_pools WHERE token1_symbol IS NOT NULL
+         SELECT chain_id, addr, symbol, MAX(tvl_usd) AS token_tvl, MAX(created_at_block) AS newest_block
+           FROM (
+             SELECT chain_id, token0_addr AS addr, token0_symbol AS symbol, tvl_usd, created_at_block FROM elig_pools WHERE token0_symbol IS NOT NULL
+             UNION ALL
+             SELECT chain_id, token1_addr AS addr, token1_symbol AS symbol, tvl_usd, created_at_block FROM elig_pools WHERE token1_symbol IS NOT NULL
+           ) t
+          GROUP BY chain_id, addr, symbol
        )
-       SELECT DISTINCT ON (chain_id, addr) chain_id, addr, symbol FROM tokens`,
+       SELECT DISTINCT ON (chain_id, addr) chain_id, addr, symbol, token_tvl, newest_block FROM tokens`,
   );
   // groupKey -> { canonical, collision, chains: { [chainId]: {addr, priceUsd, symbol} } }
   const groups = {};
@@ -563,7 +663,11 @@ async function runCycleCrossChain(runId) {
     if (g.chains[chainId] && g.chains[chainId].addr.toLowerCase() !== row.addr.toLowerCase()) {
       g.collision = true;
     }
-    g.chains[chainId] = { addr: row.addr, priceUsd: p, symbol: row.symbol };
+    g.chains[chainId] = {
+      addr: row.addr, priceUsd: p, symbol: row.symbol,
+      tokenTvl: row.token_tvl == null ? null : Number(row.token_tvl),
+      newestBlock: row.newest_block == null ? null : Number(row.newest_block),
+    };
   }
   for (const [gk, g] of Object.entries(groups)) {
     const onChains = Object.keys(g.chains).map(Number);
@@ -595,7 +699,7 @@ async function runCycleCrossChain(runId) {
             decimalsBuy: metaBuy.decimals, decimalsSell: metaSell.decimals,
           };
         }
-        for (const usd of config.notionalsUsd) {
+        for (const usd of PHASE2_NOTIONALS) {
           const amountInRaw = ethers.parseUnits((usd / buy.priceUsd).toFixed(Math.min(meta.decimals, 8)), meta.decimals);
           // Real bridge fee via the PUBLIC Across suggested-fees API (no key)
           const across = await acrossFeeCached(buyChain, sellChain, buy.addr, sell.addr, usd, amountInRaw);
@@ -630,6 +734,59 @@ async function runCycleCrossChain(runId) {
               }
             }
           }
+          // exec_pp (#52): pre-positioned dual-leg at the same notional, NO
+          // bridge — the metric of the operator's strategy. Legs quote through
+          // the first working venue (UniV3 500 → 3000 → algebra → slipstream
+          // ts=100 → solidly); first-success keeps the RPC budget bounded and
+          // is conservative (a deeper non-first venue could only improve the
+          // sell side). Venue recorded for the FilterLab venue_pair axis.
+          let netPpBps = null;
+          let execPp = null;
+          if (trust !== 'suspicious') {
+            const buyLeg = await quoteUsdToUnitsBest(buyChain, buy.addr, usd);
+            if (buyLeg) {
+              const sellLeg = await quoteUnitsToUsdBest(sellChain, sell.addr, buyLeg.amount);
+              if (sellLeg) {
+                const gasBpsBuy = await legGasBps(buyChain, usd);
+                const gasBpsSell = await legGasBps(sellChain, usd);
+                if (gasBpsBuy != null && gasBpsSell != null) {
+                  const pp = computeNetPpBps({ usdIn: usd, usdOut: sellLeg.usdOut, gasBpsBuy, gasBpsSell });
+                  netPpBps = pp.netPpBps;
+                  execPp = {
+                    usd_in: usd,
+                    units: buyLeg.amount.toString(),
+                    sell_usd_out: Number(sellLeg.usdOut.toFixed(6)),
+                    venue_buy: buyLeg.venue,
+                    venue_sell: sellLeg.venue,
+                    gas_bps_buy: Number(gasBpsBuy.toFixed(2)),
+                    gas_bps_sell: Number(gasBpsSell.toFixed(2)),
+                    ...(pp.clamped ? { net_pp_raw: pp.raw } : {}),
+                  };
+                  // Non-blocking sanity (operator decision №3): canonical
+                  // WETH/USDC at $50/$100 outside ±50 bps → alert line only.
+                  if (g.canonical && !g.collision && ['WETH', 'USDC'].includes(buy.symbol)
+                    && (usd === 50 || usd === 100) && Math.abs(netPpBps) > 50) {
+                    sanityBreaches.push(`${buy.symbol} ${buyChain}>${sellChain} $${usd}: ${netPpBps.toFixed(1)} bps`);
+                  }
+                }
+              }
+            }
+          }
+          // Context at insert (#52, 0 extra RPC): TVL proxy (max over the
+          // token's eligible pools — v1 proxy for quoting-venue depth), band,
+          // pool age from the newest pool's created_at_block, leg blocks.
+          const tvlBuy = buy.tokenTvl ?? null;
+          const tvlSell = sell.tokenTvl ?? null;
+          const tvlKnown = [tvlBuy, tvlSell].filter((x) => x != null);
+          const tvlMin = tvlKnown.length ? Math.min(...tvlKnown) : null;
+          const tvlBand = tvlMin == null ? null
+            : tvlMin < 1e3 ? '<1K' : tvlMin < 1e4 ? '1K-10K' : tvlMin < 1e5 ? '10K-100K'
+            : tvlMin < 1e6 ? '100K-1M' : tvlMin < 5e6 ? '1M-5M' : tvlMin < 2e7 ? '5M-20M' : '>20M';
+          const ageHoursOf = (chainId, newestBlock) => {
+            const gs = chainGas[chainId];
+            if (newestBlock == null || !gs?.blockNumber) return null;
+            return Number((Math.max(0, gs.blockNumber - newestBlock) * (BLOCK_TIME_SEC[chainId] ?? 2) / 3600).toFixed(1));
+          };
           try {
             await db.query(
               `INSERT INTO dry_run_cross_chain_observations
@@ -637,8 +794,8 @@ async function runCycleCrossChain(runId) {
                   buy_chain_id, sell_chain_id, notional_usd,
                   price_buy_usd, price_sell_usd, price_diff_bps,
                   bridge_protocol, bridge_fee_usd, bridge_fee_bps,
-                  bridge_finality_seconds, net_edge_bps, metadata)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+                  bridge_finality_seconds, net_edge_bps, metadata, net_pp_bps)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
               [
                 runId, buy.symbol, buy.addr, sell.addr, buyChain, sellChain, usd,
                 buy.priceUsd, sell.priceUsd, Number(priceDiffBps.toFixed(4)),
@@ -646,7 +803,27 @@ async function runCycleCrossChain(runId) {
                 bridgeFeeUsd != null ? Number(bridgeFeeUsd.toFixed(6)) : null,
                 bridgeFeeBps != null ? Number(bridgeFeeBps.toFixed(4)) : null,
                 finalitySeconds, Number(netEdgeBps.toFixed(4)),
-                JSON.stringify({ trust, ...trustMeta, exec, ...(bridgeMeta ?? { note: 'across fee unavailable' }) }),
+                JSON.stringify({
+                  trust, ...trustMeta, exec, exec_pp: execPp,
+                  ...(execPp ? {
+                    venue_buy: execPp.venue_buy,
+                    venue_sell: execPp.venue_sell,
+                    venue_pair: `${execPp.venue_buy}>${execPp.venue_sell}`,
+                    gas_bps_buy: execPp.gas_bps_buy,
+                    gas_bps_sell: execPp.gas_bps_sell,
+                    // approximate blocks (review №9): the cycle's sampled block
+                    // per chain — eth_call does not return the quote's block
+                    block_buy: chainGas[buyChain]?.blockNumber ?? null,
+                    block_sell: chainGas[sellChain]?.blockNumber ?? null,
+                  } : {}),
+                  token_tvl_buy_usd: tvlBuy,
+                  token_tvl_sell_usd: tvlSell,
+                  tvl_band: tvlBand,
+                  pool_age_hours_buy: ageHoursOf(buyChain, buy.newestBlock),
+                  pool_age_hours_sell: ageHoursOf(sellChain, sell.newestBlock),
+                  ...(bridgeMeta ?? { note: 'across fee unavailable' }),
+                }),
+                netPpBps,
               ],
             );
             nObs += 1;
@@ -657,7 +834,133 @@ async function runCycleCrossChain(runId) {
       }
     }
   }
+  for (const s of sanityBreaches) {
+    console.log(`[sanity] CANONICAL OFF-BAND (non-blocking, decision №3): ${s}`);
+  }
   return nObs;
+}
+
+// ============================================================================
+// Best-venue leg quotes for exec_pp (#52): first working venue on the ladder.
+// QuoterV2 is non-view → each hop is one rate-limited staticCall; the ladder
+// stops at the first success so a token living only on Aerodrome/Velodrome
+// costs ~4 calls per leg instead of the whole ladder.
+// ============================================================================
+async function quoteUsdToUnitsBest(chainId, tokenAddr, usd) {
+  const usdc = config.chains[chainId].seedTokens.USDC.addr;
+  const usdRaw = BigInt(Math.round(usd * 1e6));
+  const ladder = [
+    ['uniswap-v3:500', () => quoteV3(chainId, usdc, tokenAddr, usdRaw, 500)],
+    ['uniswap-v3:3000', () => quoteV3(chainId, usdc, tokenAddr, usdRaw, 3000)],
+    ['algebra', () => quoteAlgebra(chainId, usdc, tokenAddr, usdRaw)],
+    ['slipstream:100', () => quoteSlipstream(chainId, usdc, tokenAddr, usdRaw, 100)],
+    ['solidly', () => quoteSolidly(chainId, usdc, tokenAddr, usdRaw)],
+  ];
+  for (const [venue, fn] of ladder) {
+    const out = await fn().catch(() => null);
+    if (out && out > 0n) return { venue, amount: out };
+  }
+  return null;
+}
+
+async function quoteUnitsToUsdBest(chainId, tokenAddr, amountRaw) {
+  const usdc = config.chains[chainId].seedTokens.USDC.addr;
+  const ladder = [
+    ['uniswap-v3:500', () => quoteV3(chainId, tokenAddr, usdc, amountRaw, 500)],
+    ['uniswap-v3:3000', () => quoteV3(chainId, tokenAddr, usdc, amountRaw, 3000)],
+    ['algebra', () => quoteAlgebra(chainId, tokenAddr, usdc, amountRaw)],
+    ['slipstream:100', () => quoteSlipstream(chainId, tokenAddr, usdc, amountRaw, 100)],
+    ['solidly', () => quoteSolidly(chainId, tokenAddr, usdc, amountRaw)],
+  ];
+  for (const [venue, fn] of ladder) {
+    const out = await fn().catch(() => null);
+    if (out && out > 0n) return { venue, usdOut: Number(ethers.formatUnits(out, 6)) };
+  }
+  // WETH two-hop fallback for thin long-tail
+  const weth = config.chains[chainId].seedTokens.WETH.addr;
+  const w = await quoteV3(chainId, tokenAddr, weth, amountRaw, 500).catch(() => null);
+  if (w && w > 0n) {
+    const u = await quoteV3(chainId, weth, usdc, w, 500).catch(() => null);
+    if (u && u > 0n) return { venue: 'uniswap-v3:500>weth', usdOut: Number(ethers.formatUnits(u, 6)) };
+  }
+  return null;
+}
+
+// ============================================================================
+// Stage 3 (#53): opportunity windows — pure-SQL detection over the just-written
+// run_id (0 RPC), pre-aggregated per route (review №4) before the UPSERT.
+// ============================================================================
+async function runStage3Opportunities(runId) {
+  const minBps = Number(OPPORTUNITY_CFG.minNetPpbps ?? 0);
+  const windowMinutes = Number(OPPORTUNITY_CFG.windowMinutes ?? 30);
+  const r = await db.query(
+    `SELECT token, token_addr_buy_chain, token_addr_sell_chain, buy_chain_id, sell_chain_id,
+            notional_usd, net_pp_bps, bridge_fee_bps, observed_at, metadata
+       FROM dry_run_cross_chain_observations
+      WHERE run_id = $1 AND net_pp_bps > $2 AND notional_usd IN (50, 100, 1000)
+        AND COALESCE(metadata->>'trust', '') <> 'suspicious'`,
+    [runId, minBps],
+  );
+  const routes = aggregateObservations(r.rows);
+  let n = 0;
+  for (const rt of routes) {
+    if (!rt.opensWindow) {
+      // $1000-only positive (depth): never opens, never extends last_seen —
+      // only appends depth to an already-open window (decision №1 / review №3).
+      await db.query(
+        `UPDATE dry_run_arb_opportunities o
+            SET net_bps_at_1000 = $3,
+                max_notional_positive = GREATEST(o.max_notional_positive, 1000)
+          WHERE o.status = 'open'
+            AND o.token_addr_buy = $1 AND o.token_addr_sell = $2
+            AND o.buy_chain_id = $4 AND o.sell_chain_id = $5`,
+        [rt.tokenAddrBuy, rt.tokenAddrSell, rt.at[1000], rt.buyChainId, rt.sellChainId],
+      );
+      continue;
+    }
+    await db.query(
+      `INSERT INTO dry_run_arb_opportunities
+         (token, token_addr_buy, token_addr_sell, buy_chain_id, sell_chain_id, trust,
+          first_seen, last_seen, samples, run_ids, net_bps_at_50, net_bps_at_100, net_bps_at_1000,
+          gas_bps_last, best_net_bps, best_notional_usd, max_notional_positive, venue_pair,
+          bridge_fee_bps_last, tvl_buy_usd_last, tvl_sell_usd_last, status)
+       VALUES ($1,$2,$3,$4,$5,$6, now(), now(), $7, ARRAY[$8], $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, 'open')
+       ON CONFLICT (token_addr_buy, token_addr_sell, buy_chain_id, sell_chain_id) WHERE status = 'open'
+       DO UPDATE SET
+         last_seen = now(),
+         samples = dry_run_arb_opportunities.samples + EXCLUDED.samples,
+         run_ids = (SELECT COALESCE(array_agg(DISTINCT x), '{}') FROM unnest(dry_run_arb_opportunities.run_ids || EXCLUDED.run_ids) AS x),
+         net_bps_at_50 = COALESCE(EXCLUDED.net_bps_at_50, dry_run_arb_opportunities.net_bps_at_50),
+         net_bps_at_100 = COALESCE(EXCLUDED.net_bps_at_100, dry_run_arb_opportunities.net_bps_at_100),
+         net_bps_at_1000 = COALESCE(EXCLUDED.net_bps_at_1000, dry_run_arb_opportunities.net_bps_at_1000),
+         gas_bps_last = EXCLUDED.gas_bps_last,
+         best_net_bps = GREATEST(dry_run_arb_opportunities.best_net_bps, EXCLUDED.best_net_bps),
+         best_notional_usd = CASE WHEN EXCLUDED.best_net_bps >= dry_run_arb_opportunities.best_net_bps
+                             THEN EXCLUDED.best_notional_usd ELSE dry_run_arb_opportunities.best_notional_usd END,
+         max_notional_positive = GREATEST(dry_run_arb_opportunities.max_notional_positive, EXCLUDED.max_notional_positive),
+         venue_pair = EXCLUDED.venue_pair,
+         bridge_fee_bps_last = EXCLUDED.bridge_fee_bps_last,
+         tvl_buy_usd_last = EXCLUDED.tvl_buy_usd_last,
+         tvl_sell_usd_last = EXCLUDED.tvl_sell_usd_last`,
+      [rt.token, rt.tokenAddrBuy, rt.tokenAddrSell, rt.buyChainId, rt.sellChainId, rt.trust,
+       rt.samples, runId, rt.at[50] ?? null, rt.at[100] ?? null, rt.at[1000] ?? null,
+       rt.gasBpsLast, rt.bestNetBps, rt.bestNotionalUsd,
+       rt.maxNotionalPositive ?? rt.bestNotionalUsd,
+       rt.venuePair, rt.bridgeFeeBpsLast, rt.tvlBuyUsdLast, rt.tvlSellUsdLast],
+    );
+    n += 1;
+  }
+  // Expire: open windows not re-seen within the gap (calibrated on OVER bursts).
+  const exp = await db.query(
+    `UPDATE dry_run_arb_opportunities SET status = 'expired', expired_at = now()
+      WHERE status = 'open' AND last_seen < now() - make_interval(mins => $1)
+      RETURNING id`,
+    [windowMinutes],
+  );
+  if (n > 0 || exp.rowCount > 0) {
+    console.log(`[stage3] upserted=${n} expired=${exp.rowCount}`);
+  }
+  return n;
 }
 
 async function fetchAcrossFee(buyChainId, sellChainId, tokenAddrBuy, tokenAddrSell, amountInRaw) {
@@ -742,7 +1045,12 @@ async function runOnce() {
   const runId = randomUUID();
   const t0 = Date.now();
   cycleCounter += 1;
+  for (const id of CHAIN_IDS) rpcCalls[id] = 0;
   console.log(`[${new Date().toISOString()}] run ${runId} starting (cycle ${cycleCounter})`);
+  // Gas sample first (#52): exec_pp legs need gas + cycle block before quoting.
+  for (const chainId of CHAIN_IDS) {
+    try { await sampleChainGas(chainId); } catch (e) { console.error(`[gas ${chainId}] ${e.message}`); }
+  }
   // Stage 0: discovery refresh every Nth cycle (or always on cycle 1)
   if (cycleCounter === 1 || cycleCounter % DISCOVERY.refreshIntervalCycles === 0) {
     try { await refreshDiscoveryAndLiquidity(runId); } catch (e) { console.error(`[stage0] ${e.message}`); }
@@ -753,8 +1061,13 @@ async function runOnce() {
   // Stage 2: cross-chain
   let ccN = 0;
   try { ccN = await runCycleCrossChain(runId); } catch (e) { console.error(`[cc cycle] ${e.message}`); }
+  // Stage 3 (#53): opportunity windows over the just-written run
+  let oppN = 0;
+  try { oppN = await runStage3Opportunities(runId); } catch (e) { console.error(`[stage3] ${e.message}`); }
+  // run_stats telemetry (#52)
+  try { await persistRunStats(runId, Date.now() - t0); } catch { /* logged inside */ }
   const dur = ((Date.now() - t0) / 1000).toFixed(1);
-  console.log(`[${new Date().toISOString()}] run ${runId} done — dex=${dexN} cross-chain=${ccN} in ${dur}s`);
+  console.log(`[${new Date().toISOString()}] run ${runId} done — dex=${dexN} cross-chain=${ccN} opp-upserted=${oppN} in ${dur}s`);
 }
 
 async function bootstrap() {
@@ -775,6 +1088,8 @@ async function main() {
   console.log(`# Discovery-driven dry-run probe`);
   console.log(`# Chains: ${CHAIN_IDS.map((id) => `${config.chains[id].name}(${id})`).join(', ')}`);
   console.log(`# Filter: $${FILTER.tvlMinUsd}-$${FILTER.tvlMaxUsd} TVL, $${FILTER.volume24hMinUsd} 24h vol min`);
+  console.log(`# Notionals: phase1=${JSON.stringify(PHASE1_NOTIONALS)} phase2=${JSON.stringify(PHASE2_NOTIONALS)}`);
+  console.log(`# Opportunity (#53): net_pp_bps > ${OPPORTUNITY_CFG.minNetPpbps ?? 0} on $50/$100, window ${OPPORTUNITY_CFG.windowMinutes ?? 30} min`);
   console.log(`# Period: ${PERIOD_SEC}s  Rate limit: ${RATE_LIMIT_RPS} rps/chain`);
   console.log(`# Backfill blocks: ${DISCOVERY.backfillBlocks}  Refresh every: ${DISCOVERY.refreshIntervalCycles} cycles`);
   console.log(`# Across API: public (no key)  Mode: ${CONTINUOUS ? 'continuous' : 'single cycle'}`);

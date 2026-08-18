@@ -47,7 +47,12 @@
     "algebraProbingEnabled": true
   },
 
-  "notionalsUsd": [10, 100, 1000, 10000],
+  "_notionals_comment": "PLAN14 (решение оператора 2026-08-18): сетки разведены — phase1 сохраняет историческую {10,100,1000,10000} (сравнимость dex-obs), phase2 = {50,100,1000} (50/100 открывают окна детектора, 1000 — информационная глубина). Старый ключ notionalsUsd удалён; код имеет fallback на него.",
+  "phase1": { "notionalsUsd": [10, 100, 1000, 10000] },
+  "phase2": { "notionalsUsd": [50, 100, 1000] },
+
+  "_opportunity_comment": "PLAN14 #53: детектор окон. Порог net_pp_bps > 0 после газа (решение оператора №2 — итерация 1 не теряет окон); окно закрывается, если маршрут не виделся windowMinutes (калибровано по OVER-очередям, перекалибровать через неделю).",
+  "opportunity": { "minNetPpbps": 0, "windowMinutes": 30 },
 
   "_canonical_comment": "Канонические адреса проверенных активов по сетям (источник: seedTokens выше + on-chain symbol()/decimals() верификация 2026-08-15). Phase 2 группирует токены по ключу актива из этой карты (metadata.trust='canonical'); токены вне карты матчятся по symbol с эвристическими гейтами (metadata.trust='heuristic' | 'suspicious').",
   "canonicalTokens": {
