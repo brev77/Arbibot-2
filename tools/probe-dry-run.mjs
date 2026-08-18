@@ -159,6 +159,11 @@ db.on('error', (e) => console.error(`[pg pool] ${e.message}`));
 // ============================================================================
 const buckets = Object.fromEntries(CHAIN_IDS.map((id) => [id, { tokens: RATE_LIMIT_RPS, last: Date.now() }]));
 const rpcCalls = Object.fromEntries(CHAIN_IDS.map((id) => [id, 0]));
+// Silent-catch discipline (Hermes review 2026-08-18: three of the day's bugs
+// hid in empty catch blocks). Every swallowed error bumps a counter that is
+// printed at cycle end — a TypeError can no longer die invisibly.
+const swallowed = {};
+const swallow = (label) => { swallowed[label] = (swallowed[label] ?? 0) + 1; };
 function tryAcquire(chainId) {
   const b = buckets[chainId];
   const now = Date.now();
@@ -284,6 +289,7 @@ async function getErc20Meta(chainId, addr) {
     // Persist symbol into registry if known
     if (symbol) await setTokenSymbol(db, chainId, addr, symbol).catch(() => {});
   } catch {
+    swallow('erc20-meta'); // sensible default applied — but the failure is visible now
     erc20Cache[chainId][lower] = { decimals: 18, symbol: null }; // sensible default
   }
   return erc20Cache[chainId][lower];
@@ -475,7 +481,8 @@ async function mc3Aggregate(chainId, calls) {
     const res = await mc3.aggregate.staticCall(calls);
     return res.returnData;
   } catch {
-    return null; // whole-batch revert → caller falls back to serial reads
+    swallow('mc3-batch'); // whole-batch revert → serial fallback for this batch
+    return null;
   }
 }
 
@@ -625,7 +632,7 @@ async function refreshLiquidityForChain(chainId, runId) {
           lastSwapAt, eligible,
         });
       } catch (e) {
-        // skip individual pool failure
+        swallow('liquidity-pool'); // individual pool failure — counted, not invisible
       }
     }
   }
@@ -961,6 +968,7 @@ async function runCycleCrossChain(runId) {
             );
             nObs += 1;
           } catch (e) {
+            swallow('cc-insert');
             console.error(`[cc insert] ${e.message.slice(0, 100)}`);
           }
         }
@@ -1187,6 +1195,7 @@ async function runOnce() {
   const t0 = Date.now();
   cycleCounter += 1;
   for (const id of CHAIN_IDS) { rpcCalls[id] = 0; delete coldTierSkipped[id]; }
+  for (const k of Object.keys(swallowed)) delete swallowed[k];
   console.log(`[${new Date().toISOString()}] run ${runId} starting (cycle ${cycleCounter})`);
   // Gas sample first (#52): exec_pp legs need gas + cycle block before quoting.
   for (const chainId of CHAIN_IDS) {
@@ -1208,7 +1217,8 @@ async function runOnce() {
   // run_stats telemetry (#52)
   try { await persistRunStats(runId, Date.now() - t0); } catch { /* logged inside */ }
   const dur = ((Date.now() - t0) / 1000).toFixed(1);
-  console.log(`[${new Date().toISOString()}] run ${runId} done — dex=${dexN} cross-chain=${ccN} opp-upserted=${oppN} in ${dur}s`);
+  const sw = Object.keys(swallowed).length ? ` swallowed=${JSON.stringify(swallowed)}` : '';
+  console.log(`[${new Date().toISOString()}] run ${runId} done — dex=${dexN} cross-chain=${ccN} opp-upserted=${oppN} in ${dur}s${sw}`);
 }
 
 async function bootstrap() {
