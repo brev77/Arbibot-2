@@ -480,7 +480,7 @@ C1/H2/M6 и т.д. ссылочны через `tracker_ref`, операцион
 | 54 | `FUNC-PROBE-FILTER-LAB` | FUNC | paper-check | new | 5 | 2 | 20 | accepted | PLAN14 — офлайн grid-search фильтров (автопоиск по директиве оператора) |
 | 55 | `FUNC-PROBE-SWEEP` | FUNC | paper-check | new | 3 | 1 | 15 | accepted | PLAN14 — query-time sweep вариантов полосы |
 | 56 | `REL-PROBE-RPC-EFFICIENCY` | REL (PERF) | paper-check | new | 4 | 2 | 16 | review | PLAN14 — MC3+полный registry+guard live (OP 64c/Arb 53c/Base 1115 пулов); хвост: прайс-лукапы Base → #57 |
-| 57 | `FUNC-PROBE-COVERAGE` | FUNC (REL) | paper-check | new | 5 | 3 | 15 | accepted | PLAN14 — полная вселенная без полосы + сырьевой тир raw→триггер→exec + Sushi-фикс + coverage-аудит (решение оператора «полная вселенная») |
+| 57 | `FUNC-PROBE-COVERAGE` | FUNC (REL) | paper-check | new | 5 | 3 | 15 | review | PLAN14 — live 2026-08-18: raw-тир (53 токена/проход, 335 групп, fee-adjusted триггер), Phase 2 trigger-driven (12–14/343), Sushi 55 пулов, ре-сит без пола; хвосты: калибровка 48ч, retention-проверка, slipstream-покрытие 38–66% |
 | 58 | `FUNC-PROBE-EVENT-TRIGGERS` | FUNC (PERF) | paper-check | new | 4 | 2 | 16 | accepted | PLAN14 — событийные триггеры Swap→немедленная квота (снятие 5.5-мин алиасинга) |
 
 ### Легенда
@@ -508,7 +508,7 @@ C1/H2/M6 и т.д. ссылочны через `tracker_ref`, операцион
 
 ---
 
-*Актуализировано: 2026-08-18 (PLAN14: #52/#53 done, #56 review — live на Aéza; инициативы #52–#58: probe workstream —
+*Актуализировано: 2026-08-18 (PLAN14: #52/#53 done, #56/#57 review — live на Aéza; инициативы #52–#58: probe workstream —
 pre-positioned метрика exec_pp, окна возможностей, FilterLab автопоиск фильтров, sweep,
 RPC-эффективность; расширение «полная вселенная» оператором: #57 сырьевой тир без полосы
 ликвидности + #58 событийные триггеры; мерж ТЗ Hermes v3/v4 + ревью ZCode, факты
