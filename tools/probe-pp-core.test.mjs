@@ -92,3 +92,20 @@ test('aggregateObservations: $1000-only positive never opens a window', () => {
   assert.equal(routes[0].opensWindow, false);     // depth-only route: recorded, no window
   assert.equal(routes[0].at[1000], 15);
 });
+
+test('aggregateObservations: negative threshold from config is honoured (−1000 smoke bug)', () => {
+  const mk = (notional, net) => ({
+    token: 'DUST', token_addr_buy_chain: '0xa', token_addr_sell_chain: '0xb',
+    buy_chain_id: 10, sell_chain_id: 8453, notional_usd: notional, net_pp_bps: net,
+    bridge_fee_bps: null, metadata: { trust: 'heuristic', venue_pair: 'x>y', gas_bps_buy: 1, gas_bps_sell: 1 }, observed_at: '2026-08-18T10:00:00Z',
+  });
+  // default threshold 0: negative rows are dropped → no window
+  assert.equal(aggregateObservations([mk(50, -5), mk(100, -8)]).length, 0);
+  // minNetBps = -1000 (smoke config): the same rows open a window
+  const routes = aggregateObservations([mk(50, -5), mk(100, -8), mk(1000, -3)], { minNetBps: -1000 });
+  assert.equal(routes.length, 1);
+  assert.equal(routes[0].opensWindow, true);
+  assert.equal(routes[0].samples, 2);
+  assert.equal(routes[0].bestNetBps, -5); // least-negative is best
+  assert.equal(routes[0].at[1000], -3);
+});

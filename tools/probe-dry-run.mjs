@@ -910,7 +910,7 @@ async function runStage3Opportunities(runId) {
         AND COALESCE(metadata->>'trust', '') <> 'suspicious'`,
     [runId, minBps],
   );
-  const routes = aggregateObservations(r.rows);
+  const routes = aggregateObservations(r.rows, { minNetBps });
   let n = 0;
   for (const rt of routes) {
     if (!rt.opensWindow) {

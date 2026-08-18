@@ -62,8 +62,11 @@ export function matchOpportunity(existing, obs, windowMs) {
  * token, token_addr_buy_chain, token_addr_sell_chain, buy_chain_id, sell_chain_id,
  * notional_usd, net_pp_bps, bridge_fee_bps, metadata (object or JSON string).
  * Only notional 50/100 rows may open/extend windows; 1000 is depth-only.
+ * `minNetBps` mirrors opportunity.minNetPpbps — the SQL SELECT and this
+ * aggregation MUST share the threshold (the −1000 smoke caught them diverging:
+ * SELECT passed negative rows, the hardcoded `net > 0` here dropped them).
  */
-export function aggregateObservations(rows, { openNotionals = [50, 100] } = {}) {
+export function aggregateObservations(rows, { openNotionals = [50, 100], minNetBps = 0 } = {}) {
   const routes = new Map();
   for (const row of rows) {
     const meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : (row.metadata ?? {});
@@ -92,7 +95,7 @@ export function aggregateObservations(rows, { openNotionals = [50, 100] } = {}) 
     }
     const rt = routes.get(key);
     const net = Number(row.net_pp_bps);
-    if (net > 0 && openNotionals.includes(Number(row.notional_usd))) {
+    if (net > minNetBps && openNotionals.includes(Number(row.notional_usd))) {
       rt.samples += 1;
       rt.opensWindow = true;
       rt.at[Number(row.notional_usd)] = net;
@@ -102,7 +105,7 @@ export function aggregateObservations(rows, { openNotionals = [50, 100] } = {}) 
       }
       rt.maxNotionalPositive = Math.max(rt.maxNotionalPositive ?? 0, Number(row.notional_usd));
       rt.gasBpsLast = Number(((meta.gas_bps_buy ?? 0) + (meta.gas_bps_sell ?? 0)).toFixed(2));
-    } else if (Number(row.notional_usd) === 1000 && net > 0) {
+    } else if (Number(row.notional_usd) === 1000 && net > minNetBps) {
       rt.at[1000] = net; // depth-only: recorded, never opens/extends
     }
   }
