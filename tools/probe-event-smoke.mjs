@@ -33,7 +33,13 @@ import { SWAP_V3_TOPIC, SWAP_V2_TOPIC } from './probe-discovery.mjs';
 const args = process.argv.slice(2);
 const WITH_FIXTURE = args.includes('--fixture');
 const VERBOSE = args.includes('--verbose');
-const windowMin = Number(args[args.indexOf('--window-min') + 1] ?? 5);
+const flagArg = (name, dflt) => {
+  const i = args.indexOf(`--${name}`);
+  const v = i >= 0 ? args[i + 1] : undefined;
+  const n = Number(v);
+  return v != null && Number.isFinite(n) ? n : dflt;
+};
+const windowMin = flagArg('window-min', 5);
 const BLOCK_TIME_SEC = { 42161: 0.25, 8453: 2, 10: 2 };
 const CHUNK_LIMIT_MS = 5000; // DoD-1: each chunk ≤ 5s
 
@@ -57,14 +63,16 @@ async function aliveSmoke() {
       const chunk = addrs.slice(b, b + chunkSize);
       const t0 = Date.now();
       let batch = null;
+      let failWhy = '';
       try {
         batch = await providers[chainId].getLogs({
           address: chunk,
           topics: [[SWAP_V3_TOPIC, SWAP_V2_TOPIC]],
           fromBlock, toBlock: latest,
         });
-      } catch {
+      } catch (e) {
         chunkFails += 1;
+        failWhy = e.message.slice(0, 120); // a swallowed reason is a hidden bug — print it
       }
       const ms = Date.now() - t0;
       chunkNo += 1;
@@ -77,7 +85,7 @@ async function aliveSmoke() {
           else if (l.topics[0] === SWAP_V2_TOPIC) v2 += 1;
         }
       }
-      if (VERBOSE) console.log(`  [chain ${chainId}] chunk ${chunkNo} (${chunk.length} addrs): ${batch ? batch.length : 'FAIL'} logs in ${ms}ms`);
+      if (VERBOSE || failWhy) console.log(`  [chain ${chainId}] chunk ${chunkNo} (${chunk.length} addrs): ${batch ? batch.length : `FAIL ${failWhy}`} in ${ms}ms`);
     }
     totalV2 += v2;
     const chunkOk = maxChunkMs <= CHUNK_LIMIT_MS && chunkFails === 0;
