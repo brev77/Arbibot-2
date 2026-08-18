@@ -93,11 +93,18 @@ async function aliveSmoke() {
     }
     totalV2 += v2;
     const chunkOk = maxChunkMs <= CHUNK_LIMIT_MS && chunkFails === 0;
-    const budgetOk = totalMs <= Number(EVENT_CFG.pollSeconds ?? 30) * 1000;
+    // Budget check normalized to ONE poll interval: the window scanned here may
+    // be hours, but a real poll only covers pollSeconds worth of blocks —
+    // chunks-per-poll × worst chunk must fit back into the poll window.
+    const windowSec = windowMin * 60;
+    const polls = Math.max(1, windowSec / Math.max(1, Number(EVENT_CFG.pollSeconds ?? 30)));
+    const estPollMs = Math.ceil(chunkNo / polls) * maxChunkMs;
+    const budgetOk = estPollMs <= Number(EVENT_CFG.pollSeconds ?? 30) * 1000;
     if (!chunkOk || !budgetOk) ok = false;
     console.log(
       `chain ${chainId} (${config.chains[chainId].name}): pools=${addrs.length} chunks=${chunkNo} `
       + `logs=${logs} (v3=${v3} v2=${v2}) maxChunk=${maxChunkMs}ms total=${totalMs}ms `
+      + `estPoll=${estPollMs}ms/${EVENT_CFG.pollSeconds}s `
       + `${chunkFails ? `FAILED_CHUNKS=${chunkFails} ` : ''}${chunkOk && budgetOk ? 'OK' : 'FAIL'}`,
     );
   }
