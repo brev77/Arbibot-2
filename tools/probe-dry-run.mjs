@@ -621,7 +621,7 @@ async function runCycleCrossChain(runId) {
   // the quoting venue's depth) and the newest pool's created_at_block (age).
   const r = await db.query(
     `WITH latest_snap AS (
-         SELECT DISTINCT ON (chain_id, pool_addr) chain_id, pool_addr, eligible
+         SELECT DISTINCT ON (chain_id, pool_addr) chain_id, pool_addr, eligible, tvl_usd
            FROM dry_run_liquidity_snapshots
           ORDER BY chain_id, pool_addr, observed_at DESC
        ),
@@ -680,9 +680,10 @@ async function runCycleCrossChain(runId) {
         const buy = g.chains[buyChain];
         const sell = g.chains[sellChain];
         const priceDiffBps = ((sell.priceUsd - buy.priceUsd) / buy.priceUsd) * 10000;
-        // price_diff_bps / net_edge_bps are NUMERIC(10,4) — gaps ≥ 999999 bps
-        // (9999%) mean one of the two quotes is broken; skip the pair.
-        if (!Number.isFinite(priceDiffBps) || Math.abs(priceDiffBps) >= 999999) continue;
+        // NUMERIC(10,4) tops at 99999.9999 — the historical guard (≥999999) let
+        // 100K–1M bps scam gaps through and every such INSERT died with
+        // "numeric field overflow". Guard against the column limit, not 10× it.
+        if (!Number.isFinite(priceDiffBps) || Math.abs(priceDiffBps) >= 99999) continue;
         const meta = await getErc20Meta(buyChain, buy.addr);
         // Trust level for this group's observations
         let trust = g.canonical && !g.collision ? 'canonical' : 'heuristic';
