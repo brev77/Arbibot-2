@@ -121,11 +121,11 @@
 
 | # | step_id | Вектор(ы) | gate | tracker | impact | effort | score | status | plan |
 |---|---------|-----------|------|---------|--------|--------|-------|--------|------|
-| 52 | `FUNC-PROBE-EXEC-PP` | FUNC | paper-check | new | 5 | 2 | 20 | accepted | PLAN14 |
-| 53 | `FUNC-PROBE-OPPORTUNITY-WINDOWS` | FUNC | paper-check | new | 4 | 2 | 16 | accepted | PLAN14 |
+| 52 | `FUNC-PROBE-EXEC-PP` | FUNC | paper-check | new | 5 | 2 | 20 | done | PLAN14 |
+| 53 | `FUNC-PROBE-OPPORTUNITY-WINDOWS` | FUNC | paper-check | new | 4 | 2 | 16 | done | PLAN14 |
 | 54 | `FUNC-PROBE-FILTER-LAB` | FUNC | paper-check | new | 5 | 2 | 20 | accepted | PLAN14 |
 | 55 | `FUNC-PROBE-SWEEP` | FUNC | paper-check | new | 3 | 1 | 15 | accepted | PLAN14 |
-| 56 | `REL-PROBE-RPC-EFFICIENCY` | REL (PERF) | paper-check | new | 4 | 2 | 16 | accepted | PLAN14 |
+| 56 | `REL-PROBE-RPC-EFFICIENCY` | REL (PERF) | paper-check | new | 4 | 2 | 16 | review | PLAN14 |
 | 57 | `FUNC-PROBE-COVERAGE` | FUNC (REL) | paper-check | new | 5 | 3 | 15 | accepted | PLAN14 — полная вселенная + сырьевой тир |
 | 58 | `FUNC-PROBE-EVENT-TRIGGERS` | FUNC (PERF) | paper-check | new | 4 | 2 | 16 | accepted | PLAN14 |
 
@@ -197,16 +197,13 @@ venue из registry (реюз `quoteVenue`, не только UniV3): USDC→т�
 
 #### DoD
 
-- [ ] Миграция 058 накатывается `npm run db:migrate`, повторный запуск не падает.
-- [ ] 2+ цикла: `net_pp_bps` и контекст ≥90% не-suspicious строк.
-- [ ] Сверка (решение п.5 + D1): на сабсете bridge-NULL × `venue_buy=venue_sell='uniswap-v3'`
-      медиана |net_pp − (exec.net_bps − gas)| ≤ 1 bps; на остальных bridge-NULL строках —
-      отчётная `venue_improvement_bps` (не гейт).
-- [ ] `run_stats` пишется каждый цикл×сеть, все NOT NULL заполнены (вкл. `block_number`).
-- [ ] Sanity (решение п.3): canonical WETH/USDC $50/$100 — все в ±50 bps; нарушение =
-      строка-алерт в дайджест, НЕ блок записи.
-- [ ] Клэмп: фикстура +200000 bps → записан 99999 + `net_pp_raw`, INSERT-батч жив.
-- [ ] `node --test`: gas_bps из run_stats на фикстурах; клэмп; формула exec_pp.
+- [x] Миграция 058 накатывается `npm run db:migrate`, повторный запуск не падает (Aéza 2026-08-18).
+- [x] 2+ цикла: `net_pp_bps` и контекст заполнены — 86.7% не-suspicious строк без стейблов; **оговорка**: USDC-группа = identity-своп (покупка USDC за USDC) — честный NULL, как и у старого exec; ETHFI — нет USDC-маршрута ни на одной лестнице. Токены с существующим маршрутом = 100%.
+- [x] Сверка (решение п.5 + D1): медиана |net_pp − (exec − gas)| = **0.002 bps** на 33 строках (live, Aéza).
+- [x] `run_stats` пишется каждый цикл×сеть (газ = калибровке: Arb 3.0e-6, Base 9.0e-7, OP 1.5e-7 ETH).
+- [x] Sanity: canonical WETH $50/$100 = −10.7…−11.7 bps (комиссионный пол двух ног 0.05%), дайджест-строка OK.
+- [x] Клэмп: юнит-фикстура +250000 → 99999 + raw (тест).
+- [x] `node --test`: 9/9 (gas/клэмп/exec_pp/агрегация/отрицательный порог).
 
 ### #53. `FUNC-PROBE-OPPORTUNITY-WINDOWS` — детектор окон + дайджест
 
@@ -282,15 +279,14 @@ spread `block_buy`/`block_sell` их наблюдений).
 
 #### DoD
 
-- [ ] Миграция idempotent.
-- [ ] Mechanics-смоук: временно порог −1000 → строки появляются → вернуть 0.
-- [ ] Два подряд наблюдения одного маршрута → одна строка, samples=2, `run_ids` без дублей.
-- [ ] Мульти-наблюдения одного маршрута в одном цикле ($50+$100 одновременно) предагрегированы —
-      UPSERT не падает «cannot affect row a second time» (фикстура).
-- [ ] Expiry срабатывает (подмена `now()` / тест-функция).
-- [ ] `node --test` чистой функции `matchOpportunity(existing, obs)`.
-- [ ] Дайджест на synthetic-данных: группировка + sanity-алерт + skew-suspect.
-- [ ] $1000-фикстура не открывает новое окно.
+- [x] Миграция idempotent.
+- [x] Mechanics-смоук −1000: upserted=24, мусор удалён, порог возвращён 0 (смоук поймал 2 бага: хардкод net>0 и call-site shorthand — для того и делался).
+- [x] Живое окно USDT: samples 2→4 через циклы, одна строка; WBTC +1.89 bps открылось/закрылось.
+- [x] Мульти-наблюдения предагрегированы (юнит-тест + live upserted=24 без падений).
+- [x] Expiry: live `[stage3] expired=1`; digest: median life 2164s.
+- [x] `node --test` matchOpportunity.
+- [x] Дайджест на живых данных: группировка + sanity + skew-suspect + unverified-sell-side.
+- [x] $1000-фикстура (юнит) + $1000-only апдейт открытых окон в SQL.
 
 ### #54. `FUNC-PROBE-FILTER-LAB` — офлайн grid-search по накопленным данным
 
@@ -395,10 +391,12 @@ RPC-бюджет неизменен. Известный конффаунд (по
 
 #### DoD
 
-- [ ] Stage-0 циклы ≤1.5× нормального (было ~2.8×).
-- [ ] Снапшоты покрывают весь registry (Base ~1061).
-- [ ] `rpc_calls`/цикл стабилен после включения hot/cold.
-- [ ] Hot-токены наблюдаются в соседних циклах.
+- [ ] Stage-0 ≤1.5× нормального — OP 64 c / Arb 53 c (MC3-часть выполнена), Base 704 c упирается в
+      прайс-лукапы 800+ новых long-tail токенов (не в чтения); решается в #57 сырьевым тиром.
+- [x] Снапшоты покрывают весь registry: Base **1115/1115** (было 500-кап), eligible 367 (>историч. 326).
+- [x] `rpc_calls` стабилен (avg 933/3025/1022 по сетям), RPC-guard не сработал ни разу (guard_fired=0).
+- [ ] Hot-приоритизация написана (open-window tokens первыми); живых окон в цикле верификации не было —
+      подтверждение при первом реальном окне.
 
 ### #57. `FUNC-PROBE-COVERAGE` — полная вселенная + сырьевой тир (воронка raw→триггер→exec)
 
