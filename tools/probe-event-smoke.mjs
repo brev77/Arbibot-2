@@ -85,7 +85,7 @@ async function aliveSmoke() {
     const fromBlock = Math.max(0, latest - blocks);
     const chunkSize = Math.min(500, Math.max(50, Number(EVENT_CFG.chunkAddrs ?? 150)));
     const PAGE_BLOCKS = 5000; // BlockPi hard limit per getLogs (Arb 0.25s/block: 120min = 28.8K blocks)
-    let logs = 0, v3 = 0, v2 = 0, maxChunkMs = 0, totalMs = 0, chunkNo = 0, chunkFails = 0;
+    let logs = 0, v3 = 0, v2 = 0, maxCallMs = 0, maxChunkMs = 0, totalMs = 0, chunkNo = 0, chunkFails = 0;
     for (let pageFrom = fromBlock; pageFrom <= latest; pageFrom += PAGE_BLOCKS) {
       const pageTo = Math.min(pageFrom + PAGE_BLOCKS - 1, latest);
       for (let b = 0; b < addrs.length; b += chunkSize) {
@@ -97,30 +97,31 @@ async function aliveSmoke() {
         const ms = Date.now() - t0;
         chunkNo += 1;
         totalMs += ms;
-        maxChunkMs = Math.max(maxChunkMs, ...stats.chunkMs, ms);
+        maxChunkMs = Math.max(maxChunkMs, ms);
+        if (stats.chunkMs.length) maxCallMs = Math.max(maxCallMs, ...stats.chunkMs);
         chunkFails += stats.fails;
         logs += batch.length;
         for (const l of batch) {
           if (l.topics[0] === SWAP_V3_TOPIC) v3 += 1;
           else if (l.topics[0] === SWAP_V2_TOPIC) v2 += 1;
         }
-        if (VERBOSE || stats.fails) console.log(`  [chain ${chainId}] chunk ${chunkNo} (${chunk.length} addrs, blocks ${pageFrom}-${pageTo}): ${stats.fails ? `FAIL ${stats.failWhy}` : `${batch.length} in ${ms}ms`}`);
+        if (VERBOSE || stats.fails) console.log(`  [chain ${chainId}] chunk ${chunkNo} (${chunk.length} addrs, blocks ${pageFrom}-${pageTo}): ${stats.fails ? `FAIL ${stats.failWhy}` : `${batch.length} in ${ms}ms (max call ${Math.max(0, ...stats.chunkMs)}ms)`}`);
       }
     }
     totalV2 += v2;
-    const chunkOk = maxChunkMs <= CHUNK_LIMIT_MS && chunkFails === 0;
-    // Budget check normalized to ONE poll interval: the window scanned here may
-    // be hours, but a real poll only covers pollSeconds worth of blocks —
-    // chunks-per-poll × worst chunk must fit back into the poll window.
-    const windowSec = windowMin * 60;
-    const polls = Math.max(1, windowSec / Math.max(1, Number(EVENT_CFG.pollSeconds ?? 30)));
-    const estPollMs = Math.ceil(chunkNo / polls) * maxChunkMs;
+    // BlockPi's ≤5s/20K caps are PER RESPONSE — chunkOk judges individual
+    // calls (a bisected chunk legitimately sums longer in wall-clock).
+    const chunkOk = maxCallMs <= CHUNK_LIMIT_MS && chunkFails === 0;
+    // Poll-budget estimate: a real poll covers ONE pollSeconds window of blocks
+    // = ceil(addrs/chunkSize) sequential chunks; worst call time bounds each.
+    const chunksPerPoll = Math.ceil(addrs.length / chunkSize);
+    const estPollMs = chunksPerPoll * Math.max(maxCallMs, 1);
     const budgetOk = estPollMs <= Number(EVENT_CFG.pollSeconds ?? 30) * 1000;
     if (!chunkOk || !budgetOk) ok = false;
     console.log(
       `chain ${chainId} (${config.chains[chainId].name}): pools=${addrs.length} chunks=${chunkNo} `
-      + `logs=${logs} (v3=${v3} v2=${v2}) maxChunk=${maxChunkMs}ms total=${totalMs}ms `
-      + `estPoll=${estPollMs}ms/${EVENT_CFG.pollSeconds}s `
+      + `logs=${logs} (v3=${v3} v2=${v2}) maxCall=${maxCallMs}ms maxChunkWall=${maxChunkMs}ms total=${totalMs}ms `
+      + `estPoll=${estPollMs}ms/${EVENT_CFG.pollSeconds}s (${chunksPerPoll} chunks) `
       + `${chunkFails ? `FAILED_CHUNKS=${chunkFails} ` : ''}${chunkOk && budgetOk ? 'OK' : 'FAIL'}`,
     );
   }
