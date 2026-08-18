@@ -541,7 +541,8 @@ async function runRawTier(runId) {
            FROM dry_run_liquidity_snapshots WHERE chain_id = $1
           ORDER BY pool_addr, observed_at DESC
        )
-       SELECT p.pool_addr, p.dex, p.pool_type, p.token0_addr, p.token1_addr, p.fee_millionths, p.created_at_block
+       SELECT p.pool_addr, p.dex, p.pool_type, p.token0_addr, p.token1_addr, p.fee_millionths, p.created_at_block,
+              p.token0_symbol, p.token1_symbol
          FROM dry_run_pool_registry p JOIN s ON s.pool_addr = p.pool_addr
         WHERE p.chain_id = $1 AND s.tvl_usd > 0
         ORDER BY p.discovered_at DESC`,
@@ -554,17 +555,28 @@ async function runRawTier(runId) {
 
     // 1) batch-read pool states
     const poolStates = [];
-    for (let base = 0; base < r.rows.length; base += 25) {
-      const { calls, plan, ifaces } = buildRawCallPlan(r.rows.slice(base, base + 25));
+    const runBatch = async (rows) => {
+      const { calls, plan, ifaces } = buildRawCallPlan(rows);
       const out = await mc3Aggregate(chainId, calls);
+      if (!out) {
+        // one bad pool kills the whole aggregate — bisect down to singles
+        swallow('raw-batch-fail');
+        if (rows.length === 1) return;
+        const mid = Math.ceil(rows.length / 2);
+        await runBatch(rows.slice(0, mid));
+        await runBatch(rows.slice(mid));
+        return;
+      }
       let idx = 0;
       for (const entry of plan) {
-        const data = out ? entry.kinds.map((_, i) => out[idx + i]) : null;
+        const data = entry.kinds.map((_, i) => out[idx + i]);
         idx += entry.kinds.length;
-        if (!data) continue; // failed batch — raw tier skips (refresh path owns the serial fallback)
         const st = decodeRawPoolState(entry, data, ifaces);
         if (st) poolStates.push({ row: entry.row, st });
       }
+    };
+    for (let base = 0; base < r.rows.length; base += 25) {
+      await runBatch(r.rows.slice(base, base + 25));
     }
 
     // 2) raw WETH/USD from the deepest WETH↔stable pool
@@ -601,12 +613,12 @@ async function runRawTier(runId) {
         const price = rawMarginalPriceUsd({ quoteReserveRaw: st.reserve1, quoteDecimals: q1.decimals, tokenReserveRaw: st.reserve0, tokenDecimals: t0 === wethAddrL ? 18 : (await pacedErc20(chainId, row.token0_addr)).decimals, quoteUsd: q1.sym === 'WETH' ? wethUsd : 1 });
         if (price == null) continue;
         const depth = (Number(st.reserve1) / 10 ** q1.decimals) * (q1.sym === 'WETH' ? wethUsd ?? 0 : 1);
-        ent = { addr: t0, priceUsd: price, pool: row.pool_addr, dex: row.dex, depthUsd: depth, feeBps: poolFeeBps(row.pool_type, row.fee_millionths), symbol: row.token0_symbol };
+        ent = { addr: t0, priceUsd: price, pool: row.pool_addr, dex: row.dex, depthUsd: depth, feeBps: poolFeeBps(row.pool_type, row.fee_millionths), symbol: row.token0_symbol ?? (await pacedErc20(chainId, row.token0_addr)).symbol };
       } else {
         const price = rawMarginalPriceUsd({ quoteReserveRaw: st.reserve0, quoteDecimals: q0.decimals, tokenReserveRaw: st.reserve1, tokenDecimals: t1 === wethAddrL ? 18 : (await pacedErc20(chainId, row.token1_addr)).decimals, quoteUsd: q0.sym === 'WETH' ? wethUsd : 1 });
         if (price == null) continue;
         const depth = (Number(st.reserve0) / 10 ** q0.decimals) * (q0.sym === 'WETH' ? wethUsd ?? 0 : 1);
-        ent = { addr: t1, priceUsd: price, pool: row.pool_addr, dex: row.dex, depthUsd: depth, feeBps: poolFeeBps(row.pool_type, row.fee_millionths), symbol: row.token1_symbol };
+        ent = { addr: t1, priceUsd: price, pool: row.pool_addr, dex: row.dex, depthUsd: depth, feeBps: poolFeeBps(row.pool_type, row.fee_millionths), symbol: row.token1_symbol ?? (await pacedErc20(chainId, row.token1_addr)).symbol };
       }
       if (!Number.isFinite(ent.depthUsd) || ent.depthUsd <= 0) continue;
       const ageH = ageHoursOfRow(row);
@@ -1463,7 +1475,7 @@ async function runOnce() {
     try { await refreshDiscoveryAndLiquidity(runId); } catch (e) { console.error(`[stage0] ${e.message}`); }
   }
   // Stage 0.5 (#57): raw tier every Nth cycle — feeds the trigger-driven Phase 2
-  if (RAW_CFG.enabled && cycleCounter % Number(RAW_CFG.intervalCycles ?? 3) === 0) {
+  if (RAW_CFG.enabled && (cycleCounter === 1 || cycleCounter % Number(RAW_CFG.intervalCycles ?? 3) === 0)) {
     try { await runRawTier(runId); } catch (e) {
       console.error(`[raw] tier failed, Phase 2 falls back to eligible universe: ${e.message}`);
       rawTierState.ok = false;
