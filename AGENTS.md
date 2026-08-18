@@ -63,9 +63,9 @@ Arbibot 2 — **Turborepo monorepo** (npm workspaces: `apps/*`, `packages/*`):
 
 **Safe-by-default флаги** (после panic все в безопасное состояние): `LIVE_AUTO_DRIVE_ENABLED=false`, `LEG_AUTO_DRIVE_ENABLED=false`, `PAPER_AUTO_DRIVE_ENABLED=false`, `DEX_LIVE_KILL_SWITCH`.
 
-**Качество:** миграции **001–058**; свежий build/lint/test snapshot — CI (последний локальный полный прогон: EO 876/876, opp-service 201/201 на коммите `1a7894b`, 2026-08-10).
+**Качество:** миграции **001–059**; свежий build/lint/test snapshot — CI (последний локальный полный прогон: EO 876/876, opp-service 201/201 на коммите `1a7894b`, 2026-08-10).
 
-### Migrations (001–058)
+### Migrations (001–059)
 
 Применяются лексикографически через `npm run db:migrate` (`tools/db-migrate.mjs`); полный список — `infra/postgres/migrations/`. Ключевые и неочевидные:
 
@@ -85,7 +85,7 @@ Arbibot 2 — **Turborepo monorepo** (npm workspaces: `apps/*`, `packages/*`):
 - **050** hotfix: partial unique `WHERE state='active'` на `paper_capital_reservations` (over-broad UNIQUE валил AutoDrive каскадно; self-healing)
 - **051/052** P9: UNIQUE(correlation_id)+sweeper; `submitting` state на `execution_legs`
 - **053/054** P10: `live.auto_drive` seed (`enabled:false`); `arbitrage_opportunities.live_execution_plan_id` + partial index (дедуп)
-- **055–058** probe: `dry_run_observations`, `dry_run_discovery`, bridge-fee колонки nullable; 058 (PLAN14 #52/#53) — `net_pp_bps`, `dry_run_run_stats` (gas/RPC-телеметрия, source cycle|event), `dry_run_arb_opportunities` (окна open→expired, partial-UNIQUE на open)
+- **055–058** probe: `dry_run_observations`, `dry_run_discovery`, bridge-fee колонки nullable; 058 (PLAN14 #52/#53) — `net_pp_bps`, `dry_run_run_stats` (gas/RPC-телеметрия, source cycle|event), `dry_run_arb_opportunities` (окна open→expired, partial-UNIQUE на open); 059 (PLAN14 #57) — `dry_run_raw_token_prices` (сырьевой тир: маргинальные цены из резервов, fee-adjusted спреды) + часовые агрегаты
 
 Migration **020** rollback починен через **024**; применять по порядку на чистых БД. Canonical registry (`venue_refs`, `canonical_instruments`, `canonical_routes`) не auto-seeded — `npm run db:seed-canonical`.
 
