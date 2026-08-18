@@ -861,6 +861,14 @@ async function quoteUsdToUnitsBest(chainId, tokenAddr, usd) {
     const out = await fn().catch(() => null);
     if (out && out > 0n) return { venue, amount: out };
   }
+  // WETH two-hop fallback for thin long-tail without a direct USDC pool
+  // (e.g. WBTC on OP): USDC → WETH → token, both 0.05% hops.
+  const weth = config.chains[chainId].seedTokens.WETH.addr;
+  const wOut = await quoteV3(chainId, usdc, weth, usdRaw, 500).catch(() => null);
+  if (wOut && wOut > 0n) {
+    const tOut = await quoteV3(chainId, weth, tokenAddr, wOut, 500).catch(() => null);
+    if (tOut && tOut > 0n) return { venue: 'uniswap-v3:500>weth', amount: tOut };
+  }
   return null;
 }
 
