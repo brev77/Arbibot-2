@@ -10,6 +10,7 @@ import {
   poolFeeBps, rawMarginalPriceUsd, feeAdjustedSpreadBps,
   decodeSwapAmounts, swapUsdFromEvent, isLargeSwap,
   hourlyCapAllows, cooldownAllows, rankEventCandidates,
+  resolveLegPrice,
 } from './probe-pp-core.mjs';
 
 test('computeGasEth: calibrated receipt values (Arb 0.020 gwei, OP + L1)', () => {
@@ -238,4 +239,40 @@ test('rankEventCandidates: open windows → newborn → rest; bigger disturbance
   const input = [{ token: 'X', swapUsd: 100, hasOpenWindow: false, newborn: false }, { token: 'Y', swapUsd: 300, hasOpenWindow: false, newborn: false }];
   rankEventCandidates(input);
   assert.equal(input[0].token, 'X');
+});
+
+test('resolveLegPrice: raw wins over garbage ladder (WSTETH fixture case, 🔴-1)', () => {
+  // raw 2379 present → used even though the ladder is garbage 402
+  const r = resolveLegPrice({ rawPriceUsd: 2379, ladderPriceUsd: 402, referenceUsd: 2381 });
+  assert.equal(r.priceUsd, 2379);
+  assert.equal(r.source, 'raw');
+  assert.equal(r.rejected, false);
+});
+
+test('resolveLegPrice: ladder fallback — accepted within 300 bps of the reference', () => {
+  // raw missing; ladder within 0.5% of reference → usable
+  const ok = resolveLegPrice({ ladderPriceUsd: 100.5, referenceUsd: 100 });
+  assert.equal(ok.priceUsd, 100.5);
+  assert.equal(ok.source, 'ladder');
+  // just under the 300 bps boundary → accepted; just over → rejected
+  assert.equal(resolveLegPrice({ ladderPriceUsd: 102.9, referenceUsd: 100 }).rejected, false);
+  assert.equal(resolveLegPrice({ ladderPriceUsd: 103.1, referenceUsd: 100 }).rejected, true);
+});
+
+test('resolveLegPrice: ladder contradicting the reference by >300 bps is rejected', () => {
+  const bad = resolveLegPrice({ ladderPriceUsd: 402, referenceUsd: 2379 }); // −8310 bps
+  assert.equal(bad.priceUsd, null);
+  assert.equal(bad.rejected, true);
+  assert.ok(bad.devBps > 8000);
+  // no reference available → ladder accepted unchallenged (last resort)
+  const noRef = resolveLegPrice({ ladderPriceUsd: 402 });
+  assert.equal(noRef.priceUsd, 402);
+  assert.equal(noRef.source, 'ladder');
+});
+
+test('resolveLegPrice: invalid inputs → null, never a fabricated price', () => {
+  assert.equal(resolveLegPrice({}).priceUsd, null);                       // nothing available
+  assert.equal(resolveLegPrice({ rawPriceUsd: 0 }).priceUsd, null);       // zero raw is not a price
+  assert.equal(resolveLegPrice({ rawPriceUsd: 5e12, ladderPriceUsd: 5 }).priceUsd, 5); // insane raw ignored, ladder sane
+  assert.equal(resolveLegPrice({ ladderPriceUsd: 3e12 }).priceUsd, null); // insane ladder rejected
 });

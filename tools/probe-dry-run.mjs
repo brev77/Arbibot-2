@@ -63,7 +63,7 @@ import {
   computeGasEth, median3, gasBpsUsd, computeNetPpBps, aggregateObservations,
   poolFeeBps, rawMarginalPriceUsd, feeAdjustedSpreadBps,
   decodeSwapAmounts, swapUsdFromEvent, isLargeSwap,
-  hourlyCapAllows, cooldownAllows, rankEventCandidates,
+  hourlyCapAllows, cooldownAllows, rankEventCandidates, resolveLegPrice,
 } from './probe-pp-core.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -697,9 +697,11 @@ async function runRawTier(runId) {
     for (const row of ow.rows) { quoteKeys.add(row.a.toLowerCase()); quoteKeys.add(row.b.toLowerCase()); }
   } catch { /* table missing on fresh DBs */ }
   // Cross-chain group index for the event tier (#58): every ≥2-chain group with
-  // per-chain entries (addr/symbol/depth/newborn). Canonical flag lets the event
-  // gates exclude majors (their big swaps are the normal market, not
-  // dislocations). Refreshed by each raw pass — the poller reads it live.
+  // per-chain entries (addr/symbol/priceUsd/depth/newborn). Canonical flag lets
+  // the event gates exclude majors (their big swaps are the normal market, not
+  // dislocations). priceUsd = the raw marginal of the pass — the honest leg
+  // price for event quotes (review 🔴-1). updatedAt bounds staleness for the
+  // cycle path's raw-first lookup (≤2h, same gate as the DB price query).
   const crossGroups = {};
   const tokenIndex = new Map(); // `${chainId}:${addrLower}` → group key
   for (const [gk, g] of Object.entries(groups)) {
@@ -708,10 +710,11 @@ async function runRawTier(runId) {
     crossGroups[gk] = {
       canonical: g.canonical === true,
       collision: g.collision === true,
+      updatedAt: Date.now(),
       chains: Object.fromEntries(chains.map((c) => {
         const e = g.chains[c];
         tokenIndex.set(`${c}:${e.addr.toLowerCase()}`, gk);
-        return [String(c), { addr: e.addr, symbol: e.symbol, depthUsd: e.depthUsd, newborn: e.newborn === true }];
+        return [String(c), { addr: e.addr, symbol: e.symbol, priceUsd: e.priceUsd, depthUsd: e.depthUsd, newborn: e.newborn === true }];
       })),
     };
   }
@@ -719,8 +722,8 @@ async function runRawTier(runId) {
   rawTierState.tokenIndex = tokenIndex;
   rawTierState.ok = true;
   rawTierState.quoteKeys = quoteKeys;
-  rawTierState.stats = { tokens: rawRows, groups: Object.keys(groups).length, triggered };
-  console.log(`[raw] rows=${rawRows} groups=${rawTierState.stats.groups} triggered=${triggered} (threshold ${triggerBps} bps fee-adjusted)`);
+  rawTierState.stats = { tokens: rawRows, groups: Object.keys(groups).length, cross: Object.keys(crossGroups).length, triggered };
+  console.log(`[raw] rows=${rawRows} groups=${rawTierState.stats.groups} cross=${rawTierState.stats.cross} triggered=${triggered} (threshold ${triggerBps} bps fee-adjusted)`);
 }
 
 // Retention tiering (#57, review №7): full resolution for retentionHours, then
@@ -1073,13 +1076,17 @@ async function runCycleCrossChain(runId) {
   const groups = {};
   for (const row of r.rows) {
     const chainId = Number(row.chain_id);
-    const p = await getPriceUsd(chainId, row.addr);
-    // Broken/garbage quotes (scam-token 1-unit pricing) produce absurd or
-    // non-finite USD prices — they would overflow the NUMERIC(20,8) columns
-    // ("numeric field overflow") and are meaningless as price-gap signal.
-    // 1e9 is far above any legit token price and safely below the column
-    // limit (NUMERIC(20,8) tops out at ~1e12).
-    if (p == null || !Number.isFinite(p) || p <= 0 || p > 1e9) continue;
+    // Raw-first leg price (review 🔴-1): the raw marginal when the raw tier has
+    // a fresh entry; the 1-unit ladder only as fallback. Broken/garbage ladder
+    // quotes (scam-token 1-unit pricing) produce absurd or non-finite USD
+    // prices — they would overflow the NUMERIC(20,8) columns and fabricate
+    // gaps; resolveLegPrice rejects them (1e9 guard kept for defense).
+    const rawP = rawPriceLookup(chainId, row.addr.toLowerCase());
+    const res = rawP != null
+      ? resolveLegPrice({ rawPriceUsd: rawP })
+      : resolveLegPrice({ ladderPriceUsd: await getPriceUsd(chainId, row.addr) });
+    if (res.priceUsd == null || res.priceUsd > 1e9) continue;
+    const p = res.priceUsd;
     const canonSym = canonIndex[`${chainId}:${row.addr.toLowerCase()}`] ?? null;
     const gk = canonSym ?? `sym:${row.symbol}`;
     groups[gk] ??= { canonical: canonSym != null, collision: false, chains: {} };
@@ -1090,7 +1097,7 @@ async function runCycleCrossChain(runId) {
       g.collision = true;
     }
     g.chains[chainId] = {
-      addr: row.addr, priceUsd: p, symbol: row.symbol,
+      addr: row.addr, priceUsd: p, priceSource: res.source, symbol: row.symbol,
       tokenTvl: row.token_tvl == null ? null : Number(row.token_tvl),
       newestBlock: row.newest_block == null ? null : Number(row.newest_block),
     };
@@ -1136,6 +1143,27 @@ async function runCycleCrossChain(runId) {
             group: buy.symbol, decimalsOk, gapOk, collision: g.collision,
             decimalsBuy: metaBuy.decimals, decimalsSell: metaSell.decimals,
           };
+        }
+        // Ladder sanity (review 🔴-1): a fallback ladder leg contradicting the
+        // group's raw-priced legs by >300 bps fabricates a gap — suspicious.
+        {
+          const rawLegs = onChains.map((c) => g.chains[c])
+            .filter((e) => e.priceSource === 'raw')
+            .map((e) => e.priceUsd).filter((x) => x != null && Number.isFinite(x) && x > 0)
+            .sort((a, b) => a - b);
+          if (rawLegs.length) {
+            const rawMedian = rawLegs[Math.floor(rawLegs.length / 2)];
+            const devBps = (leg) => leg.priceSource === 'ladder'
+              ? Math.abs(leg.priceUsd / rawMedian - 1) * 10000 : 0;
+            const devBuy = devBps(buy), devSell = devBps(sell);
+            if (devBuy > 300 || devSell > 300) {
+              trust = 'suspicious';
+              trustMeta = {
+                ...trustMeta, ladderSanityOk: false,
+                ladderDevBpsBuy: Number(devBuy.toFixed(1)), ladderDevBpsSell: Number(devSell.toFixed(1)),
+              };
+            }
+          }
         }
         for (const usd of PHASE2_NOTIONALS) {
           const amountInRaw = ethers.parseUnits((usd / buy.priceUsd).toFixed(Math.min(meta.decimals, 8)), meta.decimals);
@@ -1241,8 +1269,10 @@ async function runCycleCrossChain(runId) {
                 bridgeFeeUsd != null ? Number(bridgeFeeUsd.toFixed(6)) : null,
                 bridgeFeeBps != null ? Number(bridgeFeeBps.toFixed(4)) : null,
                 finalitySeconds, Number(netEdgeBps.toFixed(4)),
-                JSON.stringify({
-                  trust, ...trustMeta, exec, exec_pp: execPp,
+              JSON.stringify({
+                trust, ...trustMeta, exec, exec_pp: execPp,
+                price_source_buy: buy.priceSource,
+                price_source_sell: sell.priceSource,
                   ...(execPp ? {
                     venue_buy: execPp.venue_buy,
                     venue_sell: execPp.venue_sell,
@@ -1585,6 +1615,18 @@ function eventGroupOf(chainId, addrLower) {
   return { gk, group };
 }
 
+// Raw-first price lookup for the CYCLE path (review 🔴-1): the raw marginal of
+// the last good pass (≤2h fresh — same gate as the event sizing query). Null
+// when the raw tier has no fresh entry → caller falls back to the ladder.
+function rawPriceLookup(chainId, addrLower) {
+  const gk = rawTierState.tokenIndex?.get(`${chainId}:${addrLower}`);
+  if (!gk) return null;
+  const g = rawTierState.crossGroups?.[gk];
+  if (!g || !g.updatedAt || Date.now() - g.updatedAt > 2 * 3_600_000) return null;
+  const p = g.chains?.[String(chainId)]?.priceUsd;
+  return p != null && Number.isFinite(p) && p > 0 ? p : null;
+}
+
 async function scanChainEvents(chainId, rawLogs) {
   if (!(await acquire(chainId, 3000))) throw new RateLimitedError('rate-limited');
   const latest = await providers[chainId].getBlockNumber();
@@ -1689,6 +1731,18 @@ async function runEventQuotePass(runId, group, trig) {
       try { await sampleChainGas(c); } catch (e) { console.error(`[event gas ${c}] ${e.message}`); }
     }
   }
+  // Raw-first leg prices (review 🔴-1): the group entry carries the raw
+  // marginal of the last pass; the 1-unit ladder only as fallback, rejected
+  // when it contradicts the group's other raw legs by >300 bps — a garbage
+  // ladder must not fabricate the very gap the event is trying to measure.
+  const legPrice = async (chainId, leg, otherLegs) => {
+    const refs = otherLegs.map((o) => o.priceUsd).filter((p) => p != null && Number.isFinite(p) && p > 0).sort((a, b) => a - b);
+    const referenceUsd = refs.length ? refs[Math.floor(refs.length / 2)] : null;
+    const raw = resolveLegPrice({ rawPriceUsd: leg.priceUsd ?? null });
+    if (raw.priceUsd != null) return raw;
+    const ladder = await getPriceUsd(chainId, leg.addr);
+    return resolveLegPrice({ ladderPriceUsd: ladder, referenceUsd });
+  };
   let n = 0;
   for (let i = 0; i < chains.length; i++) {
     for (let j = 0; j < chains.length; j++) {
@@ -1696,10 +1750,14 @@ async function runEventQuotePass(runId, group, trig) {
       const buyChain = chains[i], sellChain = chains[j];
       const buy = group.chains[String(buyChain)];
       const sell = group.chains[String(sellChain)];
-      const priceBuy = await getPriceUsd(buyChain, buy.addr);
-      const priceSell = await getPriceUsd(sellChain, sell.addr);
-      if (priceBuy == null || priceSell == null || !(priceBuy > 0) || !(priceSell > 0)
-        || priceBuy > 1e9 || priceSell > 1e9) continue;
+      const othersBuy = chains.filter((c) => c !== buyChain).map((c) => group.chains[String(c)]);
+      const othersSell = chains.filter((c) => c !== sellChain).map((c) => group.chains[String(c)]);
+      const resBuy = await legPrice(buyChain, buy, othersBuy);
+      const resSell = await legPrice(sellChain, sell, othersSell);
+      if (resBuy.priceUsd == null || resSell.priceUsd == null
+        || resBuy.priceUsd > 1e9 || resSell.priceUsd > 1e9) continue;
+      const priceBuy = resBuy.priceUsd;
+      const priceSell = resSell.priceUsd;
       const priceDiffBps = ((priceSell - priceBuy) / priceBuy) * 10000;
       if (!Number.isFinite(priceDiffBps) || Math.abs(priceDiffBps) >= 99999) continue;
       const [metaBuy, metaSell] = await Promise.all([
@@ -1779,6 +1837,8 @@ async function runEventQuotePass(runId, group, trig) {
                 trigger_swap_usd: Math.round(trig.triggerSwapUsd ?? 0),
                 trigger_events: trig.triggerEvents ?? 1,
                 trust, ...trustMeta, exec_pp: execPp,
+                price_source_buy: resBuy.source,
+                price_source_sell: resSell.source,
                 ...(execPp ? {
                   venue_buy: execPp.venue_buy,
                   venue_sell: execPp.venue_sell,

@@ -180,6 +180,26 @@ export function rankEventCandidates(list) {
   return [...list].sort((a, b) => (tier(a) - tier(b)) || ((b.swapUsd ?? 0) - (a.swapUsd ?? 0)));
 }
 
+/** Leg price resolution (#58 review 🔴-1): the raw marginal price (reserves-
+ *  based, validity-gated by the raw tier) is the PRIMARY source for quote-leg
+ *  pricing; the 1-unit ladder (getPriceUsd) is only a fallback — and only when
+ *  it does not contradict an available reference (the group's other raw legs)
+ *  by more than sanityBps. A garbage ladder price must not fabricate a
+ *  cross-chain gap: the WSTETH fixture priced 402/0.24 via the ladder against
+ *  a raw 2379 → phantom gap → suspicious → exec_pp killed. */
+export function resolveLegPrice({ rawPriceUsd = null, ladderPriceUsd = null, referenceUsd = null, sanityBps = 300 }) {
+  const ok = (x) => x != null && Number.isFinite(x) && x > 0 && x < 1e9;
+  if (ok(rawPriceUsd)) return { priceUsd: rawPriceUsd, source: 'raw', rejected: false };
+  if (!ok(ladderPriceUsd)) return { priceUsd: null, source: 'none', rejected: false };
+  if (ok(referenceUsd)) {
+    const devBps = Math.abs(ladderPriceUsd / referenceUsd - 1) * 10000;
+    if (devBps > sanityBps) {
+      return { priceUsd: null, source: 'ladder', rejected: true, devBps: Number(devBps.toFixed(1)) };
+    }
+  }
+  return { priceUsd: ladderPriceUsd, source: 'ladder', rejected: false };
+}
+
 export function aggregateObservations(rows, { openNotionals = [50, 100], minNetBps = 0 } = {}) {
   const routes = new Map();
   for (const row of rows) {
