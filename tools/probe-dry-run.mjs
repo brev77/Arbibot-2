@@ -1879,7 +1879,9 @@ async function pollSwapEvents({ fixture = null } = {}) {
     hb.large += stats.large;
     hb.maxUsd = Math.max(hb.maxUsd, stats.maxUsd);
     hb.cands += cands.length;
-    if (hb.polls % 20 === 1) {
+    // first poll proves arming; then every 20th (reset-after-print keeps the
+    // modulo honest — a reset counter restarts at 1 and would print every poll)
+    if (hb.polls === 1 || hb.polls % 20 === 0) {
       console.log(`[event] hb: polls=${hb.polls} logs=${hb.logs} priced=${hb.priced} large=${hb.large} cand=${hb.cands} maxSwap=$${Math.round(hb.maxUsd)} guardSkip=${eventState.guardSkipped} blocks=${JSON.stringify(eventState.lastBlock)}`);
       eventState.hb = { polls: 0, logs: 0, priced: 0, large: 0, cands: 0, quoted: 0, maxUsd: 0 };
     }
