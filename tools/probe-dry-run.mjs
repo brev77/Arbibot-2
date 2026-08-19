@@ -1633,7 +1633,7 @@ async function buildEventCandidates(rawLogs, { minSwapUsd, depthFraction }) {
     );
     if (amounts) decoded.push({ chainId: Number(chainId), pool, amounts });
   }
-  if (decoded.length === 0) return [];
+  if (decoded.length === 0) return { cands: [], stats: { priced: 0, large: 0, maxUsd: 0 } };
 
   // raw prices FIRST (one DB query per chain): most swap tokens have no raw
   // price and are skipped for free — decimals (RPC) are only fetched for the
