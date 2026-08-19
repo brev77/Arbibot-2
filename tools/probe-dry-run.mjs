@@ -1879,11 +1879,11 @@ async function pollSwapEvents({ fixture = null } = {}) {
     hb.large += stats.large;
     hb.maxUsd = Math.max(hb.maxUsd, stats.maxUsd);
     hb.cands += cands.length;
-    // first poll proves arming; then every 20th (reset-after-print keeps the
-    // modulo honest — a reset counter restarts at 1 and would print every poll)
+    // Monotone polls counter drives the cadence (first poll proves arming,
+    // then every 20th); resetting polls itself would re-print every poll.
     if (hb.polls === 1 || hb.polls % 20 === 0) {
       console.log(`[event] hb: polls=${hb.polls} logs=${hb.logs} priced=${hb.priced} large=${hb.large} cand=${hb.cands} maxSwap=$${Math.round(hb.maxUsd)} guardSkip=${eventState.guardSkipped} blocks=${JSON.stringify(eventState.lastBlock)}`);
-      eventState.hb = { polls: 0, logs: 0, priced: 0, large: 0, cands: 0, quoted: 0, maxUsd: 0 };
+      eventState.hb = { polls: hb.polls, logs: 0, priced: 0, large: 0, cands: 0, quoted: 0, maxUsd: 0 };
     }
   }
   if (cands.length === 0) return { quoted: 0, candidates: 0 };
@@ -2041,6 +2041,11 @@ async function main() {
   }
 
   await bootstrap();
+  // Event poller (#58) arms BEFORE the first cycle: scanning and the block
+  // baseline start immediately; quotes simply wait for the raw tier to arm
+  // (rawTierState gate) instead of sleeping through cycle 1 (~15 min blind
+  // window after every restart otherwise).
+  if (CONTINUOUS && EVENT_CFG.enabled) startEventPoller();
   await runOnce();
   if (!CONTINUOUS) {
     await db.end();
@@ -2064,10 +2069,10 @@ async function main() {
       .finally(() => { busy = false; });
   }, PERIOD_SEC * 1000);
 
-  // Event poller (#58): same process, own timer; shares the rate limiter, the
-  // RPC-guard counters and the pg pool with the cycle. Quotes run concurrently
-  // with a cycle — that is the point (no waiting for the cycle boundary).
-  if (EVENT_CFG.enabled) startEventPoller();
+  // Event poller (#58) started before the first cycle (see above) — same
+  // process, own timer; shares the rate limiter, the RPC-guard counters and
+  // the pg pool with the cycle. Quotes run concurrently with a cycle — that
+  // is the point (no waiting for the cycle boundary).
 
   const shutdown = async (sig) => {
     console.log(`\n[${sig}] shutting down gracefully...`);
