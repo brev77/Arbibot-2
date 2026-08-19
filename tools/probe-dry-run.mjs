@@ -1507,6 +1507,8 @@ const eventState = {
   quoteTimes: [],         // ms timestamps of event quotes (sliding-hour cap)
   tokenLastQuoted: new Map(), // groupKey → ms of its last event quote
   guardSkipped: 0,
+  notArmedLogged: 0,
+  hb: { polls: 0, logs: 0, priced: 0, large: 0, cands: 0, quoted: 0, maxUsd: 0 },
 };
 const eventTimers = [];
 
@@ -1652,6 +1654,7 @@ async function buildEventCandidates(rawLogs, { minSwapUsd, depthFraction }) {
   }
 
   const candidates = new Map(); // gk → candidate
+  let priced = 0, large = 0, maxUsd = 0;
   for (const d of decoded) {
     const t0 = d.pool.token0.toLowerCase(), t1 = d.pool.token1.toLowerCase();
     const m0 = metaCache.get(`${d.chainId}:${t0}`), m1 = metaCache.get(`${d.chainId}:${t1}`);
@@ -1662,7 +1665,10 @@ async function buildEventCandidates(rawLogs, { minSwapUsd, depthFraction }) {
       decimals0: m0?.decimals, decimals1: m1?.decimals,
     });
     if (swapUsd == null) continue; // no fresh raw price → cannot size → skip (plan)
+    priced += 1;
+    maxUsd = Math.max(maxUsd, swapUsd);
     if (!isLargeSwap({ swapUsd, minSwapUsd, depthFraction, depthUsd: d.pool.tvlUsd })) continue;
+    large += 1;
     const hit = eventGroupOf(d.chainId, t0) ?? eventGroupOf(d.chainId, t1);
     if (!hit) continue; // not cross-chain (or canonical) → not event material
     const cand = candidates.get(hit.gk) ?? { ...hit, swapUsd: 0, events: 0 };
@@ -1670,7 +1676,7 @@ async function buildEventCandidates(rawLogs, { minSwapUsd, depthFraction }) {
     cand.events += 1;
     candidates.set(hit.gk, cand);
   }
-  return [...candidates.values()];
+  return { cands: [...candidates.values()], stats: { priced, large, maxUsd } };
 }
 
 // Immediate out-of-cycle quote of one group (#58): both directions, notionals
@@ -1858,10 +1864,26 @@ async function pollSwapEvents({ fixture = null } = {}) {
     }
   }
 
-  const cands = await buildEventCandidates(rawLogs, {
+  const { cands, stats } = await buildEventCandidates(rawLogs, {
     minSwapUsd: Number(EVENT_CFG.minSwapUsd ?? 500),
     depthFraction: Number(EVENT_CFG.depthFraction ?? 0.10),
   });
+  // Heartbeat accumulator (production polls only): a silent poller is
+  // indistinguishable from a dead one — the funnel + block progress make
+  // "quiet market" an observable fact, not an assumption.
+  if (!fixture) {
+    const hb = eventState.hb;
+    hb.polls += 1;
+    hb.logs += rawLogs.length;
+    hb.priced += stats.priced;
+    hb.large += stats.large;
+    hb.maxUsd = Math.max(hb.maxUsd, stats.maxUsd);
+    hb.cands += cands.length;
+    if (hb.polls % 20 === 1) {
+      console.log(`[event] hb: polls=${hb.polls} logs=${hb.logs} priced=${hb.priced} large=${hb.large} cand=${hb.cands} maxSwap=$${Math.round(hb.maxUsd)} guardSkip=${eventState.guardSkipped} blocks=${JSON.stringify(eventState.lastBlock)}`);
+      eventState.hb = { polls: 0, logs: 0, priced: 0, large: 0, cands: 0, quoted: 0, maxUsd: 0 };
+    }
+  }
   if (cands.length === 0) return { quoted: 0, candidates: 0 };
 
   // Priority (#58): open windows → newborn → rest; biggest disturbance first.
@@ -1910,6 +1932,7 @@ async function pollSwapEvents({ fixture = null } = {}) {
     console.log(`[event] ${symbol} — $${Math.round(cand.swapUsd)} swap (${cand.events} ev) → ${rows} cc-obs rows in ${Date.now() - q0}ms (run ${runId})`);
   }
   if (quoted > 0) {
+    eventState.hb.quoted += quoted;
     try { await runStage3Opportunities(runId); } catch (e) { console.error(`[event stage3] ${e.message}`); }
     await persistEventRunStats(runId, Date.now() - t0, rpcBefore);
     console.log(`[event] batch done: ${quoted}/${ranked.length} tokens in ${Date.now() - t0}ms`);
