@@ -31,7 +31,7 @@
     "@arbibot/tsconfig": "*",
     "@nestjs/testing": "^11.1.28",
     "@types/jest": "^30.0.0",
-    "@types/node": "^22.19.0",
+    "@types/node": "^22.20.2",
     "@types/uuid": "^11.0.0",
     "jest": "^30.3.0",
     "ts-jest": "^29.4.11",
